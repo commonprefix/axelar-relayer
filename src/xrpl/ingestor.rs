@@ -16,8 +16,8 @@ use crate::{
     error::IngestorError,
     gmp_api::{
         gmp_types::{
-            self, Amount, BroadcastRequest, CommonEventFields, ConstructProofTask, Event, Metadata,
-            QueryRequest, ReactToWasmEventTask, VerifyTask,
+            self, Amount, BroadcastRequest, CommonEventFields, ConstructProofTask, Event,
+            GatewayV2Message, Metadata, QueryRequest, ReactToWasmEventTask, VerifyTask,
         },
         GmpApi,
     },
@@ -191,7 +191,7 @@ fn parse_message_from_context(metadata: Option<Metadata>) -> Result<XRPLMessage,
         IngestorError::GenericError("Verify task missing user_message in source_context".into())
     })?;
 
-    Ok(user_msg.clone())
+    Ok(serde_json::from_str(user_msg).unwrap())
 }
 
 impl XrplIngestor {
@@ -287,7 +287,7 @@ impl XrplIngestor {
 
         let source_context = HashMap::from([(
             "user_message".to_owned(),
-            XRPLMessage::UserMessage(xrpl_user_message.clone()),
+            serde_json::to_string(&XRPLMessage::UserMessage(xrpl_user_message.clone())).unwrap(),
         )]);
 
         let query = xrpl_gateway::msg::QueryMsg::InterchainTransfer {
@@ -313,16 +313,32 @@ impl XrplIngestor {
                 IngestorError::GenericError(format!("Failed to parse ITS Message: {}", e))
             })?;
 
+        let message_with_payload = interchain_transfer_response
+            .message_with_payload
+            .clone()
+            .unwrap();
+
         Ok(Event::Call {
             common: CommonEventFields {
                 r#type: "CALL".to_owned(),
-                event_id: xrpl_user_message.tx_id.to_string(),
+                event_id: format!(
+                    "{}-call",
+                    xrpl_user_message.tx_id.to_string().to_lowercase()
+                ),
             },
-            message: interchain_transfer_response
-                .message_with_payload
-                .clone()
-                .unwrap()
-                .message,
+            message: GatewayV2Message {
+                message_id: message_with_payload
+                    .message
+                    .cc_id
+                    .message_id
+                    .to_lowercase()
+                    .trim_start_matches("0x")
+                    .to_string(),
+                source_chain: message_with_payload.message.cc_id.source_chain.to_string(),
+                source_address: message_with_payload.message.source_address.to_string(),
+                destination_address: message_with_payload.message.destination_address.to_string(),
+                payload_hash: hex::encode(message_with_payload.message.payload_hash),
+            },
             destination_chain: xrpl_user_message.destination_chain.to_string(),
             payload: interchain_transfer_response
                 .message_with_payload
@@ -351,13 +367,13 @@ impl XrplIngestor {
                 "Payment transaction missing field 'hash'".to_owned(),
             ))?;
 
-        let gas_amount = 0; // TODO: get from memo
+        let gas_amount = 300; // TODO: get from memo
         Ok(Event::GasCredit {
             common: CommonEventFields {
                 r#type: "GAS_CREDIT".to_owned(),
-                event_id: tx_hash.clone(),
+                event_id: format!("{}-gas", tx_hash.clone().to_lowercase()),
             },
-            message_id: tx_hash, // TODO: Should this be the its hub message id?
+            message_id: tx_hash.to_lowercase(),
             refund_address: payment.common.account.clone(),
             payment: gmp_types::Amount {
                 token_id: None,
