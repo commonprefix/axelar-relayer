@@ -106,6 +106,11 @@ impl Ingestor {
             ChainTransaction::Xrpl(tx) => self.xrpl_ingestor.handle_transaction(tx).await?,
         };
 
+        if events.len() == 0 {
+            info!("No GMP events to post.");
+            return Ok(());
+        }
+
         info!("Posting events: {:?}", events.clone());
         let response = self
             .gmp_api
