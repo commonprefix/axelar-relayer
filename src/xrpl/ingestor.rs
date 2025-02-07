@@ -1,3 +1,4 @@
+use base64::prelude::*;
 use core::str;
 use std::{collections::HashMap, str::FromStr, sync::Arc, vec};
 
@@ -334,12 +335,17 @@ impl XrplIngestor {
                 payload_hash: hex::encode(message_with_payload.message.payload_hash),
             },
             destination_chain: "axelar".to_owned(),
-            payload: interchain_transfer_response
-                .message_with_payload
-                .clone()
-                .unwrap()
-                .payload
-                .to_string(),
+            payload: BASE64_STANDARD.encode(
+                hex::decode(
+                    interchain_transfer_response
+                        .message_with_payload
+                        .clone()
+                        .unwrap()
+                        .payload
+                        .to_string(),
+                )
+                .unwrap(),
+            ), // TODO: no unwrap
             meta: Some(Metadata {
                 tx_id: None,
                 from_address: None,
