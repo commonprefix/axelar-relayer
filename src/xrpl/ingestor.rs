@@ -1,7 +1,6 @@
 use base64::prelude::*;
 use core::str;
 use std::{collections::HashMap, str::FromStr, sync::Arc, vec};
-use tiny_keccak::{Hasher, Keccak};
 
 use multisig::key::PublicKey;
 use router_api::CrossChainId;
@@ -85,24 +84,15 @@ async fn build_xrpl_user_message(
         ));
     }
 
-    let (payload, payload_hash) = if let Ok(payload_hex) = payload_memo {
+    let (payload, payload_hash) = if let Ok(payload_str) = payload_memo {
         // If we have 'payload', store it in the cache and receive the payload_hash.
-        let mut hasher = Keccak::v256();
-        let payload_bytes = hex::decode(payload_hex.clone())
-            .map_err(|e| format!("Failed to decode hex payload: {}", e))
-            .unwrap(); // TODO: no unwrap
-        hasher.update(&payload_bytes);
-        let mut hash = [0u8; 32];
-        hasher.finalize(&mut hash);
-        let hash = hex::encode(hash);
-
-        // let hash = payload_cache
-        //     .store_payload(&payload_str)
-        //     .await
-        //     .map_err(|e| {
-        //         IngestorError::GenericError(format!("Failed to store payload in cache: {}", e))
-        //     })?;
-        (Some(payload_hex), Some(hash))
+        let hash = payload_cache
+            .store_payload(&payload_str)
+            .await
+            .map_err(|e| {
+                IngestorError::GenericError(format!("Failed to store payload in cache: {}", e))
+            })?;
+        (Some(payload_str), Some(hash))
     } else if let Ok(payload_hash_str) = payload_hash_memo {
         // If we have 'payload_hash', retrieve payload from the cache.
         let payload_retrieved =
