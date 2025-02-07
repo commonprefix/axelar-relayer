@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 
-use router_api::Message;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use xrpl_amplifier_types::msg::XRPLMessage;
@@ -168,7 +167,7 @@ pub struct Metadata {
     pub from_address: Option<String>,
     pub finalized: Option<bool>,
     #[serde(rename = "sourceContext")]
-    pub source_context: Option<HashMap<String, XRPLMessage>>,
+    pub source_context: Option<HashMap<String, String>>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -177,7 +176,7 @@ pub enum Event {
     Call {
         #[serde(flatten)]
         common: CommonEventFields,
-        message: Message,
+        message: GatewayV2Message,
         #[serde(rename = "destinationChain")]
         destination_chain: String,
         payload: String,

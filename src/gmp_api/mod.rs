@@ -9,6 +9,7 @@ use std::{
     time::Duration,
 };
 use tracing::{debug, info, warn};
+use tracing_subscriber::field::debug;
 
 use reqwest::{Client, Identity};
 
@@ -148,7 +149,7 @@ impl GmpApi {
         let request = self
             .client
             .post(&url)
-            .header("Content-Type", "text/plain")
+            .header("Content-Type", "application/json")
             .body(serde_json::to_string(&map).unwrap());
 
         let response: PostEventResponse = GmpApi::request_json(request).await?;
@@ -169,11 +170,19 @@ impl GmpApi {
 
         let request = self
             .client
-            .post(url)
-            .header("Content-Type", "text/plain")
+            .post(url.clone())
+            .header("Content-Type", "application/json")
             .body(serde_json::to_string(payload).unwrap());
 
-        GmpApi::request_text_if_success(request).await
+        debug!("Broadcast:");
+        debug!("URL: {}", url);
+        debug!("Payload: {}", serde_json::to_string(payload).unwrap());
+
+        let response = GmpApi::request_text_if_success(request).await;
+        if response.is_ok() {
+            debug!("Broadcast successful: {:?}", response.as_ref().unwrap());
+        }
+        response
     }
 
     pub async fn post_query(
@@ -190,7 +199,7 @@ impl GmpApi {
         let request = self
             .client
             .post(url)
-            .header("Content-Type", "text/plain")
+            .header("Content-Type", "application/json")
             .body(serde_json::to_string(payload).unwrap());
 
         GmpApi::request_text_if_success(request).await
