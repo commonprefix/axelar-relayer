@@ -327,13 +327,7 @@ impl XrplIngestor {
                 ),
             },
             message: GatewayV2Message {
-                message_id: message_with_payload
-                    .message
-                    .cc_id
-                    .message_id
-                    .to_lowercase()
-                    .trim_start_matches("0x")
-                    .to_string(),
+                message_id: message_with_payload.message.cc_id.message_id.to_lowercase(),
                 source_chain: message_with_payload.message.cc_id.source_chain.to_string(),
                 source_address: message_with_payload.message.source_address.to_string(),
                 destination_address: message_with_payload.message.destination_address.to_string(),
@@ -373,7 +367,7 @@ impl XrplIngestor {
                 r#type: "GAS_CREDIT".to_owned(),
                 event_id: format!("{}-gas", tx_hash.clone().to_lowercase()),
             },
-            message_id: tx_hash.to_lowercase(),
+            message_id: format!("0x{}", tx_hash.to_lowercase()),
             refund_address: payment.common.account.clone(),
             payment: gmp_types::Amount {
                 token_id: None,
