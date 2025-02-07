@@ -333,7 +333,7 @@ impl XrplIngestor {
                 destination_address: message_with_payload.message.destination_address.to_string(),
                 payload_hash: hex::encode(message_with_payload.message.payload_hash),
             },
-            destination_chain: xrpl_user_message.destination_chain.to_string(),
+            destination_chain: "axelar".to_owned(),
             payload: interchain_transfer_response
                 .message_with_payload
                 .clone()
