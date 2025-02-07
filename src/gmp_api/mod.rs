@@ -9,7 +9,6 @@ use std::{
     time::Duration,
 };
 use tracing::{debug, info, warn};
-use tracing_subscriber::field::debug;
 
 use reqwest::{Client, Identity};
 

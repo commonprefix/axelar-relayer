@@ -101,9 +101,20 @@ pub struct ConstructProofTask {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct ReactToWasmEventTaskFields {
-    // TODO: finalize fields
-    pub event_name: String,
-    pub message: XRPLMessage,
+    pub event: WasmEvent,
+    pub height: u64,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct EventAttribute {
+    pub key: String,
+    pub value: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct WasmEvent {
+    pub attributes: Vec<EventAttribute>,
+    pub r#type: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]

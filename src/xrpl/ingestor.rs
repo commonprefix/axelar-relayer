@@ -511,12 +511,25 @@ impl XrplIngestor {
     }
 
     pub async fn handle_wasm_event(&self, task: ReactToWasmEventTask) -> Result<(), IngestorError> {
-        let event_name = task.task.event_name.clone();
+        let event_name = task.task.event.r#type.clone();
 
         // TODO: check the source contract of the event
-        match task.task.event_name.as_str() {
-            "wasm-quorum-reached" => {
-                let xrpl_message = task.task.message.clone();
+        match event_name.as_str() {
+            "wasm-quorum_reached" => {
+                // TODO: no unwrap
+                let xrpl_message: XRPLMessage = serde_json::from_str(
+                    task.task
+                        .event
+                        .attributes
+                        .iter()
+                        .find(|e| e.key == "content")
+                        .unwrap()
+                        .value
+                        .as_str(),
+                )
+                .map_err(|e| {
+                    IngestorError::GenericError(format!("Failed to parse XRPLMessage: {}", e))
+                })?;
                 let mut prover_tx = None;
 
                 let (contract_address, request) = match xrpl_message.clone() {
