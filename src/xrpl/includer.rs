@@ -1,3 +1,4 @@
+use base64::engine;
 use libsecp256k1::{PublicKey, SecretKey};
 use std::sync::Arc;
 use std::time::Duration;
@@ -141,7 +142,11 @@ impl Broadcaster for XRPLBroadcaster {
             .await
             .map_err(|e| BroadcasterError::RPCCallFailed(e.to_string()))?;
 
-        if response.engine_result == TransactionResult::tesSUCCESS {
+        let engine_result = serde_json::to_string(&response.engine_result).unwrap();
+        if engine_result.starts_with("tes")
+            || engine_result.starts_with("tec")
+            || response.engine_result == TransactionResult::tefALREADY
+        {
             let tx_hash = response.tx_json.common().hash.as_ref().ok_or_else(|| {
                 BroadcasterError::RPCCallFailed("Transaction hash not found".to_string())
             })?;
