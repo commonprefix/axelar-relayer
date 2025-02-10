@@ -2,7 +2,7 @@ use libsecp256k1::{PublicKey, SecretKey};
 use std::sync::Arc;
 use std::time::Duration;
 use tracing::debug;
-use xrpl_api::SubmitRequest;
+use xrpl_api::{ResultCategory, SubmitRequest};
 use xrpl_binary_codec::serialize;
 use xrpl_binary_codec::sign::sign_transaction;
 use xrpl_types::PaymentTransaction;
@@ -141,17 +141,23 @@ impl Broadcaster for XRPLBroadcaster {
             .await
             .map_err(|e| BroadcasterError::RPCCallFailed(e.to_string()))?;
 
-        let engine_result = serde_json::to_string(&response.engine_result).unwrap();
-        if engine_result.starts_with("tes") || engine_result.starts_with("tec") {
+        if response.engine_result.category() == ResultCategory::Tec
+            || response.engine_result.category() == ResultCategory::Tes
+        {
             // TODO: handle tx that has already been succesfully broadcast
             let tx_hash = response.tx_json.common().hash.as_ref().ok_or_else(|| {
                 BroadcasterError::RPCCallFailed("Transaction hash not found".to_string())
             })?;
             Ok(tx_hash.clone())
         } else {
+            debug!(
+                "Transaction failed: {:?}: {}",
+                response.engine_result.clone(),
+                response.engine_result_message.clone()
+            );
             Err(BroadcasterError::RPCCallFailed(format!(
-                "Transaction failed: {}",
-                response.engine_result_message
+                "Transaction failed: {:?}: {}",
+                response.engine_result, response.engine_result_message
             )))
         }
     }
