@@ -611,7 +611,7 @@ impl XrplIngestor {
                 IngestorError::GenericError(format!("Failed to construct CrossChainId: {}", e))
             })?;
 
-        let payload_bytes = hex::decode(&task.task.payload).map_err(|e| {
+        let payload_bytes = BASE64_STANDARD.decode(&task.task.payload).map_err(|e| {
             IngestorError::GenericError(format!("Failed to decode task payload: {}", e))
         })?;
 
