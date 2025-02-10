@@ -219,6 +219,7 @@ pub enum Event {
         message_id: String,
         #[serde(rename = "sourceChain")]
         source_chain: String,
+        status: String,
         cost: Amount,
         meta: Option<Metadata>,
     },

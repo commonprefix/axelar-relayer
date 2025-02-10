@@ -558,7 +558,30 @@ impl XrplIngestor {
                 if let XRPLMessage::ProverMessage(_) = xrpl_message {
                     match prover_tx.unwrap() {
                         Transaction::Payment(tx) => {
+                            let tx_status: String = serde_json::from_str(
+                                task.task
+                                    .event
+                                    .attributes
+                                    .iter()
+                                    .find(|e| e.key == "status")
+                                    .unwrap()
+                                    .value
+                                    .as_str(),
+                            )
+                            .map_err(|e| {
+                                IngestorError::GenericError(format!(
+                                    "Failed to parse XRPLMessage: {}",
+                                    e
+                                ))
+                            })?;
+
+                            let mut status = match tx_status.as_str() {
+                                "succeeded_on_source_chain" => "SUCCESSFUL",
+                                _ => "REVERTED",
+                            };
+
                             let common = tx.common;
+                            // TODO: MessageExecuted could be moved earlier, right after broadcasting the message
                             let event = Event::MessageExecuted {
                                 common: CommonEventFields {
                                     r#type: "MESSAGE_EXECUTED".to_owned(),
@@ -566,6 +589,7 @@ impl XrplIngestor {
                                 },
                                 message_id: "id".to_owned(),       // TODO
                                 source_chain: "source".to_owned(), // TODO
+                                status: status.to_string(),
                                 cost: Amount {
                                     token_id: None,
                                     amount: common.fee,
