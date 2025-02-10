@@ -23,7 +23,7 @@ use crate::{
         GmpApi,
     },
     payload_cache::PayloadCacheClient,
-    utils::extract_from_xrpl_memo,
+    utils::{extract_from_xrpl_memo, extract_hex_xrpl_memo},
 };
 
 fn extract_memo(memos: &Option<Vec<Memo>>, memo_type: &str) -> Result<String, IngestorError> {
@@ -582,15 +582,16 @@ impl XrplIngestor {
 
                             let common = tx.common;
                             let message_id =
-                                extract_from_xrpl_memo(common.memos.clone(), "message_id")
-                                    .map_err(|e| {
+                                extract_hex_xrpl_memo(common.memos.clone(), "message_id").map_err(
+                                    |e| {
                                         IngestorError::GenericError(format!(
                                             "Failed to extract message_id from memos: {}",
                                             e
                                         ))
-                                    })?;
+                                    },
+                                )?;
                             let source_chain =
-                                extract_from_xrpl_memo(common.memos.clone(), "source_chain")
+                                extract_hex_xrpl_memo(common.memos.clone(), "source_chain")
                                     .map_err(|e| {
                                         IngestorError::GenericError(format!(
                                             "Failed to extract source_chain from memos: {}",
@@ -605,8 +606,8 @@ impl XrplIngestor {
                                     r#type: "MESSAGE_EXECUTED".to_owned(),
                                     event_id: common.hash.unwrap(),
                                 },
-                                message_id,
-                                source_chain,
+                                message_id: message_id.to_string(),
+                                source_chain: source_chain.to_string(),
                                 status: status.to_string(),
                                 cost: Amount {
                                     token_id: None,
