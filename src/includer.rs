@@ -93,7 +93,7 @@ where
                     info!("Consuming task: {:?}", gateway_tx_task);
                     let broadcast_result = self
                         .broadcaster
-                        .broadcast(gateway_tx_task.task.execute_data)
+                        .broadcast(hex::encode(gateway_tx_task.task.execute_data))
                         .await
                         .map_err(|e| IncluderError::ConsumerError(e.to_string()));
 
