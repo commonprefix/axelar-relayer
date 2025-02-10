@@ -575,20 +575,38 @@ impl XrplIngestor {
                                 ))
                             })?;
 
-                            let mut status = match tx_status.as_str() {
+                            let status = match tx_status.as_str() {
                                 "succeeded_on_source_chain" => "SUCCESSFUL",
                                 _ => "REVERTED",
                             };
 
                             let common = tx.common;
+                            let message_id =
+                                extract_from_xrpl_memo(common.memos.clone(), "message_id")
+                                    .map_err(|e| {
+                                        IngestorError::GenericError(format!(
+                                            "Failed to extract message_id from memos: {}",
+                                            e
+                                        ))
+                                    })?;
+                            let source_chain =
+                                extract_from_xrpl_memo(common.memos.clone(), "source_chain")
+                                    .map_err(|e| {
+                                        IngestorError::GenericError(format!(
+                                            "Failed to extract source_chain from memos: {}",
+                                            e
+                                        ))
+                                    })?;
+
+                            // TODO: Don't send if the tx failed
                             // TODO: MessageExecuted could be moved earlier, right after broadcasting the message
                             let event = Event::MessageExecuted {
                                 common: CommonEventFields {
                                     r#type: "MESSAGE_EXECUTED".to_owned(),
                                     event_id: common.hash.unwrap(),
                                 },
-                                message_id: "id".to_owned(),       // TODO
-                                source_chain: "source".to_owned(), // TODO
+                                message_id,
+                                source_chain,
                                 status: status.to_string(),
                                 cost: Amount {
                                     token_id: None,
