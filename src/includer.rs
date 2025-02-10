@@ -1,3 +1,4 @@
+use base64::{prelude::BASE64_STANDARD, Engine};
 use futures::StreamExt;
 use lapin::{options::BasicAckOptions, Consumer};
 use std::{future::Future, sync::Arc};
@@ -93,7 +94,11 @@ where
                     info!("Consuming task: {:?}", gateway_tx_task);
                     let broadcast_result = self
                         .broadcaster
-                        .broadcast(hex::encode(gateway_tx_task.task.execute_data))
+                        .broadcast(hex::encode(
+                            BASE64_STANDARD
+                                .decode(gateway_tx_task.task.execute_data)
+                                .unwrap(),
+                        ))
                         .await
                         .map_err(|e| IncluderError::ConsumerError(e.to_string()));
 
