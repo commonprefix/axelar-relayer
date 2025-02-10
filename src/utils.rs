@@ -79,6 +79,15 @@ pub fn extract_from_xrpl_memo(
     }
 }
 
+pub fn extract_hex_xrpl_memo(
+    memos: Option<Vec<Memo>>,
+    memo_type: &str,
+) -> Result<String, anyhow::Error> {
+    let hex_str = extract_from_xrpl_memo(memos.clone(), memo_type)?;
+    let bytes = hex::decode(&hex_str)?;
+    String::from_utf8(bytes).map_err(|e| e.into())
+}
+
 pub fn setup_logging(config: &Config) -> ClientInitGuard {
     let _guard = sentry::init((
         config.xrpl_relayer_sentry_dsn.to_string(),
