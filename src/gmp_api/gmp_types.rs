@@ -189,6 +189,13 @@ pub enum CannotExecuteMessageReason {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "UPPERCASE")]
+pub enum MessageExecutionStatus {
+    SUCCESSFUL,
+    REVERTED,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(untagged)]
 pub enum Event {
     Call {
@@ -224,7 +231,7 @@ pub enum Event {
         message_id: String,
         #[serde(rename = "sourceChain")]
         source_chain: String,
-        status: String,
+        status: MessageExecutionStatus,
         cost: Amount,
     },
     CannotExecuteMessageV2 {

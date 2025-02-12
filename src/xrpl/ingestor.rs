@@ -18,7 +18,8 @@ use crate::{
     gmp_api::{
         gmp_types::{
             self, Amount, BroadcastRequest, CommonEventFields, ConstructProofTask, Event,
-            GatewayV2Message, Metadata, QueryRequest, ReactToWasmEventTask, VerifyTask,
+            GatewayV2Message, MessageExecutionStatus, Metadata, QueryRequest, ReactToWasmEventTask,
+            VerifyTask,
         },
         GmpApi,
     },
@@ -576,8 +577,8 @@ impl XrplIngestor {
                             })?;
 
                             let status = match tx_status.as_str() {
-                                "succeeded_on_source_chain" => "SUCCESSFUL",
-                                _ => "REVERTED",
+                                "succeeded_on_source_chain" => MessageExecutionStatus::SUCCESSFUL,
+                                _ => MessageExecutionStatus::REVERTED,
                             };
 
                             let common = tx.common;
@@ -609,7 +610,7 @@ impl XrplIngestor {
                                 },
                                 message_id: message_id.to_string(),
                                 source_chain: source_chain.to_string(),
-                                status: status.to_string(),
+                                status,
                                 cost: Amount {
                                     token_id: None,
                                     amount: common.fee,
