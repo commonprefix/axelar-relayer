@@ -4,18 +4,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct RouterMessage {
-    // TODO: can this be imported?
-    pub cc_id: String,
-    pub source_address: String,
-    pub destination_chain: String,
-    pub destination_address: String,
-    pub payload_hash: String,
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct GatewayV2Message {
-    // TODO: can this be imported?
     #[serde(rename = "messageID")]
     pub message_id: String,
     #[serde(rename = "sourceChain")]
