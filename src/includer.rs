@@ -7,7 +7,7 @@ use tracing::{debug, error, info, warn};
 use crate::{
     error::{BroadcasterError, IncluderError, RefundManagerError},
     gmp_api::{
-        gmp_types::{Amount, CommonEventFields, Event, Task},
+        gmp_types::{Amount, CannotExecuteMessageReason, CommonEventFields, Event, Task},
         GmpApi,
     },
     queue::{Queue, QueueItem},
@@ -103,18 +103,19 @@ where
                         .map_err(|e| IncluderError::ConsumerError(e.to_string()));
 
                     if broadcast_result.is_err() {
-                        let cannot_execute_message_event = Event::CannotExecuteMessage {
+                        let cannot_execute_message_event = Event::CannotExecuteMessageV2 {
                             common: CommonEventFields {
-                                r#type: "CANNOT_EXECUTE_MESSAGE".to_owned(),
-                                event_id: "foobar".to_owned(), // TODO
+                                r#type: "CANNOT_EXECUTE_MESSAGE/V2".to_owned(),
+                                event_id: format!(
+                                    "cannot-execute-task-v{}-{}",
+                                    1, gateway_tx_task.common.id
+                                ),
+                                meta: None,
                             },
-                            task_item_id: gateway_tx_task.common.id.to_string(),
-                            reason: broadcast_result.unwrap_err().to_string(),
-                            details: Amount {
-                                // TODO
-                                token_id: None,
-                                amount: "0".to_owned(),
-                            },
+                            message_id: "".to_owned(),   // TODO
+                            source_chain: "".to_owned(), // TODO
+                            reason: CannotExecuteMessageReason::Error, // TODO
+                            details: broadcast_result.unwrap_err().to_string(),
                         };
 
                         self.gmp_api
@@ -150,7 +151,8 @@ where
                         let gas_refunded = Event::GasRefunded {
                             common: CommonEventFields {
                                 r#type: "GAS_REFUNDED".to_owned(),
-                                event_id: tx_hash
+                                event_id: tx_hash,
+                                meta: None,
                             },
                             recipient_address: refund_task.task.refund_recipient_address,
                             refunded_amount: Amount {

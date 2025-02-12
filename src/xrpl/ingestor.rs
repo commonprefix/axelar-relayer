@@ -326,6 +326,12 @@ impl XrplIngestor {
                     "{}-call",
                     xrpl_user_message.tx_id.to_string().to_lowercase()
                 ),
+                meta: Some(Metadata {
+                    tx_id: None,
+                    from_address: None,
+                    finalized: None,
+                    source_context: Some(source_context),
+                }),
             },
             message: GatewayV2Message {
                 message_id: message_with_payload.message.cc_id.message_id.to_lowercase(),
@@ -346,12 +352,6 @@ impl XrplIngestor {
                 )
                 .unwrap(),
             ), // TODO: no unwrap
-            meta: Some(Metadata {
-                tx_id: None,
-                from_address: None,
-                finalized: None,
-                source_context: Some(source_context),
-            }),
         })
     }
 
@@ -372,6 +372,7 @@ impl XrplIngestor {
             common: CommonEventFields {
                 r#type: "GAS_CREDIT".to_owned(),
                 event_id: format!("{}-gas", tx_hash.clone().to_lowercase()),
+                meta: None,
             },
             message_id: format!("0x{}", tx_hash.to_lowercase()),
             refund_address: payment.common.account.clone(),
@@ -379,7 +380,6 @@ impl XrplIngestor {
                 token_id: None,
                 amount: gas_amount.to_string(),
             },
-            meta: None,
         })
     }
 
@@ -605,6 +605,7 @@ impl XrplIngestor {
                                 common: CommonEventFields {
                                     r#type: "MESSAGE_EXECUTED".to_owned(),
                                     event_id: common.hash.unwrap(),
+                                    meta: None,
                                 },
                                 message_id: message_id.to_string(),
                                 source_chain: source_chain.to_string(),
@@ -613,7 +614,6 @@ impl XrplIngestor {
                                     token_id: None,
                                     amount: common.fee,
                                 },
-                                meta: None,
                             };
                             let events_response =
                                 self.gmp_api.post_events(vec![event]).await.map_err(|e| {

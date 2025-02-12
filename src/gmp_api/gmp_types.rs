@@ -2,7 +2,6 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use xrpl_amplifier_types::msg::XRPLMessage;
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct RouterMessage {
@@ -168,6 +167,7 @@ pub struct CommonEventFields {
     pub r#type: String,
     #[serde(rename = "eventID")]
     pub event_id: String,
+    pub meta: Option<Metadata>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -182,6 +182,13 @@ pub struct Metadata {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum CannotExecuteMessageReason {
+    InsufficientGas,
+    Error,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(untagged)]
 pub enum Event {
     Call {
@@ -191,7 +198,6 @@ pub enum Event {
         #[serde(rename = "destinationChain")]
         destination_chain: String,
         payload: String,
-        meta: Option<Metadata>,
     },
     GasRefunded {
         #[serde(flatten)]
@@ -210,7 +216,6 @@ pub enum Event {
         #[serde(rename = "refundAddress")]
         refund_address: String,
         payment: Amount,
-        meta: Option<Metadata>,
     },
     MessageExecuted {
         #[serde(flatten)]
@@ -221,15 +226,16 @@ pub enum Event {
         source_chain: String,
         status: String,
         cost: Amount,
-        meta: Option<Metadata>,
     },
-    CannotExecuteMessage {
+    CannotExecuteMessageV2 {
         #[serde(flatten)]
         common: CommonEventFields,
-        #[serde(rename = "taskItemID")]
-        task_item_id: String,
-        reason: String,
-        details: Amount,
+        #[serde(rename = "messageID")]
+        message_id: String,
+        #[serde(rename = "sourceChain")]
+        source_chain: String,
+        reason: CannotExecuteMessageReason,
+        details: String,
     },
 }
 
