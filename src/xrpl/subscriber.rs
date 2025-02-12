@@ -65,7 +65,7 @@ impl TransactionPoller for XrplSubscriber {
             ledger_index_min: Some((self.latest_ledger + 1).to_string()),
             ledger_index_max: Some((-1).to_string()),
             pagination: RequestPagination {
-                limit: Some(1),
+                limit: Some(10),
                 ..Default::default()
             },
             ..Default::default()
@@ -73,9 +73,17 @@ impl TransactionPoller for XrplSubscriber {
         let res = self.client.call(request).await;
 
         let response = res.map_err(|e| anyhow!("Error getting txs: {:?}", e.to_string()))?;
-        self.latest_ledger = response.ledger_index_max.into();
-        if let Err(err) = self.store_latest_ledger().await {
-            warn!("{:?}", err);
+
+        let max_response_ledger = response
+            .transactions
+            .iter()
+            .map(|tx| tx.tx.common().ledger_index.unwrap_or(0))
+            .max();
+        if max_response_ledger.is_some() {
+            self.latest_ledger = max_response_ledger.unwrap().into();
+            if let Err(err) = self.store_latest_ledger().await {
+                warn!("{:?}", err);
+            }
         }
         Ok(response.transactions)
     }
