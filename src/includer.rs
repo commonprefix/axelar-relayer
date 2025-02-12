@@ -108,7 +108,7 @@ where
                                 r#type: "CANNOT_EXECUTE_MESSAGE/V2".to_owned(),
                                 event_id: format!(
                                     "cannot-execute-task-v{}-{}",
-                                    1, gateway_tx_task.common.id
+                                    2, gateway_tx_task.common.id
                                 ),
                                 meta: None,
                             },
