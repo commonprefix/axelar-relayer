@@ -167,15 +167,15 @@ impl GmpApi {
             BroadcastRequest::Generic(value) => value,
         };
 
+        debug!("Broadcast:");
+        debug!("URL: {}", url);
+        debug!("Payload: {}", serde_json::to_string(payload).unwrap());
+
         let request = self
             .client
             .post(url.clone())
             .header("Content-Type", "application/json")
             .body(serde_json::to_string(payload).unwrap());
-
-        debug!("Broadcast:");
-        debug!("URL: {}", url);
-        debug!("Payload: {}", serde_json::to_string(payload).unwrap());
 
         let response = GmpApi::request_text_if_success(request).await;
         if response.is_ok() {
