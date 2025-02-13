@@ -24,7 +24,7 @@ use crate::{
         GmpApi,
     },
     payload_cache::PayloadCacheClient,
-    utils::{extract_from_xrpl_memo, extract_hex_xrpl_memo},
+    utils::{event_attribute, extract_from_xrpl_memo, extract_hex_xrpl_memo},
 };
 
 fn extract_memo(memos: &Option<Vec<Memo>>, memo_type: &str) -> Result<String, IngestorError> {
@@ -320,6 +320,20 @@ impl XrplIngestor {
             .clone()
             .unwrap();
 
+        let b64_payload = BASE64_STANDARD.encode(
+            hex::decode(
+                interchain_transfer_response
+                    .message_with_payload
+                    .clone()
+                    .ok_or_else(|| {
+                        IngestorError::GenericError("Failed to get payload.".to_owned())
+                    })?
+                    .payload
+                    .to_string(),
+            )
+            .map_err(|e| IngestorError::GenericError(format!("Failed to decode payload: {}", e)))?,
+        );
+
         Ok(Event::Call {
             common: CommonEventFields {
                 r#type: "CALL".to_owned(),
@@ -342,17 +356,7 @@ impl XrplIngestor {
                 payload_hash: hex::encode(message_with_payload.message.payload_hash),
             },
             destination_chain: "axelar".to_owned(),
-            payload: BASE64_STANDARD.encode(
-                hex::decode(
-                    interchain_transfer_response
-                        .message_with_payload
-                        .clone()
-                        .unwrap()
-                        .payload
-                        .to_string(),
-                )
-                .unwrap(),
-            ), // TODO: no unwrap
+            payload: b64_payload,
         })
     }
 
@@ -517,18 +521,10 @@ impl XrplIngestor {
         // TODO: check the source contract of the event
         match event_name.as_str() {
             "wasm-quorum_reached" => {
-                // TODO: no unwrap
-                let xrpl_message: XRPLMessage = serde_json::from_str(
-                    task.task
-                        .event
-                        .attributes
-                        .iter()
-                        .find(|e| e.key == "content")
-                        .unwrap()
-                        .value
-                        .as_str(),
-                )
-                .map_err(|e| {
+                let content = event_attribute(&task.task.event, "content").ok_or_else(|| {
+                    IngestorError::GenericError("QuorumReached event missing content".to_owned())
+                })?;
+                let xrpl_message: XRPLMessage = serde_json::from_str(&content).map_err(|e| {
                     IngestorError::GenericError(format!("Failed to parse XRPLMessage: {}", e))
                 })?;
                 let mut prover_tx = None;
@@ -560,18 +556,18 @@ impl XrplIngestor {
                     match prover_tx.unwrap() {
                         Transaction::Payment(tx) => {
                             let tx_status: String = serde_json::from_str(
-                                task.task
-                                    .event
-                                    .attributes
-                                    .iter()
-                                    .find(|e| e.key == "status")
-                                    .unwrap()
-                                    .value
+                                event_attribute(&task.task.event, "status")
+                                    .ok_or_else(|| {
+                                        IngestorError::GenericError(
+                                            "QuorumReached event for ProverMessage missing status"
+                                                .to_owned(),
+                                        )
+                                    })?
                                     .as_str(),
                             )
                             .map_err(|e| {
                                 IngestorError::GenericError(format!(
-                                    "Failed to parse XRPLMessage: {}",
+                                    "Failed to parse status: {}",
                                     e
                                 ))
                             })?;

@@ -11,7 +11,7 @@ use crate::{
     error::GmpApiError,
     gmp_api::gmp_types::{
         CommonTaskFields, ConstructProofTask, ExecuteTask, GatewayTxTask, ReactToWasmEventTask,
-        RefundTask, Task, VerifyTask,
+        RefundTask, Task, VerifyTask, WasmEvent,
     },
 };
 
@@ -23,7 +23,6 @@ pub fn parse_task(task_json: &Value) -> Result<Task, GmpApiError> {
     let task_headers: CommonTaskFields = serde_json::from_value(task_json.clone())
         .map_err(|e| GmpApiError::InvalidResponse(e.to_string()))?;
 
-    // TODO: DRY
     match task_headers.r#type.as_str() {
         "CONSTRUCT_PROOF" => {
             let task: ConstructProofTask = parse_as(task_json)?;
@@ -116,4 +115,12 @@ pub fn setup_logging(config: &Config) -> ClientInitGuard {
         .expect("Failed to set global tracing subscriber");
 
     _guard
+}
+
+pub fn event_attribute(event: &WasmEvent, key: &str) -> Option<String> {
+    event
+        .attributes
+        .iter()
+        .find(|e| e.key == key)
+        .map(|e| e.value.clone())
 }
