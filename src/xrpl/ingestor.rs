@@ -544,7 +544,6 @@ impl XrplIngestor {
                 };
 
                 debug!("Broadcasting request: {:?}", request);
-                // TODO: think what happens on failure. This shouldn't happen.
                 self.gmp_api
                     .post_broadcast(contract_address, &request)
                     .await
@@ -552,93 +551,104 @@ impl XrplIngestor {
                         IngestorError::GenericError(format!("Failed to broadcast message: {}", e))
                     })?;
 
-                if let XRPLMessage::ProverMessage(_) = xrpl_message {
-                    match prover_tx.unwrap() {
-                        Transaction::Payment(tx) => {
-                            let tx_status: String = serde_json::from_str(
-                                event_attribute(&task.task.event, "status")
-                                    .ok_or_else(|| {
-                                        IngestorError::GenericError(
-                                            "QuorumReached event for ProverMessage missing status"
-                                                .to_owned(),
-                                        )
-                                    })?
-                                    .as_str(),
-                            )
-                            .map_err(|e| {
-                                IngestorError::GenericError(format!(
-                                    "Failed to parse status: {}",
-                                    e
-                                ))
-                            })?;
+                self.handle_successful_routing(xrpl_message, prover_tx, task)
+                    .await?;
 
-                            let status = match tx_status.as_str() {
-                                "succeeded_on_source_chain" => MessageExecutionStatus::SUCCESSFUL,
-                                _ => MessageExecutionStatus::REVERTED,
-                            };
-
-                            let common = tx.common;
-                            let message_id =
-                                extract_hex_xrpl_memo(common.memos.clone(), "message_id").map_err(
-                                    |e| {
-                                        IngestorError::GenericError(format!(
-                                            "Failed to extract message_id from memos: {}",
-                                            e
-                                        ))
-                                    },
-                                )?;
-                            let source_chain =
-                                extract_hex_xrpl_memo(common.memos.clone(), "source_chain")
-                                    .map_err(|e| {
-                                        IngestorError::GenericError(format!(
-                                            "Failed to extract source_chain from memos: {}",
-                                            e
-                                        ))
-                                    })?;
-
-                            // TODO: Don't send if the tx failed
-                            // TODO: MessageExecuted could be moved earlier, right after broadcasting the message
-                            let event = Event::MessageExecuted {
-                                common: CommonEventFields {
-                                    r#type: "MESSAGE_EXECUTED".to_owned(),
-                                    event_id: common.hash.unwrap(),
-                                    meta: None,
-                                },
-                                message_id: message_id.to_string(),
-                                source_chain: source_chain.to_string(),
-                                status,
-                                cost: Amount {
-                                    token_id: None,
-                                    amount: common.fee,
-                                },
-                            };
-                            let events_response =
-                                self.gmp_api.post_events(vec![event]).await.map_err(|e| {
-                                    IngestorError::GenericError(format!(
-                                        "Failed to broadcast message: {}",
-                                        e.to_string()
-                                    ))
-                                })?;
-                            let response =
-                                events_response.get(0).ok_or(IngestorError::GenericError(
-                                    "Failed to get response from posting events".to_owned(),
-                                ))?;
-                            if response.status != "ACCEPTED" {
-                                return Err(IngestorError::GenericError(format!(
-                                    "Failed to post event: {}",
-                                    response.error.clone().unwrap_or_default()
-                                )));
-                            }
-                        }
-                        _ => {}
-                    }
-                }
                 Ok(())
             }
             _ => Err(IngestorError::GenericError(format!(
                 "Unknown event name: {}",
                 event_name
             ))),
+        }
+    }
+
+    pub async fn handle_successful_routing(
+        &self,
+        xrpl_message: XRPLMessage,
+        prover_tx: Option<Transaction>,
+        task: ReactToWasmEventTask,
+    ) -> Result<(), IngestorError> {
+        match xrpl_message {
+            XRPLMessage::ProverMessage(_) => {
+                match prover_tx.unwrap() {
+                    Transaction::Payment(tx) => {
+                        let tx_status: String = serde_json::from_str(
+                            event_attribute(&task.task.event, "status")
+                                .ok_or_else(|| {
+                                    IngestorError::GenericError(
+                                        "QuorumReached event for ProverMessage missing status"
+                                            .to_owned(),
+                                    )
+                                })?
+                                .as_str(),
+                        )
+                        .map_err(|e| {
+                            IngestorError::GenericError(format!("Failed to parse status: {}", e))
+                        })?;
+
+                        let status = match tx_status.as_str() {
+                            "succeeded_on_source_chain" => MessageExecutionStatus::SUCCESSFUL,
+                            _ => MessageExecutionStatus::REVERTED,
+                        };
+
+                        let common = tx.common;
+                        let message_id = extract_hex_xrpl_memo(common.memos.clone(), "message_id")
+                            .map_err(|e| {
+                                IngestorError::GenericError(format!(
+                                    "Failed to extract message_id from memos: {}",
+                                    e
+                                ))
+                            })?;
+                        let source_chain =
+                            extract_hex_xrpl_memo(common.memos.clone(), "source_chain").map_err(
+                                |e| {
+                                    IngestorError::GenericError(format!(
+                                        "Failed to extract source_chain from memos: {}",
+                                        e
+                                    ))
+                                },
+                            )?;
+
+                        // TODO: Don't send if the tx failed
+                        // TODO: MessageExecuted could be moved earlier, right after broadcasting the message
+                        let event = Event::MessageExecuted {
+                            common: CommonEventFields {
+                                r#type: "MESSAGE_EXECUTED".to_owned(),
+                                event_id: common.hash.unwrap(),
+                                meta: None,
+                            },
+                            message_id: message_id.to_string(),
+                            source_chain: source_chain.to_string(),
+                            status,
+                            cost: Amount {
+                                token_id: None,
+                                amount: common.fee,
+                            },
+                        };
+                        let events_response =
+                            self.gmp_api.post_events(vec![event]).await.map_err(|e| {
+                                IngestorError::GenericError(format!(
+                                    "Failed to broadcast message: {}",
+                                    e.to_string()
+                                ))
+                            })?;
+                        let response =
+                            events_response.get(0).ok_or(IngestorError::GenericError(
+                                "Failed to get response from posting events".to_owned(),
+                            ))?;
+                        if response.status != "ACCEPTED" {
+                            return Err(IngestorError::GenericError(format!(
+                                "Failed to post event: {}",
+                                response.error.clone().unwrap_or_default()
+                            )));
+                        }
+                        Ok(())
+                    }
+                    _ => Ok(()),
+                }
+            }
+            _ => Ok(()),
         }
     }
 
