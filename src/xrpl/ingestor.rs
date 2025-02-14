@@ -421,15 +421,7 @@ impl XrplIngestor {
         &self,
         tx: &Transaction,
     ) -> Result<(String, BroadcastRequest), IngestorError> {
-        let tx_common = match tx {
-            Transaction::Payment(p) => Ok(&p.common),
-            Transaction::TicketCreate(c) => Ok(c),
-            Transaction::SignerListSet(c) => Ok(c),
-            Transaction::TrustSet(t) => Ok(&t.common),
-            _ => Err(IngestorError::UnsupportedTransaction(
-                "Unsupported transaction type".into(),
-            )),
-        }?;
+        let tx_common = tx.common();
 
         let multisig_session_id_hex = extract_memo(&tx_common.memos, "multisig_session_id")?;
         let multisig_session_id =

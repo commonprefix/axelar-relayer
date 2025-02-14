@@ -22,7 +22,10 @@ pub trait RefundManager {
 }
 
 pub trait Broadcaster {
-    fn broadcast(&self, tx_blob: String) -> impl Future<Output = Result<String, BroadcasterError>>;
+    fn broadcast(
+        &self,
+        tx_blob: String,
+    ) -> impl Future<Output = Result<(Result<String, BroadcasterError>, String, String), BroadcasterError>>;
 }
 
 pub struct Includer<B, C, R>
@@ -92,7 +95,7 @@ where
             QueueItem::Task(task) => match task {
                 Task::GatewayTx(gateway_tx_task) => {
                     info!("Consuming task: {:?}", gateway_tx_task);
-                    let broadcast_result = self
+                    let (tx_result, message_id, source_chain) = self
                         .broadcaster
                         .broadcast(hex::encode(
                             BASE64_STANDARD
@@ -100,9 +103,9 @@ where
                                 .unwrap(),
                         ))
                         .await
-                        .map_err(|e| IncluderError::ConsumerError(e.to_string()));
+                        .map_err(|e| IncluderError::ConsumerError(e.to_string()))?;
 
-                    if broadcast_result.is_err() {
+                    if tx_result.is_err() {
                         let cannot_execute_message_event = Event::CannotExecuteMessageV2 {
                             common: CommonEventFields {
                                 r#type: "CANNOT_EXECUTE_MESSAGE/V2".to_owned(),
@@ -112,10 +115,10 @@ where
                                 ),
                                 meta: None,
                             },
-                            message_id: "".to_owned(),   // TODO
-                            source_chain: "".to_owned(), // TODO
+                            message_id,
+                            source_chain,
                             reason: CannotExecuteMessageReason::Error, // TODO
-                            details: broadcast_result.unwrap_err().to_string(),
+                            details: tx_result.unwrap_err().to_string(),
                         };
 
                         self.gmp_api
@@ -142,16 +145,22 @@ where
                         .map_err(|e| IncluderError::ConsumerError(e.to_string()))?;
 
                     if let Some((tx_blob, refunded_amount, fee)) = refund_info {
-                        let tx_hash = self
+                        let (tx_result, _, _) = self
                             .broadcaster
                             .broadcast(tx_blob)
                             .await
                             .map_err(|e| IncluderError::ConsumerError(e.to_string()))?;
 
+                        if tx_result.is_err() {
+                            return Err(IncluderError::ConsumerError(
+                                tx_result.unwrap_err().to_string(),
+                            ));
+                        }
+
                         let gas_refunded = Event::GasRefunded {
                             common: CommonEventFields {
                                 r#type: "GAS_REFUNDED".to_owned(),
-                                event_id: tx_hash,
+                                event_id: tx_result.unwrap(),
                                 meta: None,
                             },
                             recipient_address: refund_task.task.refund_recipient_address,

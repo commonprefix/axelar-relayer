@@ -12,6 +12,7 @@ use crate::config::Config;
 use crate::error::{BroadcasterError, ClientError, RefundManagerError};
 use crate::gmp_api::GmpApi;
 use crate::includer::{Broadcaster, Includer, RefundManager};
+use crate::utils::extract_from_xrpl_memo;
 
 const DEFAULT_RPC_TIMEOUT: Duration = Duration::from_secs(3);
 const RPC_URL: &str = "https://s.devnet.rippletest.net:51234";
@@ -133,7 +134,10 @@ impl XRPLBroadcaster {
 }
 
 impl Broadcaster for XRPLBroadcaster {
-    async fn broadcast(&self, tx_blob: String) -> Result<String, BroadcasterError> {
+    async fn broadcast(
+        &self,
+        tx_blob: String,
+    ) -> Result<(Result<String, BroadcasterError>, String, String), BroadcasterError> {
         let req = SubmitRequest::new(tx_blob);
         let response = self
             .client
@@ -141,24 +145,35 @@ impl Broadcaster for XRPLBroadcaster {
             .await
             .map_err(|e| BroadcasterError::RPCCallFailed(e.to_string()))?;
 
+        let tx = response.tx_json;
+        let memos = tx.common().memos.clone();
+        let message_id = extract_from_xrpl_memo(memos.clone(), "message_id")
+            .map_err(|e| BroadcasterError::GenericError(e.to_string()))?;
+        let source_chain = extract_from_xrpl_memo(memos.clone(), "source_chain")
+            .map_err(|e| BroadcasterError::GenericError(e.to_string()))?;
+
         if response.engine_result.category() == ResultCategory::Tec
             || response.engine_result.category() == ResultCategory::Tes
         {
             // TODO: handle tx that has already been succesfully broadcast
-            let tx_hash = response.tx_json.common().hash.as_ref().ok_or_else(|| {
+            let tx_hash = tx.common().hash.as_ref().ok_or_else(|| {
                 BroadcasterError::RPCCallFailed("Transaction hash not found".to_string())
             })?;
-            Ok(tx_hash.clone())
+            Ok((Ok(tx_hash.clone()), message_id, source_chain))
         } else {
             debug!(
                 "Transaction failed: {:?}: {}",
                 response.engine_result.clone(),
                 response.engine_result_message.clone()
             );
-            Err(BroadcasterError::RPCCallFailed(format!(
-                "Transaction failed: {:?}: {}",
-                response.engine_result, response.engine_result_message
-            )))
+            Ok((
+                Err(BroadcasterError::RPCCallFailed(format!(
+                    "Transaction failed: {:?}: {}",
+                    response.engine_result, response.engine_result_message
+                ))),
+                message_id,
+                source_chain,
+            ))
         }
     }
 }
