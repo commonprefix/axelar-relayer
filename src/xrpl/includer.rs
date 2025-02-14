@@ -12,7 +12,7 @@ use crate::config::Config;
 use crate::error::{BroadcasterError, ClientError, RefundManagerError};
 use crate::gmp_api::GmpApi;
 use crate::includer::{Broadcaster, Includer, RefundManager};
-use crate::utils::extract_from_xrpl_memo;
+use crate::utils::extract_hex_xrpl_memo;
 
 const DEFAULT_RPC_TIMEOUT: Duration = Duration::from_secs(3);
 const RPC_URL: &str = "https://s.devnet.rippletest.net:51234";
@@ -147,9 +147,9 @@ impl Broadcaster for XRPLBroadcaster {
 
         let tx = response.tx_json;
         let memos = tx.common().memos.clone();
-        let message_id = extract_from_xrpl_memo(memos.clone(), "message_id")
+        let message_id = extract_hex_xrpl_memo(memos.clone(), "message_id")
             .map_err(|e| BroadcasterError::GenericError(e.to_string()))?;
-        let source_chain = extract_from_xrpl_memo(memos.clone(), "source_chain")
+        let source_chain = extract_hex_xrpl_memo(memos.clone(), "source_chain")
             .map_err(|e| BroadcasterError::GenericError(e.to_string()))?;
 
         if response.engine_result.category() == ResultCategory::Tec
