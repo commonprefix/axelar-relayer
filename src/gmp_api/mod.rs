@@ -144,6 +144,8 @@ impl GmpApi {
         let mut map = HashMap::new();
         map.insert("events", events);
 
+        debug!("Posting events: {:?}", map);
+
         let url = format!("{}/chains/{}/events", self.rpc_url, self.chain);
         let request = self
             .client
