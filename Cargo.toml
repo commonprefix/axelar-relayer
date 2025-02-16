@@ -17,11 +17,11 @@ xrpl_ws_client = { git = "https://github.com/commonprefix/xrpl-sdk-rust", branch
 xrpl_types = { git = "https://github.com/commonprefix/xrpl-sdk-rust", branch = "main", package = "xrpl_types" }
 xrpl_http_client = { git = "https://github.com/commonprefix/xrpl-sdk-rust", branch = "main", package = "xrpl_http_client" }
 xrpl_binary_codec = { git = "https://github.com/commonprefix/xrpl-sdk-rust", branch = "main", package = "xrpl_binary_codec" }
-xrpl_amplifier_types = { git = "https://github.com/commonprefix/axelar-amplifier", branch = "xrpl", package = "xrpl-types" }
-xrpl_gateway = { git = "https://github.com/commonprefix/axelar-amplifier", branch = "xrpl", package = "xrpl-gateway" }
-xrpl_multisig_prover = { git = "https://github.com/commonprefix/axelar-amplifier", branch = "xrpl", package = "xrpl-multisig-prover" }
-router_api = { git = "https://github.com/commonprefix/axelar-amplifier", branch = "xrpl", package = "router-api" }
-multisig = { git = "https://github.com/commonprefix/axelar-amplifier", branch = "xrpl", package = "multisig" }
+xrpl_amplifier_types = { git = "https://github.com/commonprefix/axelar-amplifier", branch = "fyeo-2nd-audit", package = "xrpl-types" }
+xrpl_gateway = { git = "https://github.com/commonprefix/axelar-amplifier", branch = "fyeo-2nd-audit", package = "xrpl-gateway" }
+xrpl_multisig_prover = { git = "https://github.com/commonprefix/axelar-amplifier", branch = "fyeo-2nd-audit", package = "xrpl-multisig-prover" }
+router_api = { git = "https://github.com/commonprefix/axelar-amplifier", branch = "fyeo-2nd-audit", package = "router-api" }
+multisig = { git = "https://github.com/commonprefix/axelar-amplifier", branch = "fyeo-2nd-audit", package = "multisig" }
 hex = "0.4.3"
 reqwest = { version = "0.12.9", features = ["native-tls"] }
 thiserror = "2.0.3"
