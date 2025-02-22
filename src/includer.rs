@@ -128,7 +128,11 @@ where
                     }
                     Ok(())
                 }
-                Task::Refund(refund_task) => {
+                Task::Refund(_) => {
+                    // TODO: support this
+                    warn!("Refund task is not yet supported");
+                    return Ok(());
+                    /*
                     info!("Consuming task: {:?}", refund_task);
                     if refund_task.task.remaining_gas_balance.token_id.is_some() {
                         return Err(IncluderError::GenericError(
@@ -183,6 +187,7 @@ where
                         warn!("Refund not executed: refund amount is not enough to cover tx fees");
                     }
                     Ok(())
+                    */
                 }
                 _ => Err(IncluderError::IrrelevantTask),
             },
