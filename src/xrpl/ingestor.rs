@@ -383,7 +383,7 @@ impl XrplIngestor {
                 "Payment transaction missing field 'hash'".to_owned(),
             ))?;
 
-        let gas_amount = 0; // TODO: get from memo
+        let gas_amount = 1000000; // TODO: get from memo
         Ok(Event::GasCredit {
             common: CommonEventFields {
                 r#type: "GAS_CREDIT".to_owned(),

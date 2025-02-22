@@ -15,7 +15,6 @@ use crate::includer::{Broadcaster, Includer, RefundManager};
 use crate::utils::extract_hex_xrpl_memo;
 
 const DEFAULT_RPC_TIMEOUT: Duration = Duration::from_secs(3);
-const RPC_URL: &str = "https://s.devnet.rippletest.net:51234";
 
 pub struct XRPLClient {}
 
@@ -189,7 +188,7 @@ impl XrplIncluder {
         BroadcasterError,
     > {
         let client =
-            Arc::new(XRPLClient::new_http_client(RPC_URL).map_err(|e| {
+            Arc::new(XRPLClient::new_http_client(config.xrpl_rpc.as_str()).map_err(|e| {
                 error_stack::report!(BroadcasterError::GenericError(e.to_string()))
             })?);
 
