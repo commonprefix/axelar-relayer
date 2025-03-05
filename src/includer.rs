@@ -114,26 +114,32 @@ where
                         .await
                         .map_err(|e| IncluderError::ConsumerError(e.to_string()))?;
 
-                    if tx_result.is_err() && message_id.is_some() && source_chain.is_some() {
-                        let cannot_execute_message_event = Event::CannotExecuteMessageV2 {
-                            common: CommonEventFields {
-                                r#type: "CANNOT_EXECUTE_MESSAGE/V2".to_owned(),
-                                event_id: format!(
-                                    "cannot-execute-task-v{}-{}",
-                                    2, gateway_tx_task.common.id
-                                ),
-                                meta: None,
-                            },
-                            message_id: message_id.unwrap(),
-                            source_chain: source_chain.unwrap(),
-                            reason: CannotExecuteMessageReason::Error, // TODO
-                            details: tx_result.unwrap_err().to_string(),
-                        };
+                    if tx_result.is_err() {
+                        if message_id.is_some() && source_chain.is_some() {
+                            let cannot_execute_message_event = Event::CannotExecuteMessageV2 {
+                                common: CommonEventFields {
+                                    r#type: "CANNOT_EXECUTE_MESSAGE/V2".to_owned(),
+                                    event_id: format!(
+                                        "cannot-execute-task-v{}-{}",
+                                        2, gateway_tx_task.common.id
+                                    ),
+                                    meta: None,
+                                },
+                                message_id: message_id.unwrap(),
+                                source_chain: source_chain.unwrap(),
+                                reason: CannotExecuteMessageReason::Error, // TODO
+                                details: tx_result.unwrap_err().to_string(),
+                            };
 
-                        self.gmp_api
-                            .post_events(vec![cannot_execute_message_event])
-                            .await
-                            .map_err(|e| IncluderError::ConsumerError(e.to_string()))?;
+                            self.gmp_api
+                                .post_events(vec![cannot_execute_message_event])
+                                .await
+                                .map_err(|e| IncluderError::ConsumerError(e.to_string()))?;
+                        } else {
+                            return Err(IncluderError::ConsumerError(
+                                tx_result.unwrap_err().to_string(),
+                            ));
+                        }
                     }
                     Ok(())
                 }
