@@ -136,7 +136,14 @@ impl Broadcaster for XRPLBroadcaster {
     async fn broadcast(
         &self,
         tx_blob: String,
-    ) -> Result<(Result<String, BroadcasterError>, String, String), BroadcasterError> {
+    ) -> Result<
+        (
+            Result<String, BroadcasterError>,
+            Option<String>,
+            Option<String>,
+        ),
+        BroadcasterError,
+    > {
         let req = SubmitRequest::new(tx_blob);
         let response = self
             .client
@@ -144,12 +151,23 @@ impl Broadcaster for XRPLBroadcaster {
             .await
             .map_err(|e| BroadcasterError::RPCCallFailed(e.to_string()))?;
 
+        let mut message_id = None;
+        let mut source_chain = None;
         let tx = response.tx_json;
-        let memos = tx.common().memos.clone();
-        let message_id = extract_hex_xrpl_memo(memos.clone(), "message_id")
-            .map_err(|e| BroadcasterError::GenericError(e.to_string()))?;
-        let source_chain = extract_hex_xrpl_memo(memos.clone(), "source_chain")
-            .map_err(|e| BroadcasterError::GenericError(e.to_string()))?;
+        match &tx {
+            xrpl_api::Transaction::Payment(payment_transaction) => {
+                let memos = payment_transaction.common.memos.clone();
+                message_id = Some(
+                    extract_hex_xrpl_memo(memos.clone(), "message_id")
+                        .map_err(|e| BroadcasterError::GenericError(e.to_string()))?,
+                );
+                source_chain = Some(
+                    extract_hex_xrpl_memo(memos.clone(), "source_chain")
+                        .map_err(|e| BroadcasterError::GenericError(e.to_string()))?,
+                );
+            }
+            _ => {}
+        }
 
         if response.engine_result.category() == ResultCategory::Tec
             || response.engine_result.category() == ResultCategory::Tes
@@ -187,10 +205,10 @@ impl XrplIncluder {
         Includer<XRPLBroadcaster, Arc<xrpl_http_client::Client>, XRPLRefundManager>,
         BroadcasterError,
     > {
-        let client =
-            Arc::new(XRPLClient::new_http_client(config.xrpl_rpc.as_str()).map_err(|e| {
-                error_stack::report!(BroadcasterError::GenericError(e.to_string()))
-            })?);
+        let client = Arc::new(
+            XRPLClient::new_http_client(config.xrpl_rpc.as_str())
+                .map_err(|e| error_stack::report!(BroadcasterError::GenericError(e.to_string())))?,
+        );
 
         let broadcaster = XRPLBroadcaster::new(Arc::clone(&client))
             .map_err(|e| e.attach_printable("Failed to create XRPLBroadcaster"))?;

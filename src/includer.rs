@@ -7,7 +7,7 @@ use tracing::{debug, error, info, warn};
 use crate::{
     error::{BroadcasterError, IncluderError, RefundManagerError},
     gmp_api::{
-        gmp_types::{Amount, CannotExecuteMessageReason, CommonEventFields, Event, Task},
+        gmp_types::{CannotExecuteMessageReason, CommonEventFields, Event, Task},
         GmpApi,
     },
     queue::{Queue, QueueItem},
@@ -25,7 +25,16 @@ pub trait Broadcaster {
     fn broadcast(
         &self,
         tx_blob: String,
-    ) -> impl Future<Output = Result<(Result<String, BroadcasterError>, String, String), BroadcasterError>>;
+    ) -> impl Future<
+        Output = Result<
+            (
+                Result<String, BroadcasterError>,
+                Option<String>,
+                Option<String>,
+            ),
+            BroadcasterError,
+        >,
+    >;
 }
 
 pub struct Includer<B, C, R>
@@ -105,7 +114,7 @@ where
                         .await
                         .map_err(|e| IncluderError::ConsumerError(e.to_string()))?;
 
-                    if tx_result.is_err() {
+                    if tx_result.is_err() && message_id.is_some() && source_chain.is_some() {
                         let cannot_execute_message_event = Event::CannotExecuteMessageV2 {
                             common: CommonEventFields {
                                 r#type: "CANNOT_EXECUTE_MESSAGE/V2".to_owned(),
@@ -115,8 +124,8 @@ where
                                 ),
                                 meta: None,
                             },
-                            message_id,
-                            source_chain,
+                            message_id: message_id.unwrap(),
+                            source_chain: source_chain.unwrap(),
                             reason: CannotExecuteMessageReason::Error, // TODO
                             details: tx_result.unwrap_err().to_string(),
                         };
