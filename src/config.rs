@@ -4,7 +4,7 @@ use anyhow::{Context, Result};
 
 #[derive(Debug, Clone)]
 pub struct Config {
-    pub refund_manager_address: String,
+    pub refund_manager_addresses: String,
     pub includer_secrets: String,
     pub instance_id: String,
     pub queue_address: String,
@@ -25,8 +25,8 @@ pub struct Config {
 impl Config {
     pub fn from_env() -> Result<Self> {
         Ok(Self {
-            refund_manager_address: env::var("REFUND_MANAGER_ADDRESS")
-                .context("Missing REFUND_MANAGER_ADDRESS")?,
+            refund_manager_addresses: env::var("REFUND_MANAGER_ADDRESSES")
+                .context("Missing REFUND_MANAGER_ADDRESSES")?,
             includer_secrets: env::var("INCLUDER_SECRETS").context("Missing INCLUDER_SECRETS")?,
             instance_id: env::var("INSTANCE_ID").context("Missing INSTANCE_ID")?,
             queue_address: env::var("QUEUE_ADDRESS").context("Missing QUEUE_ADDRESS")?,
