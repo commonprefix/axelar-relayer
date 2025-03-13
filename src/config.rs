@@ -5,7 +5,8 @@ use anyhow::{Context, Result};
 #[derive(Debug, Clone)]
 pub struct Config {
     pub refund_manager_address: String,
-    pub includer_secret: String,
+    pub includer_secrets: String,
+    pub instance_id: String,
     pub queue_address: String,
     pub gmp_api_url: String,
     pub payload_cache: String,
@@ -26,7 +27,8 @@ impl Config {
         Ok(Self {
             refund_manager_address: env::var("REFUND_MANAGER_ADDRESS")
                 .context("Missing REFUND_MANAGER_ADDRESS")?,
-            includer_secret: env::var("INCLUDER_SECRET").context("Missing INCLUDER_SECRET")?,
+            includer_secrets: env::var("INCLUDER_SECRETS").context("Missing INCLUDER_SECRETS")?,
+            instance_id: env::var("INSTANCE_ID").context("Missing INSTANCE_ID")?,
             queue_address: env::var("QUEUE_ADDRESS").context("Missing QUEUE_ADDRESS")?,
             gmp_api_url: env::var("GMP_API").context("Missing GMP_API")?,
             payload_cache: env::var("PAYLOAD_CACHE").context("Missing PAYLOAD_CACHE")?,

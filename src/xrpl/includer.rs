@@ -213,10 +213,21 @@ impl XrplIncluder {
         let broadcaster = XRPLBroadcaster::new(Arc::clone(&client))
             .map_err(|e| e.attach_printable("Failed to create XRPLBroadcaster"))?;
 
+        let secrets = config.includer_secrets.split(",").collect::<Vec<&str>>();
+        let instance_id = config
+            .instance_id
+            .parse::<usize>()
+            .expect("Invalid instance id");
+        if instance_id >= secrets.len() {
+            return Err(error_stack::report!(BroadcasterError::GenericError(
+                "Instance id out of bounds".to_string()
+            )));
+        }
+        let secret = secrets[instance_id];
         let refund_manager = XRPLRefundManager::new(
             Arc::clone(&client),
             config.refund_manager_address,
-            config.includer_secret,
+            secret.to_string(),
         )
         .map_err(|e| error_stack::report!(BroadcasterError::GenericError(e.to_string())))?;
 
