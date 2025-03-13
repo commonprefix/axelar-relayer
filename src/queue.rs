@@ -3,7 +3,10 @@ use std::sync::Arc;
 use anyhow::anyhow;
 use lapin::{
     message::Delivery,
-    options::{BasicConsumeOptions, BasicNackOptions, BasicPublishOptions, QueueDeclareOptions},
+    options::{
+        BasicConsumeOptions, BasicNackOptions, BasicPublishOptions, ConfirmSelectOptions,
+        QueueDeclareOptions,
+    },
     types::FieldTable,
     BasicProperties, Connection, ConnectionProperties, Consumer,
 };
@@ -121,20 +124,28 @@ impl Queue {
                     match connection.create_channel().await {
                         Ok(channel) => {
                             info!("Created channel");
-                            match channel
-                                .queue_declare(
-                                    name,
-                                    QueueDeclareOptions::default(),
-                                    FieldTable::default(),
-                                )
+
+                            if let Err(e) = channel
+                                .confirm_select(ConfirmSelectOptions { nowait: false })
                                 .await
                             {
-                                Ok(queue) => {
-                                    info!("Declared RMQ queue: {:?}", queue);
-                                    return (connection, channel, queue);
-                                }
-                                Err(e) => {
-                                    error!("Failed to declare queue: {:?}", e);
+                                error!("Failed to send confirm_select to RMQ: {:?}", e);
+                            } else {
+                                match channel
+                                    .queue_declare(
+                                        name,
+                                        QueueDeclareOptions::default(),
+                                        FieldTable::default(),
+                                    )
+                                    .await
+                                {
+                                    Ok(queue) => {
+                                        info!("Declared RMQ queue: {:?}", queue);
+                                        return (connection, channel, queue);
+                                    }
+                                    Err(e) => {
+                                        error!("Failed to declare queue: {:?}", e);
+                                    }
                                 }
                             }
                         }
@@ -179,7 +190,7 @@ impl Queue {
         let channel_lock = self.channel.lock().await;
         let queue_lock = self.queue.read().await;
 
-        channel_lock
+        let confirm = channel_lock
             .basic_publish(
                 "",
                 queue_lock.name().as_str(),
@@ -189,7 +200,12 @@ impl Queue {
             )
             .await?
             .await?;
-        Ok(())
+
+        if confirm.is_ack() {
+            Ok(())
+        } else {
+            Err(anyhow!("Failed to publish message"))
+        }
     }
 
     pub async fn consumer(&self) -> Result<Consumer, anyhow::Error> {
