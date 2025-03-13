@@ -2,11 +2,10 @@ use base64::prelude::*;
 use core::str;
 use std::{collections::HashMap, str::FromStr, sync::Arc, vec};
 
-use multisig::key::PublicKey;
 use router_api::CrossChainId;
 use tracing::debug;
 use xrpl_amplifier_types::{
-    msg::{XRPLMessage, XRPLUserMessage, XRPLUserMessageWithPayload},
+    msg::{WithPayload, XRPLMessage, XRPLProverMessage, XRPLUserMessage},
     types::{TxHash, XRPLAccountId, XRPLPaymentAmount, XRPLToken, XRPLTokenAmount},
 };
 use xrpl_api::{Memo, PaymentTransaction, Transaction, TxRequest};
@@ -36,7 +35,7 @@ fn extract_memo(memos: &Option<Vec<Memo>>, memo_type: &str) -> Result<String, In
 async fn build_xrpl_user_message(
     payload_cache: &PayloadCacheClient,
     payment: &PaymentTransaction,
-) -> Result<XRPLUserMessageWithPayload, IngestorError> {
+) -> Result<WithPayload<XRPLUserMessage>, IngestorError> {
     let tx_hash = payment.common.hash.clone().ok_or_else(|| {
         IngestorError::GenericError("Payment transaction missing field 'hash'".to_owned())
     })?;
@@ -130,7 +129,7 @@ async fn build_xrpl_user_message(
         IngestorError::GenericError(format!("Invalid UTF-8 in destination_chain: {}", e))
     })?;
 
-    let mut message_with_payload = XRPLUserMessageWithPayload {
+    let mut message_with_payload = WithPayload {
         message: XRPLUserMessage {
             tx_id: tx_id_bytes.as_slice().try_into().unwrap(),
             source_address: source_address_bytes.try_into().unwrap(),
@@ -253,17 +252,29 @@ impl XrplIngestor {
     }
 
     pub async fn handle_prover_tx(&self, tx: Transaction) -> Result<Vec<Event>, IngestorError> {
+        let unsigned_tx_hash = extract_memo(&tx.common().memos, "unsigned_tx_hash")?;
+        let unsigned_tx_hash_bytes = hex::decode(&unsigned_tx_hash)
+            .map_err(|e| IngestorError::GenericError(format!("Failed to decode tx hash: {}", e)))?;
+
         let execute_msg =
             xrpl_gateway::msg::ExecuteMsg::VerifyMessages(vec![XRPLMessage::ProverMessage(
-                hex::decode(tx.common().hash.clone().unwrap())
-                    .map_err(|e| {
-                        IngestorError::GenericError(format!("Failed to decode tx hash: {}", e))
-                    })?
-                    .as_slice()
-                    .try_into()
-                    .map_err(|_| {
-                        IngestorError::GenericError("Invalid length of tx hash bytes".into())
-                    })?,
+                XRPLProverMessage {
+                    tx_id: TxHash::new(
+                        hex::decode(tx.common().hash.clone().ok_or_else(|| {
+                            IngestorError::GenericError("Transaction missing hash".into())
+                        })?)
+                        .map_err(|_| {
+                            IngestorError::GenericError("Invalid length of tx hash bytes".into())
+                        })?
+                        .try_into()
+                        .map_err(|_| {
+                            IngestorError::GenericError("Invalid length of tx hash bytes".into())
+                        })?,
+                    ),
+                    unsigned_tx_hash: TxHash::new(unsigned_tx_hash_bytes.try_into().map_err(
+                        |_| IngestorError::GenericError("Invalid length of tx hash bytes".into()),
+                    )?),
+                },
             )]);
 
         let request =
@@ -283,7 +294,7 @@ impl XrplIngestor {
 
     async fn call_event_from_user_message(
         &self,
-        xrpl_user_message_with_payload: &XRPLUserMessageWithPayload,
+        xrpl_user_message_with_payload: &WithPayload<XRPLUserMessage>,
     ) -> Result<Event, IngestorError> {
         let xrpl_user_message = xrpl_user_message_with_payload.message.clone();
 
@@ -372,7 +383,7 @@ impl XrplIngestor {
                 "Payment transaction missing field 'hash'".to_owned(),
             ))?;
 
-        let gas_amount = 0; // TODO: get from memo
+        let gas_amount = 1000000; // TODO: get from memo
         Ok(Event::GasCredit {
             common: CommonEventFields {
                 r#type: "GAS_CREDIT".to_owned(),
@@ -423,46 +434,25 @@ impl XrplIngestor {
     ) -> Result<(String, BroadcastRequest), IngestorError> {
         let tx_common = tx.common();
 
-        let multisig_session_id_hex = extract_memo(&tx_common.memos, "multisig_session_id")?;
-        let multisig_session_id =
-            u64::from_str_radix(&multisig_session_id_hex, 16).map_err(|e| {
-                IngestorError::GenericError(format!(
-                    "Failed to parse multisig_session_id: {}",
-                    e.to_string()
-                ))
-            })?;
-
-        let signers = tx_common
-            .signers
-            .clone()
-            .ok_or_else(|| IngestorError::GenericError("Transaction missing signers".into()))?;
-
-        let signers_keys = signers
-            .iter()
-            .map(|signer| {
-                serde_json::from_str::<PublicKey>(&format!(
-                    "{{ \"ecdsa\": \"{}\"}}", // TODO: beautify
-                    signer.signer.signing_pub_key
-                ))
-                .map_err(|e| {
-                    IngestorError::GenericError(format!("Invalid signer public key: {}", e))
-                })
-            })
-            .collect::<Result<Vec<PublicKey>, IngestorError>>()?;
-
         let tx_hash = tx_common.hash.clone().ok_or_else(|| {
             IngestorError::GenericError("Transaction missing field 'hash'".into())
         })?;
+        let unsigned_tx_hash = extract_memo(&tx_common.memos, "unsigned_tx_hash")?;
 
         let tx_hash_bytes = hex::decode(&tx_hash)
             .map_err(|e| IngestorError::GenericError(format!("Failed to decode tx hash: {}", e)))?;
+        let unsigned_tx_hash_bytes = hex::decode(&unsigned_tx_hash)
+            .map_err(|e| IngestorError::GenericError(format!("Failed to decode tx hash: {}", e)))?;
 
-        let execute_msg = xrpl_multisig_prover::msg::ExecuteMsg::ConfirmTxStatus {
-            signer_public_keys: signers_keys,
-            signed_tx_hash: TxHash::new(tx_hash_bytes.try_into().map_err(|_| {
-                IngestorError::GenericError("Invalid length of tx hash bytes".into())
-            })?),
-            multisig_session_id: multisig_session_id.try_into().unwrap(),
+        let execute_msg = xrpl_multisig_prover::msg::ExecuteMsg::ConfirmProverMessage {
+            prover_message: XRPLProverMessage {
+                tx_id: TxHash::new(tx_hash_bytes.try_into().map_err(|_| {
+                    IngestorError::GenericError("Invalid length of tx hash bytes".into())
+                })?),
+                unsigned_tx_hash: TxHash::new(unsigned_tx_hash_bytes.try_into().map_err(|_| {
+                    IngestorError::GenericError("Invalid length of tx hash bytes".into())
+                })?),
+            },
         };
         let request =
             BroadcastRequest::Generic(serde_json::to_value(&execute_msg).map_err(|e| {
@@ -491,12 +481,10 @@ impl XrplIngestor {
             let payload_bytes = hex::decode(payload_string.unwrap()).unwrap();
             payload = Some(payload_bytes.try_into().unwrap());
         }
-        let execute_msg = xrpl_gateway::msg::ExecuteMsg::RouteIncomingMessages(vec![
-            XRPLUserMessageWithPayload {
-                message: user_message,
-                payload,
-            },
-        ]);
+        let execute_msg = xrpl_gateway::msg::ExecuteMsg::RouteIncomingMessages(vec![WithPayload {
+            message: user_message,
+            payload,
+        }]);
         let request =
             BroadcastRequest::Generic(serde_json::to_value(&execute_msg).map_err(|e| {
                 IngestorError::GenericError(format!(
@@ -526,9 +514,12 @@ impl XrplIngestor {
                         debug!("Quorum reached for XRPLUserMessage: {:?}", msg);
                         self.user_message_routing_request(msg).await?
                     }
-                    XRPLMessage::ProverMessage(tx_hash) => {
-                        debug!("Quorum reached for XRPLProverMessage: {:?}", tx_hash);
-                        let tx = xrpl_tx_from_hash(tx_hash, &self.client).await?;
+                    XRPLMessage::ProverMessage(prover_message) => {
+                        debug!(
+                            "Quorum reached for XRPLProverMessage: {:?}",
+                            prover_message.tx_id
+                        );
+                        let tx = xrpl_tx_from_hash(prover_message.tx_id, &self.client).await?;
                         prover_tx = Some(tx);
                         self.prover_tx_routing_request(&prover_tx.as_ref().unwrap())
                             .await?

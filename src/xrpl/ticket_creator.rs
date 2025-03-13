@@ -37,7 +37,7 @@ impl XrplTicketCreator {
             }
         }
 
-        tokio::time::sleep(tokio::time::Duration::from_secs(2)).await
+        tokio::time::sleep(tokio::time::Duration::from_secs(2 * 60)).await
     }
 
     pub async fn run(&self) -> () {
