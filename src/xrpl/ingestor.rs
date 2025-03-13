@@ -3,7 +3,7 @@ use core::str;
 use std::{collections::HashMap, str::FromStr, sync::Arc, vec};
 
 use router_api::CrossChainId;
-use tracing::debug;
+use tracing::{debug, warn};
 use xrpl_amplifier_types::{
     msg::{WithPayload, XRPLMessage, XRPLProverMessage, XRPLUserMessage},
     types::{TxHash, XRPLAccountId, XRPLPaymentAmount, XRPLToken, XRPLTokenAmount},
@@ -227,9 +227,13 @@ impl XrplIngestor {
             Transaction::TicketCreate(_) => self.handle_prover_tx(tx).await,
             Transaction::TrustSet(_) => self.handle_prover_tx(tx).await,
             Transaction::SignerListSet(_) => self.handle_prover_tx(tx).await,
-            tx => Err(IngestorError::UnsupportedTransaction(
-                serde_json::to_string(&tx).unwrap(),
-            )),
+            tx => {
+                warn!(
+                    "Unsupported transaction type: {}",
+                    serde_json::to_string(&tx).unwrap()
+                );
+                Ok(vec![])
+            }
         }
     }
 
