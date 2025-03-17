@@ -241,18 +241,19 @@ impl XrplIngestor {
         &self,
         payment: PaymentTransaction,
     ) -> Result<Vec<Event>, IngestorError> {
-        let mut events = Vec::new();
-        if let Ok(user_message_with_payload) =
-            build_xrpl_user_message(&self.payload_cache, &payment).await
-        {
-            let call_event = self
-                .call_event_from_user_message(&user_message_with_payload)
-                .await?;
-            let gas_credit_event = self.gas_credit_event_from_payment(&payment).await?;
-            events = vec![call_event, gas_credit_event];
+        match build_xrpl_user_message(&self.payload_cache, &payment).await {
+            Ok(user_message_with_payload) => {
+                let call_event = self
+                    .call_event_from_user_message(&user_message_with_payload)
+                    .await?;
+                let gas_credit_event = self.gas_credit_event_from_payment(&payment).await?;
+                Ok(vec![call_event, gas_credit_event])
+            }
+            Err(e) => {
+                warn!("Failed to build XRPL user message: {}", e);
+                Ok(vec![])
+            }
         }
-
-        return Ok(events);
     }
 
     pub async fn handle_prover_tx(&self, tx: Transaction) -> Result<Vec<Event>, IngestorError> {
