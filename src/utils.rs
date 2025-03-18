@@ -1,17 +1,24 @@
+use std::str::FromStr;
+
+use axelar_wasm_std::msg_id::HexTxHash;
 use sentry::ClientInitGuard;
 use sentry_tracing::{layer as sentry_layer, EventFilter};
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 use tracing::{level_filters::LevelFilter, warn, Level};
 use tracing_subscriber::{fmt, prelude::*, Registry};
-use xrpl_api::Memo;
+use xrpl_amplifier_types::{
+    msg::XRPLMessage,
+    types::{XRPLPaymentAmount, XRPLToken, XRPLTokenAmount},
+};
+use xrpl_api::{Memo, PaymentTransaction, Transaction, TxRequest};
 
 use crate::{
     config::Config,
-    error::GmpApiError,
+    error::{GmpApiError, IngestorError},
     gmp_api::gmp_types::{
-        CommonTaskFields, ConstructProofTask, ExecuteTask, GatewayTxTask, ReactToWasmEventTask,
-        RefundTask, Task, VerifyTask, WasmEvent,
+        CommonTaskFields, ConstructProofTask, ExecuteTask, GatewayTxTask, Metadata,
+        ReactToWasmEventTask, RefundTask, Task, VerifyTask, WasmEvent,
     },
 };
 
@@ -123,4 +130,96 @@ pub fn event_attribute(event: &WasmEvent, key: &str) -> Option<String> {
         .iter()
         .find(|e| e.key == key)
         .map(|e| e.value.clone())
+}
+
+pub fn parse_gas_fee_amount(
+    payment_amount: &XRPLPaymentAmount,
+    gas_fee_amount: String,
+) -> Result<XRPLPaymentAmount, IngestorError> {
+    let gas_fee_amount = match payment_amount.clone() {
+        XRPLPaymentAmount::Issued(token, _) => XRPLPaymentAmount::Issued(
+            XRPLToken {
+                issuer: token.issuer,
+                currency: token.currency,
+            },
+            gas_fee_amount.try_into().map_err(|_| {
+                IngestorError::GenericError(
+                    "Failed to parse gas fee amount as XRPLTokenAmount".to_owned(),
+                )
+            })?,
+        ),
+        XRPLPaymentAmount::Drops(_) => {
+            XRPLPaymentAmount::Drops(gas_fee_amount.parse().map_err(|_| {
+                IngestorError::GenericError("Failed to parse gas fee amount as u64".to_owned())
+            })?)
+        }
+    };
+    Ok(gas_fee_amount)
+}
+
+pub fn extract_memo(memos: &Option<Vec<Memo>>, memo_type: &str) -> Result<String, IngestorError> {
+    extract_from_xrpl_memo(memos.clone(), memo_type).map_err(|e| {
+        IngestorError::GenericError(format!("Failed to extract {} from memos: {}", memo_type, e))
+    })
+}
+
+pub fn parse_payment_amount(
+    payment: &PaymentTransaction,
+) -> Result<XRPLPaymentAmount, IngestorError> {
+    if let xrpl_api::Amount::Drops(amount) = payment.amount.clone() {
+        Ok(XRPLPaymentAmount::Drops(amount.parse::<u64>().map_err(
+            |_| IngestorError::GenericError("Failed to parse amount as u64".to_owned()),
+        )?))
+    } else if let xrpl_api::Amount::Issued(issued_amount) = payment.amount.clone() {
+        Ok(XRPLPaymentAmount::Issued(
+            XRPLToken {
+                issuer: issued_amount.issuer.try_into().map_err(|_| {
+                    IngestorError::GenericError(
+                        "Failed to parse issuer as XRPLAccountId".to_owned(),
+                    )
+                })?,
+                currency: issued_amount.currency.try_into().map_err(|_| {
+                    IngestorError::GenericError(
+                        "Failed to parse currency as XRPLCurrency".to_owned(),
+                    )
+                })?,
+            },
+            XRPLTokenAmount::from_str(&issued_amount.value).map_err(|_| {
+                IngestorError::GenericError("Failed to parse amount as XRPLTokenAmount".to_owned())
+            })?,
+        ))
+    } else {
+        return Err(IngestorError::GenericError(
+            "Payment amount must be either Drops or Issued".to_owned(),
+        ));
+    }
+}
+
+pub async fn xrpl_tx_from_hash(
+    tx_hash: HexTxHash,
+    client: &xrpl_http_client::Client,
+) -> Result<Transaction, IngestorError> {
+    let tx_request = TxRequest::new(&tx_hash.tx_hash_as_hex(false)).binary(false);
+    client
+        .call(tx_request)
+        .await
+        .map_err(|e| IngestorError::GenericError(format!("Failed to get transaction: {}", e)))
+        .map(|res| res.tx)
+}
+
+pub fn parse_message_from_context(
+    metadata: Option<Metadata>,
+) -> Result<XRPLMessage, IngestorError> {
+    let metadata = metadata
+        .ok_or_else(|| IngestorError::GenericError("Verify task missing meta field".into()))?;
+
+    let source_context = metadata.source_context.ok_or_else(|| {
+        IngestorError::GenericError("Verify task missing source_context field".into())
+    })?;
+
+    let xrpl_message = source_context.get("xrpl_message").ok_or_else(|| {
+        IngestorError::GenericError("Verify task missing xrpl_message in source_context".into())
+    })?;
+
+    Ok(serde_json::from_str(xrpl_message).unwrap())
 }
