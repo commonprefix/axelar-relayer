@@ -827,19 +827,23 @@ impl XrplIngestor {
                 Ok(message_with_payload)
             }
             "add_gas" => {
-                let msg_tx_id_hex = extract_memo(memos, "msg_tx_id")?;
-                let msg_tx_id_bytes = hex::decode(&msg_tx_id_hex).map_err(|e| {
-                    IngestorError::GenericError(format!("Failed to decode msg_tx_id: {}", e))
+                let msg_tx_id = extract_and_decode_memo(memos, "tx_id")?;
+                let msg_tx_id_bytes = hex::decode(&msg_tx_id).map_err(|e| {
+                    IngestorError::GenericError(format!("Failed to decode unsigned tx hash: {}", e))
                 })?;
-                let msg_tx_id_bytes = std::convert::TryInto::<[u8; 32]>::try_into(msg_tx_id_bytes)
-                    .map_err(|_| {
-                        IngestorError::GenericError("Invalid length of msg_tx_id bytes".into())
-                    })?;
 
                 Ok(WithPayload::new(
                     XRPLMessage::AddGasMessage(XRPLAddGasMessage {
                         tx_id,
-                        msg_tx_id: HexTxHash::new(msg_tx_id_bytes),
+                        msg_tx_id: HexTxHash::new(
+                            std::convert::TryInto::<[u8; 32]>::try_into(msg_tx_id_bytes).map_err(
+                                |_| {
+                                    IngestorError::GenericError(
+                                        "Invalid length of msg_tx_id bytes".into(),
+                                    )
+                                },
+                            )?,
+                        ),
                         amount,
                     }),
                     None,
