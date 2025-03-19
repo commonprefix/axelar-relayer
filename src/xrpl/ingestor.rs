@@ -25,8 +25,8 @@ use router_api::{ChainName, CrossChainId};
 use tracing::{debug, warn};
 use xrpl_amplifier_types::{
     msg::{
-        WithPayload, XRPLAddGasMessage, XRPLAddReservesMessage, XRPLInterchainTransferMessage,
-        XRPLMessage, XRPLProverMessage,
+        WithCrossChainId, WithPayload, XRPLAddGasMessage, XRPLAddReservesMessage,
+        XRPLInterchainTransferMessage, XRPLMessage, XRPLProverMessage,
     },
     types::{XRPLAccountId, XRPLPaymentAmount},
 };
@@ -516,9 +516,14 @@ impl XrplIngestor {
                 let content = event_attribute(&task.task.event, "content").ok_or_else(|| {
                     IngestorError::GenericError("QuorumReached event missing content".to_owned())
                 })?;
-                let xrpl_message: XRPLMessage = serde_json::from_str(&content).map_err(|e| {
+
+                let WithCrossChainId {
+                    content: xrpl_message,
+                    cc_id: _,
+                }: WithCrossChainId<XRPLMessage> = serde_json::from_str(&content).map_err(|e| {
                     IngestorError::GenericError(format!("Failed to parse XRPLMessage: {}", e))
                 })?;
+
                 let mut prover_tx = None;
 
                 let (contract_address, request) = match &xrpl_message {
