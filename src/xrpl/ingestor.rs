@@ -95,10 +95,7 @@ impl XrplIngestor {
                     Ok(vec![call_event, gas_credit_event])
                 }
                 XRPLMessage::AddGasMessage(_) => {
-                    let gas_credit_event = self
-                        .gas_credit_event_from_payment(&message_with_payload)
-                        .await?;
-                    Ok(vec![gas_credit_event])
+                    self.handle_add_gas_message(&message_with_payload).await
                 }
                 XRPLMessage::AddReservesMessage(_) => {
                     self.handle_add_reserves_message(&message_with_payload)
@@ -111,6 +108,34 @@ impl XrplIngestor {
                 Ok(vec![])
             }
         }
+    }
+
+    pub async fn handle_add_gas_message(
+        &self,
+        xrpl_message_with_payload: &WithPayload<XRPLMessage>,
+    ) -> Result<Vec<Event>, IngestorError> {
+        let execute_msg =
+            xrpl_gateway::msg::ExecuteMsg::VerifyMessages(vec![xrpl_message_with_payload
+                .message
+                .clone()]);
+
+        let request =
+            BroadcastRequest::Generic(serde_json::to_value(&execute_msg).map_err(|e| {
+                IngestorError::GenericError(format!("Failed to serialize VerifyMessages: {}", e))
+            })?);
+
+        self.gmp_api
+            .post_broadcast(self.config.xrpl_gateway_address.clone(), &request)
+            .await
+            .map_err(|e| {
+                IngestorError::GenericError(format!("Failed to broadcast message: {}", e))
+            })?;
+
+        let gas_credit_event = self
+            .gas_credit_event_from_payment(xrpl_message_with_payload)
+            .await?;
+
+        Ok(vec![gas_credit_event])
     }
 
     pub async fn handle_add_reserves_message(
