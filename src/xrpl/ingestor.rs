@@ -833,7 +833,7 @@ impl XrplIngestor {
                     None,
                 ))
             }
-            "add_fee_reserve" => match amount {
+            "add_reserves" => match amount {
                 XRPLPaymentAmount::Drops(amount) => Ok(WithPayload::new(
                     XRPLMessage::AddReservesMessage(XRPLAddReservesMessage { tx_id, amount }),
                     None,
