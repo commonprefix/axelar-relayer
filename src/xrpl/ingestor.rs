@@ -1,6 +1,5 @@
 use axelar_wasm_std::{msg_id::HexTxHash, nonempty};
 use base64::prelude::*;
-use core::str;
 use interchain_token_service::TokenId;
 use std::{collections::HashMap, str::FromStr, sync::Arc, vec};
 
@@ -17,8 +16,8 @@ use crate::{
     },
     payload_cache::PayloadCacheClient,
     utils::{
-        event_attribute, extract_hex_xrpl_memo, extract_memo, parse_gas_fee_amount,
-        parse_message_from_context, parse_payment_amount, xrpl_tx_from_hash,
+        event_attribute, extract_and_decode_memo, extract_hex_xrpl_memo, extract_memo,
+        parse_gas_fee_amount, parse_message_from_context, parse_payment_amount, xrpl_tx_from_hash,
     },
 };
 use router_api::{ChainName, CrossChainId};
@@ -747,48 +746,23 @@ impl XrplIngestor {
                 .map_err(|_| IngestorError::GenericError("Invalid length of tx_id bytes".into()))?,
             );
         let memos = &payment.common.memos;
-        let message_type_hex = extract_memo(memos, "type")?;
-        let message_type_bytes = hex::decode(&message_type_hex).map_err(|e| {
-            IngestorError::GenericError(format!("Failed to hex-decode message type: {}", e))
-        })?;
-        let message_type = str::from_utf8(&message_type_bytes).map_err(|e| {
-            IngestorError::GenericError(format!("Invalid UTF-8 in message type: {}", e))
-        })?;
+        let message_type = extract_and_decode_memo(memos, "type")?;
         let amount = parse_payment_amount(payment)?;
-        match message_type {
+        match message_type.as_str() {
             // TODO: use enum for this
             "interchain_transfer" | "call_contract" => {
-                let destination_address = extract_memo(memos, "destination_address")?;
-                let destination_chain = extract_memo(memos, "destination_chain")?;
-                let gas_fee_amount =
-                    parse_gas_fee_amount(&amount, extract_memo(memos, "gas_fee_amount")?)?;
+                let gas_fee_amount = parse_gas_fee_amount(
+                    &amount,
+                    extract_and_decode_memo(memos, "gas_fee_amount")?,
+                )?;
 
                 let source_address: XRPLAccountId =
                     payment.common.account.clone().try_into().map_err(|e| {
                         IngestorError::GenericError(format!("Invalid source account: {:?}", e))
                     })?;
 
-                let destination_addr_bytes = hex::decode(destination_address).map_err(|e| {
-                    IngestorError::GenericError(format!(
-                        "Failed to decode destination_address: {}",
-                        e
-                    ))
-                })?;
-
-                let destination_chain_bytes = hex::decode(destination_chain).map_err(|e| {
-                    IngestorError::GenericError(format!(
-                        "Failed to decode destination_chain: {}",
-                        e
-                    ))
-                })?;
-
-                let destination_chain_str =
-                    str::from_utf8(&destination_chain_bytes).map_err(|e| {
-                        IngestorError::GenericError(format!(
-                            "Invalid UTF-8 in destination_chain: {}",
-                            e
-                        ))
-                    })?;
+                let destination_chain = extract_and_decode_memo(memos, "destination_chain")?;
+                let destination_address = extract_and_decode_memo(memos, "destination_address")?;
 
                 let (payload, payload_hash) = self.parse_payload_and_payload_hash(memos).await?;
 
@@ -796,21 +770,13 @@ impl XrplIngestor {
                     XRPLMessage::InterchainTransferMessage(XRPLInterchainTransferMessage {
                         tx_id,
                         source_address,
-                        destination_address: str::from_utf8(&destination_addr_bytes)
-                            .map_err(|e| {
-                                IngestorError::GenericError(format!(
-                                    "Invalid UTF-8 in destination_address: {}",
-                                    e
-                                ))
-                            })?
-                            .try_into()
-                            .map_err(|e| {
-                                IngestorError::GenericError(format!(
-                                    "Invalid destination_address: {}",
-                                    e
-                                ))
-                            })?,
-                        destination_chain: ChainName::from_str(destination_chain_str).map_err(
+                        destination_address: destination_address.try_into().map_err(|e| {
+                            IngestorError::GenericError(format!(
+                                "Invalid destination_address: {}",
+                                e
+                            ))
+                        })?,
+                        destination_chain: ChainName::from_str(&destination_chain).map_err(
                             |e| {
                                 IngestorError::GenericError(format!(
                                     "Invalid destination_chain: {}",

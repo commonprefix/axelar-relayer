@@ -163,6 +163,19 @@ pub fn extract_memo(memos: &Option<Vec<Memo>>, memo_type: &str) -> Result<String
     })
 }
 
+pub fn extract_and_decode_memo(
+    memos: &Option<Vec<Memo>>,
+    memo_type: &str,
+) -> Result<String, IngestorError> {
+    let hex_str = extract_memo(memos, memo_type)?;
+    let bytes = hex::decode(&hex_str).map_err(|e| {
+        IngestorError::GenericError(format!("Failed to hex-decode memo {}: {}", hex_str, e))
+    })?;
+    String::from_utf8(bytes).map_err(|e| {
+        IngestorError::GenericError(format!("Invalid UTF-8 in memo {}: {}", hex_str, e))
+    })
+}
+
 pub fn parse_payment_amount(
     payment: &PaymentTransaction,
 ) -> Result<XRPLPaymentAmount, IngestorError> {
