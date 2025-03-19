@@ -1,9 +1,10 @@
 use std::time::Duration;
 
-use tracing::debug;
-use xrpl_api::{SubmitRequest, SubmitResponse};
+use serde::{de::DeserializeOwned, Serialize};
+use tracing::warn;
+use xrpl_api::Request;
 
-use crate::error::{BroadcasterError, ClientError};
+use crate::error::ClientError;
 
 const DEFAULT_RPC_TIMEOUT: Duration = Duration::from_secs(3);
 pub struct XRPLClient {
@@ -16,7 +17,14 @@ impl XRPLClient {
         &self.client
     }
 
-    pub async fn call(&self, request: SubmitRequest) -> Result<SubmitResponse, BroadcasterError> {
+    pub async fn call<Req>(
+        &self,
+        request: Req,
+    ) -> Result<Req::Response, xrpl_http_client::error::Error>
+    where
+        Req: Request + Serialize + std::fmt::Debug + std::clone::Clone,
+        Req::Response: DeserializeOwned,
+    {
         let mut retries = 0;
         let mut delay = Duration::from_millis(500);
 
@@ -25,14 +33,12 @@ impl XRPLClient {
                 Ok(response) => return Ok(response),
                 Err(e) => {
                     if retries >= self.max_retries {
-                        return Err(BroadcasterError::RPCCallFailed(format!(
-                            "tx {} failed after {} retries: {}",
-                            request.tx_blob, retries, e
-                        )));
+                        return Err(e);
                     }
 
-                    debug!(
-                        "RPC call failed (retry {}/{}): {}. Retrying in {:?}...",
+                    warn!(
+                        "RPC call ({}) failed (retry {}/{}): {}. Retrying in {:?}...",
+                        request.method(),
                         retries + 1,
                         self.max_retries,
                         e,

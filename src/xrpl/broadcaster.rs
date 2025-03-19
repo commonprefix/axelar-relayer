@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
-use tracing::debug;
-use xrpl_api::{ResultCategory, SubmitRequest};
+use tracing::{debug, warn};
+use xrpl_api::{ResultCategory, SubmitRequest, SubmitResponse, TxRequest};
 
 use crate::{error::BroadcasterError, includer::Broadcaster, utils::extract_hex_xrpl_memo};
 
@@ -15,6 +15,33 @@ impl XRPLBroadcaster {
     pub fn new(client: Arc<XRPLClient>) -> error_stack::Result<Self, BroadcasterError> {
         Ok(XRPLBroadcaster { client })
     }
+}
+
+fn log_and_return_error(
+    response: &SubmitResponse,
+    message_id: Option<String>,
+    source_chain: Option<String>,
+) -> Result<
+    (
+        Result<String, BroadcasterError>,
+        Option<String>,
+        Option<String>,
+    ),
+    BroadcasterError,
+> {
+    debug!(
+        "Transaction failed: {:?}: {}",
+        response.engine_result.clone(),
+        response.engine_result_message.clone()
+    );
+    Ok((
+        Err(BroadcasterError::RPCCallFailed(format!(
+            "Transaction failed: {:?}: {}",
+            response.engine_result, response.engine_result_message
+        ))),
+        message_id,
+        source_chain,
+    ))
 }
 
 impl Broadcaster for XRPLBroadcaster {
@@ -38,7 +65,7 @@ impl Broadcaster for XRPLBroadcaster {
 
         let mut message_id = None;
         let mut source_chain = None;
-        let tx = response.tx_json;
+        let tx = response.tx_json.clone();
         if let xrpl_api::Transaction::Payment(payment_transaction) = &tx {
             let memos = payment_transaction.common.memos.clone();
             message_id = Some(
@@ -51,28 +78,26 @@ impl Broadcaster for XRPLBroadcaster {
             );
         }
 
-        if response.engine_result.category() == ResultCategory::Tec
-            || response.engine_result.category() == ResultCategory::Tes
-        {
-            // TODO: handle tx that has already been succesfully broadcast
+        let response_category = response.engine_result.category();
+        if response_category == ResultCategory::Tec || response_category == ResultCategory::Tes {
             let tx_hash = tx.common().hash.as_ref().ok_or_else(|| {
                 BroadcasterError::RPCCallFailed("Transaction hash not found".to_string())
             })?;
             Ok((Ok(tx_hash.clone()), message_id, source_chain))
+        } else if response_category == ResultCategory::Tef {
+            let tx_hash = tx.common().hash.as_ref().ok_or_else(|| {
+                BroadcasterError::RPCCallFailed("Transaction hash not found".to_string())
+            })?;
+            let req = TxRequest::new(tx_hash);
+            match self.client.call(req).await {
+                Ok(_) => {
+                    warn!("Transaction already submitted: {:?}", tx_hash);
+                    Ok((Ok(tx_hash.clone()), message_id, source_chain))
+                }
+                Err(_) => log_and_return_error(&response, message_id, source_chain),
+            }
         } else {
-            debug!(
-                "Transaction failed: {:?}: {}",
-                response.engine_result.clone(),
-                response.engine_result_message.clone()
-            );
-            Ok((
-                Err(BroadcasterError::RPCCallFailed(format!(
-                    "Transaction failed: {:?}: {}",
-                    response.engine_result, response.engine_result_message
-                ))),
-                message_id,
-                source_chain,
-            ))
+            log_and_return_error(&response, message_id, source_chain)
         }
     }
 }
