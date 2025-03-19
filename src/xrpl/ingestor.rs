@@ -138,9 +138,10 @@ impl XrplIngestor {
     }
 
     pub async fn handle_prover_tx(&self, tx: Transaction) -> Result<Vec<Event>, IngestorError> {
-        let unsigned_tx_hash = extract_memo(&tx.common().memos, "unsigned_tx_hash")?;
-        let unsigned_tx_hash_bytes = hex::decode(&unsigned_tx_hash)
-            .map_err(|e| IngestorError::GenericError(format!("Failed to decode tx hash: {}", e)))?;
+        let unsigned_tx_hash = extract_and_decode_memo(&tx.common().memos, "unsigned_tx_hash")?;
+        let unsigned_tx_hash_bytes = hex::decode(&unsigned_tx_hash).map_err(|e| {
+            IngestorError::GenericError(format!("Failed to decode unsigned tx hash: {}", e))
+        })?;
 
         let execute_msg =
             xrpl_gateway::msg::ExecuteMsg::VerifyMessages(vec![XRPLMessage::ProverMessage(
@@ -151,20 +152,21 @@ impl XrplIngestor {
                                 IngestorError::GenericError("Transaction missing hash".into())
                             })?)
                             .map_err(|_| {
-                                IngestorError::GenericError(
-                                    "Invalid length of tx hash bytes".into(),
-                                )
+                                IngestorError::GenericError("Cannot decode tx hash".into())
                             })?,
                         )
                         .map_err(|_| {
-                            IngestorError::GenericError("Invalid length of tx hash bytes".into())
+                            IngestorError::GenericError(
+                                "Cannot convert tx hash to bytes: invalid length".into(),
+                            )
                         })?,
                     ),
                     unsigned_tx_hash: HexTxHash::new(
                         std::convert::TryInto::<[u8; 32]>::try_into(unsigned_tx_hash_bytes)
                             .map_err(|_| {
                                 IngestorError::GenericError(
-                                    "Invalid length of tx hash bytes".into(),
+                                    "Cannot convert unsigned tx hash to bytes: invalid length"
+                                        .into(),
                                 )
                             })?,
                     ),
