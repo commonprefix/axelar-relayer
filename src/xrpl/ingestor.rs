@@ -436,12 +436,13 @@ impl XrplIngestor {
         let tx_hash = tx_common.hash.clone().ok_or_else(|| {
             IngestorError::GenericError("Transaction missing field 'hash'".into())
         })?;
-        let unsigned_tx_hash = extract_memo(&tx_common.memos, "unsigned_tx_hash")?;
-
         let tx_hash_bytes = hex::decode(&tx_hash)
             .map_err(|e| IngestorError::GenericError(format!("Failed to decode tx hash: {}", e)))?;
-        let unsigned_tx_hash_bytes = hex::decode(&unsigned_tx_hash)
-            .map_err(|e| IngestorError::GenericError(format!("Failed to decode tx hash: {}", e)))?;
+
+        let unsigned_tx_hash = extract_and_decode_memo(&tx_common.memos, "unsigned_tx_hash")?;
+        let unsigned_tx_hash_bytes = hex::decode(&unsigned_tx_hash).map_err(|e| {
+            IngestorError::GenericError(format!("Failed to decode unsigned tx hash: {}", e))
+        })?;
 
         let execute_msg = xrpl_multisig_prover::msg::ExecuteMsg::ConfirmProverMessage {
             prover_message: XRPLProverMessage {
