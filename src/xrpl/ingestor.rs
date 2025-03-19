@@ -353,7 +353,16 @@ impl XrplIngestor {
 
         let gas_fee_amount = match &gas_fee_amount {
             XRPLPaymentAmount::Drops(amount) => amount.to_string(),
-            XRPLPaymentAmount::Issued(_, amount) => amount.to_string(),
+            XRPLPaymentAmount::Issued(_, amount) => amount
+                .to_string()
+                .parse::<f64>()
+                .map_err(|e| {
+                    IngestorError::GenericError(format!(
+                        "Failed to parse amount {} as f64: {}",
+                        amount, e
+                    ))
+                })?
+                .to_string(),
         };
 
         Ok(Event::GasCredit {
