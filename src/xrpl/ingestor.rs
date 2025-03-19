@@ -516,12 +516,12 @@ impl XrplIngestor {
                     IngestorError::GenericError("QuorumReached event missing content".to_owned())
                 })?;
 
-                let WithCrossChainId {
-                    content: xrpl_message,
-                    cc_id: _,
-                }: WithCrossChainId<XRPLMessage> = serde_json::from_str(&content).map_err(|e| {
-                    IngestorError::GenericError(format!("Failed to parse XRPLMessage: {}", e))
-                })?;
+                let xrpl_message = match serde_json::from_str::<WithCrossChainId<XRPLMessage>>(&content) {
+                    Ok(WithCrossChainId { content: message, cc_id: _ }) => message,
+                    Err(_) => serde_json::from_str::<XRPLMessage>(&content).map_err(|e| {
+                        IngestorError::GenericError(format!("Failed to parse content as either WithCrossChainId<XRPLMessage> or XRPLMessage: {}", e))
+                    })?,
+                };
 
                 let mut prover_tx = None;
 
