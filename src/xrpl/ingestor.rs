@@ -742,9 +742,15 @@ impl XrplIngestor {
                 .map_err(|_| IngestorError::GenericError("Invalid length of tx_id bytes".into()))?,
             );
         let memos = &payment.common.memos;
-        let message_type = extract_memo(memos, "type")?;
+        let message_type_hex = extract_memo(memos, "type")?;
+        let message_type_bytes = hex::decode(&message_type_hex).map_err(|e| {
+            IngestorError::GenericError(format!("Failed to hex-decode message type: {}", e))
+        })?;
+        let message_type = str::from_utf8(&message_type_bytes).map_err(|e| {
+            IngestorError::GenericError(format!("Invalid UTF-8 in message type: {}", e))
+        })?;
         let amount = parse_payment_amount(payment)?;
-        match message_type.as_str() {
+        match message_type {
             // TODO: use enum for this
             "interchain_transfer" | "call_contract" => {
                 let destination_address = extract_memo(memos, "destination_address")?;
@@ -865,9 +871,10 @@ impl XrplIngestor {
                     "Add fee reserve requires amount to be in XRP drops".to_owned(),
                 )),
             },
-            _ => Err(IngestorError::GenericError(
-                "Unsupported message type".to_owned(),
-            )),
+            _ => Err(IngestorError::GenericError(format!(
+                "Unsupported message type: {}",
+                message_type
+            ))),
         }
     }
 }
