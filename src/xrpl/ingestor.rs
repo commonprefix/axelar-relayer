@@ -25,7 +25,7 @@ use tracing::{debug, warn};
 use xrpl_amplifier_types::{
     msg::{
         WithCrossChainId, WithPayload, XRPLAddGasMessage, XRPLAddReservesMessage,
-        XRPLInterchainTransferMessage, XRPLMessage, XRPLMessageType, XRPLProverMessage,
+        XRPLInterchainTransferMessage, XRPLMessage, XRPLProverMessage,
     },
     types::{XRPLAccountId, XRPLPaymentAmount},
 };
@@ -824,21 +824,16 @@ impl XrplIngestor {
                 .map_err(|_| IngestorError::GenericError("Invalid length of tx_id bytes".into()))?,
             );
         let memos = &payment.common.memos;
-        let message_type_str = extract_and_decode_memo(memos, "type")?;
-        let message_type: XRPLMessageType =
-            serde_json::from_str(&message_type_str).map_err(|e| {
-                IngestorError::GenericError(format!(
-                    "Failed to parse message type {}: {}",
-                    message_type_str, e
-                ))
-            })?;
+        let message_type = extract_and_decode_memo(memos, "type")?;
         let amount = parse_payment_amount(payment)?;
         let source_address: XRPLAccountId =
             payment.common.account.clone().try_into().map_err(|e| {
                 IngestorError::GenericError(format!("Invalid source account: {:?}", e))
             })?;
-        match message_type {
-            XRPLMessageType::InterchainTransfer | XRPLMessageType::CallContract => {
+
+        match message_type.as_str() {
+            // TODO: use enum for this
+            "interchain_transfer" | "call_contract" => {
                 let gas_fee_amount = parse_gas_fee_amount(
                     &amount,
                     extract_and_decode_memo(memos, "gas_fee_amount")?,
@@ -897,7 +892,7 @@ impl XrplIngestor {
                 }
                 Ok(message_with_payload)
             }
-            XRPLMessageType::AddGas => {
+            "add_gas" => {
                 let msg_tx_id = extract_and_decode_memo(memos, "tx_id")?;
                 let msg_tx_id_bytes = hex::decode(&msg_tx_id).map_err(|e| {
                     IngestorError::GenericError(format!("Failed to decode unsigned tx hash: {}", e))
@@ -921,7 +916,7 @@ impl XrplIngestor {
                     None,
                 ))
             }
-            XRPLMessageType::AddReserves => match amount {
+            "add_reserves" => match amount {
                 XRPLPaymentAmount::Drops(amount) => Ok(WithPayload::new(
                     XRPLMessage::AddReservesMessage(XRPLAddReservesMessage { tx_id, amount }),
                     None,
