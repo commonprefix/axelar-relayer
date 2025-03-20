@@ -90,9 +90,14 @@ impl Broadcaster for XRPLBroadcaster {
             })?;
             let req = TxRequest::new(tx_hash);
             match self.client.call(req).await {
-                Ok(_) => {
-                    warn!("Transaction already submitted: {:?}", tx_hash);
-                    Ok((Ok(tx_hash.clone()), message_id, source_chain))
+                Ok(query_response) => {
+                    match query_response.tx.common().validated {
+                        Some(true) => {
+                            warn!("Transaction already submitted: {:?}", tx_hash);
+                            Ok((Ok(tx_hash.clone()), message_id, source_chain))
+                        }
+                        _ => log_and_return_error(&response, message_id, source_chain),
+                    }
                 }
                 Err(_) => log_and_return_error(&response, message_id, source_chain),
             }
