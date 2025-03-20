@@ -826,7 +826,7 @@ impl XrplIngestor {
         let memos = &payment.common.memos;
         let message_type_str = extract_and_decode_memo(memos, "type")?;
         let message_type: XRPLMessageType =
-            serde_json::from_str(&message_type_str).map_err(|e| {
+            serde_json::from_str(&format!("\"{}\"", message_type_str)).map_err(|e| {
                 IngestorError::GenericError(format!(
                     "Failed to parse message type {}: {}",
                     message_type_str, e
