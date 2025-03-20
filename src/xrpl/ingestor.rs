@@ -250,9 +250,7 @@ impl XrplIngestor {
 
                 Ok(Some(token_id))
             }
-            XRPLPaymentAmount::Drops(_) => {
-                return Ok(None);
-            }
+            XRPLPaymentAmount::Drops(_) => Ok(None),
         }
     }
 
@@ -828,6 +826,11 @@ impl XrplIngestor {
         let memos = &payment.common.memos;
         let message_type = extract_and_decode_memo(memos, "type")?;
         let amount = parse_payment_amount(payment)?;
+        let source_address: XRPLAccountId =
+            payment.common.account.clone().try_into().map_err(|e| {
+                IngestorError::GenericError(format!("Invalid source account: {:?}", e))
+            })?;
+
         match message_type.as_str() {
             // TODO: use enum for this
             "interchain_transfer" | "call_contract" => {
@@ -835,11 +838,6 @@ impl XrplIngestor {
                     &amount,
                     extract_and_decode_memo(memos, "gas_fee_amount")?,
                 )?;
-
-                let source_address: XRPLAccountId =
-                    payment.common.account.clone().try_into().map_err(|e| {
-                        IngestorError::GenericError(format!("Invalid source account: {:?}", e))
-                    })?;
 
                 let destination_chain = extract_and_decode_memo(memos, "destination_chain")?;
                 let destination_address = extract_and_decode_memo(memos, "destination_address")?;
@@ -903,6 +901,7 @@ impl XrplIngestor {
                 Ok(WithPayload::new(
                     XRPLMessage::AddGasMessage(XRPLAddGasMessage {
                         tx_id,
+                        source_address,
                         msg_tx_id: HexTxHash::new(
                             std::convert::TryInto::<[u8; 32]>::try_into(msg_tx_id_bytes).map_err(
                                 |_| {
