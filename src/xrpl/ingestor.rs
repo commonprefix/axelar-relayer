@@ -90,12 +90,13 @@ impl XrplIngestor {
                 XRPLMessage::InterchainTransferMessage(_) | XRPLMessage::CallContractMessage(_) => {
                     let call_event = self.call_event_from_message(&message_with_payload).await?;
                     let gas_credit_event = self
-                        .gas_credit_event_from_payment(&message_with_payload)
+                        .gas_credit_event_from_payment(&message_with_payload, &payment)
                         .await?;
                     Ok(vec![call_event, gas_credit_event])
                 }
                 XRPLMessage::AddGasMessage(_) => {
-                    self.handle_add_gas_message(&message_with_payload).await
+                    self.handle_add_gas_message(&message_with_payload, &payment)
+                        .await
                 }
                 XRPLMessage::AddReservesMessage(_) => {
                     self.handle_add_reserves_message(&message_with_payload)
@@ -113,6 +114,7 @@ impl XrplIngestor {
     pub async fn handle_add_gas_message(
         &self,
         xrpl_message_with_payload: &WithPayload<XRPLMessage>,
+        payment: &PaymentTransaction,
     ) -> Result<Vec<Event>, IngestorError> {
         let execute_msg =
             xrpl_gateway::msg::ExecuteMsg::VerifyMessages(vec![xrpl_message_with_payload
@@ -132,7 +134,7 @@ impl XrplIngestor {
             })?;
 
         let gas_credit_event = self
-            .gas_credit_event_from_payment(xrpl_message_with_payload)
+            .gas_credit_event_from_payment(xrpl_message_with_payload, payment)
             .await?;
 
         Ok(vec![gas_credit_event])
@@ -211,6 +213,49 @@ impl XrplIngestor {
             })?;
 
         Ok(vec![])
+    }
+
+    async fn get_token_id(
+        &self,
+        xrpl_message: &XRPLMessage,
+    ) -> Result<Option<TokenId>, IngestorError> {
+        let token = match xrpl_message {
+            XRPLMessage::InterchainTransferMessage(message) => message.amount.clone(),
+            XRPLMessage::CallContractMessage(message) => message.gas_fee_amount.clone(),
+            XRPLMessage::AddGasMessage(message) => message.amount.clone(),
+            _ => {
+                return Err(IngestorError::GenericError(
+                    "Unsupported payment type".to_owned(),
+                ))
+            }
+        };
+
+        match token {
+            XRPLPaymentAmount::Issued(token, _) => {
+                let query = xrpl_gateway::msg::QueryMsg::XrplTokenId(token);
+
+                let request = QueryRequest::Generic(serde_json::to_value(&query).map_err(|e| {
+                    IngestorError::GenericError(format!("Failed to serialize query: {}", e))
+                })?);
+
+                let response_body = self
+                    .gmp_api
+                    .post_query(self.config.xrpl_gateway_address.clone(), &request)
+                    .await
+                    .map_err(|e| {
+                        IngestorError::GenericError(format!("Failed to get token id: {}", e))
+                    })?;
+
+                let token_id: TokenId = serde_json::from_str(&response_body).map_err(|e| {
+                    IngestorError::GenericError(format!("Failed to parse token id: {}", e))
+                })?;
+
+                Ok(Some(token_id))
+            }
+            XRPLPaymentAmount::Drops(_) => {
+                return Ok(None);
+            }
+        }
     }
 
     async fn translate_message(
@@ -333,12 +378,11 @@ impl XrplIngestor {
     async fn gas_credit_event_from_payment(
         &self,
         xrpl_message_with_payload: &WithPayload<XRPLMessage>,
+        payment: &PaymentTransaction,
     ) -> Result<Event, IngestorError> {
         let xrpl_message = xrpl_message_with_payload.message.clone();
 
-        let (_, gas_token_id) = self
-            .translate_message(&xrpl_message, &xrpl_message_with_payload.payload)
-            .await?;
+        let gas_token_id = self.get_token_id(&xrpl_message).await?;
 
         let tx_id = match &xrpl_message {
             XRPLMessage::InterchainTransferMessage(message) => {
@@ -357,6 +401,7 @@ impl XrplIngestor {
         let source_address = match &xrpl_message {
             XRPLMessage::InterchainTransferMessage(message) => message.source_address.to_string(),
             XRPLMessage::CallContractMessage(message) => message.source_address.to_string(),
+            XRPLMessage::AddGasMessage(_) => payment.common.account.to_string(),
             _ => {
                 return Err(IngestorError::GenericError(
                     "Unsupported message type".to_owned(),
@@ -367,6 +412,7 @@ impl XrplIngestor {
         let gas_fee_amount = match &xrpl_message {
             XRPLMessage::InterchainTransferMessage(message) => message.gas_fee_amount.clone(),
             XRPLMessage::CallContractMessage(message) => message.gas_fee_amount.clone(),
+            XRPLMessage::AddGasMessage(message) => message.amount.clone(),
             _ => {
                 return Err(IngestorError::GenericError(
                     "Unsupported message type".to_owned(),
@@ -399,11 +445,11 @@ impl XrplIngestor {
             message_id: format!("0x{}", tx_id),
             refund_address: source_address,
             payment: gmp_types::Amount {
-                token_id: if is_native_token {
+                token_id: if is_native_token || gas_token_id.is_none() {
                     // TODO: review this logic
                     None
                 } else {
-                    Some(gas_token_id.to_string())
+                    Some(gas_token_id.expect("Gas token id is required").to_string())
                 },
                 amount: gas_fee_amount.to_string(),
             },
