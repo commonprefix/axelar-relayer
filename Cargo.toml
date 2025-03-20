@@ -19,11 +19,11 @@ xrpl_http_client = { git = "https://github.com/commonprefix/xrpl-sdk-rust", bran
 xrpl_binary_codec = { git = "https://github.com/commonprefix/xrpl-sdk-rust", branch = "main", package = "xrpl_binary_codec" }
 xrpl_amplifier_types = { git = "https://github.com/commonprefix/axelar-amplifier", branch = "xrpl-ampd", package = "xrpl-types" }
 axelar_wasm_std = { git = "https://github.com/commonprefix/axelar-amplifier", branch = "xrpl-ampd", package = "axelar-wasm-std" }
-xrpl_gateway = { git = "https://github.com/commonprefix/axelar-amplifier", branch = "xrpl-gas", package = "xrpl-gateway" }
-xrpl_multisig_prover = { git = "https://github.com/commonprefix/axelar-amplifier", branch = "xrpl-gas", package = "xrpl-multisig-prover" }
+xrpl_gateway = { git = "https://github.com/commonprefix/axelar-amplifier", branch = "xrpl", package = "xrpl-gateway" }
+xrpl_multisig_prover = { git = "https://github.com/commonprefix/axelar-amplifier", branch = "xrpl", package = "xrpl-multisig-prover" }
 router_api = { git = "https://github.com/commonprefix/axelar-amplifier", branch = "xrpl-ampd", package = "router-api" }
 multisig = { git = "https://github.com/commonprefix/axelar-amplifier", branch = "xrpl-ampd", package = "multisig" }
-interchain-token-service = { git = "https://github.com/commonprefix/axelar-amplifier", branch = "xrpl-gas", package = "interchain-token-service" }
+interchain-token-service = { git = "https://github.com/commonprefix/axelar-amplifier", branch = "xrpl", package = "interchain-token-service" }
 hex = "0.4.3"
 reqwest = { version = "0.12.9", features = ["native-tls"] }
 thiserror = "2.0.3"
