@@ -212,7 +212,7 @@ pub async fn xrpl_tx_from_hash(
     tx_hash: HexTxHash,
     client: &xrpl_http_client::Client,
 ) -> Result<Transaction, IngestorError> {
-    let tx_request = TxRequest::new(&tx_hash.tx_hash_as_hex(false)).binary(false);
+    let tx_request = TxRequest::new(&tx_hash.tx_hash_as_hex_no_prefix()).binary(false);
     client
         .call(tx_request)
         .await
