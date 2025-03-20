@@ -839,10 +839,14 @@ impl XrplIngestor {
             })?;
         match message_type {
             XRPLMessageType::InterchainTransfer | XRPLMessageType::CallContract => {
-                let gas_fee_amount = parse_gas_fee_amount(
-                    &amount,
-                    extract_and_decode_memo(memos, "gas_fee_amount")?,
-                )?;
+                let gas_fee_amount = match message_type {
+                    XRPLMessageType::InterchainTransfer => parse_gas_fee_amount(
+                        &amount,
+                        extract_and_decode_memo(memos, "gas_fee_amount")?,
+                    )?,
+                    XRPLMessageType::CallContract => amount.clone(),
+                    _ => unreachable!(),
+                };
 
                 let destination_chain = extract_and_decode_memo(memos, "destination_chain")?;
                 let destination_address = extract_and_decode_memo(memos, "destination_address")?;
