@@ -6,7 +6,7 @@ use tracing::{debug, info, warn};
 
 use crate::{
     error::DistributorError,
-    gmp_api::GmpApi,
+    gmp_api::{gmp_types::Task, GmpApi},
     queue::{Queue, QueueItem},
 };
 
@@ -21,7 +21,9 @@ impl Distributor {
             .get()
             .expect("Cannot get redis connection from pool");
 
-        let last_task_id = redis_conn.get("distributor:last_task_id").unwrap_or(None);
+        let last_task_id = redis_conn
+            .get("recovery_distributor:last_task_id")
+            .unwrap_or(None);
         if last_task_id.is_some() {
             info!(
                 "Distributor: recovering last task id: {}",
@@ -43,7 +45,7 @@ impl Distributor {
         let _: () = self
             .redis_conn
             .set(
-                "distributor:last_task_id",
+                "recovery_distributor:last_task_id",
                 self.last_task_id.clone().unwrap(),
             )
             .map_err(|e| {
@@ -60,6 +62,9 @@ impl Distributor {
         match tasks_res {
             Ok(tasks) => {
                 for task in tasks {
+                    if matches!(task, Task::Verify(_)) {
+                        continue;
+                    }
                     let task_item = &QueueItem::Task(task.clone());
                     info!("Publishing task: {:?}", task);
                     queue.publish(task_item.clone()).await;
