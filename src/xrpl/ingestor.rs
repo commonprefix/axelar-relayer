@@ -90,13 +90,12 @@ impl XrplIngestor {
                 XRPLMessage::InterchainTransferMessage(_) | XRPLMessage::CallContractMessage(_) => {
                     let call_event = self.call_event_from_message(&message_with_payload).await?;
                     let gas_credit_event = self
-                        .gas_credit_event_from_payment(&message_with_payload, &payment)
+                        .gas_credit_event_from_payment(&message_with_payload)
                         .await?;
                     Ok(vec![call_event, gas_credit_event])
                 }
                 XRPLMessage::AddGasMessage(_) => {
-                    self.handle_add_gas_message(&message_with_payload, &payment)
-                        .await
+                    self.handle_add_gas_message(&message_with_payload).await
                 }
                 XRPLMessage::AddReservesMessage(_) => {
                     self.handle_add_reserves_message(&message_with_payload)
@@ -114,7 +113,6 @@ impl XrplIngestor {
     pub async fn handle_add_gas_message(
         &self,
         xrpl_message_with_payload: &WithPayload<XRPLMessage>,
-        payment: &PaymentTransaction,
     ) -> Result<Vec<Event>, IngestorError> {
         let execute_msg =
             xrpl_gateway::msg::ExecuteMsg::VerifyMessages(vec![xrpl_message_with_payload
@@ -134,7 +132,7 @@ impl XrplIngestor {
             })?;
 
         let gas_credit_event = self
-            .gas_credit_event_from_payment(xrpl_message_with_payload, payment)
+            .gas_credit_event_from_payment(xrpl_message_with_payload)
             .await?;
 
         Ok(vec![gas_credit_event])
@@ -378,7 +376,6 @@ impl XrplIngestor {
     async fn gas_credit_event_from_payment(
         &self,
         xrpl_message_with_payload: &WithPayload<XRPLMessage>,
-        payment: &PaymentTransaction,
     ) -> Result<Event, IngestorError> {
         let xrpl_message = xrpl_message_with_payload.message.clone();
 
@@ -401,7 +398,7 @@ impl XrplIngestor {
         let source_address = match &xrpl_message {
             XRPLMessage::InterchainTransferMessage(message) => message.source_address.to_string(),
             XRPLMessage::CallContractMessage(message) => message.source_address.to_string(),
-            XRPLMessage::AddGasMessage(_) => payment.common.account.to_string(),
+            XRPLMessage::AddGasMessage(message) => message.source_address.to_string(),
             _ => {
                 return Err(IngestorError::GenericError(
                     "Unsupported message type".to_owned(),
