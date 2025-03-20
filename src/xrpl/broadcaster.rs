@@ -85,10 +85,10 @@ impl Broadcaster for XRPLBroadcaster {
             })?;
             Ok((Ok(tx_hash.clone()), message_id, source_chain))
         } else if response_category == ResultCategory::Tef {
-            return Ok((Ok(tx_hash.clone()), message_id, source_chain));
             let tx_hash = tx.common().hash.as_ref().ok_or_else(|| {
                 BroadcasterError::RPCCallFailed("Transaction hash not found".to_string())
             })?;
+            return Ok((Ok(tx_hash.clone()), message_id, source_chain));
             let req = TxRequest::new(tx_hash);
             match self.client.call(req).await {
                 Ok(query_response) => {
