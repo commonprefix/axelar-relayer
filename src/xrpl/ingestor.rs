@@ -114,6 +114,10 @@ impl XrplIngestor {
         &self,
         xrpl_message_with_payload: &WithPayload<XRPLMessage>,
     ) -> Result<Vec<Event>, IngestorError> {
+        let gas_credit_event = self
+            .gas_credit_event_from_payment(xrpl_message_with_payload)
+            .await?;
+
         let execute_msg =
             xrpl_gateway::msg::ExecuteMsg::VerifyMessages(vec![xrpl_message_with_payload
                 .message
@@ -130,10 +134,6 @@ impl XrplIngestor {
             .map_err(|e| {
                 IngestorError::GenericError(format!("Failed to broadcast message: {}", e))
             })?;
-
-        let gas_credit_event = self
-            .gas_credit_event_from_payment(xrpl_message_with_payload)
-            .await?;
 
         Ok(vec![gas_credit_event])
     }
