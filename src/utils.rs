@@ -234,5 +234,10 @@ pub fn parse_message_from_context(
         IngestorError::GenericError("Verify task missing xrpl_message in source_context".into())
     })?;
 
-    Ok(serde_json::from_str(xrpl_message).unwrap())
+    serde_json::from_str(xrpl_message).map_err(|e| {
+        IngestorError::GenericError(format!(
+            "Failed to parse xrpl_message from {}: {}",
+            xrpl_message, e
+        ))
+    })
 }
