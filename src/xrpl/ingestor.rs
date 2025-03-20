@@ -360,7 +360,7 @@ impl XrplIngestor {
                 r#type: "CALL".to_owned(),
                 event_id: format!("{}-call", xrpl_message.tx_id().to_string().to_lowercase()),
                 meta: Some(Metadata {
-                    tx_id: None,
+                    tx_id: Some(xrpl_message.tx_id().to_string().to_lowercase()),
                     from_address: None,
                     finalized: None,
                     source_context: Some(source_context),
