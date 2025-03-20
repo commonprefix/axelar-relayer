@@ -25,7 +25,8 @@ use tracing::{debug, warn};
 use xrpl_amplifier_types::{
     msg::{
         WithCrossChainId, WithPayload, XRPLAddGasMessage, XRPLAddReservesMessage,
-        XRPLInterchainTransferMessage, XRPLMessage, XRPLMessageType, XRPLProverMessage,
+        XRPLCallContractMessage, XRPLInterchainTransferMessage, XRPLMessage, XRPLMessageType,
+        XRPLProverMessage,
     },
     types::{XRPLAccountId, XRPLPaymentAmount},
 };
@@ -301,7 +302,10 @@ impl XrplIngestor {
             XRPLMessage::InterchainTransferMessage(_) => {
                 let interchain_transfer_response: InterchainTransfer =
                     serde_json::from_str(&response_body).map_err(|e| {
-                        IngestorError::GenericError(format!("Failed to parse ITS Message: {}", e))
+                        IngestorError::GenericError(format!(
+                            "Failed to parse InterchainTransfer Message: {}",
+                            e
+                        ))
                     })?;
                 Ok((
                     interchain_transfer_response.message_with_payload.ok_or(
@@ -313,7 +317,10 @@ impl XrplIngestor {
             XRPLMessage::CallContractMessage(_) => {
                 let contract_call_response: CallContract = serde_json::from_str(&response_body)
                     .map_err(|e| {
-                        IngestorError::GenericError(format!("Failed to parse ITS Message: {}", e))
+                        IngestorError::GenericError(format!(
+                            "Failed to parse CallContract Message: {}",
+                            e
+                        ))
                     })?;
                 Ok((
                     contract_call_response.message_with_payload,
@@ -853,47 +860,87 @@ impl XrplIngestor {
 
                 let (payload, payload_hash) = self.parse_payload_and_payload_hash(memos).await?;
 
-                let mut message_with_payload = WithPayload::new(
-                    XRPLMessage::InterchainTransferMessage(XRPLInterchainTransferMessage {
-                        tx_id,
-                        source_address,
-                        destination_address: destination_address.try_into().map_err(|e| {
-                            IngestorError::GenericError(format!(
-                                "Invalid destination_address: {}",
-                                e
-                            ))
-                        })?,
-                        destination_chain: ChainName::from_str(&destination_chain).map_err(
-                            |e| {
+                let message = match message_type {
+                    XRPLMessageType::InterchainTransfer => {
+                        XRPLMessage::InterchainTransferMessage(XRPLInterchainTransferMessage {
+                            tx_id,
+                            source_address,
+                            destination_address: destination_address.try_into().map_err(|e| {
                                 IngestorError::GenericError(format!(
-                                    "Invalid destination_chain: {}",
+                                    "Invalid destination_address: {}",
                                     e
                                 ))
-                            },
-                        )?,
-                        payload_hash: if payload_hash.is_some() {
-                            Some(
-                                std::convert::TryInto::<[u8; 32]>::try_into(
-                                    hex::decode(payload_hash.unwrap()).map_err(|_| {
+                            })?,
+                            destination_chain: ChainName::from_str(&destination_chain).map_err(
+                                |e| {
+                                    IngestorError::GenericError(format!(
+                                        "Invalid destination_chain: {}",
+                                        e
+                                    ))
+                                },
+                            )?,
+                            payload_hash: if payload_hash.is_some() {
+                                Some(
+                                    std::convert::TryInto::<[u8; 32]>::try_into(
+                                        hex::decode(payload_hash.unwrap()).map_err(|_| {
+                                            IngestorError::GenericError(
+                                                "Failed to hex-decode payload_hash".into(),
+                                            )
+                                        })?,
+                                    )
+                                    .map_err(|_| {
                                         IngestorError::GenericError(
-                                            "Failed to hex-decode payload_hash".into(),
+                                            "Invalid length of payload_hash bytes".into(),
                                         )
                                     })?,
                                 )
+                            } else {
+                                None
+                            },
+                            amount,
+                            gas_fee_amount,
+                        })
+                    }
+                    XRPLMessageType::CallContract => {
+                        XRPLMessage::CallContractMessage(XRPLCallContractMessage {
+                            tx_id,
+                            source_address,
+                            destination_address: destination_address.try_into().map_err(|e| {
+                                IngestorError::GenericError(format!(
+                                    "Invalid destination_address: {}",
+                                    e
+                                ))
+                            })?,
+                            destination_chain: ChainName::from_str(&destination_chain).map_err(
+                                |e| {
+                                    IngestorError::GenericError(format!(
+                                        "Invalid destination_chain: {}",
+                                        e
+                                    ))
+                                },
+                            )?,
+                            payload_hash: std::convert::TryInto::<[u8; 32]>::try_into(
+                                hex::decode(payload_hash.ok_or(IngestorError::GenericError(
+                                    "Payload hash is required for CallContract".into(),
+                                ))?)
                                 .map_err(|_| {
                                     IngestorError::GenericError(
-                                        "Invalid length of payload_hash bytes".into(),
+                                        "Failed to hex-decode payload_hash".into(),
                                     )
                                 })?,
                             )
-                        } else {
-                            None
-                        },
-                        amount,
-                        gas_fee_amount,
-                    }),
-                    None,
-                );
+                            .map_err(|_| {
+                                IngestorError::GenericError(
+                                    "Invalid length of payload_hash bytes".into(),
+                                )
+                            })?,
+                            gas_fee_amount,
+                        })
+                    }
+                    _ => unreachable!(),
+                };
+
+                let mut message_with_payload = WithPayload::new(message, None);
 
                 if payload.is_some() {
                     let payload_bytes = hex::decode(payload.unwrap()).unwrap();
