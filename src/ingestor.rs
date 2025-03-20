@@ -137,13 +137,22 @@ impl Ingestor {
         match task {
             Task::Verify(verify_task) => {
                 info!("Consuming task: {:?}", verify_task);
-                self.xrpl_ingestor.handle_verify(verify_task).await
+                let res = self.xrpl_ingestor.handle_verify(verify_task).await;
+                if res.is_err() {
+                    warn!("Skipping verify task: {:?}", res.err().unwrap());
+                }
+                Ok(())
             }
             Task::ReactToWasmEvent(react_to_wasm_event_task) => {
                 info!("Consuming task: {:?}", react_to_wasm_event_task);
-                self.xrpl_ingestor
+                let res = self
+                    .xrpl_ingestor
                     .handle_wasm_event(react_to_wasm_event_task)
-                    .await
+                    .await;
+                if res.is_err() {
+                    warn!("Skipping wasm event task: {:?}", res.err().unwrap());
+                }
+                Ok(())
             }
             Task::ConstructProof(construct_proof_task) => {
                 info!("Consuming task: {:?}", construct_proof_task);

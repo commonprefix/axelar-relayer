@@ -62,9 +62,6 @@ impl Distributor {
         match tasks_res {
             Ok(tasks) => {
                 for task in tasks {
-                    if matches!(task, Task::Verify(_)) {
-                        continue;
-                    }
                     let task_item = &QueueItem::Task(task.clone());
                     info!("Publishing task: {:?}", task);
                     queue.publish(task_item.clone()).await;
