@@ -168,6 +168,16 @@ pub struct Metadata {
     pub finalized: Option<bool>,
     #[serde(rename = "sourceContext")]
     pub source_context: Option<HashMap<String, String>>,
+    #[serde(rename = "scopedMessages")]
+    pub scoped_messages: Option<Vec<ScopedMessage>>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct ScopedMessage {
+    #[serde(rename = "messageID")]
+    pub message_id: String,
+    #[serde(rename = "sourceChain")]
+    pub source_chain: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
