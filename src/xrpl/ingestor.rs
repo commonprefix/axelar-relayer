@@ -391,7 +391,7 @@ impl XrplIngestor {
                 message.tx_id.to_string().to_lowercase()
             }
             XRPLMessage::CallContractMessage(message) => message.tx_id.to_string().to_lowercase(),
-            XRPLMessage::AddGasMessage(message) => message.msg_tx_id.to_string().to_lowercase(),
+            XRPLMessage::AddGasMessage(message) => message.msg_id.to_string().to_lowercase(),
             _ => {
                 return Err(IngestorError::GenericError(format!(
                     "Gas credit event not supported for this message type: {:?}",
@@ -958,7 +958,7 @@ impl XrplIngestor {
                     XRPLMessage::AddGasMessage(XRPLAddGasMessage {
                         tx_id,
                         source_address,
-                        msg_tx_id: HexTxHash::new(
+                        msg_id: HexTxHash::new(
                             std::convert::TryInto::<[u8; 32]>::try_into(msg_tx_id_bytes).map_err(
                                 |_| {
                                     IngestorError::GenericError(
