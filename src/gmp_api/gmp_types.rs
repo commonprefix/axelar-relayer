@@ -30,7 +30,7 @@ pub struct CommonTaskFields {
     pub chain: String,
     pub timestamp: String,
     pub r#type: String,
-    pub meta: Option<Metadata>,
+    pub meta: Option<TaskMetadata>,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -156,11 +156,11 @@ pub struct CommonEventFields {
     pub r#type: String,
     #[serde(rename = "eventID")]
     pub event_id: String,
-    pub meta: Option<Metadata>,
+    pub meta: Option<EventMetadata>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-pub struct Metadata {
+pub struct TaskMetadata {
     #[serde(rename = "txID")]
     pub tx_id: Option<String>,
     #[serde(rename = "fromAddress")]
@@ -170,6 +170,17 @@ pub struct Metadata {
     pub source_context: Option<HashMap<String, String>>,
     #[serde(rename = "scopedMessages")]
     pub scoped_messages: Option<Vec<ScopedMessage>>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct EventMetadata {
+    #[serde(rename = "txID")]
+    pub tx_id: Option<String>,
+    #[serde(rename = "fromAddress")]
+    pub from_address: Option<String>,
+    pub finalized: Option<bool>,
+    #[serde(rename = "sourceContext")]
+    pub source_context: Option<HashMap<String, String>>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]

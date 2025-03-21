@@ -9,8 +9,8 @@ use crate::{
     gmp_api::{
         gmp_types::{
             self, Amount, BroadcastRequest, CommonEventFields, ConstructProofTask, Event,
-            GatewayV2Message, MessageExecutionStatus, Metadata, QueryRequest, ReactToWasmEventTask,
-            VerifyTask,
+            EventMetadata, GatewayV2Message, MessageExecutionStatus, QueryRequest,
+            ReactToWasmEventTask, VerifyTask,
         },
         GmpApi,
     },
@@ -359,7 +359,7 @@ impl XrplIngestor {
             common: CommonEventFields {
                 r#type: "CALL".to_owned(),
                 event_id: format!("{}-call", xrpl_message.tx_id().to_string().to_lowercase()),
-                meta: Some(Metadata {
+                meta: Some(EventMetadata {
                     tx_id: Some(xrpl_message.tx_id().to_string().to_lowercase()),
                     from_address: None,
                     finalized: None,

@@ -17,8 +17,8 @@ use crate::{
     config::Config,
     error::{GmpApiError, IngestorError},
     gmp_api::gmp_types::{
-        CommonTaskFields, ConstructProofTask, ExecuteTask, GatewayTxTask, Metadata,
-        ReactToWasmEventTask, RefundTask, Task, VerifyTask, WasmEvent,
+        CommonTaskFields, ConstructProofTask, ExecuteTask, GatewayTxTask, ReactToWasmEventTask,
+        RefundTask, Task, TaskMetadata, VerifyTask, WasmEvent,
     },
 };
 
@@ -221,7 +221,7 @@ pub async fn xrpl_tx_from_hash(
 }
 
 pub fn parse_message_from_context(
-    metadata: Option<Metadata>,
+    metadata: Option<TaskMetadata>,
 ) -> Result<XRPLMessage, IngestorError> {
     let metadata = metadata
         .ok_or_else(|| IngestorError::GenericError("Verify task missing meta field".into()))?;
