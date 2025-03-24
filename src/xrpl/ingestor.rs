@@ -975,7 +975,7 @@ impl XrplIngestor {
                 Ok(message_with_payload)
             }
             XRPLMessageType::AddGas => {
-                let msg_tx_id = extract_and_decode_memo(memos, "tx_id")?;
+                let msg_tx_id = extract_and_decode_memo(memos, "msg_id")?;
                 let msg_tx_id_bytes = hex::decode(&msg_tx_id).map_err(|e| {
                     IngestorError::GenericError(format!("Failed to decode unsigned tx hash: {}", e))
                 })?;
