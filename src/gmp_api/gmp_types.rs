@@ -283,3 +283,8 @@ pub enum BroadcastRequest {
 pub enum QueryRequest {
     Generic(Value),
 }
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct StorePayloadResult {
+    pub keccak256: String,
+}

@@ -13,7 +13,10 @@ use tracing::{debug, info, warn};
 use reqwest::{Client, Identity};
 
 use crate::{config::Config, error::GmpApiError, utils::parse_task};
-use gmp_types::{BroadcastRequest, Event, PostEventResponse, PostEventResult, QueryRequest, Task};
+use gmp_types::{
+    BroadcastRequest, Event, PostEventResponse, PostEventResult, QueryRequest, StorePayloadResult,
+    Task,
+};
 
 pub struct GmpApi {
     rpc_url: String,
@@ -65,6 +68,30 @@ impl GmpApi {
             client,
             chain: config.chain_name.to_owned(),
         })
+    }
+
+    async fn request_bytes_if_success(
+        request: reqwest::RequestBuilder,
+    ) -> Result<Vec<u8>, GmpApiError> {
+        let response = request
+            .send()
+            .await
+            .map_err(|e| GmpApiError::RequestFailed(e.to_string()))?;
+
+        if response.status().is_success() {
+            response
+                .bytes()
+                .await
+                .map(|b| b.to_vec())
+                .map_err(|e| GmpApiError::InvalidResponse(e.to_string()))
+        } else {
+            Err(GmpApiError::ErrorResponse(
+                response
+                    .text()
+                    .await
+                    .unwrap_or_else(|_| "Failed to read error body".to_string()),
+            ))
+        }
     }
 
     async fn request_text_if_success(
@@ -204,6 +231,25 @@ impl GmpApi {
             .body(serde_json::to_string(payload).unwrap());
 
         GmpApi::request_text_if_success(request).await
+    }
+
+    pub async fn post_payload(&self, payload: &[u8]) -> Result<String, GmpApiError> {
+        let url = format!("{}/payloads", self.rpc_url);
+        let request = self
+            .client
+            .post(&url)
+            .header("Content-Type", "application/octet-stream")
+            .body(payload.to_vec());
+
+        let response: StorePayloadResult = GmpApi::request_json(request).await?;
+        Ok(response.keccak256.trim_start_matches("0x").to_string())
+    }
+
+    pub async fn get_payload(&self, hash: &str) -> Result<String, GmpApiError> {
+        let url = format!("{}/payloads/0x{}", self.rpc_url, hash.to_lowercase());
+        let request = self.client.get(&url);
+        let response = GmpApi::request_bytes_if_success(request).await?;
+        Ok(hex::encode(response))
     }
 }
 

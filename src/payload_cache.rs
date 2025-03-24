@@ -36,7 +36,7 @@ impl PayloadCacheClient {
             .client
             .post(&self.base_url)
             .header(AUTHORIZATION, format!("Bearer {}", self.auth_token))
-            .header(CONTENT_TYPE, "text/plain")
+            .header(CONTENT_TYPE, "application/octet-stream")
             .body(payload.to_string())
             .send()
             .await?;

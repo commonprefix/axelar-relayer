@@ -15,7 +15,6 @@ use crate::{
         },
         GmpApi,
     },
-    payload_cache::PayloadCacheClient,
     utils::{
         event_attribute, extract_and_decode_memo, extract_hex_xrpl_memo, extract_memo,
         parse_gas_fee_amount, parse_message_from_context, parse_payment_amount, xrpl_tx_from_hash,
@@ -38,7 +37,6 @@ pub struct XrplIngestor {
     client: xrpl_http_client::Client,
     gmp_api: Arc<GmpApi>,
     config: Config,
-    payload_cache: PayloadCacheClient,
 }
 
 impl XrplIngestor {
@@ -46,13 +44,10 @@ impl XrplIngestor {
         let client = xrpl_http_client::Client::builder()
             .base_url(&config.xrpl_rpc)
             .build();
-        let payload_cache =
-            PayloadCacheClient::new(&config.payload_cache, &config.payload_cache_auth_token);
         Self {
             gmp_api,
             config,
             client,
-            payload_cache,
         }
     }
 
@@ -586,7 +581,7 @@ impl XrplIngestor {
         let mut payload = None;
         if payload_hash.is_some() {
             let payload_string = self
-                .payload_cache
+                .gmp_api
                 .get_payload(&hex::encode(payload_hash.unwrap()))
                 .await
                 .map_err(|e| {
@@ -835,8 +830,8 @@ impl XrplIngestor {
         if let Ok(payload_str) = payload_memo {
             // If we have 'payload', store it in the cache and receive the payload_hash.
             let hash = self
-                .payload_cache
-                .store_payload(&payload_str)
+                .gmp_api
+                .post_payload(&hex::decode(payload_str.clone()).unwrap())
                 .await
                 .map_err(|e| {
                     IngestorError::GenericError(format!("Failed to store payload in cache: {}", e))
@@ -844,13 +839,16 @@ impl XrplIngestor {
             Ok((Some(payload_str), Some(hash)))
         } else if let Ok(payload_hash_str) = payload_hash_memo {
             // If we have 'payload_hash', retrieve payload from the cache.
-            let payload_retrieved = self
-                .payload_cache
-                .get_payload(&payload_hash_str)
-                .await
-                .map_err(|e| {
-                    IngestorError::GenericError(format!("Failed to get payload from cache: {}", e))
-                })?;
+            let payload_retrieved =
+                self.gmp_api
+                    .get_payload(&payload_hash_str)
+                    .await
+                    .map_err(|e| {
+                        IngestorError::GenericError(format!(
+                            "Failed to get payload from cache: {}",
+                            e
+                        ))
+                    })?;
             Ok((Some(payload_retrieved), Some(payload_hash_str)))
         } else {
             Ok((None, None))
