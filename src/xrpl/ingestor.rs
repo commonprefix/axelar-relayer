@@ -90,10 +90,20 @@ impl XrplIngestor {
         match self.build_xrpl_message(&payment).await {
             Ok(message_with_payload) => match &message_with_payload.message {
                 XRPLMessage::InterchainTransferMessage(_) | XRPLMessage::CallContractMessage(_) => {
-                    let call_event = self.call_event_from_message(&message_with_payload).await?;
+                    let call_event = match self.call_event_from_message(&message_with_payload).await
+                    {
+                        Ok(event) => event,
+                        Err(IngestorError::ITSTranslationError(e)) => {
+                            warn!("Failed to translate ITS message: {}", e);
+                            return Ok(vec![]);
+                        }
+                        Err(e) => return Err(e),
+                    };
+
                     let gas_credit_event = self
                         .gas_credit_event_from_payment(&message_with_payload)
                         .await?;
+
                     Ok(vec![call_event, gas_credit_event])
                 }
                 XRPLMessage::AddGasMessage(_) => {
@@ -260,7 +270,7 @@ impl XrplIngestor {
         &self,
         xrpl_message: &XRPLMessage,
         payload: &Option<nonempty::HexBinary>,
-    ) -> Result<(MessageWithPayload, TokenId), IngestorError> {
+    ) -> Result<(Option<MessageWithPayload>, TokenId), IngestorError> {
         let query = match xrpl_message {
             XRPLMessage::InterchainTransferMessage(message) => {
                 xrpl_gateway::msg::QueryMsg::InterchainTransfer {
@@ -309,9 +319,7 @@ impl XrplIngestor {
                         ))
                     })?;
                 Ok((
-                    interchain_transfer_response.message_with_payload.ok_or(
-                        IngestorError::GenericError("Failed to parse ITS Message".to_owned()),
-                    )?,
+                    interchain_transfer_response.message_with_payload,
                     interchain_transfer_response.token_id,
                 ))
             }
@@ -324,7 +332,7 @@ impl XrplIngestor {
                         ))
                     })?;
                 Ok((
-                    contract_call_response.message_with_payload,
+                    Some(contract_call_response.message_with_payload),
                     contract_call_response.gas_token_id,
                 ))
             }
@@ -349,6 +357,15 @@ impl XrplIngestor {
         let (message_with_payload, _) = self
             .translate_message(&xrpl_message, &xrpl_message_with_payload.payload)
             .await?;
+
+        let message_with_payload = match message_with_payload {
+            Some(message) => message,
+            None => {
+                return Err(IngestorError::ITSTranslationError(
+                    "message_with_payload is None".to_owned(),
+                ))
+            }
+        };
 
         let b64_payload = BASE64_STANDARD.encode(
             hex::decode(message_with_payload.payload.to_string()).map_err(|e| {
