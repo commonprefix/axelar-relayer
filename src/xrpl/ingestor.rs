@@ -1,6 +1,7 @@
 use axelar_wasm_std::{msg_id::HexTxHash, nonempty};
 use base64::prelude::*;
 use interchain_token_service::TokenId;
+use std::ops::Sub;
 use std::{collections::HashMap, str::FromStr, sync::Arc, vec};
 
 use crate::{
@@ -219,7 +220,7 @@ impl XrplIngestor {
         xrpl_message: &XRPLMessage,
     ) -> Result<Option<TokenId>, IngestorError> {
         let token = match xrpl_message {
-            XRPLMessage::InterchainTransferMessage(message) => message.amount.clone(),
+            XRPLMessage::InterchainTransferMessage(message) => message.transfer_amount.clone(),
             XRPLMessage::CallContractMessage(message) => message.gas_fee_amount.clone(),
             XRPLMessage::AddGasMessage(message) => message.amount.clone(),
             _ => {
@@ -920,7 +921,9 @@ impl XrplIngestor {
                             } else {
                                 None
                             },
-                            amount,
+                            transfer_amount: amount.sub(gas_fee_amount.clone()).map_err(|e| {
+                                IngestorError::GenericError(format!("Failed to subtract gas fee amount: {}", e))
+                            })?,
                             gas_fee_amount,
                         })
                     }
