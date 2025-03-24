@@ -601,6 +601,29 @@ impl XrplIngestor {
                     IngestorError::GenericError("QuorumReached event missing content".to_owned())
                 })?;
 
+                let tx_status: String = serde_json::from_str(
+                    event_attribute(&task.task.event, "status")
+                        .ok_or_else(|| {
+                            IngestorError::GenericError(
+                                "QuorumReached event for ProverMessage missing status".to_owned(),
+                            )
+                        })?
+                        .as_str(),
+                )
+                .map_err(|e| {
+                    IngestorError::GenericError(format!("Failed to parse status: {}", e))
+                })?;
+
+                match tx_status.as_str() {
+                    "succeeded_on_source_chain" => {}
+                    _ => {
+                        return Err(IngestorError::GenericError(format!(
+                            "QuorumReached event has status: {}",
+                            tx_status
+                        )));
+                    }
+                };
+
                 let xrpl_message = match serde_json::from_str::<WithCrossChainId<XRPLMessage>>(&content) {
                     Ok(WithCrossChainId { content: message, cc_id: _ }) => message,
                     Err(_) => serde_json::from_str::<XRPLMessage>(&content).map_err(|e| {
