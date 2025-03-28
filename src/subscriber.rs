@@ -53,16 +53,19 @@ impl Subscriber {
     async fn work(&mut self, account: String, queue: Arc<Queue>) -> () {
         match self {
             Subscriber::Xrpl(sub) => {
-                let res = sub.poll(AccountId::from_address(&account).unwrap()).await;
+                let res = sub
+                    .get_transaction_by_id(
+                        "8CC8AF1AC83B3D5F41D89F9B5917A0CA2B52D56032D1FB0C0457708C7A1E2D12"
+                            .to_owned(),
+                    )
+                    .await;
                 match res {
-                    Ok(txs) => {
-                        for tx_with_meta in txs {
-                            let chain_transaction = ChainTransaction::Xrpl(tx_with_meta.tx.clone());
-                            let tx = &QueueItem::Transaction(chain_transaction.clone());
-                            info!("Publishing tx: {:?}", chain_transaction);
-                            queue.publish(tx.clone()).await;
-                            debug!("Published tx: {:?}", tx);
-                        }
+                    Ok(tx) => {
+                        let chain_transaction = ChainTransaction::Xrpl(tx.clone());
+                        let tx = &QueueItem::Transaction(chain_transaction.clone());
+                        info!("Publishing tx: {:?}", chain_transaction);
+                        queue.publish(tx.clone()).await;
+                        debug!("Published tx: {:?}", tx);
                     }
                     Err(e) => {
                         error!("Error getting txs: {:?}", e);
@@ -71,12 +74,9 @@ impl Subscriber {
                 }
             }
         }
-        tokio::time::sleep(tokio::time::Duration::from_secs(2)).await
     }
 
     pub async fn run(&mut self, account: String, queue: Arc<Queue>) -> () {
-        loop {
-            self.work(account.clone(), queue.clone()).await;
-        }
+        self.work(account.clone(), queue.clone()).await;
     }
 }
