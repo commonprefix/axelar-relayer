@@ -8,8 +8,7 @@ use libsecp256k1::{PublicKey, SecretKey};
 use tracing::debug;
 use xrpl_binary_codec::serialize;
 use xrpl_binary_codec::sign::sign_transaction;
-use xrpl_types::PaymentTransaction;
-use xrpl_types::{AccountId, Amount};
+use xrpl_types::{AccountId, Amount, Blob, Memo, PaymentTransaction};
 
 use super::client::XRPLClient;
 pub struct XRPLRefundManager {
@@ -52,6 +51,7 @@ impl RefundManager for XRPLRefundManager {
         &self,
         recipient: String,
         drops: String,
+        refund_id: &str,
     ) -> Result<Option<(String, String, String)>, RefundManagerError> {
         let pre_fee_amount_drops = drops.parse::<u64>().map_err(|e| {
             RefundManagerError::GenericError(format!("Invalid drops amount '{}': {}", drops, e))
@@ -66,6 +66,12 @@ impl RefundManager for XRPLRefundManager {
         })?;
 
         let mut tx = PaymentTransaction::new(self.account_id, pre_fee_amount, recipient_account);
+
+        tx.common.memos = vec![Memo {
+            memo_data: Blob::from_hex(&hex::encode_upper(refund_id)).unwrap(),
+            memo_format: None,
+            memo_type: Blob::from_hex(&hex::encode_upper("refund_id")).unwrap(),
+        }];
 
         self.client
             .inner()
@@ -104,6 +110,7 @@ impl RefundManager for XRPLRefundManager {
     async fn is_refund_processed(
         &self,
         refund_task: &RefundTask,
+        refund_id: &str,
     ) -> Result<bool, RefundManagerError> {
         let recipient_account = AccountId::from_address(&refund_task.task.refund_recipient_address)
             .map_err(|e| {
@@ -135,8 +142,7 @@ impl RefundManager for XRPLRefundManager {
             let refund_memo = extract_and_decode_memo(&tx.common().memos, "refund")
                 .map_err(|e| RefundManagerError::GenericError(e.to_string()))?;
 
-            // TODO: properly check refund identifier
-            if refund_memo == "foobar" {
+            if refund_memo == refund_id {
                 return Ok(true);
             }
         }

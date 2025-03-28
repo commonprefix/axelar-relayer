@@ -20,10 +20,12 @@ pub trait RefundManager {
         &self,
         recipient: String,
         amount: String,
+        refund_id: &str,
     ) -> impl Future<Output = Result<Option<(String, String, String)>, RefundManagerError>>;
     fn is_refund_processed(
         &self,
         refund_task: &RefundTask,
+        refund_id: &str,
     ) -> impl Future<Output = Result<bool, RefundManagerError>>;
 }
 
@@ -153,7 +155,7 @@ where
                     info!("Consuming task: {:?}", refund_task);
                     if self
                         .refund_manager
-                        .is_refund_processed(&refund_task)
+                        .is_refund_processed(&refund_task, &refund_task.common.id)
                         .await
                         .unwrap()
                     {
@@ -170,6 +172,7 @@ where
                         .build_refund_tx(
                             refund_task.task.refund_recipient_address.clone(),
                             refund_task.task.remaining_gas_balance.amount, // TODO: check if this is correct
+                            &refund_task.common.id,
                         )
                         .await
                         .map_err(|e| IncluderError::ConsumerError(e.to_string()))?;
