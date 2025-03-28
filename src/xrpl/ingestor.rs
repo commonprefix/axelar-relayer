@@ -399,11 +399,10 @@ impl XrplIngestor {
 
         let gas_token_id = self.get_token_id(&xrpl_message).await?;
 
-        let tx_id = match &xrpl_message {
-            XRPLMessage::InterchainTransferMessage(message) => {
-                message.tx_id.to_string().to_lowercase()
-            }
-            XRPLMessage::CallContractMessage(message) => message.tx_id.to_string().to_lowercase(),
+        let tx_id = xrpl_message.tx_id().to_string().to_lowercase();
+        let msg_id = match &xrpl_message {
+            XRPLMessage::InterchainTransferMessage(_) => tx_id.clone(),
+            XRPLMessage::CallContractMessage(_) => tx_id.clone(),
             XRPLMessage::AddGasMessage(message) => message.msg_id.to_string().to_lowercase(),
             _ => {
                 return Err(IngestorError::GenericError(format!(
@@ -457,7 +456,7 @@ impl XrplIngestor {
                 event_id: format!("{}-gas", tx_id),
                 meta: None,
             },
-            message_id: tx_id,
+            message_id: msg_id,
             refund_address: source_address,
             payment: gmp_types::Amount {
                 token_id: if is_native_token || gas_token_id.is_none() {
