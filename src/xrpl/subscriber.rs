@@ -7,15 +7,17 @@ use xrpl_types::AccountId;
 
 use crate::subscriber::TransactionPoller;
 
+use super::client::XRPLClient;
+
 pub struct XrplSubscriber {
-    client: xrpl_http_client::Client,
+    client: XRPLClient,
     redis_conn: PooledConnection<redis::Client>,
     latest_ledger: i64,
 }
 
 impl XrplSubscriber {
     pub async fn new(url: &str, redis_pool: Pool<redis::Client>) -> Self {
-        let client = xrpl_http_client::Client::builder().base_url(url).build();
+        let client = XRPLClient::new(url, 3).unwrap();
         let mut redis_conn = redis_pool
             .get()
             .expect("Cannot get redis connection from pool");
@@ -49,13 +51,6 @@ impl XrplSubscriber {
                 ))
             })?;
         Ok(())
-    }
-
-    pub async fn get_transaction_by_id(&self, tx_id: String) -> Result<Transaction, anyhow::Error> {
-        let request = xrpl_api::TxRequest::new(&tx_id);
-        let res = self.client.call(request).await;
-        let response = res.map_err(|e| anyhow!("Error getting txs: {:?}", e.to_string()))?;
-        Ok(response.tx.clone())
     }
 }
 
