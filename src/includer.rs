@@ -7,7 +7,9 @@ use tracing::{debug, error, info, warn};
 use crate::{
     error::{BroadcasterError, IncluderError, RefundManagerError},
     gmp_api::{
-        gmp_types::{CannotExecuteMessageReason, CommonEventFields, Event, Task},
+        gmp_types::{
+            Amount, CannotExecuteMessageReason, CommonEventFields, Event, RefundTask, Task,
+        },
         GmpApi,
     },
     queue::{Queue, QueueItem},
@@ -19,6 +21,10 @@ pub trait RefundManager {
         recipient: String,
         amount: String,
     ) -> impl Future<Output = Result<Option<(String, String, String)>, RefundManagerError>>;
+    fn is_refund_processed(
+        &self,
+        refund_task: &RefundTask,
+    ) -> impl Future<Output = Result<bool, RefundManagerError>>;
 }
 
 pub trait Broadcaster {
@@ -53,7 +59,7 @@ where
     B: Broadcaster,
     R: RefundManager,
 {
-    async fn work(&self, consumer: &mut Consumer, queue: Arc<Queue>) -> () {
+    async fn work(&self, consumer: &mut Consumer, queue: Arc<Queue>) {
         match consumer.next().await {
             Some(Ok(delivery)) => {
                 let data = delivery.data.clone();
@@ -91,7 +97,7 @@ where
         tokio::time::sleep(tokio::time::Duration::from_secs(2)).await
     }
 
-    pub async fn run(&self, queue: Arc<Queue>) -> () {
+    pub async fn run(&self, queue: Arc<Queue>) {
         let mut consumer = queue.consumer().await.unwrap();
         loop {
             info!("Includer is alive.");
@@ -143,12 +149,17 @@ where
                     }
                     Ok(())
                 }
-                Task::Refund(_) => {
-                    // TODO: support this
-                    warn!("Refund task is not yet supported");
-                    return Ok(());
-                    /*
+                Task::Refund(refund_task) => {
                     info!("Consuming task: {:?}", refund_task);
+                    if self
+                        .refund_manager
+                        .is_refund_processed(&refund_task)
+                        .await
+                        .unwrap()
+                    {
+                        warn!("Refund already processed");
+                        return Ok(());
+                    }
                     if refund_task.task.remaining_gas_balance.token_id.is_some() {
                         return Err(IncluderError::GenericError(
                             "Refund task with token_id is not supported".to_string(),
@@ -170,10 +181,8 @@ where
                             .await
                             .map_err(|e| IncluderError::ConsumerError(e.to_string()))?;
 
-                        if tx_result.is_err() {
-                            return Err(IncluderError::ConsumerError(
-                                tx_result.unwrap_err().to_string(),
-                            ));
+                        if let Err(e) = tx_result {
+                            return Err(IncluderError::ConsumerError(e.to_string()));
                         }
 
                         let gas_refunded = Event::GasRefunded {
@@ -202,7 +211,6 @@ where
                         warn!("Refund not executed: refund amount is not enough to cover tx fees");
                     }
                     Ok(())
-                    */
                 }
                 _ => Err(IncluderError::IrrelevantTask),
             },
