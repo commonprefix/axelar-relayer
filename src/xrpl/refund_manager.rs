@@ -1,7 +1,9 @@
 use std::sync::Arc;
 
 use crate::error::RefundManagerError;
+use crate::gmp_api::gmp_types::RefundTask;
 use crate::includer::RefundManager;
+use crate::utils::{extract_and_decode_memo, parse_message_from_context};
 use libsecp256k1::{PublicKey, SecretKey};
 use tracing::debug;
 use xrpl_binary_codec::serialize;
@@ -97,5 +99,48 @@ impl RefundManager for XRPLRefundManager {
             actual_refund_amount.to_string(),
             fee.drops().to_string(),
         )))
+    }
+
+    async fn is_refund_processed(
+        &self,
+        refund_task: &RefundTask,
+    ) -> Result<bool, RefundManagerError> {
+        let recipient_account = AccountId::from_address(&refund_task.task.refund_recipient_address)
+            .map_err(|e| {
+                RefundManagerError::GenericError(format!("Invalid recipient address: {}", e))
+            })?;
+
+        let message = parse_message_from_context(&refund_task.common.meta)
+            .map_err(|e| RefundManagerError::GenericError(e.to_string()))?;
+        let tx_id = message.tx_id().to_string();
+
+        // Get the ledger index of the associated payment transaction
+        let tx = self
+            .client
+            .get_transaction_by_id(tx_id)
+            .await
+            .map_err(|e| RefundManagerError::GenericError(e.to_string()))?;
+
+        let ledger_index = tx.common().ledger_index.ok_or_else(|| {
+            RefundManagerError::GenericError("Ledger index not found".to_string())
+        })?;
+        let transactions = self
+            .client
+            .get_transactions_for_account(&recipient_account, ledger_index)
+            .await
+            .map_err(|e| RefundManagerError::GenericError(e.to_string()))?;
+
+        // iterate on all transactions and check the memos
+        for tx in transactions {
+            let refund_memo = extract_and_decode_memo(&tx.common().memos, "refund")
+                .map_err(|e| RefundManagerError::GenericError(e.to_string()))?;
+
+            // TODO: properly check refund identifier
+            if refund_memo == "foobar" {
+                return Ok(true);
+            }
+        }
+
+        Ok(false)
     }
 }
