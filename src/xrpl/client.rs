@@ -1,8 +1,10 @@
 use std::time::Duration;
 
+use anyhow::anyhow;
 use serde::{de::DeserializeOwned, Serialize};
 use tracing::warn;
-use xrpl_api::Request;
+use xrpl_api::{Request, RequestPagination, Transaction};
+use xrpl_types::AccountId;
 
 use crate::error::ClientError;
 
@@ -67,5 +69,49 @@ impl XRPLClient {
                 .build(),
             max_retries,
         })
+    }
+
+    pub async fn get_transaction_by_id(&self, tx_id: String) -> Result<Transaction, anyhow::Error> {
+        let request = xrpl_api::TxRequest::new(&tx_id);
+        let res = self.client.call(request).await;
+        let response = res.map_err(|e| anyhow!("Error getting txs: {:?}", e.to_string()))?;
+        Ok(response.tx.clone())
+    }
+
+    pub async fn get_transactions_for_account(
+        &self,
+        account: &AccountId,
+        ledger_index_min: u32,
+    ) -> Result<Vec<Transaction>, anyhow::Error> {
+        let mut all_transactions = Vec::new();
+        let mut marker = None;
+        let mut request = xrpl_api::AccountTxRequest {
+            account: account.to_address(),
+            forward: Some(true),
+            ledger_index_min: Some(ledger_index_min.to_string()),
+            ledger_index_max: Some((-1).to_string()),
+            pagination: RequestPagination {
+                limit: Some(100),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        loop {
+            request.pagination.marker = marker;
+            let res = self.client.call(request.clone()).await;
+            let response = res.map_err(|e| anyhow!("Error getting txs: {:?}", e.to_string()))?;
+
+            // Add transactions from this page to our collection
+            all_transactions.extend(response.transactions.iter().map(|tx| tx.tx.clone()));
+
+            // Check if there are more pages
+            marker = response.pagination.marker;
+            if marker.is_none() {
+                break;
+            }
+        }
+
+        Ok(all_transactions)
     }
 }
