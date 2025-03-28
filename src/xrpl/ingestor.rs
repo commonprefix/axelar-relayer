@@ -471,7 +471,7 @@ impl XrplIngestor {
     }
 
     pub async fn handle_verify(&self, task: VerifyTask) -> Result<(), IngestorError> {
-        let xrpl_message = parse_message_from_context(task.common.meta)?;
+        let xrpl_message = parse_message_from_context(&task.common.meta)?;
 
         let execute_msg = xrpl_gateway::msg::ExecuteMsg::VerifyMessages(vec![xrpl_message]);
         let request =
@@ -936,7 +936,10 @@ impl XrplIngestor {
                                 None
                             },
                             transfer_amount: amount.sub(gas_fee_amount.clone()).map_err(|e| {
-                                IngestorError::GenericError(format!("Failed to subtract gas fee amount: {}", e))
+                                IngestorError::GenericError(format!(
+                                    "Failed to subtract gas fee amount: {}",
+                                    e
+                                ))
                             })?,
                             gas_fee_amount,
                         })
