@@ -2,7 +2,7 @@ use anyhow::anyhow;
 use r2d2::{Pool, PooledConnection};
 use redis::Commands;
 use tracing::{info, warn};
-use xrpl_api::{AccountTransaction, RequestPagination};
+use xrpl_api::{AccountTransaction, RequestPagination, Transaction};
 use xrpl_types::AccountId;
 
 use crate::subscriber::TransactionPoller;
@@ -49,6 +49,13 @@ impl XrplSubscriber {
                 ))
             })?;
         Ok(())
+    }
+
+    pub async fn get_transaction_by_id(&self, tx_id: String) -> Result<Transaction, anyhow::Error> {
+        let request = xrpl_api::TxRequest::new(&tx_id);
+        let res = self.client.call(request).await;
+        let response = res.map_err(|e| anyhow!("Error getting txs: {:?}", e.to_string()))?;
+        Ok(response.tx.clone())
     }
 }
 
