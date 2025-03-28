@@ -221,9 +221,10 @@ pub async fn xrpl_tx_from_hash(
 }
 
 pub fn parse_message_from_context(
-    metadata: Option<TaskMetadata>,
+    metadata: &Option<TaskMetadata>,
 ) -> Result<XRPLMessage, IngestorError> {
     let metadata = metadata
+        .clone()
         .ok_or_else(|| IngestorError::GenericError("Verify task missing meta field".into()))?;
 
     let source_context = metadata.source_context.ok_or_else(|| {
