@@ -67,7 +67,7 @@ impl TransactionPoller for XrplSubscriber {
             ledger_index_min: Some((self.latest_ledger + 1).to_string()),
             ledger_index_max: Some((-1).to_string()),
             pagination: RequestPagination {
-                limit: Some(10),
+                limit: Some(50),
                 ..Default::default()
             },
             ..Default::default()
