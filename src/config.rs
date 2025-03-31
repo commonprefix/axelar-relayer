@@ -30,7 +30,6 @@ pub struct AxelarContracts {
 pub struct NetworkConfig {
     pub refund_manager_addresses: String,
     pub includer_secrets: String,
-    pub instance_id: String,
     pub queue_address: String,
     pub gmp_api_url: String,
     pub xrpl_rpc: String,

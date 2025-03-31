@@ -33,8 +33,8 @@ impl XrplIncluder {
             .refund_manager_addresses
             .split(",")
             .collect::<Vec<&str>>();
-        let instance_id = config
-            .instance_id
+        let instance_id = std::env::var("INSTANCE_ID")
+            .expect("INSTANCE_ID is not set")
             .parse::<usize>()
             .expect("Invalid instance id");
         if instance_id >= secrets.len() || instance_id >= addresses.len() {
