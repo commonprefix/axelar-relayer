@@ -219,6 +219,8 @@ pub enum Event {
     GasRefunded {
         #[serde(flatten)]
         common: CommonEventFields,
+        #[serde(rename = "messageID")]
+        message_id: String,
         #[serde(rename = "recipientAddress")]
         recipient_address: String,
         #[serde(rename = "refundedAmount")]

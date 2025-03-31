@@ -194,6 +194,7 @@ where
                                 event_id: tx_result.unwrap(),
                                 meta: None,
                             },
+                            message_id: refund_task.task.message.message_id,
                             recipient_address: refund_task.task.refund_recipient_address,
                             refunded_amount: Amount {
                                 token_id: None,
