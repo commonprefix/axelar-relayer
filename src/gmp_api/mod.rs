@@ -24,8 +24,6 @@ pub struct GmpApi {
     chain: String,
 }
 
-const DEFAULT_RPC_TIMEOUT: Duration = Duration::from_secs(10);
-
 fn identity_from_config(config: &NetworkConfig) -> Result<Identity, GmpApiError> {
     let project_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
 
@@ -57,8 +55,9 @@ fn identity_from_config(config: &NetworkConfig) -> Result<Identity, GmpApiError>
 impl GmpApi {
     pub fn new(config: &NetworkConfig) -> Result<Self, GmpApiError> {
         let client = reqwest::ClientBuilder::new()
-            .connect_timeout(DEFAULT_RPC_TIMEOUT.into())
-            .timeout(DEFAULT_RPC_TIMEOUT)
+            .connect_timeout(Duration::from_secs(5))
+            .timeout(Duration::from_secs(30))
+            .pool_idle_timeout(Some(Duration::from_secs(300)))
             .identity(identity_from_config(config)?)
             .build()
             .map_err(|e| GmpApiError::ConnectionFailed(e.to_string()))?;
