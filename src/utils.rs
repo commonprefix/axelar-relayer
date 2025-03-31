@@ -267,7 +267,7 @@ pub fn setup_heartbeat(url: String) {
                 }
             }
 
-            tokio::time::sleep(tokio::time::Duration::from_secs(60)).await;
+            tokio::time::sleep(tokio::time::Duration::from_secs(30)).await;
         }
     });
 }
