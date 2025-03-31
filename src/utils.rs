@@ -171,7 +171,7 @@ pub fn extract_and_decode_memo(
     let hex_str = extract_memo(memos, memo_type)?;
     let bytes =
         hex::decode(&hex_str).with_context(|| format!("Failed to hex-decode memo {}", hex_str))?;
-    Ok(String::from_utf8(bytes).with_context(|| format!("Invalid UTF-8 in memo {}", hex_str))?)
+    String::from_utf8(bytes).with_context(|| format!("Invalid UTF-8 in memo {}", hex_str))
 }
 
 pub fn parse_payment_amount(

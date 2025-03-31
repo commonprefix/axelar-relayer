@@ -18,7 +18,7 @@ pub struct XRPLRefundManager {
     public_key: PublicKey,
 }
 
-impl<'a> XRPLRefundManager {
+impl XRPLRefundManager {
     pub fn new(
         client: Arc<XRPLClient>,
         address: String,

@@ -17,7 +17,7 @@ impl XrplTicketCreator {
         Self { gmp_api, config }
     }
 
-    async fn work(&self) -> () {
+    async fn work(&self) {
         let request = BroadcastRequest::Generic(
             serde_json::to_value(xrpl_multisig_prover::msg::ExecuteMsg::TicketCreate).unwrap(),
         );
@@ -40,7 +40,7 @@ impl XrplTicketCreator {
         tokio::time::sleep(tokio::time::Duration::from_secs(60)).await
     }
 
-    pub async fn run(&self) -> () {
+    pub async fn run(&self) {
         loop {
             info!("XrplTicketCreator is alive.");
             self.work().await;

@@ -50,7 +50,7 @@ impl Subscriber {
         Subscriber::Xrpl(client)
     }
 
-    async fn work(&mut self, account: String, queue: Arc<Queue>) -> () {
+    async fn work(&mut self, account: String, queue: Arc<Queue>) {
         match self {
             Subscriber::Xrpl(sub) => {
                 let res = sub.poll(AccountId::from_address(&account).unwrap()).await;
@@ -74,7 +74,7 @@ impl Subscriber {
         tokio::time::sleep(tokio::time::Duration::from_secs(2)).await
     }
 
-    pub async fn run(&mut self, account: String, queue: Arc<Queue>) -> () {
+    pub async fn run(&mut self, account: String, queue: Arc<Queue>) {
         loop {
             self.work(account.clone(), queue.clone()).await;
         }

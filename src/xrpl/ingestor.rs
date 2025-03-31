@@ -460,11 +460,10 @@ impl XrplIngestor {
             message_id: msg_id,
             refund_address: source_address,
             payment: gmp_types::Amount {
-                token_id: if is_native_token || gas_token_id.is_none() {
-                    // TODO: review this logic
+                token_id: if is_native_token {
                     None
                 } else {
-                    Some(gas_token_id.expect("Gas token id is required").to_string())
+                    gas_token_id.map(|token_id| token_id.to_string())
                 },
                 amount: gas_fee_amount.to_string(),
             },

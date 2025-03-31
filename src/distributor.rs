@@ -49,13 +49,13 @@ impl Distributor {
             .map_err(|e| {
                 DistributorError::GenericError(format!(
                     "Failed to store last_task_id to Redis: {}",
-                    e.to_string()
+                    e
                 ))
             })?;
         Ok(())
     }
 
-    async fn work(&mut self, gmp_api: Arc<GmpApi>, queue: Arc<Queue>) -> () {
+    async fn work(&mut self, gmp_api: Arc<GmpApi>, queue: Arc<Queue>) {
         let tasks_res = gmp_api.get_tasks_action(self.last_task_id.clone()).await;
         match tasks_res {
             Ok(tasks) => {
@@ -78,7 +78,7 @@ impl Distributor {
         }
     }
 
-    pub async fn run(&mut self, gmp_api: Arc<GmpApi>, queue: Arc<Queue>) -> () {
+    pub async fn run(&mut self, gmp_api: Arc<GmpApi>, queue: Arc<Queue>) {
         loop {
             info!("Distributor is alive.");
             self.work(gmp_api.clone(), queue.clone()).await;

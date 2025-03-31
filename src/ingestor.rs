@@ -1,4 +1,3 @@
-use core::str;
 use futures::StreamExt;
 use lapin::{options::BasicAckOptions, Consumer};
 use std::sync::Arc;
@@ -28,7 +27,7 @@ impl Ingestor {
         }
     }
 
-    async fn work(&self, consumer: &mut Consumer, queue: Arc<Queue>) -> () {
+    async fn work(&self, consumer: &mut Consumer, queue: Arc<Queue>) {
         loop {
             info!("Waiting for messages from {}..", consumer.queue());
             match consumer.next().await {
@@ -62,7 +61,7 @@ impl Ingestor {
         }
     }
 
-    pub async fn run(&self, events_queue: Arc<Queue>, tasks_queue: Arc<Queue>) -> () {
+    pub async fn run(&self, events_queue: Arc<Queue>, tasks_queue: Arc<Queue>) {
         let mut events_consumer = events_queue.consumer().await.unwrap();
         let mut tasks_consumer = tasks_queue.consumer().await.unwrap();
 
@@ -79,10 +78,7 @@ impl Ingestor {
     }
 
     async fn process_delivery(&self, data: &[u8]) -> Result<(), IngestorError> {
-        let data_str = str::from_utf8(&data)
-            .map_err(|e| IngestorError::ParseError(format!("Invalid UTF-8 data: {}", e)))?;
-
-        let item = serde_json::from_slice::<QueueItem>(&data)
+        let item = serde_json::from_slice::<QueueItem>(data)
             .map_err(|e| IngestorError::ParseError(format!("Invalid JSON: {}", e)))?;
 
         self.consume(item).await
@@ -106,7 +102,7 @@ impl Ingestor {
             ChainTransaction::Xrpl(tx) => self.xrpl_ingestor.handle_transaction(tx).await?,
         };
 
-        if events.len() == 0 {
+        if events.is_empty() {
             info!("No GMP events to post.");
             return Ok(());
         }
