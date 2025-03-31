@@ -96,10 +96,13 @@ pub fn extract_hex_xrpl_memo(
 }
 
 pub fn setup_logging(config: &NetworkConfig) -> ClientInitGuard {
+    let environment = std::env::var("ENVIRONMENT").unwrap_or_else(|_| "development".to_string());
+
     let _guard = sentry::init((
         config.xrpl_relayer_sentry_dsn.to_string(),
         sentry::ClientOptions {
             release: sentry::release_name!(),
+            environment: Some(std::borrow::Cow::Owned(environment.clone())),
             traces_sample_rate: 1.0,
             ..Default::default()
         },
