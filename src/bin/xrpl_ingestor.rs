@@ -20,7 +20,7 @@ async fn main() {
 
     let tasks_queue = Queue::new(&config.queue_address, "tasks").await;
     let events_queue = Queue::new(&config.queue_address, "events").await;
-    let gmp_api = Arc::new(gmp_api::GmpApi::new(&config).unwrap());
+    let gmp_api = Arc::new(gmp_api::GmpApi::new(&config, true).unwrap());
 
     let ingestor = Ingestor::new(gmp_api.clone(), config.clone());
     ingestor.run(events_queue, tasks_queue).await;

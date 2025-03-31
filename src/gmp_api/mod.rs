@@ -53,12 +53,19 @@ fn identity_from_config(config: &NetworkConfig) -> Result<Identity, GmpApiError>
 }
 
 impl GmpApi {
-    pub fn new(config: &NetworkConfig) -> Result<Self, GmpApiError> {
-        let client = reqwest::ClientBuilder::new()
+    pub fn new(config: &NetworkConfig, connection_pooling: bool) -> Result<Self, GmpApiError> {
+        let mut client = reqwest::ClientBuilder::new()
             .connect_timeout(Duration::from_secs(5))
             .timeout(Duration::from_secs(30))
-            .pool_idle_timeout(Some(Duration::from_secs(300)))
-            .identity(identity_from_config(config)?)
+            .identity(identity_from_config(config)?);
+
+        if connection_pooling {
+            client = client.pool_idle_timeout(Some(Duration::from_secs(300)));
+        } else {
+            client = client.pool_max_idle_per_host(0);
+        }
+
+        let client = client
             .build()
             .map_err(|e| GmpApiError::ConnectionFailed(e.to_string()))?;
 

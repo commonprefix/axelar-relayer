@@ -19,7 +19,7 @@ async fn main() {
     setup_heartbeat(config.heartbeats.includer.clone());
 
     let tasks_queue = Queue::new(&config.queue_address, "tasks").await;
-    let gmp_api = Arc::new(gmp_api::GmpApi::new(&config).unwrap());
+    let gmp_api = Arc::new(gmp_api::GmpApi::new(&config, true).unwrap());
     let xrpl_includer = XrplIncluder::new(config.clone(), gmp_api.clone())
         .await
         .unwrap();

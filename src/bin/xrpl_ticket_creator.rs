@@ -17,7 +17,7 @@ async fn main() {
     let _guard = setup_logging(&config);
     setup_heartbeat(config.heartbeats.ticket_creator.clone());
 
-    let gmp_api = Arc::new(gmp_api::GmpApi::new(&config).unwrap());
+    let gmp_api = Arc::new(gmp_api::GmpApi::new(&config, false).unwrap());
     let ticket_creator = XrplTicketCreator::new(gmp_api.clone(), config.clone());
     ticket_creator.run().await;
 }
