@@ -30,7 +30,7 @@ pub trait RefundManager {
 }
 
 pub trait Broadcaster {
-    fn broadcast(
+    fn broadcast_prover_message(
         &self,
         tx_blob: String,
     ) -> impl Future<
@@ -43,6 +43,11 @@ pub trait Broadcaster {
             BroadcasterError,
         >,
     >;
+
+    fn broadcast_refund(
+        &self,
+        tx_blob: String,
+    ) -> impl Future<Output = Result<String, BroadcasterError>>;
 }
 
 pub struct Includer<B, C, R>
@@ -114,7 +119,7 @@ where
                     info!("Consuming task: {:?}", gateway_tx_task);
                     let (tx_result, message_id, source_chain) = self
                         .broadcaster
-                        .broadcast(hex::encode(
+                        .broadcast_prover_message(hex::encode(
                             BASE64_STANDARD
                                 .decode(gateway_tx_task.task.execute_data)
                                 .unwrap(),
@@ -162,6 +167,7 @@ where
                         warn!("Refund already processed");
                         return Ok(());
                     }
+
                     if refund_task.task.remaining_gas_balance.token_id.is_some() {
                         return Err(IncluderError::GenericError(
                             "Refund task with token_id is not supported".to_string(),
@@ -178,20 +184,16 @@ where
                         .map_err(|e| IncluderError::ConsumerError(e.to_string()))?;
 
                     if let Some((tx_blob, refunded_amount, fee)) = refund_info {
-                        let (tx_result, _, _) = self
+                        let tx_hash = self
                             .broadcaster
-                            .broadcast(tx_blob)
+                            .broadcast_refund(tx_blob)
                             .await
                             .map_err(|e| IncluderError::ConsumerError(e.to_string()))?;
-
-                        if let Err(e) = tx_result {
-                            return Err(IncluderError::ConsumerError(e.to_string()));
-                        }
 
                         let gas_refunded = Event::GasRefunded {
                             common: CommonEventFields {
                                 r#type: "GAS_REFUNDED".to_owned(),
-                                event_id: tx_result.unwrap(),
+                                event_id: tx_hash,
                                 meta: None,
                             },
                             message_id: refund_task.task.message.message_id,

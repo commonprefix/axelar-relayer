@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use tracing::{debug, warn};
-use xrpl_api::{ResultCategory, SubmitRequest, SubmitResponse, TxRequest};
+use xrpl_api::{ResultCategory, SubmitRequest, SubmitResponse, TransactionResult, TxRequest};
 
 use crate::{error::BroadcasterError, includer::Broadcaster, utils::extract_hex_xrpl_memo};
 
@@ -45,7 +45,7 @@ fn log_and_return_error(
 }
 
 impl Broadcaster for XRPLBroadcaster {
-    async fn broadcast(
+    async fn broadcast_prover_message(
         &self,
         tx_blob: String,
     ) -> Result<
@@ -90,19 +90,39 @@ impl Broadcaster for XRPLBroadcaster {
             })?;
             let req = TxRequest::new(tx_hash);
             match self.client.call(req).await {
-                Ok(query_response) => {
-                    match query_response.tx.common().validated {
-                        Some(true) => {
-                            warn!("Transaction already submitted: {:?}", tx_hash);
-                            Ok((Ok(tx_hash.clone()), message_id, source_chain))
-                        }
-                        _ => log_and_return_error(&response, message_id, source_chain),
+                Ok(query_response) => match query_response.tx.common().validated {
+                    Some(true) => {
+                        warn!("Transaction already submitted: {:?}", tx_hash);
+                        Ok((Ok(tx_hash.clone()), message_id, source_chain))
                     }
-                }
+                    _ => log_and_return_error(&response, message_id, source_chain),
+                },
                 Err(_) => log_and_return_error(&response, message_id, source_chain),
             }
         } else {
             log_and_return_error(&response, message_id, source_chain)
+        }
+    }
+
+    async fn broadcast_refund(&self, tx_blob: String) -> Result<String, BroadcasterError> {
+        let req = SubmitRequest::new(tx_blob);
+        let response = self
+            .client
+            .call(req)
+            .await
+            .map_err(|e| BroadcasterError::RPCCallFailed(e.to_string()))?;
+
+        let tx = response.tx_json.clone();
+        let tx_hash = tx.common().hash.as_ref().ok_or_else(|| {
+            BroadcasterError::RPCCallFailed("Transaction hash not found".to_string())
+        })?;
+        if response.engine_result == TransactionResult::tesSUCCESS {
+            Ok(tx_hash.clone())
+        } else {
+            Err(BroadcasterError::RPCCallFailed(format!(
+                "Transaction failed: {:?}: {}",
+                response.engine_result, response.engine_result_message
+            )))
         }
     }
 }
