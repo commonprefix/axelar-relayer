@@ -124,7 +124,7 @@ impl RefundManager for XRPLRefundManager {
         // Get the ledger index of the associated payment transaction
         let tx = self
             .client
-            .get_transaction_by_id(tx_id)
+            .get_transaction_by_id(tx_id.trim_start_matches("0x").to_owned())
             .await
             .map_err(|e| RefundManagerError::GenericError(e.to_string()))?;
 
@@ -139,11 +139,12 @@ impl RefundManager for XRPLRefundManager {
 
         // iterate on all transactions and check the memos
         for tx in transactions {
-            let refund_memo = extract_and_decode_memo(&tx.common().memos, "refund")
-                .map_err(|e| RefundManagerError::GenericError(e.to_string()))?;
+            let refund_memo = extract_and_decode_memo(&tx.common().memos, "refund_id");
 
-            if refund_memo == refund_id {
-                return Ok(true);
+            if let Ok(refund_memo) = refund_memo {
+                if refund_memo == refund_id {
+                    return Ok(true);
+                }
             }
         }
 

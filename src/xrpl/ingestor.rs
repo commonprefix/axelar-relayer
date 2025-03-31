@@ -170,7 +170,8 @@ impl XrplIngestor {
     }
 
     pub async fn handle_prover_tx(&self, tx: Transaction) -> Result<Vec<Event>, IngestorError> {
-        let unsigned_tx_hash = extract_and_decode_memo(&tx.common().memos, "unsigned_tx_hash")?;
+        let unsigned_tx_hash = extract_and_decode_memo(&tx.common().memos, "unsigned_tx_hash")
+            .map_err(|e| IngestorError::GenericError(e.to_string()))?;
         let unsigned_tx_hash_bytes = hex::decode(&unsigned_tx_hash).map_err(|e| {
             IngestorError::GenericError(format!("Failed to decode unsigned tx hash: {}", e))
         })?;
@@ -533,7 +534,8 @@ impl XrplIngestor {
         let tx_hash_bytes = hex::decode(&tx_hash)
             .map_err(|e| IngestorError::GenericError(format!("Failed to decode tx hash: {}", e)))?;
 
-        let unsigned_tx_hash = extract_and_decode_memo(&tx_common.memos, "unsigned_tx_hash")?;
+        let unsigned_tx_hash = extract_and_decode_memo(&tx_common.memos, "unsigned_tx_hash")
+            .map_err(|e| IngestorError::GenericError(e.to_string()))?;
         let unsigned_tx_hash_bytes = hex::decode(&unsigned_tx_hash).map_err(|e| {
             IngestorError::GenericError(format!("Failed to decode unsigned tx hash: {}", e))
         })?;
@@ -869,7 +871,8 @@ impl XrplIngestor {
                 .map_err(|_| IngestorError::GenericError("Invalid length of tx_id bytes".into()))?,
             );
         let memos = &payment.common.memos;
-        let message_type_str = extract_and_decode_memo(memos, "type")?;
+        let message_type_str = extract_and_decode_memo(memos, "type")
+            .map_err(|e| IngestorError::GenericError(e.to_string()))?;
         let message_type: XRPLMessageType =
             serde_json::from_str(&format!("\"{}\"", message_type_str)).map_err(|e| {
                 IngestorError::GenericError(format!(
@@ -887,14 +890,17 @@ impl XrplIngestor {
                 let gas_fee_amount = match message_type {
                     XRPLMessageType::InterchainTransfer => parse_gas_fee_amount(
                         &amount,
-                        extract_and_decode_memo(memos, "gas_fee_amount")?,
+                        extract_and_decode_memo(memos, "gas_fee_amount")
+                            .map_err(|e| IngestorError::GenericError(e.to_string()))?,
                     )?,
                     XRPLMessageType::CallContract => amount.clone(),
                     _ => unreachable!(),
                 };
 
-                let destination_chain = extract_and_decode_memo(memos, "destination_chain")?;
-                let destination_address = extract_and_decode_memo(memos, "destination_address")?;
+                let destination_chain = extract_and_decode_memo(memos, "destination_chain")
+                    .map_err(|e| IngestorError::GenericError(e.to_string()))?;
+                let destination_address = extract_and_decode_memo(memos, "destination_address")
+                    .map_err(|e| IngestorError::GenericError(e.to_string()))?;
 
                 let (payload, payload_hash) = self.parse_payload_and_payload_hash(memos).await?;
 
@@ -992,7 +998,8 @@ impl XrplIngestor {
                 Ok(message_with_payload)
             }
             XRPLMessageType::AddGas => {
-                let msg_tx_id = extract_and_decode_memo(memos, "msg_id")?;
+                let msg_tx_id = extract_and_decode_memo(memos, "msg_id")
+                    .map_err(|e| IngestorError::GenericError(e.to_string()))?;
                 let msg_tx_id_bytes = hex::decode(&msg_tx_id).map_err(|e| {
                     IngestorError::GenericError(format!("Failed to decode unsigned tx hash: {}", e))
                 })?;
