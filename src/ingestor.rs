@@ -5,7 +5,7 @@ use tokio::select;
 use tracing::{debug, error, info, warn};
 
 use crate::{
-    config::Config,
+    config::NetworkConfig,
     error::IngestorError,
     gmp_api::{gmp_types::Task, GmpApi},
     queue::{Queue, QueueItem},
@@ -19,7 +19,7 @@ pub struct Ingestor {
 }
 
 impl Ingestor {
-    pub fn new(gmp_api: Arc<GmpApi>, config: Config) -> Self {
+    pub fn new(gmp_api: Arc<GmpApi>, config: NetworkConfig) -> Self {
         let xrpl_ingestor = XrplIngestor::new(gmp_api.clone(), config.clone());
         Self {
             gmp_api,

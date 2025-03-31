@@ -4,8 +4,8 @@ use interchain_token_service::TokenId;
 use std::ops::Sub;
 use std::{collections::HashMap, str::FromStr, sync::Arc, vec};
 
+use crate::config::NetworkConfig;
 use crate::{
-    config::Config,
     error::IngestorError,
     gmp_api::{
         gmp_types::{
@@ -36,11 +36,11 @@ use xrpl_gateway::msg::{CallContract, InterchainTransfer, MessageWithPayload};
 pub struct XrplIngestor {
     client: xrpl_http_client::Client,
     gmp_api: Arc<GmpApi>,
-    config: Config,
+    config: NetworkConfig,
 }
 
 impl XrplIngestor {
-    pub fn new(gmp_api: Arc<GmpApi>, config: Config) -> Self {
+    pub fn new(gmp_api: Arc<GmpApi>, config: NetworkConfig) -> Self {
         let client = xrpl_http_client::Client::builder()
             .base_url(&config.xrpl_rpc)
             .build();
@@ -136,7 +136,7 @@ impl XrplIngestor {
             })?);
 
         self.gmp_api
-            .post_broadcast(self.config.xrpl_gateway_address.clone(), &request)
+            .post_broadcast(self.config.axelar_contracts.xrpl_gateway.clone(), &request)
             .await
             .map_err(|e| {
                 IngestorError::GenericError(format!("Failed to broadcast message: {}", e))
@@ -160,7 +160,7 @@ impl XrplIngestor {
             })?);
 
         self.gmp_api
-            .post_broadcast(self.config.xrpl_gateway_address.clone(), &request)
+            .post_broadcast(self.config.axelar_contracts.xrpl_gateway.clone(), &request)
             .await
             .map_err(|e| {
                 IngestorError::GenericError(format!("Failed to broadcast message: {}", e))
@@ -212,7 +212,7 @@ impl XrplIngestor {
             })?);
 
         self.gmp_api
-            .post_broadcast(self.config.xrpl_gateway_address.clone(), &request)
+            .post_broadcast(self.config.axelar_contracts.xrpl_gateway.clone(), &request)
             .await
             .map_err(|e| {
                 IngestorError::GenericError(format!("Failed to broadcast message: {}", e))
@@ -246,7 +246,7 @@ impl XrplIngestor {
 
                 let response_body = self
                     .gmp_api
-                    .post_query(self.config.xrpl_gateway_address.clone(), &request)
+                    .post_query(self.config.axelar_contracts.xrpl_gateway.clone(), &request)
                     .await
                     .map_err(|e| {
                         IngestorError::GenericError(format!("Failed to get token id: {}", e))
@@ -296,7 +296,7 @@ impl XrplIngestor {
 
         let response_body = self
             .gmp_api
-            .post_query(self.config.xrpl_gateway_address.clone(), &request)
+            .post_query(self.config.axelar_contracts.xrpl_gateway.clone(), &request)
             .await
             .map_err(|e| {
                 IngestorError::GenericError(format!(
@@ -480,7 +480,7 @@ impl XrplIngestor {
             })?);
 
         self.gmp_api
-            .post_broadcast(self.config.xrpl_gateway_address.clone(), &request)
+            .post_broadcast(self.config.axelar_contracts.xrpl_gateway.clone(), &request)
             .await
             .map_err(|e| {
                 IngestorError::GenericError(format!("Failed to broadcast message: {}", e))
@@ -501,7 +501,7 @@ impl XrplIngestor {
                     e
                 ))
             })?);
-        Ok((self.config.xrpl_gateway_address.clone(), request))
+        Ok((self.config.axelar_contracts.xrpl_gateway.clone(), request))
     }
 
     pub async fn confirm_add_reserves_message_request(
@@ -518,7 +518,10 @@ impl XrplIngestor {
                     e
                 ))
             })?);
-        Ok((self.config.xrpl_multisig_prover_address.clone(), request))
+        Ok((
+            self.config.axelar_contracts.xrpl_multisig_prover.clone(),
+            request,
+        ))
     }
 
     pub async fn confirm_prover_message_request(
@@ -561,7 +564,10 @@ impl XrplIngestor {
             BroadcastRequest::Generic(serde_json::to_value(&execute_msg).map_err(|e| {
                 IngestorError::GenericError(format!("Failed to serialize ConfirmTxStatus: {}", e))
             })?);
-        Ok((self.config.xrpl_multisig_prover_address.clone(), request))
+        Ok((
+            self.config.axelar_contracts.xrpl_multisig_prover.clone(),
+            request,
+        ))
     }
 
     pub async fn route_incoming_message_request(
@@ -601,7 +607,7 @@ impl XrplIngestor {
                     e
                 ))
             })?);
-        Ok((self.config.xrpl_gateway_address.clone(), request))
+        Ok((self.config.axelar_contracts.xrpl_gateway.clone(), request))
     }
 
     pub async fn handle_wasm_event(&self, task: ReactToWasmEventTask) -> Result<(), IngestorError> {
@@ -804,7 +810,10 @@ impl XrplIngestor {
             })?);
 
         self.gmp_api
-            .post_broadcast(self.config.xrpl_multisig_prover_address.clone(), &request)
+            .post_broadcast(
+                self.config.axelar_contracts.xrpl_multisig_prover.clone(),
+                &request,
+            )
             .await
             .map_err(|e| {
                 IngestorError::GenericError(format!("Failed to broadcast message: {}", e))

@@ -12,7 +12,7 @@ use tracing::{debug, info, warn};
 
 use reqwest::{Client, Identity};
 
-use crate::{config::Config, error::GmpApiError, utils::parse_task};
+use crate::{config::NetworkConfig, error::GmpApiError, utils::parse_task};
 use gmp_types::{
     BroadcastRequest, Event, PostEventResponse, PostEventResult, QueryRequest, StorePayloadResult,
     Task,
@@ -26,7 +26,7 @@ pub struct GmpApi {
 
 const DEFAULT_RPC_TIMEOUT: Duration = Duration::from_secs(10);
 
-fn identity_from_config(config: &Config) -> Result<Identity, GmpApiError> {
+fn identity_from_config(config: &NetworkConfig) -> Result<Identity, GmpApiError> {
     let project_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
 
     let key_path = project_root.join(&config.client_key_path);
@@ -55,7 +55,7 @@ fn identity_from_config(config: &Config) -> Result<Identity, GmpApiError> {
 }
 
 impl GmpApi {
-    pub fn new(config: &Config) -> Result<Self, GmpApiError> {
+    pub fn new(config: &NetworkConfig) -> Result<Self, GmpApiError> {
         let client = reqwest::ClientBuilder::new()
             .connect_timeout(DEFAULT_RPC_TIMEOUT.into())
             .timeout(DEFAULT_RPC_TIMEOUT)

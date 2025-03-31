@@ -15,7 +15,7 @@ use xrpl_amplifier_types::{
 use xrpl_api::{Memo, PaymentTransaction, Transaction, TxRequest};
 
 use crate::{
-    config::Config,
+    config::NetworkConfig,
     error::{GmpApiError, IngestorError},
     gmp_api::gmp_types::{
         CommonTaskFields, ConstructProofTask, ExecuteTask, GatewayTxTask, ReactToWasmEventTask,
@@ -95,7 +95,7 @@ pub fn extract_hex_xrpl_memo(
     String::from_utf8(bytes).map_err(|e| e.into())
 }
 
-pub fn setup_logging(config: &Config) -> ClientInitGuard {
+pub fn setup_logging(config: &NetworkConfig) -> ClientInitGuard {
     let _guard = sentry::init((
         config.xrpl_relayer_sentry_dsn.to_string(),
         sentry::ClientOptions {
@@ -239,4 +239,35 @@ pub fn parse_message_from_context(
             xrpl_message, e
         ))
     })
+}
+
+pub fn setup_heartbeat(url: String) {
+    tokio::spawn(async move {
+        loop {
+            tracing::info!("Sending heartbeat to sentry monitoring endpoint");
+
+            match reqwest::Client::new().get(&url).send().await {
+                Ok(response) => {
+                    if response.status().is_success() {
+                        tracing::debug!(
+                            "Successfully sent heartbeat to sentry monitoring endpoint"
+                        );
+                    } else {
+                        tracing::error!(
+                            "Failed to send heartbeat to sentry monitoring endpoint: {:?}",
+                            response
+                        );
+                    }
+                }
+                Err(e) => {
+                    tracing::error!(
+                        "Failed to send heartbeat to sentry monitoring endpoint: {}",
+                        e
+                    );
+                }
+            }
+
+            tokio::time::sleep(tokio::time::Duration::from_secs(60)).await;
+        }
+    });
 }

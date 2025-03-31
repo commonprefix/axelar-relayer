@@ -3,17 +3,17 @@ use std::sync::Arc;
 use tracing::{debug, error, info};
 
 use crate::{
-    config::Config,
+    config::NetworkConfig,
     gmp_api::{gmp_types::BroadcastRequest, GmpApi},
 };
 
 pub struct XrplTicketCreator {
     gmp_api: Arc<GmpApi>,
-    config: Config,
+    config: NetworkConfig,
 }
 
 impl XrplTicketCreator {
-    pub fn new(gmp_api: Arc<GmpApi>, config: Config) -> Self {
+    pub fn new(gmp_api: Arc<GmpApi>, config: NetworkConfig) -> Self {
         Self { gmp_api, config }
     }
 
@@ -24,7 +24,10 @@ impl XrplTicketCreator {
 
         let res = self
             .gmp_api
-            .post_broadcast(self.config.xrpl_multisig_prover_address.clone(), &request)
+            .post_broadcast(
+                self.config.axelar_contracts.xrpl_multisig_prover.clone(),
+                &request,
+            )
             .await;
 
         if let Err(e) = res {
