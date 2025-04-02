@@ -294,6 +294,8 @@ impl XrplIngestor {
             IngestorError::GenericError(format!("Failed to serialize query: {}", e))
         })?);
 
+        debug!("Sending query: {:?}", request);
+
         let response_body = self
             .gmp_api
             .post_query(self.config.axelar_contracts.xrpl_gateway.clone(), &request)
