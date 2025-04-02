@@ -636,10 +636,9 @@ impl XrplIngestor {
                 match tx_status.as_str() {
                     "succeeded_on_source_chain" => {}
                     _ => {
-                        return Err(IngestorError::GenericError(format!(
-                            "QuorumReached event has status: {}",
-                            tx_status
-                        )));
+                        // TODO: should not skip
+                        warn!("QuorumReached event has status: {}", tx_status);
+                        return Ok(());
                     }
                 };
 
