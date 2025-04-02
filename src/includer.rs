@@ -29,20 +29,21 @@ pub trait RefundManager {
     ) -> impl Future<Output = Result<bool, RefundManagerError>>;
 }
 
+pub struct BroadcastResult<T> {
+    pub transaction: T,
+    pub tx_hash: String,
+    pub status: Result<(), BroadcasterError>,
+    pub message_id: Option<String>,
+    pub source_chain: Option<String>,
+}
+
 pub trait Broadcaster {
+    type Transaction;
+
     fn broadcast_prover_message(
         &self,
         tx_blob: String,
-    ) -> impl Future<
-        Output = Result<
-            (
-                Result<String, BroadcasterError>,
-                Option<String>,
-                Option<String>,
-            ),
-            BroadcasterError,
-        >,
-    >;
+    ) -> impl Future<Output = Result<BroadcastResult<Self::Transaction>, BroadcasterError>>;
 
     fn broadcast_refund(
         &self,
@@ -117,7 +118,7 @@ where
             QueueItem::Task(task) => match task {
                 Task::GatewayTx(gateway_tx_task) => {
                     info!("Consuming task: {:?}", gateway_tx_task);
-                    let (tx_result, message_id, source_chain) = self
+                    let broadcast_result = self
                         .broadcaster
                         .broadcast_prover_message(hex::encode(
                             BASE64_STANDARD
@@ -127,8 +128,10 @@ where
                         .await
                         .map_err(|e| IncluderError::ConsumerError(e.to_string()))?;
 
-                    if tx_result.is_err() {
-                        if message_id.is_some() && source_chain.is_some() {
+                    if broadcast_result.status.is_err() {
+                        if broadcast_result.message_id.is_some()
+                            && broadcast_result.source_chain.is_some()
+                        {
                             let cannot_execute_message_event = Event::CannotExecuteMessageV2 {
                                 common: CommonEventFields {
                                     r#type: "CANNOT_EXECUTE_MESSAGE/V2".to_owned(),
@@ -138,10 +141,10 @@ where
                                     ),
                                     meta: None,
                                 },
-                                message_id: message_id.unwrap(),
-                                source_chain: source_chain.unwrap(),
+                                message_id: broadcast_result.message_id.unwrap(),
+                                source_chain: broadcast_result.source_chain.unwrap(),
                                 reason: CannotExecuteMessageReason::Error, // TODO
-                                details: tx_result.unwrap_err().to_string(),
+                                details: broadcast_result.status.unwrap_err().to_string(),
                             };
 
                             self.gmp_api
@@ -150,7 +153,7 @@ where
                                 .map_err(|e| IncluderError::ConsumerError(e.to_string()))?;
                         } else {
                             return Err(IncluderError::ConsumerError(
-                                tx_result.unwrap_err().to_string(),
+                                broadcast_result.status.unwrap_err().to_string(),
                             ));
                         }
                     }

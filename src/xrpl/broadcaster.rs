@@ -1,9 +1,15 @@
 use std::sync::Arc;
 
 use tracing::{debug, warn};
-use xrpl_api::{ResultCategory, SubmitRequest, SubmitResponse, TransactionResult, TxRequest};
+use xrpl_api::{
+    ResultCategory, SubmitRequest, SubmitResponse, Transaction, TransactionResult, TxRequest,
+};
 
-use crate::{error::BroadcasterError, includer::Broadcaster, utils::extract_hex_xrpl_memo};
+use crate::{
+    error::BroadcasterError,
+    includer::{BroadcastResult, Broadcaster},
+    utils::extract_hex_xrpl_memo,
+};
 
 use super::client::XRPLClient;
 
@@ -18,44 +24,37 @@ impl XRPLBroadcaster {
 }
 
 fn log_and_return_error(
+    tx: &Transaction,
     response: &SubmitResponse,
     message_id: Option<String>,
     source_chain: Option<String>,
-) -> Result<
-    (
-        Result<String, BroadcasterError>,
-        Option<String>,
-        Option<String>,
-    ),
-    BroadcasterError,
-> {
+) -> Result<BroadcastResult<Transaction>, BroadcasterError> {
     debug!(
         "Transaction failed: {:?}: {}",
         response.engine_result.clone(),
         response.engine_result_message.clone()
     );
-    Ok((
-        Err(BroadcasterError::RPCCallFailed(format!(
+    Ok(BroadcastResult {
+        transaction: tx.clone(),
+        tx_hash: tx.common().hash.to_owned().ok_or_else(|| {
+            BroadcasterError::GenericError("Transaction hash not found".to_string())
+        })?,
+        status: Err(BroadcasterError::RPCCallFailed(format!(
             "Transaction failed: {:?}: {}",
             response.engine_result, response.engine_result_message
         ))),
         message_id,
         source_chain,
-    ))
+    })
 }
 
 impl Broadcaster for XRPLBroadcaster {
+    type Transaction = Transaction;
+
     async fn broadcast_prover_message(
         &self,
         tx_blob: String,
-    ) -> Result<
-        (
-            Result<String, BroadcasterError>,
-            Option<String>,
-            Option<String>,
-        ),
-        BroadcasterError,
-    > {
+    ) -> Result<BroadcastResult<Self::Transaction>, BroadcasterError> {
         let req = SubmitRequest::new(tx_blob);
         let response = self
             .client
@@ -78,29 +77,51 @@ impl Broadcaster for XRPLBroadcaster {
             );
         }
 
+        let tx_hash = tx.common().hash.to_owned().ok_or_else(|| {
+            BroadcasterError::RPCCallFailed("Transaction hash not found".to_string())
+        })?;
         let response_category = response.engine_result.category();
         if response_category == ResultCategory::Tec || response_category == ResultCategory::Tes {
-            let tx_hash = tx.common().hash.as_ref().ok_or_else(|| {
-                BroadcasterError::RPCCallFailed("Transaction hash not found".to_string())
-            })?;
-            Ok((Ok(tx_hash.clone()), message_id, source_chain))
+            Ok(BroadcastResult {
+                transaction: tx.clone(),
+                tx_hash,
+                status: Ok(()),
+                message_id,
+                source_chain,
+            })
         } else if response_category == ResultCategory::Tef {
-            let tx_hash = tx.common().hash.as_ref().ok_or_else(|| {
-                BroadcasterError::RPCCallFailed("Transaction hash not found".to_string())
-            })?;
-            let req = TxRequest::new(tx_hash);
+            if matches!(tx, Transaction::TicketCreate(_))
+                && response.engine_result == TransactionResult::tefPAST_SEQ
+            {
+                // Note: This is expected to happen, as there might be a race condition between different
+                // ticket create signing sessions, where the same sequence number was used.
+                return Ok(BroadcastResult {
+                    transaction: tx.clone(),
+                    tx_hash,
+                    status: Ok(()),
+                    message_id,
+                    source_chain,
+                });
+            }
+            let req = TxRequest::new(&tx_hash);
             match self.client.call(req).await {
                 Ok(query_response) => match query_response.tx.common().validated {
                     Some(true) => {
                         warn!("Transaction already submitted: {:?}", tx_hash);
-                        Ok((Ok(tx_hash.clone()), message_id, source_chain))
+                        Ok(BroadcastResult {
+                            transaction: tx.clone(),
+                            tx_hash,
+                            status: Ok(()),
+                            message_id,
+                            source_chain,
+                        })
                     }
-                    _ => log_and_return_error(&response, message_id, source_chain),
+                    _ => log_and_return_error(&tx, &response, message_id, source_chain),
                 },
-                Err(_) => log_and_return_error(&response, message_id, source_chain),
+                Err(_) => log_and_return_error(&tx, &response, message_id, source_chain),
             }
         } else {
-            log_and_return_error(&response, message_id, source_chain)
+            log_and_return_error(&tx, &response, message_id, source_chain)
         }
     }
 
