@@ -354,7 +354,9 @@ impl XrplIngestor {
 
         let (message_with_payload, _) = self
             .translate_message(&xrpl_message, &xrpl_message_with_payload.payload)
-            .await?;
+            .await.map_err(|e| {
+                IngestorError::ITSTranslationError(format!("Failed to translate message: {}", e))
+            })?;
 
         let message_with_payload = match message_with_payload {
             Some(message) => message,
