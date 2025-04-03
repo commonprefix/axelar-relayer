@@ -73,7 +73,7 @@ impl XRPLClient {
 
     pub async fn get_transaction_by_id(&self, tx_id: String) -> Result<Transaction, anyhow::Error> {
         let request = xrpl_api::TxRequest::new(&tx_id);
-        let res = self.client.call(request).await;
+        let res = self.call(request).await;
         let response = res.map_err(|e| anyhow!("Error getting txs: {:?}", e.to_string()))?;
         Ok(response.tx.clone())
     }
@@ -99,7 +99,7 @@ impl XRPLClient {
 
         loop {
             request.pagination.marker = marker;
-            let res = self.client.call(request.clone()).await;
+            let res = self.call(request.clone()).await;
             let response = res.map_err(|e| anyhow!("Error getting txs: {:?}", e.to_string()))?;
 
             // Add transactions from this page to our collection
