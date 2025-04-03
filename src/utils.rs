@@ -115,7 +115,7 @@ pub fn setup_logging(config: &NetworkConfig) -> ClientInitGuard {
     let sentry_layer = sentry_layer().event_filter(|metadata| match *metadata.level() {
         Level::ERROR => EventFilter::Event, // Send `error` events to Sentry
         Level::WARN => EventFilter::Event,  // Send `warn` events to Sentry
-        _ => EventFilter::Ignore,           // Ignore other levels
+        _ => EventFilter::Breadcrumb,
     });
 
     let subscriber = Registry::default()
