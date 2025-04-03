@@ -85,21 +85,7 @@ impl XrplIngestor {
         match self.build_xrpl_message(&payment).await {
             Ok(message_with_payload) => match &message_with_payload.message {
                 XRPLMessage::InterchainTransferMessage(_) | XRPLMessage::CallContractMessage(_) => {
-                    let call_event = match self.call_event_from_message(&message_with_payload).await
-                    {
-                        Ok(event) => event,
-                        Err(IngestorError::ITSTranslationError(e)) => {
-                            warn!("Failed to translate ITS message: {}", e);
-                            return Ok(vec![]);
-                        }
-                        Err(e) => return Err(e),
-                    };
-
-                    let gas_credit_event = self
-                        .gas_credit_event_from_payment(&message_with_payload)
-                        .await?;
-
-                    Ok(vec![call_event, gas_credit_event])
+                    self.handle_gmp_message(&message_with_payload).await
                 }
                 XRPLMessage::AddGasMessage(_) => {
                     self.handle_add_gas_message(&message_with_payload).await
@@ -115,6 +101,29 @@ impl XrplIngestor {
                 Ok(vec![])
             }
         }
+    }
+
+    pub async fn handle_gmp_message(
+        &self,
+        xrpl_message_with_payload: &WithPayload<XRPLMessage>,
+    ) -> Result<Vec<Event>, IngestorError> {
+        let call_event = match self
+            .call_event_from_message(xrpl_message_with_payload)
+            .await
+        {
+            Ok(event) => event,
+            Err(IngestorError::ITSTranslationError(e)) => {
+                warn!("Failed to translate ITS message: {}", e);
+                return Ok(vec![]);
+            }
+            Err(e) => return Err(e),
+        };
+
+        let gas_credit_event = self
+            .gas_credit_event_from_payment(xrpl_message_with_payload)
+            .await?;
+
+        Ok(vec![call_event, gas_credit_event])
     }
 
     pub async fn handle_add_gas_message(
@@ -354,7 +363,8 @@ impl XrplIngestor {
 
         let (message_with_payload, _) = self
             .translate_message(&xrpl_message, &xrpl_message_with_payload.payload)
-            .await.map_err(|e| {
+            .await
+            .map_err(|e| {
                 IngestorError::ITSTranslationError(format!("Failed to translate message: {}", e))
             })?;
 
