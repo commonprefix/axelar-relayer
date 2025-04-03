@@ -129,7 +129,7 @@ impl GmpApi {
     ) -> Result<T, GmpApiError> {
         let response = request.send().await.map_err(|e| {
             debug!("{:?}", e);
-            return GmpApiError::RequestFailed(e.to_string());
+            GmpApiError::RequestFailed(e.to_string())
         })?;
 
         response
@@ -198,9 +198,7 @@ impl GmpApi {
     ) -> Result<String, GmpApiError> {
         let url = format!("{}/contracts/{}/broadcasts", self.rpc_url, contract_address);
 
-        let payload = match data {
-            BroadcastRequest::Generic(value) => value,
-        };
+        let BroadcastRequest::Generic(payload) = data;
 
         debug!("Broadcast:");
         debug!("URL: {}", url);
@@ -216,6 +214,7 @@ impl GmpApi {
         if response.is_ok() {
             debug!("Broadcast successful: {:?}", response.as_ref().unwrap());
         }
+        // TODO: parse response and check for errors
         response
     }
 
@@ -226,9 +225,7 @@ impl GmpApi {
     ) -> Result<String, GmpApiError> {
         let url = format!("{}/contracts/{}/queries", self.rpc_url, contract_address);
 
-        let payload = match data {
-            QueryRequest::Generic(value) => value,
-        };
+        let QueryRequest::Generic(payload) = data;
 
         let request = self
             .client
