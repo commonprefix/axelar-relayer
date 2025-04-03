@@ -165,7 +165,7 @@ where
                         .refund_manager
                         .is_refund_processed(&refund_task, &refund_task.common.id)
                         .await
-                        .unwrap()
+                        .map_err(|e| IncluderError::ConsumerError(e.to_string()))?
                     {
                         warn!("Refund already processed");
                         return Ok(());
