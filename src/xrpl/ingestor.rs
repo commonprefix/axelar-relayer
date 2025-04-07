@@ -649,6 +649,7 @@ impl XrplIngestor {
 
                 match tx_status.as_str() {
                     "succeeded_on_source_chain" => {}
+                    "failed_on_source_chain" => {}
                     _ => {
                         // TODO: should not skip
                         warn!("QuorumReached event has status: {}", tx_status);
