@@ -5,6 +5,7 @@ use std::ops::Sub;
 use std::{collections::HashMap, str::FromStr, sync::Arc, vec};
 
 use crate::config::NetworkConfig;
+use crate::utils::convert_token_amount_to_drops;
 use crate::{
     error::IngestorError,
     gmp_api::{
@@ -456,9 +457,9 @@ impl XrplIngestor {
             }
         };
 
-        // let is_native_token = matches!(gas_fee_amount, XRPLPaymentAmount::Drops(_));
+        let is_native_token = matches!(gas_fee_amount, XRPLPaymentAmount::Drops(_));
 
-        let gas_fee_amount = match &gas_fee_amount {
+        let mut gas_fee_amount = match &gas_fee_amount {
             XRPLPaymentAmount::Drops(amount) => amount.to_string(),
             XRPLPaymentAmount::Issued(_, amount) => amount
                 .to_string()
@@ -471,6 +472,12 @@ impl XrplIngestor {
                 })?
                 .to_string(),
         };
+
+        if !is_native_token {
+            gas_fee_amount = convert_token_amount_to_drops(gas_fee_amount)
+                .map_err(|e| IngestorError::GenericError(e.to_string()))?
+                .to_string();
+        }
 
         Ok(Event::GasCredit {
             common: CommonEventFields {

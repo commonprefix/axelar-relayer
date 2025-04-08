@@ -274,3 +274,76 @@ pub fn setup_heartbeat(url: String) {
         }
     });
 }
+
+pub fn convert_token_amount_to_drops(decimal_str: String) -> Result<u64, anyhow::Error> {
+    let amount = decimal_str
+        .parse::<f64>()
+        .map_err(|e| anyhow::anyhow!("Failed to parse token amount: {}", e))?;
+
+    let decimal_places = if let Some(pos) = decimal_str.find('.') {
+        decimal_str.len() - pos - 1
+    } else {
+        0
+    };
+
+    if decimal_places > 6 {
+        return Err(anyhow::anyhow!(
+            "Token amount has more than 6 decimals: {}",
+            decimal_str
+        ));
+    }
+
+    let multiplier = 10u64.pow(6_u32);
+
+    let adjusted_amount = amount * multiplier as f64;
+    Ok(adjusted_amount as u64)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_convert_token_amount_to_drops_whole_number() {
+        let result = convert_token_amount_to_drops("123".to_string()).unwrap();
+        assert_eq!(result, 123_000);
+    }
+
+    #[test]
+    fn test_convert_token_amount_to_drops_with_decimals() {
+        let result = convert_token_amount_to_drops("123.456".to_string()).unwrap();
+        assert_eq!(result, 123_456_000);
+    }
+
+    #[test]
+    fn test_convert_token_amount_to_drops_small_value() {
+        let result = convert_token_amount_to_drops("0.000001".to_string()).unwrap();
+        assert_eq!(result, 1);
+    }
+
+    #[test]
+    fn test_convert_token_amount_to_drops_max_decimals() {
+        let result = convert_token_amount_to_drops("0.123456".to_string()).unwrap();
+        assert_eq!(result, 123_456);
+    }
+
+    #[test]
+    fn test_convert_token_amount_to_drops_too_many_decimals() {
+        let result = convert_token_amount_to_drops("0.1234567".to_string());
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("more than 6 decimals"));
+    }
+
+    #[test]
+    fn test_convert_token_amount_to_drops_invalid_input() {
+        let result = convert_token_amount_to_drops("not_a_number".to_string());
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Failed to parse token amount"));
+    }
+}
