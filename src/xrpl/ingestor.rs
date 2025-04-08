@@ -66,7 +66,12 @@ impl XrplIngestor {
                 }
             }
             Transaction::TicketCreate(_) => self.handle_prover_tx(tx).await,
-            Transaction::TrustSet(_) => self.handle_prover_tx(tx).await,
+            Transaction::TrustSet(trust_set) => {
+                if trust_set.common.account == self.config.xrpl_multisig {
+                    return self.handle_prover_tx(tx).await;
+                }
+                Ok(vec![])
+            }
             Transaction::SignerListSet(_) => self.handle_prover_tx(tx).await,
             tx => {
                 warn!(
