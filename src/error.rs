@@ -72,8 +72,18 @@ pub enum IngestorError {
     UnsupportedTransaction(String),
     #[error("Generic error: {0}")]
     GenericError(String),
-    #[error("Failed to translate ITS message: {0}")]
-    ITSTranslationError(String),
+}
+
+#[derive(Error, Debug)]
+pub enum ITSTranslationError {
+    #[error("Translation request failed: {0}")]
+    RequestError(String),
+    #[error("Invalid message type: {0}")]
+    InvalidMessageType(String),
+    #[error("No payload: {0}")]
+    NoPayload(String),
+    #[error("Serialization error: {0}")]
+    SerializationError(String),
 }
 
 #[derive(Error, Debug)]

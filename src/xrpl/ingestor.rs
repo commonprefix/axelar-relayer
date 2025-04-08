@@ -5,6 +5,7 @@ use std::ops::Sub;
 use std::{collections::HashMap, str::FromStr, sync::Arc, vec};
 
 use crate::config::NetworkConfig;
+use crate::error::ITSTranslationError;
 use crate::utils::convert_token_amount_to_drops;
 use crate::{
     error::IngestorError,
@@ -117,11 +118,12 @@ impl XrplIngestor {
             .call_event_from_message(xrpl_message_with_payload)
             .await
         {
-            Ok(event) => event,
-            Err(IngestorError::ITSTranslationError(e)) => {
-                warn!("Failed to translate ITS message: {}", e);
-                return Ok(vec![]);
-            }
+            Ok(maybe_event) => match maybe_event {
+                Some(event) => event,
+                None => {
+                    return Ok(vec![]);
+                }
+            },
             Err(e) => return Err(e),
         };
 
@@ -281,7 +283,7 @@ impl XrplIngestor {
         &self,
         xrpl_message: &XRPLMessage,
         payload: &Option<nonempty::HexBinary>,
-    ) -> Result<(Option<MessageWithPayload>, TokenId), IngestorError> {
+    ) -> Result<(Option<MessageWithPayload>, TokenId), ITSTranslationError> {
         let query = match xrpl_message {
             XRPLMessage::InterchainTransferMessage(message) => {
                 xrpl_gateway::msg::QueryMsg::InterchainTransfer {
@@ -292,21 +294,21 @@ impl XrplIngestor {
             XRPLMessage::CallContractMessage(message) => {
                 xrpl_gateway::msg::QueryMsg::CallContract {
                     message: message.clone(),
-                    payload: payload.clone().ok_or(IngestorError::GenericError(
+                    payload: payload.clone().ok_or(ITSTranslationError::NoPayload(
                         "Payload is required for CallContractMessage".to_owned(),
                     ))?,
                 }
             }
             _ => {
-                return Err(IngestorError::GenericError(format!(
-                    "Translation not supported for this message type: {:?}",
+                return Err(ITSTranslationError::InvalidMessageType(format!(
+                    "{:?}",
                     xrpl_message
                 )))
             }
         };
 
         let request = QueryRequest::Generic(serde_json::to_value(&query).map_err(|e| {
-            IngestorError::GenericError(format!("Failed to serialize query: {}", e))
+            ITSTranslationError::SerializationError(format!("Failed to serialize query: {}", e))
         })?);
 
         debug!("Sending query: {:?}", request);
@@ -315,18 +317,13 @@ impl XrplIngestor {
             .gmp_api
             .post_query(self.config.axelar_contracts.xrpl_gateway.clone(), &request)
             .await
-            .map_err(|e| {
-                IngestorError::GenericError(format!(
-                    "Failed to translate XRPL User Message to ITS Message: {}",
-                    e
-                ))
-            })?;
+            .map_err(|e| ITSTranslationError::RequestError(e.to_string()))?;
 
         match xrpl_message {
             XRPLMessage::InterchainTransferMessage(_) => {
                 let interchain_transfer_response: InterchainTransfer =
                     serde_json::from_str(&response_body).map_err(|e| {
-                        IngestorError::GenericError(format!(
+                        ITSTranslationError::SerializationError(format!(
                             "Failed to parse InterchainTransfer Message: {}",
                             e
                         ))
@@ -339,7 +336,7 @@ impl XrplIngestor {
             XRPLMessage::CallContractMessage(_) => {
                 let contract_call_response: CallContract = serde_json::from_str(&response_body)
                     .map_err(|e| {
-                        IngestorError::GenericError(format!(
+                        ITSTranslationError::SerializationError(format!(
                             "Failed to parse CallContract Message: {}",
                             e
                         ))
@@ -349,8 +346,8 @@ impl XrplIngestor {
                     contract_call_response.gas_token_id,
                 ))
             }
-            _ => Err(IngestorError::GenericError(format!(
-                "Translation not supported for this message type: {:?}",
+            _ => Err(ITSTranslationError::InvalidMessageType(format!(
+                "{:?}",
                 xrpl_message
             ))),
         }
@@ -359,7 +356,7 @@ impl XrplIngestor {
     async fn call_event_from_message(
         &self,
         xrpl_message_with_payload: &WithPayload<XRPLMessage>,
-    ) -> Result<Event, IngestorError> {
+    ) -> Result<Option<Event>, IngestorError> {
         let xrpl_message = xrpl_message_with_payload.message.clone();
 
         let source_context = HashMap::from([(
@@ -367,19 +364,28 @@ impl XrplIngestor {
             serde_json::to_string(&xrpl_message).unwrap(),
         )]);
 
-        let (message_with_payload, _) = self
+        let translation_result = self
             .translate_message(&xrpl_message, &xrpl_message_with_payload.payload)
-            .await
-            .map_err(|e| {
-                IngestorError::ITSTranslationError(format!("Failed to translate message: {}", e))
-            })?;
+            .await;
+
+        let message_with_payload = match translation_result {
+            Err(
+                ITSTranslationError::RequestError(e) | ITSTranslationError::SerializationError(e),
+            ) => {
+                return Err(IngestorError::GenericError(e));
+            }
+            Err(ITSTranslationError::InvalidMessageType(e) | ITSTranslationError::NoPayload(e)) => {
+                warn!("ITS Translation: {}", e);
+                return Ok(None);
+            }
+            Ok((message_with_payload, _)) => message_with_payload,
+        };
 
         let message_with_payload = match message_with_payload {
             Some(message) => message,
             None => {
-                return Err(IngestorError::ITSTranslationError(
-                    "message_with_payload is None".to_owned(),
-                ))
+                warn!("ITS Translation: message_with_payload is None");
+                return Ok(None);
             }
         };
 
@@ -389,7 +395,7 @@ impl XrplIngestor {
             })?,
         );
 
-        Ok(Event::Call {
+        Ok(Some(Event::Call {
             common: CommonEventFields {
                 r#type: "CALL".to_owned(),
                 event_id: format!("{}-call", xrpl_message.tx_id().to_string().to_lowercase()),
@@ -411,7 +417,7 @@ impl XrplIngestor {
             },
             destination_chain: message_with_payload.message.destination_chain.to_string(),
             payload: b64_payload,
-        })
+        }))
     }
 
     async fn gas_credit_event_from_payment(
