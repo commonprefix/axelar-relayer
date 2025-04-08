@@ -397,7 +397,8 @@ impl XrplIngestor {
                     from_address: None,
                     finalized: None,
                     source_context: Some(source_context),
-                    timestamp: chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
+                    timestamp: chrono::Utc::now()
+                        .to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
                 }),
             },
             message: GatewayV2Message {
