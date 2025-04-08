@@ -181,6 +181,7 @@ pub struct EventMetadata {
     pub finalized: Option<bool>,
     #[serde(rename = "sourceContext")]
     pub source_context: Option<HashMap<String, String>>,
+    pub timestamp: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]

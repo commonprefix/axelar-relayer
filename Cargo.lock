@@ -800,6 +800,7 @@ dependencies = [
  "async-stream",
  "axelar-wasm-std",
  "base64",
+ "chrono",
  "dotenv",
  "error-stack 0.5.0",
  "futures",
@@ -1076,8 +1077,10 @@ checksum = "1a7964611d71df112cb1730f2ee67324fcf4d0fc6606acbbe9bfe06df124637c"
 dependencies = [
  "android-tzdata",
  "iana-time-zone",
+ "js-sys",
  "num-traits",
  "serde",
+ "wasm-bindgen",
  "windows-link",
 ]
 
