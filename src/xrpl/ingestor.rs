@@ -412,7 +412,7 @@ impl XrplIngestor {
     ) -> Result<Event, IngestorError> {
         let xrpl_message = xrpl_message_with_payload.message.clone();
 
-        let gas_token_id = self.get_token_id(&xrpl_message).await?;
+        // let gas_token_id = self.get_token_id(&xrpl_message).await?;
 
         let tx_id = xrpl_message.tx_id().to_string().to_lowercase();
         let msg_id = match &xrpl_message {
@@ -449,7 +449,7 @@ impl XrplIngestor {
             }
         };
 
-        let is_native_token = matches!(gas_fee_amount, XRPLPaymentAmount::Drops(_));
+        // let is_native_token = matches!(gas_fee_amount, XRPLPaymentAmount::Drops(_));
 
         let gas_fee_amount = match &gas_fee_amount {
             XRPLPaymentAmount::Drops(amount) => amount.to_string(),
@@ -474,11 +474,7 @@ impl XrplIngestor {
             message_id: msg_id,
             refund_address: source_address,
             payment: gmp_types::Amount {
-                token_id: if is_native_token {
-                    None
-                } else {
-                    gas_token_id.map(|token_id| token_id.to_string())
-                },
+                token_id: None, // TODO: pass the actual token id
                 amount: gas_fee_amount.to_string(),
             },
         })
