@@ -2,7 +2,7 @@ use anyhow::anyhow;
 use r2d2::{Pool, PooledConnection};
 use redis::Commands;
 use tracing::{info, warn};
-use xrpl_api::{AccountTransaction, RequestPagination};
+use xrpl_api::{AccountTransaction, RequestPagination, Transaction};
 use xrpl_types::AccountId;
 
 use crate::subscriber::TransactionPoller;
@@ -55,9 +55,9 @@ impl XrplSubscriber {
 }
 
 impl TransactionPoller for XrplSubscriber {
-    type Transaction = AccountTransaction;
+    type Transaction = Transaction;
 
-    async fn poll(
+    async fn poll_account(
         &mut self,
         account_id: AccountId,
     ) -> Result<Vec<Self::Transaction>, anyhow::Error> {
@@ -87,6 +87,15 @@ impl TransactionPoller for XrplSubscriber {
                 warn!("{:?}", err);
             }
         }
-        Ok(response.transactions)
+        Ok(response.transactions.into_iter().map(|tx| tx.tx).collect())
+    }
+
+    async fn poll_tx(&mut self, tx_hash: String) -> Result<Self::Transaction, anyhow::Error> {
+        let request = xrpl_api::TxRequest::new(&tx_hash);
+        let res = self.client.call(request).await;
+
+        let response = res.map_err(|e| anyhow!("Error getting tx: {:?}", e.to_string()))?;
+
+        Ok(response.tx)
     }
 }

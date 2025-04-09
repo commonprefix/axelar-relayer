@@ -29,10 +29,15 @@ pub trait TransactionListener {
 pub trait TransactionPoller {
     type Transaction;
 
-    fn poll(
+    fn poll_account(
         &mut self,
         account: AccountId,
     ) -> impl Future<Output = Result<Vec<Self::Transaction>, anyhow::Error>>;
+
+    fn poll_tx(
+        &mut self,
+        tx_hash: String,
+    ) -> impl Future<Output = Result<Self::Transaction, anyhow::Error>>;
 }
 
 pub enum Subscriber {
@@ -53,11 +58,13 @@ impl Subscriber {
     async fn work(&mut self, account: String, queue: Arc<Queue>) {
         match self {
             Subscriber::Xrpl(sub) => {
-                let res = sub.poll(AccountId::from_address(&account).unwrap()).await;
+                let res = sub
+                    .poll_account(AccountId::from_address(&account).unwrap())
+                    .await;
                 match res {
                     Ok(txs) => {
-                        for tx_with_meta in txs {
-                            let chain_transaction = ChainTransaction::Xrpl(tx_with_meta.tx.clone());
+                        for tx in txs {
+                            let chain_transaction = ChainTransaction::Xrpl(tx.clone());
                             let tx = &QueueItem::Transaction(chain_transaction.clone());
                             info!("Publishing tx: {:?}", chain_transaction);
                             queue.publish(tx.clone()).await;
@@ -77,6 +84,29 @@ impl Subscriber {
     pub async fn run(&mut self, account: String, queue: Arc<Queue>) {
         loop {
             self.work(account.clone(), queue.clone()).await;
+        }
+    }
+
+    pub async fn recover_txs(&mut self, txs: Vec<String>, queue: Arc<Queue>) {
+        match self {
+            Subscriber::Xrpl(sub) => {
+                for tx in txs {
+                    let res = sub.poll_tx(tx).await;
+                    match res {
+                        Ok(tx) => {
+                            let chain_transaction = ChainTransaction::Xrpl(tx.clone());
+                            let tx = &QueueItem::Transaction(chain_transaction.clone());
+                            info!("Publishing tx: {:?}", chain_transaction);
+                            queue.publish(tx.clone()).await;
+                            debug!("Published tx: {:?}", tx);
+                        }
+                        Err(e) => {
+                            error!("Error getting txs: {:?}", e);
+                            debug!("Retrying in 2 seconds");
+                        }
+                    }
+                }
+            }
         }
     }
 }
