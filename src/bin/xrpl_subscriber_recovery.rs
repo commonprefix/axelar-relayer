@@ -6,7 +6,6 @@ use axelar_xrpl_relayer::{
     subscriber::Subscriber,
     utils::{setup_heartbeat, setup_logging},
 };
-use xrpl_types::AccountId;
 
 #[tokio::main]
 async fn main() {
