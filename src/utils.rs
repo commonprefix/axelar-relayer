@@ -306,7 +306,7 @@ mod tests {
     #[test]
     fn test_convert_token_amount_to_drops_whole_number() {
         let result = convert_token_amount_to_drops("123".to_string()).unwrap();
-        assert_eq!(result, 123_000);
+        assert_eq!(result, 123_000_000);
     }
 
     #[test]
