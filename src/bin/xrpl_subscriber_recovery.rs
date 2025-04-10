@@ -22,7 +22,7 @@ async fn main() {
     let redis_pool = r2d2::Pool::builder().build(redis_client).unwrap();
 
     let mut subscriber = Subscriber::new_xrpl(&config.xrpl_rpc, redis_pool.clone()).await;
-    let txs = vec![];
+    let txs: Vec<&str> = vec![];
     subscriber
         .recover_txs(
             txs.into_iter().map(|s| s.to_string()).collect(),
