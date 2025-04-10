@@ -12,7 +12,7 @@ use xrpl_amplifier_types::{
     msg::XRPLMessage,
     types::{XRPLPaymentAmount, XRPLToken, XRPLTokenAmount},
 };
-use xrpl_api::{Memo, PaymentTransaction, Transaction, TxRequest};
+use xrpl_api::{Amount, Memo, PaymentTransaction, Transaction, TxRequest};
 
 use crate::{
     config::NetworkConfig,
@@ -275,75 +275,82 @@ pub fn setup_heartbeat(url: String) {
     });
 }
 
-pub fn convert_token_amount_to_drops(decimal_str: String) -> Result<u64, anyhow::Error> {
-    let amount = decimal_str
-        .parse::<f64>()
-        .map_err(|e| anyhow::anyhow!("Failed to parse token amount: {}", e))?;
-
-    let decimal_places = if let Some(pos) = decimal_str.find('.') {
-        decimal_str.len() - pos - 1
+pub fn convert_token_amount_to_drops(
+    config: &NetworkConfig,
+    amount: f64,
+    token_id: &str,
+) -> Result<u64, anyhow::Error> {
+    let rate = config.token_conversion_rates.get(token_id);
+    if let Some(rate) = rate {
+        let xrp = amount * rate;
+        // WARNING: loses precision, use with caution
+        Ok(Amount::xrp(&xrp.to_string()).size() as u64)
     } else {
-        0
-    };
-
-    if decimal_places > 6 {
-        return Err(anyhow::anyhow!(
-            "Token amount has more than 6 decimals: {}",
-            decimal_str
-        ));
+        Err(anyhow::anyhow!(
+            "No conversion rate found for token id: {}",
+            token_id
+        ))
     }
-
-    let multiplier = 10u64.pow(6_u32);
-
-    let adjusted_amount = amount * multiplier as f64;
-    Ok(adjusted_amount as u64)
 }
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
     use super::*;
 
     #[test]
     fn test_convert_token_amount_to_drops_whole_number() {
-        let result = convert_token_amount_to_drops("123".to_string()).unwrap();
+        let mut config = NetworkConfig::default();
+        config.token_conversion_rates = HashMap::from([("XRP".to_string(), 1.0)]);
+
+        let result = convert_token_amount_to_drops(&config, 123.0, "XRP").unwrap();
         assert_eq!(result, 123_000_000);
     }
 
     #[test]
     fn test_convert_token_amount_to_drops_with_decimals() {
-        let result = convert_token_amount_to_drops("123.456".to_string()).unwrap();
+        let mut config = NetworkConfig::default();
+        config.token_conversion_rates = HashMap::from([("XRP".to_string(), 1.0)]);
+
+        let result = convert_token_amount_to_drops(&config, 123.456, "XRP").unwrap();
         assert_eq!(result, 123_456_000);
     }
 
     #[test]
     fn test_convert_token_amount_to_drops_small_value() {
-        let result = convert_token_amount_to_drops("0.000001".to_string()).unwrap();
+        let mut config = NetworkConfig::default();
+        config.token_conversion_rates = HashMap::from([("XRP".to_string(), 1.0)]);
+
+        let result = convert_token_amount_to_drops(&config, 0.000001, "XRP").unwrap();
         assert_eq!(result, 1);
     }
 
     #[test]
     fn test_convert_token_amount_to_drops_max_decimals() {
-        let result = convert_token_amount_to_drops("0.123456".to_string()).unwrap();
+        let mut config = NetworkConfig::default();
+        config.token_conversion_rates = HashMap::from([("XRP".to_string(), 1.0)]);
+
+        let result = convert_token_amount_to_drops(&config, 0.123456, "XRP").unwrap();
         assert_eq!(result, 123_456);
     }
 
     #[test]
-    fn test_convert_token_amount_to_drops_too_many_decimals() {
-        let result = convert_token_amount_to_drops("0.1234567".to_string());
-        assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("more than 6 decimals"));
+    fn test_convert_token_amount_to_drops_too_many_decimals_no_precision() {
+        let mut config = NetworkConfig::default();
+        config.token_conversion_rates = HashMap::from([("XRP".to_string(), 1.0)]);
+
+        let result = convert_token_amount_to_drops(&config, 0.1234567, "XRP").unwrap();
+        assert_eq!(result, 123_456);
     }
 
     #[test]
-    fn test_convert_token_amount_to_drops_invalid_input() {
-        let result = convert_token_amount_to_drops("not_a_number".to_string());
-        assert!(result.is_err());
+    fn test_convert_token_amount_to_drops_no_rate() {
+        let config = NetworkConfig::default();
+
+        let result = convert_token_amount_to_drops(&config, 0.1234567, "XRP").unwrap_err();
         assert!(result
-            .unwrap_err()
             .to_string()
-            .contains("Failed to parse token amount"));
+            .contains("No conversion rate found for token id: XRP"));
     }
 }
