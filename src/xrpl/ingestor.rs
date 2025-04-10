@@ -22,7 +22,7 @@ use crate::{
         parse_gas_fee_amount, parse_message_from_context, parse_payment_amount, xrpl_tx_from_hash,
     },
 };
-use router_api::{ChainName, CrossChainId};
+use router_api::{ChainNameRaw, CrossChainId};
 use tracing::{debug, warn};
 use xrpl_amplifier_types::{
     msg::{
@@ -953,7 +953,7 @@ impl XrplIngestor {
                                     e
                                 ))
                             })?,
-                            destination_chain: ChainName::from_str(&destination_chain).map_err(
+                            destination_chain: ChainNameRaw::from_str(&destination_chain).map_err(
                                 |e| {
                                     IngestorError::GenericError(format!(
                                         "Invalid destination_chain: {}",
@@ -998,7 +998,7 @@ impl XrplIngestor {
                                     e
                                 ))
                             })?,
-                            destination_chain: ChainName::from_str(&destination_chain).map_err(
+                            destination_chain: ChainNameRaw::from_str(&destination_chain).map_err(
                                 |e| {
                                     IngestorError::GenericError(format!(
                                         "Invalid destination_chain: {}",
