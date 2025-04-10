@@ -426,7 +426,7 @@ impl XrplIngestor {
     ) -> Result<Event, IngestorError> {
         let xrpl_message = xrpl_message_with_payload.message.clone();
 
-        // let gas_token_id = self.get_token_id(&xrpl_message).await?;
+        let maybe_gas_token_id = self.get_token_id(&xrpl_message).await?;
 
         let tx_id = xrpl_message.tx_id().to_string().to_lowercase();
         let msg_id = match &xrpl_message {
@@ -463,27 +463,26 @@ impl XrplIngestor {
             }
         };
 
-        let is_native_token = matches!(gas_fee_amount, XRPLPaymentAmount::Drops(_));
-
-        let mut gas_fee_amount = match &gas_fee_amount {
+        let gas_fee_amount_drops = match &gas_fee_amount {
             XRPLPaymentAmount::Drops(amount) => amount.to_string(),
-            XRPLPaymentAmount::Issued(_, amount) => amount
-                .to_string()
-                .parse::<f64>()
-                .map_err(|e| {
-                    IngestorError::GenericError(format!(
-                        "Failed to parse amount {} as f64: {}",
-                        amount, e
-                    ))
-                })?
-                .to_string(),
+            XRPLPaymentAmount::Issued(_, amount) => {
+                if let Some(gas_token_id) = maybe_gas_token_id {
+                    let amount = amount.to_string().parse::<f64>().map_err(|e| {
+                        IngestorError::GenericError(format!(
+                            "Failed to parse amount {} as f64: {}",
+                            amount, e
+                        ))
+                    })?;
+                    convert_token_amount_to_drops(&self.config, amount, &gas_token_id.to_string())
+                        .map_err(|e| IngestorError::GenericError(e.to_string()))?
+                        .to_string()
+                } else {
+                    return Err(IngestorError::GenericError(
+                        "Gas token id can't be None for IOU transfer".to_owned(),
+                    ));
+                }
+            }
         };
-
-        if !is_native_token {
-            gas_fee_amount = convert_token_amount_to_drops(gas_fee_amount)
-                .map_err(|e| IngestorError::GenericError(e.to_string()))?
-                .to_string();
-        }
 
         Ok(Event::GasCredit {
             common: CommonEventFields {
@@ -494,8 +493,8 @@ impl XrplIngestor {
             message_id: msg_id,
             refund_address: source_address,
             payment: gmp_types::Amount {
-                token_id: None, // TODO: pass the actual token id
-                amount: gas_fee_amount.to_string(),
+                token_id: None,
+                amount: gas_fee_amount_drops,
             },
         })
     }
