@@ -2,7 +2,7 @@ use anyhow::anyhow;
 use r2d2::{Pool, PooledConnection};
 use redis::Commands;
 use tracing::{info, warn};
-use xrpl_api::{AccountTransaction, RequestPagination, Transaction};
+use xrpl_api::{RequestPagination, Transaction};
 use xrpl_types::AccountId;
 
 use crate::subscriber::TransactionPoller;
