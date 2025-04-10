@@ -1,8 +1,8 @@
 use anyhow::{Context, Result};
 use serde::Deserialize;
-use std::{env, fs, path::PathBuf};
+use std::{collections::HashMap, env, fs, path::PathBuf};
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Default)]
 pub struct HeartbeatsConfig {
     pub subscriber: String,
     pub distributor: String,
@@ -18,7 +18,7 @@ pub struct Config {
     pub devnet: NetworkConfig,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Default)]
 pub struct AxelarContracts {
     pub xrpl_gateway: String,
     pub xrpl_multisig_prover: String,
@@ -26,7 +26,7 @@ pub struct AxelarContracts {
     pub multisig: String,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Default)]
 pub struct NetworkConfig {
     pub refund_manager_addresses: String,
     pub includer_secrets: String,
@@ -35,6 +35,7 @@ pub struct NetworkConfig {
     pub xrpl_rpc: String,
     pub xrpl_multisig: String,
     pub axelar_contracts: AxelarContracts,
+    pub token_conversion_rates: HashMap<String, f64>,
     pub redis_server: String,
     pub xrpl_relayer_sentry_dsn: String,
     pub chain_name: String,
