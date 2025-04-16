@@ -55,7 +55,7 @@ async fn main() -> Result<()> {
             Ok(delivery) => {
                 let data_str = String::from_utf8_lossy(&delivery.data);
                 info!("Message received from DLQ:\n{}\n", data_str);
-                info!("Republish this message? (Y/N): ");
+                info!("Choose an option: (R)ecover (republish), (D)rop (ack to discard) or (I)gnore (nack to requeue): ");
 
                 // Wait for user input asynchronously.
                 let mut user_input = String::new();
@@ -64,58 +64,64 @@ async fn main() -> Result<()> {
                 }
 
                 // Check the user's response.
-                if user_input.trim().eq_ignore_ascii_case("y") {
-                    let mut new_headers = delivery
-                        .properties
-                        .headers()
-                        .clone()
-                        .expect("Headers are not set")
-                        .inner()
-                        .clone();
-                    new_headers.remove("x-retry-count"); // reset the retry count
-                    let new_properties = delivery
-                        .properties
-                        .clone()
-                        .with_headers(FieldTable::from(new_headers))
-                        .with_delivery_mode(2);
+                match user_input.trim().to_lowercase().as_str() {
+                    "r" => {
+                        let mut new_headers = delivery
+                            .properties
+                            .headers()
+                            .clone()
+                            .expect("Headers are not set")
+                            .inner()
+                            .clone();
+                        new_headers.remove("x-retry-count"); // reset the retry count
+                        let new_properties = delivery
+                            .properties
+                            .clone()
+                            .with_headers(FieldTable::from(new_headers))
+                            .with_delivery_mode(2);
 
-                    // Republishing to the main queue using the default exchange.
-                    match channel
-                        .basic_publish(
-                            "",
-                            &main_queue,
-                            BasicPublishOptions::default(),
-                            &delivery.data,
-                            new_properties,
-                        )
-                        .await
-                    {
-                        Ok(confirm) => {
-                            // Wait for the broker confirmation.
-                            if confirm.await?.is_ack() {
-                                delivery.ack(BasicAckOptions::default()).await?;
-                                info!("Republished message");
-                            } else {
-                                error!("Message not acknowledged by broker.");
-                                delivery
-                                    .nack(BasicNackOptions {
-                                        multiple: false,
-                                        requeue: true,
-                                    })
-                                    .await?;
+                        // Republishing to the main queue using the default exchange.
+                        match channel
+                            .basic_publish(
+                                "",
+                                &main_queue,
+                                BasicPublishOptions::default(),
+                                &delivery.data,
+                                new_properties,
+                            )
+                            .await
+                        {
+                            Ok(confirm) => {
+                                // Wait for the broker confirmation.
+                                if confirm.await?.is_ack() {
+                                    delivery.ack(BasicAckOptions::default()).await?;
+                                    info!("Republished message");
+                                } else {
+                                    error!("Message not acknowledged by broker.");
+                                    delivery
+                                        .nack(BasicNackOptions {
+                                            multiple: false,
+                                            requeue: true,
+                                        })
+                                        .await?;
+                                }
+                            }
+                            Err(e) => {
+                                error!("Failed to publish message: {:?}", e);
                             }
                         }
-                        Err(e) => {
-                            error!("Failed to publish message: {:?}", e);
-                        }
                     }
-                } else {
-                    delivery
-                        .nack(BasicNackOptions {
-                            multiple: false,
-                            requeue: true,
-                        })
-                        .await?;
+                    "d" => {
+                        delivery.ack(BasicAckOptions::default()).await?;
+                    }
+                    _ => {
+                        delivery
+                            .nack(BasicNackOptions {
+                                multiple: false,
+                                requeue: true,
+                            })
+                            .await?;
+                    }
                 }
             }
             Err(e) => {
