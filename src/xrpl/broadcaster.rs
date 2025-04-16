@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use tracing::{debug, error, warn};
+use tracing::{error, warn};
 use xrpl_api::{
     ResultCategory, SubmitRequest, SubmitResponse, Transaction, TransactionResult, TxRequest,
 };
