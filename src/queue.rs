@@ -66,8 +66,21 @@ impl Queue {
         queue_arc
     }
 
-    pub async fn republish(&self, delivery: Delivery) -> Result<(), anyhow::Error> {
+    pub async fn republish(&self, delivery: Delivery, force_requeue: bool) -> Result<(), anyhow::Error> {
         let item: QueueItem = serde_json::from_slice(&delivery.data)?;
+
+        if force_requeue {
+            if let Err(nack_err) = delivery
+                .nack(BasicNackOptions {
+                    multiple: false,
+                    requeue: true,
+                })
+                .await
+            {
+                return Err(anyhow!("Failed to nack message: {:?}", nack_err));
+            }
+            return Ok(());
+        }
 
         let retry_count = delivery
             .properties

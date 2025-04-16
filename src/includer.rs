@@ -80,16 +80,18 @@ where
                         delivery.ack(BasicAckOptions::default()).await.expect("ack");
                     }
                     Err(e) => {
+                        let mut force_requeue = false;
                         match e {
                             IncluderError::IrrelevantTask => {
                                 debug!("Skipping irrelevant task");
+                                force_requeue = true;
                             }
                             _ => {
                                 error!("Failed to consume delivery: {:?}", e);
                             }
                         }
 
-                        if let Err(nack_err) = queue.republish(delivery).await {
+                        if let Err(nack_err) = queue.republish(delivery, force_requeue).await {
                             error!("Failed to republish message: {:?}", nack_err);
                         }
                     }

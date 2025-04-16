@@ -33,16 +33,18 @@ impl Ingestor {
             match consumer.next().await {
                 Some(Ok(delivery)) => {
                     if let Err(e) = self.process_delivery(&delivery.data).await {
+                        let mut force_requeue = false;
                         match e {
                             IngestorError::IrrelevantTask => {
                                 debug!("Skipping irrelevant task");
+                                force_requeue = true;
                             }
                             _ => {
                                 error!("Failed to consume delivery: {:?}", e);
                             }
                         }
 
-                        if let Err(nack_err) = queue.republish(delivery).await {
+                        if let Err(nack_err) = queue.republish(delivery, force_requeue).await {
                             error!("Failed to republish message: {:?}", nack_err);
                         }
                     } else if let Err(ack_err) = delivery.ack(BasicAckOptions::default()).await {
