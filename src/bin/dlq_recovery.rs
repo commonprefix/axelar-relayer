@@ -113,6 +113,7 @@ async fn main() -> Result<()> {
                     }
                     "d" => {
                         delivery.ack(BasicAckOptions::default()).await?;
+                        info!("Message dropped");
                     }
                     _ => {
                         delivery
@@ -121,6 +122,7 @@ async fn main() -> Result<()> {
                                 requeue: true,
                             })
                             .await?;
+                        info!("Message requeued");
                     }
                 }
             }
