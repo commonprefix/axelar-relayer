@@ -77,7 +77,7 @@ impl Queue {
             .and_then(|count| count.as_short_uint())
             .unwrap_or(0);
 
-        if retry_count >= MAX_RETRIES {
+        if retry_count > MAX_RETRIES {
             if let Err(nack_err) = delivery
                 .nack(BasicNackOptions {
                     multiple: false,
