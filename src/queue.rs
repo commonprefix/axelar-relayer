@@ -1,14 +1,14 @@
-use std::sync::Arc;
+use std::{collections::BTreeMap, sync::Arc};
 
 use anyhow::anyhow;
 use lapin::{
     message::Delivery,
     options::{
-        BasicConsumeOptions, BasicNackOptions, BasicPublishOptions, ConfirmSelectOptions,
-        QueueDeclareOptions,
+        BasicAckOptions, BasicConsumeOptions, BasicNackOptions, BasicPublishOptions,
+        ConfirmSelectOptions, ExchangeDeclareOptions, QueueBindOptions, QueueDeclareOptions,
     },
-    types::FieldTable,
-    BasicProperties, Connection, ConnectionProperties, Consumer,
+    types::{AMQPValue, FieldTable, ShortString},
+    BasicProperties, Channel, Connection, ConnectionProperties, Consumer, ExchangeKind,
 };
 use serde::{Deserialize, Serialize};
 use tokio::{
@@ -23,10 +23,15 @@ use uuid::Uuid;
 
 use crate::{gmp_api::gmp_types::Task, subscriber::ChainTransaction};
 
+const DEAD_LETTER_EXCHANGE: &str = "dlx_exchange";
+const DEAD_LETTER_QUEUE_PREFIX: &str = "dead_letter_";
+const MAX_RETRIES: u16 = 3;
+
 #[derive(Clone)]
 pub struct Queue {
     channel: Arc<Mutex<lapin::Channel>>,
     queue: Arc<RwLock<lapin::Queue>>,
+    retry_queue: Arc<RwLock<lapin::Queue>>,
     buffer_sender: Sender<QueueItem>,
 }
 
@@ -38,13 +43,14 @@ pub enum QueueItem {
 
 impl Queue {
     pub async fn new(url: &str, name: &str) -> Arc<Self> {
-        let (_, channel, queue) = Self::connect(url, name).await;
+        let (_, channel, queue, retry_queue) = Self::connect(url, name).await;
 
         let (buffer_sender, buffer_receiver) = mpsc::channel::<QueueItem>(1000);
 
         let queue_arc = Arc::new(Self {
             channel: Arc::new(Mutex::new(channel)),
             queue: Arc::new(RwLock::new(queue)),
+            retry_queue: Arc::new(RwLock::new(retry_queue)),
             buffer_sender,
         });
 
@@ -62,20 +68,43 @@ impl Queue {
 
     pub async fn republish(&self, delivery: Delivery) -> Result<(), anyhow::Error> {
         let item: QueueItem = serde_json::from_slice(&delivery.data)?;
-        let mut nack_options = BasicNackOptions {
-            multiple: false,
-            requeue: false,
-        };
 
-        if let Err(e) = self.publish_item(&item).await {
-            warn!("Failed to republish item: {:?}", e);
-            nack_options.requeue = true;
+        let retry_count = delivery
+            .properties
+            .headers()
+            .as_ref()
+            .and_then(|headers| headers.inner().get("x-retry-count"))
+            .and_then(|count| count.as_short_uint())
+            .unwrap_or(0);
+
+        if retry_count >= MAX_RETRIES {
+            if let Err(nack_err) = delivery
+                .nack(BasicNackOptions {
+                    multiple: false,
+                    requeue: false,
+                })
+                .await
+            {
+                return Err(anyhow!("Failed to nack message: {:?}", nack_err)); // This should really not happen
+            }
         } else {
-            nack_options.requeue = false;
-        }
+            let mut new_headers = BTreeMap::new();
+            new_headers.insert(
+                ShortString::from("x-retry-count"),
+                AMQPValue::ShortUInt(retry_count + 1),
+            );
+            let properties = delivery
+                .properties
+                .clone()
+                .with_headers(FieldTable::from(new_headers));
 
-        if let Err(nack_err) = delivery.nack(nack_options).await {
-            return Err(anyhow!("Failed to nack message: {:?}", nack_err)); // This should really not happen
+            if let Err(e) = self.publish_item(&item, true, Some(properties)).await {
+                return Err(anyhow!("Failed to republish item: {:?}", e));
+            }
+
+            if let Err(e) = delivery.ack(BasicAckOptions::default()).await {
+                return Err(anyhow!("Failed to ack message: {:?}", e));
+            }
         }
 
         Ok(())
@@ -91,7 +120,7 @@ impl Queue {
         loop {
             tokio::select! {
                 Some(item) = buffer_receiver.recv() => {
-                    if let Err(e) = self.publish_item(&item).await {
+                    if let Err(e) = self.publish_item(&item, false, None).await {
                         error!("Failed to publish item: {:?}. Re-buffering.", e);
                         if let Err(e) = self.buffer_sender.send(item).await {
                             error!("Failed to re-buffer item: {:?}", e);
@@ -116,42 +145,115 @@ impl Queue {
         channel_lock.status().connected()
     }
 
-    async fn connect(url: &str, name: &str) -> (Connection, lapin::Channel, lapin::Queue) {
+    async fn setup_rabbitmq(
+        connection: &Connection,
+        name: &str,
+    ) -> Result<(Channel, lapin::Queue, lapin::Queue), Box<dyn std::error::Error>> {
+        // Create channel
+        let channel = connection.create_channel().await?;
+
+        // Enable confirmations
+        channel
+            .confirm_select(ConfirmSelectOptions { nowait: false })
+            .await?;
+
+        // Declare DLX
+        channel
+            .exchange_declare(
+                DEAD_LETTER_EXCHANGE, // DLX name
+                ExchangeKind::Direct,
+                ExchangeDeclareOptions {
+                    durable: true,
+                    ..Default::default()
+                },
+                FieldTable::default(),
+            )
+            .await?;
+
+        // Declare DLQ
+        let dlq_name = format!("{}{}", DEAD_LETTER_QUEUE_PREFIX, name);
+        channel
+            .queue_declare(
+                &dlq_name,
+                QueueDeclareOptions {
+                    durable: true,
+                    ..Default::default()
+                },
+                FieldTable::default(),
+            )
+            .await?;
+
+        // Bind DLQ to DLX
+        channel
+            .queue_bind(
+                &dlq_name,
+                DEAD_LETTER_EXCHANGE,
+                &dlq_name,
+                QueueBindOptions::default(),
+                FieldTable::default(),
+            )
+            .await?;
+
+        // Dead-lettering for retry queue -- puts messages back to the main queue after TTL expires
+        let mut retry_args = FieldTable::default();
+        retry_args.insert(
+            "x-dead-letter-exchange".into(),
+            AMQPValue::LongString("".into()),
+        );
+        retry_args.insert(
+            "x-dead-letter-routing-key".into(),
+            AMQPValue::LongString(name.into()),
+        );
+        retry_args.insert("x-message-ttl".into(), AMQPValue::LongUInt(10000));
+
+        // Declare retry queue
+        let retry_queue = channel
+            .queue_declare(
+                &format!("retry_{}", name),
+                QueueDeclareOptions {
+                    durable: true,
+                    ..Default::default()
+                },
+                retry_args,
+            )
+            .await?;
+
+        // Dead-lettering for main queue
+        let mut args = FieldTable::default();
+        args.insert(
+            "x-dead-letter-exchange".into(),
+            AMQPValue::LongString(DEAD_LETTER_EXCHANGE.into()),
+        );
+        args.insert(
+            "x-dead-letter-routing-key".into(),
+            AMQPValue::LongString(dlq_name.into()),
+        );
+
+        // Declare main queue
+        let queue = channel
+            .queue_declare(
+                name,
+                QueueDeclareOptions {
+                    durable: true,
+                    ..Default::default()
+                },
+                args,
+            )
+            .await?;
+
+        Ok((channel, queue, retry_queue))
+    }
+
+    async fn connect(url: &str, name: &str) -> (Connection, Channel, lapin::Queue, lapin::Queue) {
         loop {
             match Connection::connect(url, ConnectionProperties::default()).await {
                 Ok(connection) => {
                     info!("Connected to RabbitMQ at {}", url);
-                    match connection.create_channel().await {
-                        Ok(channel) => {
-                            info!("Created channel");
-
-                            if let Err(e) = channel
-                                .confirm_select(ConfirmSelectOptions { nowait: false })
-                                .await
-                            {
-                                error!("Failed to send confirm_select to RMQ: {:?}", e);
-                            } else {
-                                match channel
-                                    .queue_declare(
-                                        name,
-                                        QueueDeclareOptions::default(),
-                                        FieldTable::default(),
-                                    )
-                                    .await
-                                {
-                                    Ok(queue) => {
-                                        info!("Declared RMQ queue: {:?}", queue);
-                                        return (connection, channel, queue);
-                                    }
-                                    Err(e) => {
-                                        error!("Failed to declare queue: {:?}", e);
-                                    }
-                                }
-                            }
-                        }
-                        Err(e) => {
-                            error!("Failed to create channel: {:?}", e);
-                        }
+                    let setup_result = Queue::setup_rabbitmq(&connection, name).await;
+                    if let Ok((channel, queue, retry_queue)) = setup_result {
+                        return (connection, channel, queue, retry_queue);
+                    } else {
+                        error!("Failed to setup RabbitMQ: {:?}", setup_result.err());
                     }
                 }
                 Err(e) => {
@@ -167,13 +269,16 @@ impl Queue {
 
     pub async fn refresh_connection(&self, url: &str, name: &str) {
         info!("Reconnecting to RabbitMQ at {}", url);
-        let (_, new_channel, new_queue) = Self::connect(url, name).await;
+        let (_, new_channel, new_queue, new_retry_queue) = Self::connect(url, name).await;
 
         let mut channel_lock = self.channel.lock().await;
         *channel_lock = new_channel;
 
         let mut queue_lock = self.queue.write().await;
         *queue_lock = new_queue;
+
+        let mut retry_queue_lock = self.retry_queue.write().await;
+        *retry_queue_lock = new_retry_queue;
 
         info!("Reconnected to RabbitMQ at {}", url);
     }
@@ -184,11 +289,20 @@ impl Queue {
         }
     }
 
-    async fn publish_item(&self, item: &QueueItem) -> Result<(), anyhow::Error> {
+    async fn publish_item(
+        &self,
+        item: &QueueItem,
+        retry_queue: bool,
+        properties: Option<BasicProperties>,
+    ) -> Result<(), anyhow::Error> {
         let msg = serde_json::to_vec(item)?;
 
         let channel_lock = self.channel.lock().await;
-        let queue_lock = self.queue.read().await;
+        let queue_lock = if retry_queue {
+            self.retry_queue.read().await
+        } else {
+            self.queue.read().await
+        };
 
         let confirm = channel_lock
             .basic_publish(
@@ -196,7 +310,7 @@ impl Queue {
                 queue_lock.name().as_str(),
                 BasicPublishOptions::default(),
                 &msg,
-                BasicProperties::default(),
+                properties.unwrap_or(BasicProperties::default().with_delivery_mode(2)),
             )
             .await?
             .await?;
@@ -214,7 +328,7 @@ impl Queue {
         let channel_lock = self.channel.lock().await;
         let queue_lock = self.queue.read().await;
 
-        Ok(channel_lock
+        channel_lock
             .basic_consume(
                 queue_lock.name().as_str(),
                 &consumer_tag,
@@ -222,6 +336,6 @@ impl Queue {
                 FieldTable::default(),
             )
             .await
-            .map_err(|e| anyhow!("Failed to create consumer: {:?}", e))?)
+            .map_err(|e| anyhow!("Failed to create consumer: {:?}", e))
     }
 }
