@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use tracing::{debug, warn};
+use tracing::{debug, error, warn};
 use xrpl_api::{
     ResultCategory, SubmitRequest, SubmitResponse, Transaction, TransactionResult, TxRequest,
 };
@@ -29,7 +29,7 @@ fn log_and_return_error(
     message_id: Option<String>,
     source_chain: Option<String>,
 ) -> Result<BroadcastResult<Transaction>, BroadcasterError> {
-    debug!(
+    error!(
         "Transaction failed: {:?}: {}",
         response.engine_result.clone(),
         response.engine_result_message.clone()
