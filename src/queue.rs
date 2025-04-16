@@ -88,7 +88,13 @@ impl Queue {
                 return Err(anyhow!("Failed to nack message: {:?}", nack_err)); // This should really not happen
             }
         } else {
-            let mut new_headers = BTreeMap::new();
+            let mut new_headers = delivery
+                .properties
+                .headers()
+                .clone()
+                .unwrap_or(FieldTable::from(BTreeMap::new()))
+                .inner()
+                .clone();
             new_headers.insert(
                 ShortString::from("x-retry-count"),
                 AMQPValue::ShortUInt(retry_count + 1),
