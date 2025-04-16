@@ -1,0 +1,13 @@
+[Unit]
+Description=XRPL Relayer - Ingestor (%i)
+After=network.target docker.service
+
+[Service]
+ExecStart=/usr/local/bin/xrpl_service_wrapper.sh ingestor-%i
+User=ec2-user
+Restart=always
+RestartSec=5
+ExecStartPre=/bin/bash -c 'until docker inspect -f "{{.State.Running}}" rabbitmq-%i | grep true; do sleep 1; done'
+
+[Install]
+WantedBy=multi-user.target
