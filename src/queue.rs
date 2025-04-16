@@ -18,7 +18,7 @@ use tokio::{
     },
     time::{self, Duration},
 };
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
 use crate::{gmp_api::gmp_types::Task, subscriber::ChainTransaction};
@@ -78,6 +78,7 @@ impl Queue {
             .unwrap_or(0);
 
         if retry_count > MAX_RETRIES {
+            debug!("Exceeded max retries, nacking message: {:?}", item);
             if let Err(nack_err) = delivery
                 .nack(BasicNackOptions {
                     multiple: false,
@@ -88,6 +89,7 @@ impl Queue {
                 return Err(anyhow!("Failed to nack message: {:?}", nack_err)); // This should really not happen
             }
         } else {
+            debug!("Republishing message: {:?}", item);
             let mut new_headers = delivery
                 .properties
                 .headers()
