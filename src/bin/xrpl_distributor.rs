@@ -1,7 +1,7 @@
 use dotenv::dotenv;
 use std::sync::Arc;
 
-use axelar_xrpl_relayer::{
+use axelar_relayer::{
     config::NetworkConfig,
     distributor::Distributor,
     gmp_api,

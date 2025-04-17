@@ -740,6 +740,50 @@ dependencies = [
 ]
 
 [[package]]
+name = "axelar-relayer"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-std",
+ "async-stream",
+ "axelar-wasm-std",
+ "base64",
+ "chrono",
+ "dotenv",
+ "error-stack 0.5.0",
+ "futures",
+ "hex",
+ "interchain-token-service 1.1.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl)",
+ "lapin",
+ "libsecp256k1",
+ "mockito",
+ "multisig",
+ "r2d2",
+ "redis",
+ "reqwest",
+ "router-api",
+ "sentry",
+ "sentry-tracing",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "thiserror 2.0.12",
+ "tokio",
+ "tokio-util",
+ "tracing",
+ "tracing-subscriber",
+ "uuid",
+ "xrpl-gateway",
+ "xrpl-multisig-prover",
+ "xrpl-types",
+ "xrpl_api",
+ "xrpl_binary_codec",
+ "xrpl_http_client",
+ "xrpl_types",
+ "xrpl_ws_client",
+]
+
+[[package]]
 name = "axelar-wasm-std"
 version = "1.0.0"
 source = "git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.7.0#90f60bd06c80f761afce173abf880a01e9609ec0"
@@ -789,50 +833,6 @@ dependencies = [
  "semver 1.0.26",
  "syn 2.0.100",
  "thiserror 1.0.69",
-]
-
-[[package]]
-name = "axelar-xrpl-relayer"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "async-std",
- "async-stream",
- "axelar-wasm-std",
- "base64",
- "chrono",
- "dotenv",
- "error-stack 0.5.0",
- "futures",
- "hex",
- "interchain-token-service 1.1.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl)",
- "lapin",
- "libsecp256k1",
- "mockito",
- "multisig",
- "r2d2",
- "redis",
- "reqwest",
- "router-api",
- "sentry",
- "sentry-tracing",
- "serde",
- "serde_json",
- "serde_yaml",
- "thiserror 2.0.12",
- "tokio",
- "tokio-util",
- "tracing",
- "tracing-subscriber",
- "uuid",
- "xrpl-gateway",
- "xrpl-multisig-prover",
- "xrpl-types",
- "xrpl_api",
- "xrpl_binary_codec",
- "xrpl_http_client",
- "xrpl_types",
- "xrpl_ws_client",
 ]
 
 [[package]]

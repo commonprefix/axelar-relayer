@@ -1,6 +1,6 @@
 use dotenv::dotenv;
 
-use axelar_xrpl_relayer::{
+use axelar_relayer::{
     config::NetworkConfig,
     queue::Queue,
     subscriber::Subscriber,
