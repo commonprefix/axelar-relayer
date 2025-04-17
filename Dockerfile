@@ -1,5 +1,5 @@
 # Builder Stage
-FROM rust:1.86-bullseye AS builder
+FROM rust:1.86-bookworm AS builder
 
 # Set the working directory
 WORKDIR /app
