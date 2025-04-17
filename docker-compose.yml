@@ -1,53 +1,49 @@
 services:
-  xrpl_ingestor:
+  xrpl_ingestor_testnet:
     build:
       context: .
       args:
         BINARY_NAME: xrpl_ingestor
-    container_name: xrpl_ingestor_${NETWORK}_${INSTANCE_ID}
+    deploy:
+      mode: replicated
+      replicas: 4
     environment:
-      - NETWORK=${NETWORK}
-      - INSTANCE_ID=${INSTANCE_ID}
+      - NETWORK=testnet
 
-  xrpl_distributor:
+  xrpl_distributor_testnet:
     build:
       context: .
       args:
         BINARY_NAME: xrpl_distributor
-    container_name: xrpl_distributor_${NETWORK}_${INSTANCE_ID}
     environment:
-      - NETWORK=${NETWORK}
-      - INSTANCE_ID=${INSTANCE_ID}
+      - NETWORK=testnet
 
-  xrpl_ticket_creator:
+  xrpl_ticket_creator_testnet:
     build:
       context: .
       args:
         BINARY_NAME: xrpl_ticket_creator
-    container_name: xrpl_ticket_creator_${NETWORK}_${INSTANCE_ID}
     environment:
-      - NETWORK=${NETWORK}
-      - INSTANCE_ID=${INSTANCE_ID}
+      - NETWORK=testnet
 
-  xrpl_includer:
+  xrpl_includer_testnet:
     build:
       context: .
       args:
         BINARY_NAME: xrpl_includer
-    container_name: xrpl_includer_${NETWORK}_${INSTANCE_ID}
+    deploy:
+      mode: replicated
+      replicas: 2
     environment:
-      - NETWORK=${NETWORK}
-      - INSTANCE_ID=${INSTANCE_ID}
+      - NETWORK=testnet
 
-  xrpl_subscriber:
+  xrpl_subscriber_testnet:
     build:
       context: .
       args:
         BINARY_NAME: xrpl_subscriber
-    container_name: xrpl_subscriber_${NETWORK}_${INSTANCE_ID}
     environment:
-      - NETWORK=${NETWORK}
-      - INSTANCE_ID=${INSTANCE_ID}
+      - NETWORK=testnet
 
   redis_devnet:
     image: redis:alpine
