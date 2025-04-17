@@ -33,7 +33,7 @@ services:
         BINARY_NAME: xrpl_includer
     deploy:
       mode: replicated
-      replicas: 2
+      replicas: 4
     environment:
       - NETWORK=testnet
 
