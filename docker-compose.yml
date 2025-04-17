@@ -49,15 +49,41 @@ services:
       - NETWORK=${NETWORK}
       - INSTANCE_ID=${INSTANCE_ID}
 
-  redis:
+  redis_devnet:
     image: redis:alpine
-    container_name: redis_${NETWORK}
+    container_name: redis_devnet
     ports:
-      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
+      - "127.0.0.1:6379:6379"
 
-  rabbitmq:
+  rabbitmq_devnet:
     image: rabbitmq:3-management
-    container_name: rabbitmq_${NETWORK}
+    container_name: rabbitmq_devnet
     ports:
-      - "127.0.0.1:${RABBITMQ_AMQP_PORT:-5672}:5672"
-      - "127.0.0.1:${RABBITMQ_MGMT_PORT:-15672}:15672"
+      - "127.0.0.1:5672:5672"
+      - "127.0.0.1:15672:15672"
+
+  redis_testnet:
+    image: redis:alpine
+    container_name: redis_testnet
+    ports:
+      - "127.0.0.1:6380:6379"
+
+  rabbitmq_testnet:
+    image: rabbitmq:3-management
+    container_name: rabbitmq_testnet
+    ports:
+      - "127.0.0.1:5673:5672"
+      - "127.0.0.1:15673:15672"
+
+  redis_mainnet:
+    image: redis:alpine
+    container_name: redis_mainnet
+    ports:
+      - "127.0.0.1:6380:6379"
+
+  rabbitmq_mainnet:
+    image: rabbitmq:3-management
+    container_name: rabbitmq_mainnet
+    ports:
+      - "127.0.0.1:5674:5672"
+      - "127.0.0.1:15674:15672"
