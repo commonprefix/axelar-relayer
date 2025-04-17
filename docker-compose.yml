@@ -1,0 +1,63 @@
+services:
+  xrpl_ingestor:
+    build:
+      context: .
+      args:
+        BINARY_NAME: xrpl_ingestor
+    container_name: xrpl_ingestor_${NETWORK}_${INSTANCE_ID}
+    environment:
+      - NETWORK=${NETWORK}
+      - INSTANCE_ID=${INSTANCE_ID}
+
+  xrpl_distributor:
+    build:
+      context: .
+      args:
+        BINARY_NAME: xrpl_distributor
+    container_name: xrpl_distributor_${NETWORK}_${INSTANCE_ID}
+    environment:
+      - NETWORK=${NETWORK}
+      - INSTANCE_ID=${INSTANCE_ID}
+
+  xrpl_ticket_creator:
+    build:
+      context: .
+      args:
+        BINARY_NAME: xrpl_ticket_creator
+    container_name: xrpl_ticket_creator_${NETWORK}_${INSTANCE_ID}
+    environment:
+      - NETWORK=${NETWORK}
+      - INSTANCE_ID=${INSTANCE_ID}
+
+  xrpl_includer:
+    build:
+      context: .
+      args:
+        BINARY_NAME: xrpl_includer
+    container_name: xrpl_includer_${NETWORK}_${INSTANCE_ID}
+    environment:
+      - NETWORK=${NETWORK}
+      - INSTANCE_ID=${INSTANCE_ID}
+
+  xrpl_subscriber:
+    build:
+      context: .
+      args:
+        BINARY_NAME: xrpl_subscriber
+    container_name: xrpl_subscriber_${NETWORK}_${INSTANCE_ID}
+    environment:
+      - NETWORK=${NETWORK}
+      - INSTANCE_ID=${INSTANCE_ID}
+
+  redis:
+    image: redis:alpine
+    container_name: redis_${NETWORK}_${INSTANCE_ID}
+    ports:
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq_${NETWORK}_${INSTANCE_ID}
+    ports:
+      - "127.0.0.1:${RABBITMQ_AMQP_PORT:-5672}:5672"
+      - "127.0.0.1:${RABBITMQ_MGMT_PORT:-15672}:15672"
