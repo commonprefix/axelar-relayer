@@ -7,9 +7,7 @@ use tracing::{debug, error, info, warn};
 use crate::{
     error::{BroadcasterError, IncluderError, RefundManagerError},
     gmp_api::{
-        gmp_types::{
-            Amount, CannotExecuteMessageReason, CommonEventFields, Event, RefundTask, Task,
-        },
+        gmp_types::{Amount, CommonEventFields, Event, RefundTask, Task},
         GmpApi,
     },
     queue::{Queue, QueueItem},

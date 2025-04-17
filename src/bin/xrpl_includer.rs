@@ -20,7 +20,9 @@ async fn main() {
 
     let tasks_queue = Queue::new(&config.queue_address, "tasks").await;
     let gmp_api = Arc::new(gmp_api::GmpApi::new(&config, true).unwrap());
-    let xrpl_includer = XrplIncluder::new(config.clone(), gmp_api.clone())
+    let redis_client = redis::Client::open(config.redis_server.clone()).unwrap();
+    let redis_pool = r2d2::Pool::builder().build(redis_client).unwrap();
+    let xrpl_includer = XrplIncluder::new(config.clone(), gmp_api.clone(), redis_pool.clone())
         .await
         .unwrap();
 

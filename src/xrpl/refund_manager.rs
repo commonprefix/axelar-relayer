@@ -1,10 +1,12 @@
 use std::sync::Arc;
 
+use crate::config::NetworkConfig;
 use crate::error::RefundManagerError;
 use crate::gmp_api::gmp_types::RefundTask;
 use crate::includer::RefundManager;
 use crate::utils::{extract_and_decode_memo, parse_message_from_context};
 use libsecp256k1::{PublicKey, SecretKey};
+use redis::{Commands, ExistenceCheck, SetExpiry, SetOptions};
 use tracing::debug;
 use xrpl_binary_codec::serialize;
 use xrpl_binary_codec::sign::sign_transaction;
@@ -13,45 +15,101 @@ use xrpl_types::{AccountId, Amount, Blob, Memo, PaymentTransaction};
 use super::client::XRPLClient;
 pub struct XRPLRefundManager {
     client: Arc<XRPLClient>,
-    account_id: AccountId,
-    secret_key: SecretKey,
-    public_key: PublicKey,
+    redis_pool: r2d2::Pool<redis::Client>,
+    config: NetworkConfig,
 }
 
 impl XRPLRefundManager {
     pub fn new(
         client: Arc<XRPLClient>,
-        address: String,
-        secret: String,
+        config: NetworkConfig,
+        redis_pool: r2d2::Pool<redis::Client>,
     ) -> Result<Self, RefundManagerError> {
-        let account_id = AccountId::from_address(&address)
-            .map_err(|e| RefundManagerError::GenericError(format!("Invalid address: {}", e)))?;
-
-        let secret_bytes = hex::decode(&secret)
-            .map_err(|e| RefundManagerError::GenericError(format!("Hex decode error: {}", e)))?;
-
-        let secret_key = SecretKey::parse_slice(&secret_bytes).map_err(|err| {
-            RefundManagerError::GenericError(format!("Invalid secret key: {:?}", err))
-        })?;
-
-        let public_key = PublicKey::from_secret_key(&secret_key);
-
-        debug!("Creating refund manager with address: {}", address);
         Ok(Self {
             client,
-            account_id,
-            secret_key,
-            public_key,
+            redis_pool,
+            config,
         })
     }
-}
 
-impl RefundManager for XRPLRefundManager {
-    async fn build_refund_tx(
+    fn release_wallet_lock(&self, address: &str) -> Result<(), RefundManagerError> {
+        let mut redis_conn = self
+            .redis_pool
+            .get()
+            .map_err(|e| RefundManagerError::GenericError(e.to_string()))?;
+
+        let _: () = redis_conn
+            .del(format!("includer_{}", address))
+            .map_err(|e| RefundManagerError::GenericError(e.to_string()))?;
+
+        debug!("Released wallet lock for {}", address);
+
+        Ok(())
+    }
+
+    fn get_wallet_lock(&self) -> Result<(SecretKey, PublicKey, AccountId), RefundManagerError> {
+        let mut redis_conn = self
+            .redis_pool
+            .get()
+            .map_err(|e| RefundManagerError::GenericError(e.to_string()))?;
+
+        for (i, secret) in self.config.includer_secrets.split(",").enumerate() {
+            let address = self
+                .config
+                .refund_manager_addresses
+                .split(",")
+                .nth(i)
+                .ok_or(RefundManagerError::GenericError(format!(
+                    "Can't find address on index: {}",
+                    i
+                )))?;
+
+            let account_id = AccountId::from_address(address)
+                .map_err(|e| RefundManagerError::GenericError(format!("Invalid address: {}", e)))?;
+
+            let set_opts = SetOptions::default()
+                .conditional_set(ExistenceCheck::NX)
+                .with_expiration(SetExpiry::EX(60));
+            let wallet_lock: bool = redis_conn
+                .set_options(
+                    format!("includer_{}", account_id.to_address()),
+                    true,
+                    set_opts,
+                )
+                .map_err(|e| RefundManagerError::GenericError(e.to_string()))?;
+
+            if !wallet_lock {
+                debug!("Wallet {} is already locked", address);
+                continue;
+            }
+
+            let secret_bytes = hex::decode(secret).map_err(|e| {
+                RefundManagerError::GenericError(format!("Hex decode error: {}", e))
+            })?;
+
+            let secret_key = SecretKey::parse_slice(&secret_bytes).map_err(|err| {
+                RefundManagerError::GenericError(format!("Invalid secret key: {:?}", err))
+            })?;
+
+            let public_key = PublicKey::from_secret_key(&secret_key);
+
+            debug!("Picked wallet {}", address);
+            return Ok((secret_key, public_key, account_id));
+        }
+
+        Err(RefundManagerError::GenericError(
+            "No available wallet in pool".to_string(),
+        ))
+    }
+
+    async fn build_and_sign_tx(
         &self,
         recipient: String,
         drops: String,
         refund_id: &str,
+        account_id: AccountId,
+        public_key: PublicKey,
+        secret_key: SecretKey,
     ) -> Result<Option<(String, String, String)>, RefundManagerError> {
         let pre_fee_amount_drops = drops.parse::<u64>().map_err(|e| {
             RefundManagerError::GenericError(format!("Invalid drops amount '{}': {}", drops, e))
@@ -65,7 +123,7 @@ impl RefundManager for XRPLRefundManager {
             RefundManagerError::GenericError(format!("Invalid recipient address: {}", e))
         })?;
 
-        let mut tx = PaymentTransaction::new(self.account_id, pre_fee_amount, recipient_account);
+        let mut tx = PaymentTransaction::new(account_id, pre_fee_amount, recipient_account);
 
         tx.common.memos = vec![Memo {
             memo_data: Blob::from_hex(&hex::encode_upper(refund_id)).unwrap(),
@@ -94,7 +152,7 @@ impl RefundManager for XRPLRefundManager {
             RefundManagerError::GenericError(format!("Failed to parse amount: {}", e))
         })?;
 
-        sign_transaction(&mut tx, &self.public_key, &self.secret_key)
+        sign_transaction(&mut tx, &public_key, &secret_key)
             .map_err(|e| RefundManagerError::GenericError(format!("Sign error: {}", e)))?;
 
         let tx_bytes = serialize::serialize(&tx)
@@ -105,6 +163,27 @@ impl RefundManager for XRPLRefundManager {
             actual_refund_amount.to_string(),
             fee.drops().to_string(),
         )))
+    }
+}
+
+impl RefundManager for XRPLRefundManager {
+    async fn build_refund_tx(
+        &self,
+        recipient: String,
+        drops: String,
+        refund_id: &str,
+    ) -> Result<Option<(String, String, String)>, RefundManagerError> {
+        let (secret_key, public_key, account_id) = self.get_wallet_lock()?;
+
+        let tx_result = self
+            .build_and_sign_tx(
+                recipient, drops, refund_id, account_id, public_key, secret_key,
+            )
+            .await;
+
+        self.release_wallet_lock(&account_id.to_address())?;
+
+        tx_result
     }
 
     async fn is_refund_processed(

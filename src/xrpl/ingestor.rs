@@ -3,6 +3,7 @@ use base64::prelude::*;
 use interchain_token_service::TokenId;
 use std::ops::Sub;
 use std::{collections::HashMap, str::FromStr, sync::Arc, vec};
+use xrpl_amplifier_types::error::XRPLError;
 
 use crate::config::NetworkConfig;
 use crate::error::ITSTranslationError;
