@@ -14,8 +14,8 @@ use reqwest::{Client, Identity};
 
 use crate::{config::NetworkConfig, error::GmpApiError, utils::parse_task};
 use gmp_types::{
-    BroadcastRequest, Event, PostEventResponse, PostEventResult, QueryRequest, StorePayloadResult,
-    Task,
+    BroadcastRequest, CannotExecuteMessageReason, CommonEventFields, Event, PostEventResponse,
+    PostEventResult, QueryRequest, StorePayloadResult, Task,
 };
 
 pub struct GmpApi {
@@ -253,5 +253,30 @@ impl GmpApi {
         let request = self.client.get(&url);
         let response = GmpApi::request_bytes_if_success(request).await?;
         Ok(hex::encode(response))
+    }
+
+    pub async fn cannot_execute_message(
+        &self,
+        id: String,
+        message_id: String,
+        source_chain: String,
+        details: String,
+    ) -> Result<(), GmpApiError> {
+        let cannot_execute_message_event = Event::CannotExecuteMessageV2 {
+            common: CommonEventFields {
+                r#type: "CANNOT_EXECUTE_MESSAGE/V2".to_owned(),
+                event_id: format!("cannot-execute-task-v{}-{}", 2, id),
+                meta: None,
+            },
+            message_id,
+            source_chain,
+            reason: CannotExecuteMessageReason::Error, // TODO
+            details,
+        };
+
+        self.post_events(vec![cannot_execute_message_event])
+            .await?;
+
+        Ok(())
     }
 }

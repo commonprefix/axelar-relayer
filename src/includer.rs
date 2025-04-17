@@ -132,23 +132,13 @@ where
                         if broadcast_result.message_id.is_some()
                             && broadcast_result.source_chain.is_some()
                         {
-                            let cannot_execute_message_event = Event::CannotExecuteMessageV2 {
-                                common: CommonEventFields {
-                                    r#type: "CANNOT_EXECUTE_MESSAGE/V2".to_owned(),
-                                    event_id: format!(
-                                        "cannot-execute-task-v{}-{}",
-                                        2, gateway_tx_task.common.id
-                                    ),
-                                    meta: None,
-                                },
-                                message_id: broadcast_result.message_id.unwrap(),
-                                source_chain: broadcast_result.source_chain.unwrap(),
-                                reason: CannotExecuteMessageReason::Error, // TODO
-                                details: broadcast_result.status.unwrap_err().to_string(),
-                            };
-
                             self.gmp_api
-                                .post_events(vec![cannot_execute_message_event])
+                                .cannot_execute_message(
+                                    gateway_tx_task.common.id,
+                                    broadcast_result.message_id.unwrap(),
+                                    broadcast_result.source_chain.unwrap(),
+                                    broadcast_result.status.unwrap_err().to_string(),
+                                )
                                 .await
                                 .map_err(|e| IncluderError::ConsumerError(e.to_string()))?;
                         } else {
