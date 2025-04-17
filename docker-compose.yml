@@ -51,13 +51,13 @@ services:
 
   redis:
     image: redis:alpine
-    container_name: redis_${NETWORK}_${INSTANCE_ID}
+    container_name: redis_${NETWORK}
     ports:
       - "127.0.0.1:${REDIS_PORT:-6379}:6379"
 
   rabbitmq:
     image: rabbitmq:3-management
-    container_name: rabbitmq_${NETWORK}_${INSTANCE_ID}
+    container_name: rabbitmq_${NETWORK}
     ports:
       - "127.0.0.1:${RABBITMQ_AMQP_PORT:-5672}:5672"
       - "127.0.0.1:${RABBITMQ_MGMT_PORT:-15672}:15672"
