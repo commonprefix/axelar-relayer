@@ -15,7 +15,6 @@ RUN cargo build --release
 
 # Now copy the entire project source code into the container
 COPY src/ ./src/
-COPY config.yaml ./
 
 # Build all binaries in src/bin; this will build every binary.
 RUN cargo build --release --bins
@@ -28,6 +27,8 @@ RUN apt-get update && apt-get install -y ca-certificates && apt-get install -y l
 WORKDIR /app
 
 COPY config.yaml ./
+
+COPY certs/ ./certs/
 
 # Build argument to decide which binary to include in this image.
 ARG BINARY_NAME
