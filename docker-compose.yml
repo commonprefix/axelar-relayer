@@ -45,6 +45,14 @@ services:
     environment:
       - NETWORK=testnet
 
+  xrpl_funder_testnet:
+    build:
+      context: .
+      args:
+        BINARY_NAME: xrpl_funder
+    environment:
+      - NETWORK=testnet
+
   redis_devnet:
     image: redis:alpine
     container_name: redis_devnet
