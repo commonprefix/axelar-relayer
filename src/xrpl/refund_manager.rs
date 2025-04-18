@@ -6,6 +6,7 @@ use crate::gmp_api::gmp_types::RefundTask;
 use crate::includer::RefundManager;
 use crate::utils::{extract_and_decode_memo, parse_message_from_context};
 use libsecp256k1::{PublicKey, SecretKey};
+use rand::seq::SliceRandom;
 use redis::{Commands, ExistenceCheck, SetExpiry, SetOptions};
 use tracing::debug;
 use xrpl_binary_codec::serialize;
@@ -53,7 +54,9 @@ impl XRPLRefundManager {
             .get()
             .map_err(|e| RefundManagerError::GenericError(e.to_string()))?;
 
-        for (i, secret) in self.config.includer_secrets.split(",").enumerate() {
+        let mut secrets: Vec<&str> = self.config.includer_secrets.split(",").collect();
+        secrets.shuffle(&mut rand::rng());
+        for (i, secret) in secrets.into_iter().enumerate() {
             let address = self
                 .config
                 .refund_manager_addresses
