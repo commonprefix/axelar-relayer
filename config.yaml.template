@@ -13,9 +13,6 @@ devnet:
     xrpl_voting_verifier: ""
     multisig: ""
   token_conversion_rates: {}
-  axelar_rpc_url: ""
-  axelar_gas_prices: ""
-  axelar_chain_id: ""
   xrpl_relayer_sentry_dsn: ""
   redis_server: ""
   chain_name: ""
@@ -44,9 +41,6 @@ testnet:
     xrpl_voting_verifier: ""
     multisig: ""
   token_conversion_rates: {}
-  axelar_rpc_url: ""
-  axelar_gas_prices: ""
-  axelar_chain_id: ""
   xrpl_relayer_sentry_dsn: ""
   redis_server: ""
   chain_name: ""
@@ -75,9 +69,6 @@ mainnet:
     xrpl_voting_verifier: ""
     multisig: ""
   token_conversion_rates: {}
-  axelar_rpc_url: ""
-  axelar_gas_prices: ""
-  axelar_chain_id: ""
   xrpl_relayer_sentry_dsn: ""
   redis_server: ""
   chain_name: ""
