@@ -54,19 +54,13 @@ impl XRPLRefundManager {
             .get()
             .map_err(|e| RefundManagerError::GenericError(e.to_string()))?;
 
-        let mut secrets: Vec<&str> = self.config.includer_secrets.split(",").collect();
-        secrets.shuffle(&mut rand::rng());
-        for (i, secret) in secrets.into_iter().enumerate() {
-            let address = self
-                .config
-                .refund_manager_addresses
-                .split(",")
-                .nth(i)
-                .ok_or(RefundManagerError::GenericError(format!(
-                    "Can't find address on index: {}",
-                    i
-                )))?;
+        let secrets: Vec<&str> = self.config.includer_secrets.split(',').collect();
+        let addresses: Vec<&str> = self.config.refund_manager_addresses.split(',').collect();
+        let mut secret_address_pairs: Vec<(&str, &str)> =
+            secrets.into_iter().zip(addresses).collect();
+        secret_address_pairs.shuffle(&mut rand::rng());
 
+        for (secret, address) in secret_address_pairs.into_iter() {
             let account_id = AccountId::from_address(address)
                 .map_err(|e| RefundManagerError::GenericError(format!("Invalid address: {}", e)))?;
 
