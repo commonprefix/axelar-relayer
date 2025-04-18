@@ -9,6 +9,7 @@ services:
       replicas: 4
     environment:
       - NETWORK=testnet
+      - ENVIRONMENT=production
 
   xrpl_distributor_testnet:
     build:
@@ -17,6 +18,7 @@ services:
         BINARY_NAME: xrpl_distributor
     environment:
       - NETWORK=testnet
+      - ENVIRONMENT=production
 
   xrpl_ticket_creator_testnet:
     build:
@@ -25,6 +27,7 @@ services:
         BINARY_NAME: xrpl_ticket_creator
     environment:
       - NETWORK=testnet
+      - ENVIRONMENT=production
 
   xrpl_includer_testnet:
     build:
@@ -36,6 +39,7 @@ services:
       replicas: 4
     environment:
       - NETWORK=testnet
+      - ENVIRONMENT=production
 
   xrpl_subscriber_testnet:
     build:
@@ -44,6 +48,7 @@ services:
         BINARY_NAME: xrpl_subscriber
     environment:
       - NETWORK=testnet
+      - ENVIRONMENT=production
 
   xrpl_funder_testnet:
     build:
@@ -52,6 +57,7 @@ services:
         BINARY_NAME: xrpl_funder
     environment:
       - NETWORK=testnet
+      - ENVIRONMENT=production
 
   redis_devnet:
     image: redis:alpine
