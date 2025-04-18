@@ -7,6 +7,7 @@ devnet:
   payload_cache: ""
   xrpl_rpc: ""
   xrpl_multisig: ""
+  xrpl_faucet_url: ""
   axelar_contracts:
     xrpl_gateway: ""
     xrpl_multisig_prover: ""
@@ -35,6 +36,7 @@ testnet:
   payload_cache: ""
   xrpl_rpc: ""
   xrpl_multisig: ""
+  xrpl_faucet_url: ""
   axelar_contracts:
     xrpl_gateway: ""
     xrpl_multisig_prover: ""
@@ -63,6 +65,7 @@ mainnet:
   payload_cache: ""
   xrpl_rpc: ""
   xrpl_multisig: ""
+  xrpl_faucet_url: ""
   axelar_contracts:
     xrpl_gateway: ""
     xrpl_multisig_prover: ""

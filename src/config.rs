@@ -33,6 +33,7 @@ pub struct NetworkConfig {
     pub queue_address: String,
     pub gmp_api_url: String,
     pub xrpl_rpc: String,
+    pub xrpl_faucet_url: String,
     pub xrpl_multisig: String,
     pub axelar_contracts: AxelarContracts,
     pub token_conversion_rates: HashMap<String, f64>,
