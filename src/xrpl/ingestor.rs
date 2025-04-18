@@ -779,8 +779,19 @@ impl XrplIngestor {
                         let event = Event::MessageExecuted {
                             common: CommonEventFields {
                                 r#type: "MESSAGE_EXECUTED".to_owned(),
-                                event_id: common.hash.unwrap(),
-                                meta: None,
+                                event_id: common.hash.clone().ok_or(
+                                    IngestorError::GenericError(
+                                        "Transaction missing field 'hash'".into(),
+                                    ),
+                                )?,
+                                meta: Some(EventMetadata {
+                                    tx_id: common.hash,
+                                    from_address: None,
+                                    finalized: None,
+                                    source_context: None,
+                                    timestamp: chrono::Utc::now()
+                                        .to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
+                                }),
                             },
                             message_id: message_id.to_string(),
                             source_chain: source_chain.to_string(),
