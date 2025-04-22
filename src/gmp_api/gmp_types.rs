@@ -152,11 +152,11 @@ impl Task {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct CommonEventFields {
+pub struct CommonEventFields<T> {
     pub r#type: String,
     #[serde(rename = "eventID")]
     pub event_id: String,
-    pub meta: Option<EventMetadata>,
+    pub meta: Option<T>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -184,6 +184,18 @@ pub struct EventMetadata {
     pub timestamp: String,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct MessageExecutedEventMetadata {
+    #[serde(flatten)]
+    pub common_meta: EventMetadata,
+    #[serde(rename = "commandID")]
+    pub command_id: Option<String>,
+    #[serde(rename = "childMessageIDs")]
+    pub child_message_ids: Option<Vec<String>>,
+    #[serde(rename = "revertReason")]
+    pub revert_reason: Option<String>,
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct ScopedMessage {
     #[serde(rename = "messageID")]
@@ -199,7 +211,7 @@ pub enum CannotExecuteMessageReason {
     Error,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[serde(rename_all = "UPPERCASE")]
 pub enum MessageExecutionStatus {
     SUCCESSFUL,
@@ -211,7 +223,7 @@ pub enum MessageExecutionStatus {
 pub enum Event {
     Call {
         #[serde(flatten)]
-        common: CommonEventFields,
+        common: CommonEventFields<EventMetadata>,
         message: GatewayV2Message,
         #[serde(rename = "destinationChain")]
         destination_chain: String,
@@ -219,7 +231,7 @@ pub enum Event {
     },
     GasRefunded {
         #[serde(flatten)]
-        common: CommonEventFields,
+        common: CommonEventFields<EventMetadata>,
         #[serde(rename = "messageID")]
         message_id: String,
         #[serde(rename = "recipientAddress")]
@@ -230,7 +242,7 @@ pub enum Event {
     },
     GasCredit {
         #[serde(flatten)]
-        common: CommonEventFields,
+        common: CommonEventFields<EventMetadata>,
         #[serde(rename = "messageID")]
         message_id: String,
         #[serde(rename = "refundAddress")]
@@ -239,7 +251,7 @@ pub enum Event {
     },
     MessageExecuted {
         #[serde(flatten)]
-        common: CommonEventFields,
+        common: CommonEventFields<MessageExecutedEventMetadata>,
         #[serde(rename = "messageID")]
         message_id: String,
         #[serde(rename = "sourceChain")]
@@ -249,7 +261,7 @@ pub enum Event {
     },
     CannotExecuteMessageV2 {
         #[serde(flatten)]
-        common: CommonEventFields,
+        common: CommonEventFields<EventMetadata>,
         #[serde(rename = "messageID")]
         message_id: String,
         #[serde(rename = "sourceChain")]

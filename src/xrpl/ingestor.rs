@@ -7,6 +7,7 @@ use xrpl_amplifier_types::error::XRPLError;
 
 use crate::config::NetworkConfig;
 use crate::error::ITSTranslationError;
+use crate::gmp_api::gmp_types::MessageExecutedEventMetadata;
 use crate::utils::convert_token_amount_to_drops;
 use crate::{
     error::IngestorError,
@@ -774,6 +775,8 @@ impl XrplIngestor {
                                 },
                             )?;
 
+                        let maybe_tx_result = common.meta.map(|meta| meta.transaction_result);
+
                         // TODO: Don't send if the tx failed
                         // TODO: MessageExecuted could be moved earlier, right after broadcasting the message
                         let event = Event::MessageExecuted {
@@ -784,13 +787,24 @@ impl XrplIngestor {
                                         "Transaction missing field 'hash'".into(),
                                     ),
                                 )?,
-                                meta: Some(EventMetadata {
-                                    tx_id: common.hash,
-                                    from_address: None,
-                                    finalized: None,
-                                    source_context: None,
-                                    timestamp: chrono::Utc::now()
-                                        .to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
+                                meta: Some(MessageExecutedEventMetadata {
+                                    common_meta: EventMetadata {
+                                        tx_id: common.hash,
+                                        from_address: None,
+                                        finalized: None,
+                                        source_context: None,
+                                        timestamp: chrono::Utc::now()
+                                            .to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
+                                    },
+                                    command_id: None,
+                                    child_message_ids: None,
+                                    revert_reason: if status == MessageExecutionStatus::REVERTED {
+                                        maybe_tx_result.map(|tx_result| {
+                                            serde_json::to_string(&tx_result).unwrap_or_default()
+                                        })
+                                    } else {
+                                        None
+                                    },
                                 }),
                             },
                             message_id: message_id.to_string(),
