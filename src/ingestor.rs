@@ -59,7 +59,6 @@ impl Ingestor {
                     warn!("No more messages from consumer.");
                 }
             }
-            tokio::time::sleep(tokio::time::Duration::from_secs(2)).await
         }
     }
 
