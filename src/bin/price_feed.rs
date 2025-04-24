@@ -8,6 +8,8 @@ async fn main() {
     let config = Config::from_yaml(&format!("config.{}.yaml", network)).unwrap();
 
     let _guard = setup_logging(&config);
+    setup_heartbeat(config.heartbeats.price_feed.clone());
+
     let redis_client = redis::Client::open(config.redis_server.clone()).unwrap();
     let redis_pool = r2d2::Pool::builder().build(redis_client).unwrap();
     let price_feeder = PriceFeeder::new(&config, redis_pool).await.unwrap();

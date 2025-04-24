@@ -10,6 +10,7 @@ pub struct HeartbeatsConfig {
     pub ingestor: String,
     pub ticket_creator: String,
     pub funder: String,
+    pub price_feed: String,
 }
 
 #[derive(Debug, Clone, Deserialize, Default)]

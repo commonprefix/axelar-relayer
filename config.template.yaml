@@ -36,3 +36,4 @@ heartbeats:
   ticket_creator: ""
   distributor: ""
   funder: ""
+  price_feed: ""
