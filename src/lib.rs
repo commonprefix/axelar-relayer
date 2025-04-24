@@ -5,6 +5,7 @@ pub mod gmp_api;
 pub mod includer;
 pub mod ingestor;
 pub mod payload_cache;
+pub mod price_feed;
 pub mod queue;
 pub mod subscriber;
 pub mod utils;

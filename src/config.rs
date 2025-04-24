@@ -9,7 +9,7 @@ pub struct HeartbeatsConfig {
     pub includer: String,
     pub ingestor: String,
     pub ticket_creator: String,
-    pub funder: String
+    pub funder: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -25,6 +25,12 @@ pub struct AxelarContracts {
     pub xrpl_multisig_prover: String,
     pub xrpl_voting_verifier: String,
     pub multisig: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Default)]
+pub struct PriceFeedConfig {
+    pub pairs: Vec<String>,
+    pub coin_ids: HashMap<String, HashMap<String, String>>,
 }
 
 #[derive(Debug, Clone, Deserialize, Default)]
@@ -44,6 +50,7 @@ pub struct NetworkConfig {
     pub client_cert_path: String,
     pub client_key_path: String,
     pub heartbeats: HeartbeatsConfig,
+    pub price_feed: PriceFeedConfig,
 }
 
 impl Config {

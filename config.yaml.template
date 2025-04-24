@@ -19,6 +19,14 @@ devnet:
   chain_name: ""
   client_cert_path: ""
   client_key_path: ""
+  price_feed:
+    pairs:
+    coin_ids:
+      coingecko:
+        "AVAX": "avalanche-2"
+        "XRP": "ripple"
+        "ETH": "ethereum"
+        "RLUSD": "ripple-usd"
   payload_cache_auth_token: ""
   heartbeats:
     subscriber: ""
@@ -49,6 +57,14 @@ testnet:
   chain_name: ""
   client_cert_path: ""
   client_key_path: ""
+  price_feed:
+    pairs:
+    coin_ids:
+      coingecko:
+        "AVAX": "avalanche-2"
+        "XRP": "ripple"
+        "ETH": "ethereum"
+        "RLUSD": "ripple-usd"
   payload_cache_auth_token: ""
   heartbeats:
     subscriber: ""
@@ -79,6 +95,14 @@ mainnet:
   chain_name: ""
   client_cert_path: ""
   client_key_path: ""
+  price_feed:
+    pairs:
+    coin_ids:
+      coingecko:
+        "AVAX": "avalanche-2"
+        "XRP": "ripple"
+        "ETH": "ethereum"
+        "RLUSD": "ripple-usd"
   payload_cache_auth_token: ""
   heartbeats:
     subscriber: ""
