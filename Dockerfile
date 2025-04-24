@@ -26,7 +26,7 @@ RUN apt-get update && apt-get install -y ca-certificates && apt-get install -y l
 
 WORKDIR /app
 
-COPY config.yaml ./
+COPY config.*.yaml ./
 
 COPY certs/ ./certs/
 
