@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::config::NetworkConfig;
+use crate::config::Config;
 use crate::error::RefundManagerError;
 use crate::gmp_api::gmp_types::RefundTask;
 use crate::includer::RefundManager;
@@ -17,13 +17,13 @@ use super::client::XRPLClient;
 pub struct XRPLRefundManager {
     client: Arc<XRPLClient>,
     redis_pool: r2d2::Pool<redis::Client>,
-    config: NetworkConfig,
+    config: Config,
 }
 
 impl XRPLRefundManager {
     pub fn new(
         client: Arc<XRPLClient>,
-        config: NetworkConfig,
+        config: Config,
         redis_pool: r2d2::Pool<redis::Client>,
     ) -> Result<Self, RefundManagerError> {
         Ok(Self {

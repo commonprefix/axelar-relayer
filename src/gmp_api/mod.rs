@@ -12,7 +12,7 @@ use tracing::{debug, info, warn};
 
 use reqwest::{Client, Identity};
 
-use crate::{config::NetworkConfig, error::GmpApiError, utils::parse_task};
+use crate::{config::Config, error::GmpApiError, utils::parse_task};
 use gmp_types::{
     BroadcastRequest, CannotExecuteMessageReason, CommonEventFields, Event, PostEventResponse,
     PostEventResult, QueryRequest, StorePayloadResult, Task,
@@ -24,7 +24,7 @@ pub struct GmpApi {
     chain: String,
 }
 
-fn identity_from_config(config: &NetworkConfig) -> Result<Identity, GmpApiError> {
+fn identity_from_config(config: &Config) -> Result<Identity, GmpApiError> {
     let project_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
 
     let key_path = project_root.join(&config.client_key_path);
@@ -53,7 +53,7 @@ fn identity_from_config(config: &NetworkConfig) -> Result<Identity, GmpApiError>
 }
 
 impl GmpApi {
-    pub fn new(config: &NetworkConfig, connection_pooling: bool) -> Result<Self, GmpApiError> {
+    pub fn new(config: &Config, connection_pooling: bool) -> Result<Self, GmpApiError> {
         let mut client = reqwest::ClientBuilder::new()
             .connect_timeout(Duration::from_secs(5))
             .timeout(Duration::from_secs(30))
@@ -274,8 +274,7 @@ impl GmpApi {
             details,
         };
 
-        self.post_events(vec![cannot_execute_message_event])
-            .await?;
+        self.post_events(vec![cannot_execute_message_event]).await?;
 
         Ok(())
     }

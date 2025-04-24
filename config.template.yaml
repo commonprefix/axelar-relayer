@@ -1,0 +1,38 @@
+refund_manager_addresses: ""
+includer_secrets: ""
+instance_id: "0"
+queue_address: ""
+gmp_api_url: ""
+payload_cache: ""
+xrpl_rpc: ""
+xrpl_multisig: ""
+xrpl_faucet_url: ""
+axelar_contracts:
+  xrpl_gateway: ""
+  xrpl_multisig_prover: ""
+  xrpl_voting_verifier: ""
+  multisig: ""
+token_conversion_rates: {}
+xrpl_relayer_sentry_dsn: ""
+redis_server: ""
+chain_name: ""
+client_cert_path: ""
+client_key_path: ""
+price_feed:
+  pairs:
+  coin_ids:
+    coingecko:
+      "AVAX": "avalanche-2"
+      "XRP": "ripple"
+      "ETH": "ethereum"
+      "RLUSD": "ripple-usd"
+  auth:
+    coingecko: ""
+payload_cache_auth_token: ""
+heartbeats:
+  subscriber: ""
+  includer: ""
+  ingestor: ""
+  ticket_creator: ""
+  distributor: ""
+  funder: ""

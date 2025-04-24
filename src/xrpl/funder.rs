@@ -2,7 +2,7 @@ use reqwest::Client;
 use tracing::{error, info};
 use xrpl_api::{AccountInfoRequest, Amount};
 
-use crate::config::NetworkConfig;
+use crate::config::Config;
 
 use super::client::XRPLClient;
 
@@ -12,11 +12,11 @@ const BALANCE_THRESHOLD: f64 = 500_000_000.0; // = 500 XRP
 pub struct XRPLFunder {
     request_client: Client,
     xrpl_client: XRPLClient,
-    config: NetworkConfig,
+    config: Config,
 }
 
 impl XRPLFunder {
-    pub fn new(config: NetworkConfig) -> Self {
+    pub fn new(config: Config) -> Self {
         let request_client = Client::new();
         let xrpl_client = XRPLClient::new(&config.xrpl_rpc, 3).unwrap();
         Self {

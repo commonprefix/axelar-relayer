@@ -5,7 +5,7 @@ use std::ops::Sub;
 use std::{collections::HashMap, str::FromStr, sync::Arc, vec};
 use xrpl_amplifier_types::error::XRPLError;
 
-use crate::config::NetworkConfig;
+use crate::config::Config;
 use crate::error::ITSTranslationError;
 use crate::gmp_api::gmp_types::MessageExecutedEventMetadata;
 use crate::utils::convert_token_amount_to_drops;
@@ -40,11 +40,11 @@ use xrpl_gateway::msg::{CallContract, InterchainTransfer, MessageWithPayload};
 pub struct XrplIngestor {
     client: xrpl_http_client::Client,
     gmp_api: Arc<GmpApi>,
-    config: NetworkConfig,
+    config: Config,
 }
 
 impl XrplIngestor {
-    pub fn new(gmp_api: Arc<GmpApi>, config: NetworkConfig) -> Self {
+    pub fn new(gmp_api: Arc<GmpApi>, config: Config) -> Self {
         let client = xrpl_http_client::Client::builder()
             .base_url(&config.xrpl_rpc)
             .build();

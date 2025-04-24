@@ -2,7 +2,7 @@ use dotenv::dotenv;
 use std::sync::Arc;
 
 use axelar_relayer::{
-    config::NetworkConfig,
+    config::Config,
     distributor::Distributor,
     gmp_api,
     queue::Queue,
@@ -13,7 +13,7 @@ use axelar_relayer::{
 async fn main() {
     dotenv().ok();
     let network = std::env::var("NETWORK").expect("NETWORK must be set");
-    let config = NetworkConfig::from_yaml("config.yaml", &network).unwrap();
+    let config = Config::from_yaml(&format!("config.{}.yaml", network)).unwrap();
 
     let _guard = setup_logging(&config);
     setup_heartbeat(config.heartbeats.distributor.clone());

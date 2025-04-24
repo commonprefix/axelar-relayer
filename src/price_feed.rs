@@ -6,7 +6,7 @@ use r2d2::Pool;
 use redis::Commands;
 use tracing::{error, info, warn};
 
-use crate::config::{NetworkConfig, PriceFeedConfig};
+use crate::config::{Config, PriceFeedConfig};
 
 trait PriceFeed: Send + Sync {
     fn fetch<'a>(
@@ -25,7 +25,13 @@ struct CoinGeckoPriceFeed {
 
 impl CoinGeckoPriceFeed {
     pub async fn new(config: &PriceFeedConfig) -> Result<Self, anyhow::Error> {
-        let client = CoinGeckoClient::new_with_demo_api_key("");
+        let client = CoinGeckoClient::new_with_demo_api_key(
+            config
+                .auth
+                .get("coingecko")
+                .ok_or(anyhow::anyhow!("coingecko auth not found"))?
+                .as_str(),
+        );
         let supported_vs_currencies = client.supported_vs_currencies().await?;
 
         Ok(Self {
@@ -119,7 +125,7 @@ pub struct PriceFeeder {
 
 impl PriceFeeder {
     pub async fn new(
-        config: &NetworkConfig,
+        config: &Config,
         redis_pool: Pool<redis::Client>,
     ) -> Result<Self, anyhow::Error> {
         let price_feed = CoinGeckoPriceFeed::new(&config.price_feed).await?;

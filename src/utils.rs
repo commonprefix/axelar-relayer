@@ -15,7 +15,7 @@ use xrpl_amplifier_types::{
 use xrpl_api::{Amount, Memo, PaymentTransaction, Transaction, TxRequest};
 
 use crate::{
-    config::NetworkConfig,
+    config::Config,
     error::{GmpApiError, IngestorError},
     gmp_api::gmp_types::{
         CommonTaskFields, ConstructProofTask, ExecuteTask, GatewayTxTask, ReactToWasmEventTask,
@@ -95,7 +95,7 @@ pub fn extract_hex_xrpl_memo(
     String::from_utf8(bytes).map_err(|e| e.into())
 }
 
-pub fn setup_logging(config: &NetworkConfig) -> ClientInitGuard {
+pub fn setup_logging(config: &Config) -> ClientInitGuard {
     let environment = std::env::var("ENVIRONMENT").unwrap_or_else(|_| "development".to_string());
 
     let _guard = sentry::init((
@@ -276,7 +276,7 @@ pub fn setup_heartbeat(url: String) {
 }
 
 pub fn convert_token_amount_to_drops(
-    config: &NetworkConfig,
+    config: &Config,
     amount: f64,
     token_id: &str,
 ) -> Result<u64, anyhow::Error> {
@@ -301,7 +301,7 @@ mod tests {
 
     #[test]
     fn test_convert_token_amount_to_drops_whole_number() {
-        let mut config = NetworkConfig::default();
+        let mut config = Config::default();
         config.token_conversion_rates = HashMap::from([("XRP".to_string(), 1.0)]);
 
         let result = convert_token_amount_to_drops(&config, 123.0, "XRP").unwrap();
@@ -310,7 +310,7 @@ mod tests {
 
     #[test]
     fn test_convert_token_amount_to_drops_with_decimals() {
-        let mut config = NetworkConfig::default();
+        let mut config = Config::default();
         config.token_conversion_rates = HashMap::from([("XRP".to_string(), 1.0)]);
 
         let result = convert_token_amount_to_drops(&config, 123.456, "XRP").unwrap();
@@ -319,7 +319,7 @@ mod tests {
 
     #[test]
     fn test_convert_token_amount_to_drops_small_value() {
-        let mut config = NetworkConfig::default();
+        let mut config = Config::default();
         config.token_conversion_rates = HashMap::from([("XRP".to_string(), 1.0)]);
 
         let result = convert_token_amount_to_drops(&config, 0.000001, "XRP").unwrap();
@@ -328,7 +328,7 @@ mod tests {
 
     #[test]
     fn test_convert_token_amount_to_drops_max_decimals() {
-        let mut config = NetworkConfig::default();
+        let mut config = Config::default();
         config.token_conversion_rates = HashMap::from([("XRP".to_string(), 1.0)]);
 
         let result = convert_token_amount_to_drops(&config, 0.123456, "XRP").unwrap();
@@ -337,7 +337,7 @@ mod tests {
 
     #[test]
     fn test_convert_token_amount_to_drops_too_many_decimals_no_precision() {
-        let mut config = NetworkConfig::default();
+        let mut config = Config::default();
         config.token_conversion_rates = HashMap::from([("XRP".to_string(), 1.0)]);
 
         let result = convert_token_amount_to_drops(&config, 0.1234567, "XRP").unwrap();
@@ -346,7 +346,7 @@ mod tests {
 
     #[test]
     fn test_convert_token_amount_to_drops_no_rate() {
-        let config = NetworkConfig::default();
+        let config = Config::default();
 
         let result = convert_token_amount_to_drops(&config, 0.1234567, "XRP").unwrap_err();
         assert!(result

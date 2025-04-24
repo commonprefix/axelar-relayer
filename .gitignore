@@ -1,5 +1,8 @@
 .env
 config.yaml
+config.devnet.yaml
+config.testnet.yaml
+config.mainnet.yaml
 
 # Added by cargo
 
