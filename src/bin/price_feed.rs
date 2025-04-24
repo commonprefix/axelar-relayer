@@ -1,4 +1,8 @@
-use axelar_relayer::{config::Config, price_feed::PriceFeeder, utils::setup_logging};
+use axelar_relayer::{
+    config::Config,
+    price_feed::PriceFeeder,
+    utils::{setup_heartbeat, setup_logging},
+};
 use dotenv::dotenv;
 
 #[tokio::main]
