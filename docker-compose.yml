@@ -59,6 +59,15 @@ services:
       - NETWORK=testnet
       - ENVIRONMENT=production
 
+  price_feed:
+    build:
+      context: .
+      args:
+        BINARY_NAME: price_feed
+    environment:
+      - NETWORK=testnet
+      - ENVIRONMENT=production
+
   redis_devnet:
     image: redis:alpine
     container_name: redis_devnet
