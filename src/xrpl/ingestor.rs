@@ -1,6 +1,7 @@
 use axelar_wasm_std::{msg_id::HexTxHash, nonempty};
 use base64::prelude::*;
 use interchain_token_service::TokenId;
+use rust_decimal::Decimal;
 use std::ops::Sub;
 use std::{collections::HashMap, str::FromStr, sync::Arc, vec};
 use xrpl_amplifier_types::error::XRPLError;
@@ -8,6 +9,7 @@ use xrpl_amplifier_types::error::XRPLError;
 use crate::config::Config;
 use crate::error::ITSTranslationError;
 use crate::gmp_api::gmp_types::MessageExecutedEventMetadata;
+use crate::price_view::PriceView;
 use crate::utils::convert_token_amount_to_drops;
 use crate::{
     error::IngestorError,
@@ -41,10 +43,11 @@ pub struct XrplIngestor {
     client: xrpl_http_client::Client,
     gmp_api: Arc<GmpApi>,
     config: Config,
+    price_view: PriceView,
 }
 
 impl XrplIngestor {
-    pub fn new(gmp_api: Arc<GmpApi>, config: Config) -> Self {
+    pub fn new(gmp_api: Arc<GmpApi>, config: Config, price_view: PriceView) -> Self {
         let client = xrpl_http_client::Client::builder()
             .base_url(&config.xrpl_rpc)
             .build();
@@ -52,6 +55,7 @@ impl XrplIngestor {
             gmp_api,
             config,
             client,
+            price_view,
         }
     }
 
@@ -469,15 +473,20 @@ impl XrplIngestor {
             XRPLPaymentAmount::Drops(amount) => amount.to_string(),
             XRPLPaymentAmount::Issued(_, amount) => {
                 if let Some(gas_token_id) = maybe_gas_token_id {
-                    let amount = amount.to_string().parse::<f64>().map_err(|e| {
+                    let amount = Decimal::from_scientific(&amount.to_string()).map_err(|e| {
                         IngestorError::GenericError(format!(
-                            "Failed to parse amount {} as f64: {}",
+                            "Failed to parse amount {}: {}",
                             amount, e
                         ))
                     })?;
-                    convert_token_amount_to_drops(&self.config, amount, &gas_token_id.to_string())
-                        .map_err(|e| IngestorError::GenericError(e.to_string()))?
-                        .to_string()
+                    convert_token_amount_to_drops(
+                        &self.config,
+                        amount,
+                        &gas_token_id.to_string(),
+                        &self.price_view,
+                    )
+                    .await
+                    .map_err(|e| IngestorError::GenericError(e.to_string()))?
                 } else {
                     return Err(IngestorError::GenericError(
                         "Gas token id can't be None for IOU transfer".to_owned(),

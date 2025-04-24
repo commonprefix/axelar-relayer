@@ -38,7 +38,7 @@ pub struct Config {
     pub xrpl_faucet_url: String,
     pub xrpl_multisig: String,
     pub axelar_contracts: AxelarContracts,
-    pub token_conversion_rates: HashMap<String, f64>,
+    pub deployed_tokens: HashMap<String, String>,
     pub redis_server: String,
     pub xrpl_relayer_sentry_dsn: String,
     pub chain_name: String,

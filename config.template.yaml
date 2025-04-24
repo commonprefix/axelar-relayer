@@ -12,7 +12,7 @@ axelar_contracts:
   xrpl_multisig_prover: ""
   xrpl_voting_verifier: ""
   multisig: ""
-token_conversion_rates: {}
+deployed_tokens: {}
 xrpl_relayer_sentry_dsn: ""
 redis_server: ""
 chain_name: ""

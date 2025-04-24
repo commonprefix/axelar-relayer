@@ -8,6 +8,7 @@ use crate::{
     config::Config,
     error::IngestorError,
     gmp_api::{gmp_types::Task, GmpApi},
+    price_view::PriceView,
     queue::{Queue, QueueItem},
     subscriber::ChainTransaction,
     xrpl::XrplIngestor,
@@ -19,8 +20,8 @@ pub struct Ingestor {
 }
 
 impl Ingestor {
-    pub fn new(gmp_api: Arc<GmpApi>, config: Config) -> Self {
-        let xrpl_ingestor = XrplIngestor::new(gmp_api.clone(), config.clone());
+    pub fn new(gmp_api: Arc<GmpApi>, config: Config, price_view: PriceView) -> Self {
+        let xrpl_ingestor = XrplIngestor::new(gmp_api.clone(), config.clone(), price_view);
         Self {
             gmp_api,
             xrpl_ingestor,

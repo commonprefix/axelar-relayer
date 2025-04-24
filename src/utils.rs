@@ -2,6 +2,7 @@ use std::str::FromStr;
 
 use anyhow::Context;
 use axelar_wasm_std::msg_id::HexTxHash;
+use rust_decimal::Decimal;
 use sentry::ClientInitGuard;
 use sentry_tracing::{layer as sentry_layer, EventFilter};
 use serde::de::DeserializeOwned;
@@ -12,7 +13,7 @@ use xrpl_amplifier_types::{
     msg::XRPLMessage,
     types::{XRPLPaymentAmount, XRPLToken, XRPLTokenAmount},
 };
-use xrpl_api::{Amount, Memo, PaymentTransaction, Transaction, TxRequest};
+use xrpl_api::{Memo, PaymentTransaction, Transaction, TxRequest};
 
 use crate::{
     config::Config,
@@ -21,6 +22,7 @@ use crate::{
         CommonTaskFields, ConstructProofTask, ExecuteTask, GatewayTxTask, ReactToWasmEventTask,
         RefundTask, Task, TaskMetadata, VerifyTask, WasmEvent,
     },
+    price_view::PriceViewTrait,
 };
 
 fn parse_as<T: DeserializeOwned>(value: &Value) -> Result<T, GmpApiError> {
@@ -275,82 +277,193 @@ pub fn setup_heartbeat(url: String) {
     });
 }
 
-pub fn convert_token_amount_to_drops(
+pub async fn convert_token_amount_to_drops<T>(
     config: &Config,
-    amount: f64,
+    amount: Decimal,
     token_id: &str,
-) -> Result<u64, anyhow::Error> {
-    let rate = config.token_conversion_rates.get(token_id);
-    if let Some(rate) = rate {
-        let xrp = amount * rate;
-        // WARNING: loses precision, use with caution
-        Ok(Amount::xrp(&xrp.to_string()).size() as u64)
-    } else {
-        Err(anyhow::anyhow!(
-            "No conversion rate found for token id: {}",
-            token_id
-        ))
+    price_view: &T,
+) -> Result<String, anyhow::Error>
+where
+    T: PriceViewTrait,
+{
+    let token_symbol = config
+        .deployed_tokens
+        .get(token_id)
+        .ok_or_else(|| anyhow::anyhow!("Token id {} not found in deployed tokens", token_id))?;
+
+    let price = price_view
+        .get_price(&format!("{}/XRP", token_symbol))
+        .await?;
+
+    let xrp = amount * price;
+    let drops = xrp * Decimal::from(1_000_000);
+
+    if drops.normalize().scale() > 0 {
+        warn!("Losing precision, drops have decimal points: {}", drops);
     }
+    Ok(drops.trunc().to_string())
 }
 
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
 
+    use crate::price_view::MockPriceView;
+
     use super::*;
 
-    #[test]
-    fn test_convert_token_amount_to_drops_whole_number() {
-        let mut config = Config::default();
-        config.token_conversion_rates = HashMap::from([("XRP".to_string(), 1.0)]);
+    #[tokio::test]
+    async fn test_convert_token_amount_to_drops_whole_number() {
+        let config = Config {
+            deployed_tokens: HashMap::from([("XRP".to_string(), "XRP".to_string())]),
+            ..Default::default()
+        };
 
-        let result = convert_token_amount_to_drops(&config, 123.0, "XRP").unwrap();
-        assert_eq!(result, 123_000_000);
+        let mut price_view = MockPriceView::new();
+        price_view
+            .expect_get_price()
+            .returning(|_| Ok(Decimal::from_str("1.5").unwrap()));
+        let result = convert_token_amount_to_drops(
+            &config,
+            Decimal::from_str("123.0").unwrap(),
+            "XRP",
+            &price_view,
+        )
+        .await
+        .unwrap();
+        assert_eq!(result, "184500000");
     }
 
-    #[test]
-    fn test_convert_token_amount_to_drops_with_decimals() {
-        let mut config = Config::default();
-        config.token_conversion_rates = HashMap::from([("XRP".to_string(), 1.0)]);
+    #[tokio::test]
+    async fn test_convert_token_amount_to_drops_with_decimals() {
+        let config = Config {
+            deployed_tokens: HashMap::from([("XRP".to_string(), "XRP".to_string())]),
+            ..Default::default()
+        };
 
-        let result = convert_token_amount_to_drops(&config, 123.456, "XRP").unwrap();
-        assert_eq!(result, 123_456_000);
+        let mut price_view = MockPriceView::new();
+        price_view
+            .expect_get_price()
+            .returning(|_| Ok(Decimal::from_str("1.5").unwrap()));
+        let result = convert_token_amount_to_drops(
+            &config,
+            Decimal::from_str("123.456").unwrap(),
+            "XRP",
+            &price_view,
+        )
+        .await
+        .unwrap();
+        assert_eq!(result, "185184000");
     }
 
-    #[test]
-    fn test_convert_token_amount_to_drops_small_value() {
-        let mut config = Config::default();
-        config.token_conversion_rates = HashMap::from([("XRP".to_string(), 1.0)]);
+    #[tokio::test]
+    async fn test_convert_token_amount_to_drops_small_value() {
+        let config = Config {
+            deployed_tokens: HashMap::from([("XRP".to_string(), "XRP".to_string())]),
+            ..Default::default()
+        };
 
-        let result = convert_token_amount_to_drops(&config, 0.000001, "XRP").unwrap();
-        assert_eq!(result, 1);
+        let mut price_view = MockPriceView::new();
+        price_view
+            .expect_get_price()
+            .returning(|_| Ok(Decimal::from_str("1.0").unwrap()));
+        let result = convert_token_amount_to_drops(
+            &config,
+            Decimal::from_str("0.000001").unwrap(),
+            "XRP",
+            &price_view,
+        )
+        .await
+        .unwrap();
+        assert_eq!(result, "1");
     }
 
-    #[test]
-    fn test_convert_token_amount_to_drops_max_decimals() {
-        let mut config = Config::default();
-        config.token_conversion_rates = HashMap::from([("XRP".to_string(), 1.0)]);
+    #[tokio::test]
+    async fn test_convert_token_amount_to_drops_max_decimals() {
+        let config = Config {
+            deployed_tokens: HashMap::from([("XRP".to_string(), "XRP".to_string())]),
+            ..Default::default()
+        };
 
-        let result = convert_token_amount_to_drops(&config, 0.123456, "XRP").unwrap();
-        assert_eq!(result, 123_456);
+        let mut price_view = MockPriceView::new();
+        price_view
+            .expect_get_price()
+            .returning(|_| Ok(Decimal::from_str("1.0").unwrap()));
+        let result = convert_token_amount_to_drops(
+            &config,
+            Decimal::from_str("0.123456").unwrap(),
+            "XRP",
+            &price_view,
+        )
+        .await
+        .unwrap();
+        assert_eq!(result, "123456");
     }
 
-    #[test]
-    fn test_convert_token_amount_to_drops_too_many_decimals_no_precision() {
-        let mut config = Config::default();
-        config.token_conversion_rates = HashMap::from([("XRP".to_string(), 1.0)]);
+    #[tokio::test]
+    async fn test_convert_token_amount_to_drops_too_many_decimals_no_precision() {
+        let config = Config {
+            deployed_tokens: HashMap::from([("XRP".to_string(), "XRP".to_string())]),
+            ..Default::default()
+        };
 
-        let result = convert_token_amount_to_drops(&config, 0.1234567, "XRP").unwrap();
-        assert_eq!(result, 123_456);
+        let mut price_view = MockPriceView::new();
+        price_view
+            .expect_get_price()
+            .returning(|_| Ok(Decimal::from_str("1.0").unwrap()));
+        let result = convert_token_amount_to_drops(
+            &config,
+            Decimal::from_str("0.1234567").unwrap(),
+            "XRP",
+            &price_view,
+        )
+        .await
+        .unwrap();
+        assert_eq!(result, "123456");
     }
 
-    #[test]
-    fn test_convert_token_amount_to_drops_no_rate() {
+    #[tokio::test]
+    async fn test_convert_token_amount_to_drops_no_rate() {
         let config = Config::default();
 
-        let result = convert_token_amount_to_drops(&config, 0.1234567, "XRP").unwrap_err();
+        let mut price_view = MockPriceView::new();
+        price_view
+            .expect_get_price()
+            .returning(|_| Ok(Decimal::from_str("1.0").unwrap()));
+        let result = convert_token_amount_to_drops(
+            &config,
+            Decimal::from_str("0.1234567").unwrap(),
+            "XRP",
+            &price_view,
+        )
+        .await
+        .unwrap_err();
         assert!(result
             .to_string()
-            .contains("No conversion rate found for token id: XRP"));
+            .contains("Token id XRP not found in deployed tokens"));
+    }
+
+    #[tokio::test]
+    async fn test_convert_xrpl_token_amount_to_drops() {
+        let config = Config {
+            deployed_tokens: HashMap::from([("XRP".to_string(), "XRP".to_string())]),
+            ..Default::default()
+        };
+
+        let mut price_view = MockPriceView::new();
+        price_view
+            .expect_get_price()
+            .returning(|_| Ok(Decimal::from_str("1.0").unwrap()));
+
+        let token_amount = XRPLTokenAmount::from_str("123.456").unwrap();
+        let result = convert_token_amount_to_drops(
+            &config,
+            Decimal::from_scientific(&token_amount.to_string()).unwrap(),
+            "XRP",
+            &price_view,
+        )
+        .await
+        .unwrap();
+        assert_eq!(result, "123456000");
     }
 }

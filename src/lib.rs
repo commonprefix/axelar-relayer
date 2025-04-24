@@ -6,6 +6,7 @@ pub mod includer;
 pub mod ingestor;
 pub mod payload_cache;
 pub mod price_feed;
+pub mod price_view;
 pub mod queue;
 pub mod subscriber;
 pub mod utils;
