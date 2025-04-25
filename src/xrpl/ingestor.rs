@@ -479,6 +479,7 @@ impl XrplIngestor {
                             amount, e
                         ))
                     })?;
+                    debug!("Token transfer: {:?}", msg_id);
                     convert_token_amount_to_drops(
                         &self.config,
                         amount,
