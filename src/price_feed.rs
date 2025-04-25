@@ -144,7 +144,7 @@ impl PriceFeeder {
 
         for (pair, price) in self.pairs.iter().zip(prices.iter()) {
             if let Some(price) = price {
-                let _: () = redis_client.set(pair, price).map_err(|e| {
+                let _: () = redis_client.set_ex(pair, price, 60 * 2).map_err(|e| {
                     anyhow::anyhow!("Failed to store price for {} in Redis: {}", pair, e)
                 })?;
             } else {
