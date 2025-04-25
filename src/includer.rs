@@ -14,17 +14,22 @@ use crate::{
 };
 
 pub trait RefundManager {
+    type Wallet;
+
     fn build_refund_tx(
         &self,
         recipient: String,
         amount: String,
         refund_id: &str,
+        wallet: &Self::Wallet,
     ) -> impl Future<Output = Result<Option<(String, String, String)>, RefundManagerError>>;
     fn is_refund_processed(
         &self,
         refund_task: &RefundTask,
         refund_id: &str,
     ) -> impl Future<Output = Result<bool, RefundManagerError>>;
+    fn get_wallet_lock(&self) -> Result<Self::Wallet, RefundManagerError>;
+    fn release_wallet_lock(&self, wallet: Self::Wallet) -> Result<(), RefundManagerError>;
 }
 
 pub struct BroadcastResult<T> {
@@ -165,22 +170,37 @@ where
                             "Refund task with token_id is not supported".to_string(),
                         ));
                     }
+
+                    let wallet = self
+                        .refund_manager
+                        .get_wallet_lock()
+                        .map_err(|e| IncluderError::ConsumerError(e.to_string()))?;
+
                     let refund_info = self
                         .refund_manager
                         .build_refund_tx(
                             refund_task.task.refund_recipient_address.clone(),
                             refund_task.task.remaining_gas_balance.amount, // TODO: check if this is correct
                             &refund_task.common.id,
+                            &wallet,
                         )
                         .await
                         .map_err(|e| IncluderError::ConsumerError(e.to_string()))?;
 
                     if let Some((tx_blob, refunded_amount, fee)) = refund_info {
-                        let tx_hash = self
+                        let broadcast_result = self
                             .broadcaster
                             .broadcast_refund(tx_blob)
                             .await
-                            .map_err(|e| IncluderError::ConsumerError(e.to_string()))?;
+                            .map_err(|e| IncluderError::ConsumerError(e.to_string()));
+
+                        if broadcast_result.is_err() {
+                            self.refund_manager
+                                .release_wallet_lock(wallet)
+                                .map_err(|e| IncluderError::ConsumerError(e.to_string()))?;
+                            return Err(broadcast_result.unwrap_err());
+                        }
+                        let tx_hash = broadcast_result.unwrap();
 
                         let gas_refunded = Event::GasRefunded {
                             common: CommonEventFields {
@@ -208,6 +228,9 @@ where
                     } else {
                         warn!("Refund not executed: refund amount is not enough to cover tx fees");
                     }
+                    self.refund_manager
+                        .release_wallet_lock(wallet)
+                        .map_err(|e| IncluderError::ConsumerError(e.to_string()))?;
                     Ok(())
                 }
                 _ => Err(IncluderError::IrrelevantTask),
