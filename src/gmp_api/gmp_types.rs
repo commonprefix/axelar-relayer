@@ -138,6 +138,16 @@ pub enum Task {
     Refund(RefundTask),
 }
 
+#[derive(Clone, Eq, PartialEq, Hash)]
+pub enum TaskKind {
+    Verify,
+    Execute,
+    GatewayTx,
+    ConstructProof,
+    ReactToWasmEvent,
+    Refund,
+}
+
 impl Task {
     pub fn id(&self) -> String {
         match self {
@@ -147,6 +157,18 @@ impl Task {
             Task::ConstructProof(t) => t.common.id.clone(),
             Task::ReactToWasmEvent(t) => t.common.id.clone(),
             Task::Refund(t) => t.common.id.clone(),
+        }
+    }
+
+    pub fn kind(&self) -> TaskKind {
+        use Task::*;
+        match self {
+            Verify(_) => TaskKind::Verify,
+            Execute(_) => TaskKind::Execute,
+            GatewayTx(_) => TaskKind::GatewayTx,
+            ConstructProof(_) => TaskKind::ConstructProof,
+            ReactToWasmEvent(_) => TaskKind::ReactToWasmEvent,
+            Refund(_) => TaskKind::Refund,
         }
     }
 }
