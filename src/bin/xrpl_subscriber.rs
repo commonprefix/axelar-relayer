@@ -6,10 +6,11 @@ use axelar_relayer::{
     subscriber::Subscriber,
     utils::{setup_heartbeat, setup_logging},
 };
+use tokio::signal::unix::{signal, SignalKind};
 use xrpl_types::AccountId;
 
 #[tokio::main]
-async fn main() {
+async fn main() -> anyhow::Result<()> {
     dotenv().ok();
     let network = std::env::var("NETWORK").expect("NETWORK must be set");
     let config = Config::from_yaml(&format!("config.{}.yaml", network)).unwrap();
@@ -24,5 +25,17 @@ async fn main() {
     let account = AccountId::from_address(&config.xrpl_multisig).unwrap();
 
     let mut subscriber = Subscriber::new_xrpl(&config.xrpl_rpc, redis_pool.clone()).await;
-    subscriber.run(account.to_address(), events_queue).await;
+
+    let mut sigint = signal(SignalKind::interrupt())?;
+    let mut sigterm = signal(SignalKind::terminate())?;
+
+    tokio::select! {
+        _ = sigint.recv()  => {},
+        _ = sigterm.recv() => {},
+        _ = subscriber.run(account.to_address(), events_queue.clone()) => {},
+    }
+
+    events_queue.close().await;
+
+    Ok(())
 }

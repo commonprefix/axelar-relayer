@@ -446,7 +446,7 @@ impl Queue {
         let buffer_processor = self.buffer_processor.write().await.take();
         if let Some(processor) = buffer_processor {
             processor.shutdown().await;
-            let mut ticker = time::interval(Duration::from_secs(10));
+            let mut ticker = time::interval(Duration::from_secs(5));
             ticker.tick().await; // throw away the immediate tick
 
             tokio::select! {
@@ -454,7 +454,7 @@ impl Queue {
                     info!("Buffer processor closed");
                 }
                 _ = ticker.tick() => {
-                    warn!("Force closing buffer processor after 10 seconds");
+                    warn!("Force closing buffer processor after 5 seconds");
                     processor.cancellation_token.cancel();
                 }
             }

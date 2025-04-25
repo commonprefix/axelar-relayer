@@ -1,7 +1,6 @@
 use dotenv::dotenv;
 use std::sync::Arc;
 use tokio::signal::unix::{signal, SignalKind};
-use tracing::info;
 
 use axelar_relayer::{
     config::Config,
