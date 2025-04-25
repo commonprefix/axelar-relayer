@@ -1,4 +1,10 @@
-use std::{collections::BTreeMap, sync::Arc};
+use std::{
+    collections::BTreeMap,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
+};
 
 use anyhow::anyhow;
 use lapin::{
@@ -16,8 +22,10 @@ use tokio::{
         mpsc::{self, Receiver, Sender},
         Mutex, RwLock,
     },
+    task::JoinHandle,
     time::{self, Duration},
 };
+use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
@@ -26,13 +34,17 @@ use crate::{gmp_api::gmp_types::Task, subscriber::ChainTransaction};
 const DEAD_LETTER_EXCHANGE: &str = "dlx_exchange";
 const DEAD_LETTER_QUEUE_PREFIX: &str = "dead_letter_";
 const MAX_RETRIES: u16 = 3;
+const BUFFER_SIZE: usize = 1000;
 
 #[derive(Clone)]
 pub struct Queue {
+    url: String,
+    name: String,
     channel: Arc<Mutex<lapin::Channel>>,
     queue: Arc<RwLock<lapin::Queue>>,
     retry_queue: Arc<RwLock<lapin::Queue>>,
-    buffer_sender: Sender<QueueItem>,
+    buffer_sender: Arc<Sender<QueueItem>>,
+    buffer_processor: Arc<RwLock<Option<BufferProcessor>>>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -41,32 +53,116 @@ pub enum QueueItem {
     Transaction(ChainTransaction),
 }
 
+struct BufferProcessor {
+    buffer_sender: Arc<Sender<QueueItem>>,
+    buffer_receiver: Arc<Mutex<Receiver<QueueItem>>>,
+    queue: Arc<Queue>,
+    handle: Option<JoinHandle<()>>,
+    shutdown_signal: Arc<AtomicBool>,
+    cancellation_token: CancellationToken,
+}
+
+impl BufferProcessor {
+    fn new(
+        buffer_sender: Arc<Sender<QueueItem>>,
+        buffer_receiver: Receiver<QueueItem>,
+        queue: Arc<Queue>,
+    ) -> Self {
+        Self {
+            buffer_sender,
+            buffer_receiver: Arc::new(Mutex::new(buffer_receiver)),
+            queue,
+            shutdown_signal: Arc::new(AtomicBool::new(false)),
+            handle: None,
+            cancellation_token: CancellationToken::new(),
+        }
+    }
+
+    fn run(&mut self) {
+        let receiver_mutex = self.buffer_receiver.clone();
+        let sender = self.buffer_sender.clone();
+        let queue = self.queue.clone();
+        let shutdown_signal = self.shutdown_signal.clone();
+        let cancellation_token = self.cancellation_token.clone();
+        self.handle = Some(tokio::spawn(async move {
+            loop {
+                let mut buffer_receiver = receiver_mutex.lock().await;
+
+                tokio::select! {
+                    receipt = buffer_receiver.recv() => {
+                        if let Some(item) = receipt {
+                            if let Err(e) = queue.publish_item(&item, false, None).await {
+                                error!("Failed to publish item: {:?}. Re-buffering.", e);
+                                if let Err(e) = sender.send(item).await {
+                                    error!("Failed to re-buffer item: {:?}", e);
+                                }
+                            }
+                        }
+                    },
+                    _ = cancellation_token.cancelled() => {
+                        warn!("Buffer processor forced to cancel");
+                        break;
+                    }
+                }
+
+                if shutdown_signal.load(Ordering::Acquire) {
+                    if buffer_receiver.capacity() < BUFFER_SIZE {
+                        info!(
+                            "Emptying {} item(s) from buffer",
+                            BUFFER_SIZE - buffer_receiver.capacity()
+                        );
+                        continue;
+                    }
+                    info!("Shutting down buffer processor");
+                    drop(buffer_receiver);
+                    break;
+                }
+            }
+        }));
+    }
+
+    pub async fn shutdown(&self) {
+        self.shutdown_signal.store(true, Ordering::Release);
+    }
+}
+
 impl Queue {
     pub async fn new(url: &str, name: &str) -> Arc<Self> {
         let (_, channel, queue, retry_queue) = Self::connect(url, name).await;
 
-        let (buffer_sender, buffer_receiver) = mpsc::channel::<QueueItem>(1000);
+        let (buffer_sender, buffer_receiver) = mpsc::channel::<QueueItem>(BUFFER_SIZE);
 
         let queue_arc = Arc::new(Self {
+            url: url.to_owned(),
+            name: name.to_owned(),
             channel: Arc::new(Mutex::new(channel)),
             queue: Arc::new(RwLock::new(queue)),
             retry_queue: Arc::new(RwLock::new(retry_queue)),
-            buffer_sender,
+            buffer_sender: Arc::new(buffer_sender),
+            buffer_processor: Arc::new(RwLock::new(None)),
         });
 
+        let mut processor = BufferProcessor::new(
+            queue_arc.buffer_sender.clone(),
+            buffer_receiver,
+            queue_arc.clone(),
+        );
+        processor.run();
+        *queue_arc.buffer_processor.write().await = Some(processor);
+
         let queue_clone = queue_arc.clone();
-        let url = url.to_owned();
-        let name = name.to_owned();
         tokio::spawn(async move {
-            queue_clone
-                .run_buffer_processor(buffer_receiver, url, name)
-                .await;
+            queue_clone.connection_health_check().await;
         });
 
         queue_arc
     }
 
-    pub async fn republish(&self, delivery: Delivery, force_requeue: bool) -> Result<(), anyhow::Error> {
+    pub async fn republish(
+        &self,
+        delivery: Delivery,
+        force_requeue: bool,
+    ) -> Result<(), anyhow::Error> {
         let item: QueueItem = serde_json::from_slice(&delivery.data)?;
 
         if force_requeue {
@@ -131,32 +227,16 @@ impl Queue {
         Ok(())
     }
 
-    async fn run_buffer_processor(
-        &self,
-        mut buffer_receiver: Receiver<QueueItem>,
-        url: String,
-        name: String,
-    ) {
+    async fn connection_health_check(&self) {
         let mut interval = time::interval(Duration::from_secs(5));
         loop {
             tokio::select! {
-                Some(item) = buffer_receiver.recv() => {
-                    if let Err(e) = self.publish_item(&item, false, None).await {
-                        error!("Failed to publish item: {:?}. Re-buffering.", e);
-                        if let Err(e) = self.buffer_sender.send(item).await {
-                            error!("Failed to re-buffer item: {:?}", e);
-                        }
-                    }
-                },
                 _ = interval.tick() => {
                     if !self.is_connected().await {
                         warn!("Connection with RabbitMQ failed. Reconnecting.");
-                        self.refresh_connection(&url, &name).await;
+                        self.refresh_connection().await;
                     }
                 },
-                else => {
-                    break;
-                }
             }
         }
     }
@@ -288,9 +368,10 @@ impl Queue {
         }
     }
 
-    pub async fn refresh_connection(&self, url: &str, name: &str) {
-        info!("Reconnecting to RabbitMQ at {}", url);
-        let (_, new_channel, new_queue, new_retry_queue) = Self::connect(url, name).await;
+    pub async fn refresh_connection(&self) {
+        info!("Reconnecting to RabbitMQ at {}", self.url);
+        let (_, new_channel, new_queue, new_retry_queue) =
+            Self::connect(&self.url, &self.name).await;
 
         let mut channel_lock = self.channel.lock().await;
         *channel_lock = new_channel;
@@ -301,7 +382,7 @@ impl Queue {
         let mut retry_queue_lock = self.retry_queue.write().await;
         *retry_queue_lock = new_retry_queue;
 
-        info!("Reconnected to RabbitMQ at {}", url);
+        info!("Reconnected to RabbitMQ at {}", self.url);
     }
 
     pub async fn publish(&self, item: QueueItem) {
@@ -358,5 +439,25 @@ impl Queue {
             )
             .await
             .map_err(|e| anyhow!("Failed to create consumer: {:?}", e))
+    }
+
+    pub async fn close(&self) {
+        info!("Shutting down {} queue gracefully…", self.name);
+        let buffer_processor = self.buffer_processor.write().await.take();
+        if let Some(processor) = buffer_processor {
+            processor.shutdown().await;
+            let mut ticker = time::interval(Duration::from_secs(10));
+            ticker.tick().await; // throw away the immediate tick
+
+            tokio::select! {
+                _ = processor.handle.unwrap()=> {
+                    info!("Buffer processor closed");
+                }
+                _ = ticker.tick() => {
+                    warn!("Force closing buffer processor after 10 seconds");
+                    processor.cancellation_token.cancel();
+                }
+            }
+        }
     }
 }
