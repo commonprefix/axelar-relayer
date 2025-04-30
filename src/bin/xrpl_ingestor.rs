@@ -6,6 +6,7 @@ use axelar_relayer::{
     config::Config,
     gmp_api,
     ingestor::Ingestor,
+    payload_cache::PayloadCache,
     price_view::PriceView,
     queue::Queue,
     utils::{setup_heartbeat, setup_logging},
@@ -25,9 +26,9 @@ async fn main() -> anyhow::Result<()> {
     let gmp_api = Arc::new(gmp_api::GmpApi::new(&config, true).unwrap());
     let redis_client = redis::Client::open(config.redis_server.clone()).unwrap();
     let redis_pool = r2d2::Pool::builder().build(redis_client).unwrap();
-    let price_view = PriceView::new(redis_pool);
-
-    let ingestor = Ingestor::new(gmp_api.clone(), config.clone(), price_view);
+    let price_view = PriceView::new(redis_pool.clone());
+    let payload_cache = PayloadCache::new(redis_pool);
+    let ingestor = Ingestor::new(gmp_api.clone(), config.clone(), price_view, payload_cache);
 
     let mut sigint = signal(SignalKind::interrupt())?;
     let mut sigterm = signal(SignalKind::terminate())?;

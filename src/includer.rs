@@ -1,6 +1,7 @@
 use base64::{prelude::BASE64_STANDARD, Engine};
 use futures::StreamExt;
 use lapin::{options::BasicAckOptions, Consumer};
+use router_api::CrossChainId;
 use std::{future::Future, sync::Arc};
 use tracing::{debug, error, info, warn};
 
@@ -10,6 +11,7 @@ use crate::{
         gmp_types::{Amount, CommonEventFields, Event, RefundTask, Task},
         GmpApi,
     },
+    payload_cache::PayloadCache,
     queue::{Queue, QueueItem},
 };
 
@@ -63,6 +65,8 @@ where
     pub broadcaster: B,
     pub refund_manager: R,
     pub gmp_api: Arc<GmpApi>,
+    pub payload_cache: PayloadCache,
+    pub construct_proof_queue: Arc<Queue>,
 }
 
 impl<B, C, R> Includer<B, C, R>
@@ -132,26 +136,47 @@ where
                         .await
                         .map_err(|e| IncluderError::ConsumerError(e.to_string()))?;
 
-                    if broadcast_result.status.is_err() {
-                        if broadcast_result.message_id.is_some()
-                            && broadcast_result.source_chain.is_some()
-                        {
+                    if broadcast_result.message_id.is_some()
+                        && broadcast_result.source_chain.is_some()
+                    {
+                        let message_id = broadcast_result.message_id.unwrap();
+                        let source_chain = broadcast_result.source_chain.unwrap();
+
+                        if broadcast_result.status.is_err() {
+                            // Retry creating proof for this message
+                            self.construct_proof_queue
+                                .publish(QueueItem::RetryConstructProof(
+                                    CrossChainId::new(source_chain.as_str(), message_id.as_str())
+                                        .unwrap()
+                                        .to_string(),
+                                ))
+                                .await;
+
                             self.gmp_api
                                 .cannot_execute_message(
                                     gateway_tx_task.common.id,
-                                    broadcast_result.message_id.unwrap(),
-                                    broadcast_result.source_chain.unwrap(),
+                                    message_id,
+                                    source_chain,
                                     broadcast_result.status.unwrap_err().to_string(),
                                 )
                                 .await
                                 .map_err(|e| IncluderError::ConsumerError(e.to_string()))?;
                         } else {
-                            return Err(IncluderError::ConsumerError(
-                                broadcast_result.status.unwrap_err().to_string(),
-                            ));
+                            // clear payload from cache, won't be needed anymore
+                            self.payload_cache
+                                .clear(
+                                    CrossChainId::new(source_chain.as_str(), message_id.as_str())
+                                        .unwrap(),
+                                )
+                                .await
+                                .map_err(|e| IncluderError::ConsumerError(e.to_string()))?;
                         }
+                        return Ok(());
                     }
-                    Ok(())
+
+                    broadcast_result
+                        .status
+                        .map_err(|e| IncluderError::ConsumerError(e.to_string()))
                 }
                 Task::Refund(refund_task) => {
                     info!("Consuming task: {:?}", refund_task);

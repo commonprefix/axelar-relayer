@@ -4,6 +4,8 @@ use crate::config::Config;
 use crate::error::BroadcasterError;
 use crate::gmp_api::GmpApi;
 use crate::includer::Includer;
+use crate::payload_cache::PayloadCache;
+use crate::queue::Queue;
 
 use super::broadcaster::XRPLBroadcaster;
 use super::client::XRPLClient;
@@ -17,6 +19,8 @@ impl XrplIncluder {
         config: Config,
         gmp_api: Arc<GmpApi>,
         redis_pool: r2d2::Pool<redis::Client>,
+        payload_cache: PayloadCache,
+        construct_proof_queue: Arc<Queue>,
     ) -> error_stack::Result<
         Includer<XRPLBroadcaster, Arc<XRPLClient>, XRPLRefundManager>,
         BroadcasterError,
@@ -37,6 +41,8 @@ impl XrplIncluder {
             broadcaster,
             refund_manager,
             gmp_api,
+            payload_cache,
+            construct_proof_queue,
         };
 
         Ok(includer)

@@ -9,6 +9,7 @@ use xrpl_amplifier_types::error::XRPLError;
 use crate::config::Config;
 use crate::error::ITSTranslationError;
 use crate::gmp_api::gmp_types::MessageExecutedEventMetadata;
+use crate::payload_cache::PayloadCache;
 use crate::price_view::PriceView;
 use crate::utils::convert_token_amount_to_drops;
 use crate::{
@@ -44,10 +45,16 @@ pub struct XrplIngestor {
     gmp_api: Arc<GmpApi>,
     config: Config,
     price_view: PriceView,
+    payload_cache: PayloadCache,
 }
 
 impl XrplIngestor {
-    pub fn new(gmp_api: Arc<GmpApi>, config: Config, price_view: PriceView) -> Self {
+    pub fn new(
+        gmp_api: Arc<GmpApi>,
+        config: Config,
+        price_view: PriceView,
+        payload_cache: PayloadCache,
+    ) -> Self {
         let client = xrpl_http_client::Client::builder()
             .base_url(&config.xrpl_rpc)
             .build();
@@ -56,6 +63,7 @@ impl XrplIngestor {
             config,
             client,
             price_view,
+            payload_cache,
         }
     }
 
@@ -865,9 +873,14 @@ impl XrplIngestor {
         })?;
 
         let execute_msg = xrpl_multisig_prover::msg::ExecuteMsg::ConstructProof {
-            cc_id,
-            payload: payload_bytes.into(),
+            cc_id: cc_id.clone(),
+            payload: payload_bytes.clone().into(),
         };
+
+        self.payload_cache
+            .store(cc_id, payload_bytes)
+            .await
+            .map_err(|e| IngestorError::GenericError(e.to_string()))?;
 
         let request =
             BroadcastRequest::Generic(serde_json::to_value(&execute_msg).map_err(|e| {
