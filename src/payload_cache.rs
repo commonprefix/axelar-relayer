@@ -1,74 +1,62 @@
-use reqwest::{
-    header::{AUTHORIZATION, CONTENT_TYPE},
-    Client,
-};
-use serde::Deserialize;
-use std::error::Error;
+use redis::Commands;
+use router_api::CrossChainId;
 
-#[derive(Deserialize)]
-struct HashResponse {
-    hash: String,
+const PAYLOAD_CACHE_EXPIRATION: u64 = 60 * 15; // 15 minutes
+const PAYLOAD_CACHE_KEY_PREFIX: &str = "payload_cache";
+
+pub struct PayloadCache {
+    redis_pool: r2d2::Pool<redis::Client>,
 }
 
-#[derive(Deserialize)]
-struct ErrorResponse {
-    error: String,
-}
-
-/// A reusable API client for the payload storage service.
-pub struct PayloadCacheClient {
-    client: Client,
-    base_url: String,
-    auth_token: String,
-}
-
-impl PayloadCacheClient {
-    pub fn new(base_url: &str, auth_token: &str) -> Self {
-        PayloadCacheClient {
-            client: Client::new(),
-            base_url: base_url.to_string(),
-            auth_token: auth_token.to_string(),
-        }
+impl PayloadCache {
+    pub fn new(redis_pool: r2d2::Pool<redis::Client>) -> Self {
+        Self { redis_pool }
     }
 
-    pub async fn store_payload(&self, payload: &str) -> Result<String, Box<dyn Error>> {
-        let resp = self
-            .client
-            .post(&self.base_url)
-            .header(AUTHORIZATION, format!("Bearer {}", self.auth_token))
-            .header(CONTENT_TYPE, "application/octet-stream")
-            .body(payload.to_string())
-            .send()
-            .await?;
-
-        if resp.status().is_success() {
-            let hash_resp: HashResponse = resp.json().await?;
-            Ok(hash_resp.hash)
-        } else {
-            let error_resp: ErrorResponse = resp.json().await.unwrap_or(ErrorResponse {
-                error: "Unknown error".into(),
-            });
-            Err(format!("Failed to store payload: {}", error_resp.error).into())
-        }
+    fn get_key(&self, cc_id: CrossChainId) -> String {
+        format!("{}:{}", PAYLOAD_CACHE_KEY_PREFIX, cc_id)
     }
 
-    pub async fn get_payload(&self, hash: &str) -> Result<String, Box<dyn Error>> {
-        let get_url = format!("{}?hash={}", self.base_url, hash);
-        let get_resp = self
-            .client
-            .get(&get_url)
-            .header("Authorization", format!("Bearer {}", self.auth_token))
-            .send()
-            .await?;
+    pub async fn get(&self, cc_id: CrossChainId) -> Result<Option<Vec<u8>>, anyhow::Error> {
+        let mut redis_conn = self
+            .redis_pool
+            .get()
+            .map_err(|e| anyhow::anyhow!("Failed to get Redis connection: {}", e))?;
 
-        if get_resp.status().is_success() {
-            let returned_payload = get_resp.text().await?;
-            Ok(returned_payload)
-        } else {
-            let error_resp: ErrorResponse = get_resp.json().await.unwrap_or(ErrorResponse {
-                error: "Unknown error".into(),
-            });
-            Err(format!("Failed to retrieve payload: {}", error_resp.error).into())
-        }
+        let payload_bytes = redis_conn
+            .get(self.get_key(cc_id))
+            .map_err(|e| anyhow::anyhow!("Failed to get payload from Redis: {}", e))?;
+
+        Ok(payload_bytes)
+    }
+
+    pub async fn store(
+        &self,
+        cc_id: CrossChainId,
+        payload_bytes: Vec<u8>,
+    ) -> Result<(), anyhow::Error> {
+        let mut redis_conn = self
+            .redis_pool
+            .get()
+            .map_err(|e| anyhow::anyhow!("Failed to get Redis connection: {}", e))?;
+
+        let _: () = redis_conn
+            .set_ex(self.get_key(cc_id), payload_bytes, PAYLOAD_CACHE_EXPIRATION)
+            .map_err(|e| anyhow::anyhow!("Failed to cache payload: {}", e))?;
+
+        Ok(())
+    }
+
+    pub async fn clear(&self, cc_id: CrossChainId) -> Result<(), anyhow::Error> {
+        let mut redis_conn = self
+            .redis_pool
+            .get()
+            .map_err(|e| anyhow::anyhow!("Failed to get Redis connection: {}", e))?;
+
+        let _: () = redis_conn
+            .del(self.get_key(cc_id))
+            .map_err(|e| anyhow::anyhow!("Failed to clear payload cache: {}", e))?;
+
+        Ok(())
     }
 }
