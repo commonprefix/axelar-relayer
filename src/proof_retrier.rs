@@ -53,7 +53,7 @@ impl ProofRetrier {
         if let Some(payload_cache_value) = payload_cache_value {
             let construct_proof_task = Task::ConstructProof(ConstructProofTask {
                 common: CommonTaskFields {
-                    id: "TODO".to_string(),
+                    id: format!("proof_retrier_{}", uuid::Uuid::new_v4()),
                     chain: "xrpl".to_string(), // TODO: don't hardcode this
                     timestamp: chrono::Utc::now().to_rfc3339(),
                     r#type: "CONSTRUCT_PROOF".to_string(),
