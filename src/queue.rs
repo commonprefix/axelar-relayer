@@ -51,6 +51,7 @@ pub struct Queue {
 pub enum QueueItem {
     Task(Task),
     Transaction(ChainTransaction),
+    RetryConstructProof(String),
 }
 
 struct BufferProcessor {
