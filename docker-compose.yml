@@ -68,6 +68,15 @@ services:
       - NETWORK=testnet
       - ENVIRONMENT=production
 
+  proof_retrier:
+    build:
+      context: .
+      args:
+        BINARY_NAME: proof_retrier
+    environment:
+      - NETWORK=testnet
+      - ENVIRONMENT=production
+
   redis_devnet:
     image: redis:alpine
     container_name: redis_devnet
