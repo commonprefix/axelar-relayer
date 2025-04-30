@@ -291,6 +291,22 @@ pub enum Event {
         reason: CannotExecuteMessageReason,
         details: String,
     },
+    ITSInterchainTransfer {
+        #[serde(flatten)]
+        common: CommonEventFields<EventMetadata>,
+        #[serde(rename = "messageID")]
+        message_id: String,
+        #[serde(rename = "destinationChain")]
+        destination_chain: String,
+        #[serde(rename = "tokenSpent")]
+        token_spent: Amount,
+        #[serde(rename = "sourceAddress")]
+        source_address: String,
+        #[serde(rename = "destinationAddress")]
+        destination_address: String,
+        #[serde(rename = "dataHash")]
+        data_hash: String,
+    },
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]

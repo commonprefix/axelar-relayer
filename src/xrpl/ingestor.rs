@@ -128,32 +128,58 @@ impl XrplIngestor {
         &self,
         xrpl_message_with_payload: &WithPayload<XRPLMessage>,
     ) -> Result<Vec<Event>, IngestorError> {
-        let call_event = match self
-            .call_event_from_message(xrpl_message_with_payload)
-            .await
-        {
-            Ok(maybe_event) => match maybe_event {
-                Some(event) => event,
-                None => {
-                    return Ok(vec![]);
-                }
-            },
-            Err(e) => return Err(e),
-        };
+        let mut events = vec![];
 
-        let gas_credit_event = self
-            .gas_credit_event_from_payment(xrpl_message_with_payload)
+        events.push(
+            match self
+                .call_event_from_message(xrpl_message_with_payload)
+                .await
+            {
+                Ok(maybe_event) => match maybe_event {
+                    Some(event) => event,
+                    None => {
+                        return Ok(vec![]);
+                    }
+                },
+                Err(e) => return Err(e),
+            },
+        );
+
+        let token_id = self
+            .get_token_id(&xrpl_message_with_payload.message)
             .await?;
 
-        Ok(vec![call_event, gas_credit_event])
+        events.push(
+            self.gas_credit_event_from_payment(xrpl_message_with_payload, token_id)
+                .await?,
+        );
+
+        if matches!(
+            xrpl_message_with_payload.message,
+            XRPLMessage::InterchainTransferMessage(_)
+        ) {
+            events.push(
+                self.its_interchain_transfer_event(
+                    xrpl_message_with_payload.message.clone(),
+                    token_id,
+                )
+                .await?,
+            );
+        }
+
+        Ok(events)
     }
 
     pub async fn handle_add_gas_message(
         &self,
         xrpl_message_with_payload: &WithPayload<XRPLMessage>,
     ) -> Result<Vec<Event>, IngestorError> {
+        let token_id = self
+            .get_token_id(&xrpl_message_with_payload.message)
+            .await?;
+
         let gas_credit_event = self
-            .gas_credit_event_from_payment(xrpl_message_with_payload)
+            .gas_credit_event_from_payment(xrpl_message_with_payload, token_id)
             .await?;
 
         let execute_msg =
@@ -434,13 +460,80 @@ impl XrplIngestor {
         }))
     }
 
+    pub async fn its_interchain_transfer_event(
+        &self,
+        xrpl_message: XRPLMessage,
+        maybe_token_id: Option<TokenId>,
+    ) -> Result<Event, IngestorError> {
+        Ok(match xrpl_message {
+            XRPLMessage::InterchainTransferMessage(message) => {
+                let transfer_amount = message.transfer_amount;
+
+                let transfer_amount_drops = match &transfer_amount {
+                    XRPLPaymentAmount::Drops(amount) => amount.to_string(),
+                    XRPLPaymentAmount::Issued(_, amount) => {
+                        if let Some(token_id) = maybe_token_id {
+                            let amount =
+                                Decimal::from_scientific(&amount.to_string()).map_err(|e| {
+                                    IngestorError::GenericError(format!(
+                                        "Failed to parse amount {}: {}",
+                                        amount, e
+                                    ))
+                                })?;
+                            convert_token_amount_to_drops(
+                                &self.config,
+                                amount,
+                                &token_id.to_string(),
+                                &self.price_view,
+                            )
+                            .await
+                            .map_err(|e| IngestorError::GenericError(e.to_string()))?
+                        } else {
+                            return Err(IngestorError::GenericError(
+                                "Token id can't be None for IOU transfer".to_owned(),
+                            ));
+                        }
+                    }
+                };
+                Event::ITSInterchainTransfer {
+                    common: CommonEventFields {
+                        r#type: "ITS/INTERCHAIN_TRANSFER".to_owned(),
+                        event_id: format!("its-interchain-transfer-{}", message.tx_id),
+                        meta: Some(EventMetadata {
+                            tx_id: Some(message.tx_id.to_string().to_lowercase()),
+                            from_address: None,
+                            finalized: None,
+                            source_context: None,
+                            timestamp: chrono::Utc::now()
+                                .to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
+                        }),
+                    },
+                    message_id: message.tx_id.to_string(),
+                    destination_chain: message.destination_chain.to_string(),
+                    token_spent: Amount {
+                        token_id: None,
+                        amount: transfer_amount_drops,
+                    },
+                    source_address: message.source_address.to_string(),
+                    destination_address: message.destination_address.to_string(),
+                    data_hash: "0".repeat(32),
+                }
+            }
+            _ => {
+                return Err(IngestorError::GenericError(format!(
+                    "Cannot create ITSInterchainTransfer event for message: {:?}",
+                    xrpl_message
+                )));
+            }
+        })
+    }
+
     async fn gas_credit_event_from_payment(
         &self,
         xrpl_message_with_payload: &WithPayload<XRPLMessage>,
+        maybe_token_id: Option<TokenId>,
     ) -> Result<Event, IngestorError> {
         let xrpl_message = xrpl_message_with_payload.message.clone();
-
-        let maybe_gas_token_id = self.get_token_id(&xrpl_message).await?;
 
         let tx_id = xrpl_message.tx_id().to_string().to_lowercase();
         let msg_id = match &xrpl_message {
@@ -480,7 +573,7 @@ impl XrplIngestor {
         let gas_fee_amount_drops = match &gas_fee_amount {
             XRPLPaymentAmount::Drops(amount) => amount.to_string(),
             XRPLPaymentAmount::Issued(_, amount) => {
-                if let Some(gas_token_id) = maybe_gas_token_id {
+                if let Some(gas_token_id) = maybe_token_id {
                     let amount = Decimal::from_scientific(&amount.to_string()).map_err(|e| {
                         IngestorError::GenericError(format!(
                             "Failed to parse amount {}: {}",
@@ -508,7 +601,14 @@ impl XrplIngestor {
             common: CommonEventFields {
                 r#type: "GAS_CREDIT".to_owned(),
                 event_id: format!("{}-gas", tx_id),
-                meta: None,
+                meta: Some(EventMetadata {
+                    tx_id: Some(xrpl_message.tx_id().to_string().to_lowercase()),
+                    from_address: None,
+                    finalized: None,
+                    source_context: None,
+                    timestamp: chrono::Utc::now()
+                        .to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
+                }),
             },
             message_id: msg_id,
             refund_address: source_address,

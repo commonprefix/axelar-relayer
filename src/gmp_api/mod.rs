@@ -9,13 +9,14 @@ use std::{
     time::Duration,
 };
 use tracing::{debug, info, warn};
+use xrpl_amplifier_types::msg::XRPLMessage;
 
 use reqwest::{Client, Identity};
 
 use crate::{config::Config, error::GmpApiError, utils::parse_task};
 use gmp_types::{
-    BroadcastRequest, CannotExecuteMessageReason, CommonEventFields, Event, PostEventResponse,
-    PostEventResult, QueryRequest, StorePayloadResult, Task,
+    Amount, BroadcastRequest, CannotExecuteMessageReason, CommonEventFields, Event,
+    PostEventResponse, PostEventResult, QueryRequest, StorePayloadResult, Task,
 };
 
 pub struct GmpApi {
@@ -275,6 +276,40 @@ impl GmpApi {
         };
 
         self.post_events(vec![cannot_execute_message_event]).await?;
+
+        Ok(())
+    }
+
+    pub async fn its_interchain_transfer(
+        &self,
+        xrpl_message: XRPLMessage,
+    ) -> Result<(), GmpApiError> {
+        let event = match xrpl_message {
+            XRPLMessage::InterchainTransferMessage(message) => Event::ITSInterchainTransfer {
+                common: CommonEventFields {
+                    r#type: "ITS/INTERCHAIN_TRANSFER".to_owned(),
+                    event_id: format!("its-interchain-transfer-{}", message.tx_id),
+                    meta: None,
+                },
+                message_id: message.tx_id.to_string(),
+                destination_chain: message.destination_chain.to_string(),
+                token_spent: Amount {
+                    token_id: None,
+                    amount: message.transfer_amount.to_string(),
+                },
+                source_address: message.source_address.to_string(),
+                destination_address: message.destination_address.to_string(),
+                data_hash: "0".repeat(32),
+            },
+            _ => {
+                return Err(GmpApiError::GenericError(format!(
+                    "Cannot send ITSInterchainTransfer event for message: {:?}",
+                    xrpl_message
+                )));
+            }
+        };
+
+        self.post_events(vec![event]).await?;
 
         Ok(())
     }
