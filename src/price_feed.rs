@@ -23,9 +23,12 @@ struct CoinGeckoPriceFeed {
     supported_vs_currencies: Vec<String>,
 }
 
+const COINGECKO_API_PRO_URL: &str = "https://pro-api.coingecko.com/api/v3";
+
 impl CoinGeckoPriceFeed {
     pub async fn new(config: &PriceFeedConfig) -> Result<Self, anyhow::Error> {
-        let client = CoinGeckoClient::new_with_demo_api_key(
+        let client = CoinGeckoClient::new_with_api_key(
+            COINGECKO_API_PRO_URL,
             config
                 .auth
                 .get("coingecko")
