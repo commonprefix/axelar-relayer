@@ -37,3 +37,4 @@ heartbeats:
   distributor: ""
   funder: ""
   price_feed: ""
+  proof_retrier: ""

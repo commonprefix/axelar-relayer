@@ -9,7 +9,7 @@ use xrpl_amplifier_types::error::XRPLError;
 use crate::config::Config;
 use crate::error::ITSTranslationError;
 use crate::gmp_api::gmp_types::MessageExecutedEventMetadata;
-use crate::payload_cache::PayloadCache;
+use crate::payload_cache::{PayloadCache, PayloadCacheValue};
 use crate::price_view::PriceView;
 use crate::utils::convert_token_amount_to_drops;
 use crate::{
@@ -863,10 +863,13 @@ impl XrplIngestor {
         &self,
         task: ConstructProofTask,
     ) -> Result<(), IngestorError> {
-        let cc_id = CrossChainId::new(task.task.message.source_chain, task.task.message.message_id)
-            .map_err(|e| {
-                IngestorError::GenericError(format!("Failed to construct CrossChainId: {}", e))
-            })?;
+        let cc_id = CrossChainId::new(
+            task.task.message.source_chain.clone(),
+            task.task.message.message_id.clone(),
+        )
+        .map_err(|e| {
+            IngestorError::GenericError(format!("Failed to construct CrossChainId: {}", e))
+        })?;
 
         let payload_bytes = BASE64_STANDARD.decode(&task.task.payload).map_err(|e| {
             IngestorError::GenericError(format!("Failed to decode task payload: {}", e))
@@ -878,7 +881,13 @@ impl XrplIngestor {
         };
 
         self.payload_cache
-            .store(cc_id, payload_bytes)
+            .store(
+                cc_id,
+                PayloadCacheValue {
+                    message: task.task.message,
+                    payload: task.task.payload,
+                },
+            )
             .await
             .map_err(|e| IngestorError::GenericError(e.to_string()))?;
 

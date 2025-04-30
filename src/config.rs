@@ -11,6 +11,7 @@ pub struct HeartbeatsConfig {
     pub ticket_creator: String,
     pub funder: String,
     pub price_feed: String,
+    pub proof_retrier: String,
 }
 
 #[derive(Debug, Clone, Deserialize, Default)]
