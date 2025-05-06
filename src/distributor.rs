@@ -28,7 +28,7 @@ impl<DB: Database> Distributor<DB> {
         let last_task_id = db
             .get_latest_task_id(&gmp_api.chain, &context)
             .await
-            .expect("Cannot get redis connection from pool");
+            .expect("Failed to get latest task id");
 
         if last_task_id.is_some() {
             info!(

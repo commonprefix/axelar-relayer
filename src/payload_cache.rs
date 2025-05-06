@@ -28,7 +28,7 @@ impl<DB: Database> PayloadCache<DB> {
             .db
             .get_payload(cc_id.clone())
             .await
-            .map_err(|e| anyhow::anyhow!("Failed to get payload from Redis: {}", e))?;
+            .map_err(|e| anyhow::anyhow!("Failed to get payload from database: {}", e))?;
 
         debug!("Got payload for {}: {:?}", cc_id, value);
 
