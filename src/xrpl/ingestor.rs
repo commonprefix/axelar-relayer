@@ -1137,12 +1137,17 @@ impl<DB: Database> XrplIngestor<DB> {
                             } else {
                                 None
                             },
-                            transfer_amount: amount.sub(gas_fee_amount.clone()).map_err(|e| {
-                                IngestorError::GenericError(format!(
-                                    "Failed to subtract gas fee amount: {}",
-                                    e
-                                ))
-                            })?,
+                            transfer_amount: amount.sub(gas_fee_amount.clone()).map_err(
+                                |e| match e {
+                                    XRPLError::SubtractionUnderflow => IngestorError::GenericError(
+                                        "Transfer amount is less than gas fee amount".to_owned(),
+                                    ),
+                                    _ => IngestorError::GenericError(format!(
+                                        "Failed to subtract gas fee amount: {}",
+                                        e
+                                    )),
+                                },
+                            )?,
                             gas_fee_amount,
                         })
                     }
