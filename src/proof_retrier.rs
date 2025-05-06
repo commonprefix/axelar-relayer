@@ -6,20 +6,21 @@ use router_api::CrossChainId;
 use tracing::{debug, error, info, warn};
 
 use crate::{
+    database::Database,
     gmp_api::gmp_types::{CommonTaskFields, ConstructProofTask, ConstructProofTaskFields, Task},
     payload_cache::PayloadCache,
     queue::{Queue, QueueItem},
 };
 
-pub struct ProofRetrier {
-    pub payload_cache: PayloadCache,
+pub struct ProofRetrier<DB: Database> {
+    pub payload_cache: PayloadCache<DB>,
     pub construct_proof_queue: Arc<Queue>,
     pub tasks_queue: Arc<Queue>,
 }
 
-impl ProofRetrier {
+impl<DB: Database> ProofRetrier<DB> {
     pub fn new(
-        payload_cache: PayloadCache,
+        payload_cache: PayloadCache<DB>,
         construct_proof_queue: Arc<Queue>,
         tasks_queue: Arc<Queue>,
     ) -> Self {
@@ -60,7 +61,7 @@ impl ProofRetrier {
                     meta: None,
                 },
                 task: ConstructProofTaskFields {
-                    message: payload_cache_value.message,
+                    message: payload_cache_value.message.clone(),
                     payload: payload_cache_value.payload,
                 },
             });
@@ -68,7 +69,11 @@ impl ProofRetrier {
             self.tasks_queue
                 .publish(QueueItem::Task(construct_proof_task.clone()))
                 .await;
-            info!("Published construct proof task: {:?}", construct_proof_task);
+            info!(
+                "Published ConstructProof task for message {:?}",
+                payload_cache_value.message.message_id
+            );
+            debug!("{:?}", construct_proof_task);
         } else {
             return Err(anyhow::anyhow!(
                 "Payload not found in cache for CrossChainId: {}",

@@ -3,6 +3,7 @@ use tokio::signal::unix::{signal, SignalKind};
 
 use axelar_relayer::{
     config::Config,
+    database::PostgresDB,
     payload_cache::PayloadCache,
     proof_retrier::ProofRetrier,
     queue::Queue,
@@ -20,9 +21,8 @@ async fn main() -> anyhow::Result<()> {
 
     let construct_proof_queue = Queue::new(&config.queue_address, "construct_proof").await;
     let tasks_queue = Queue::new(&config.queue_address, "tasks").await;
-    let redis_client = redis::Client::open(config.redis_server.clone()).unwrap();
-    let redis_pool = r2d2::Pool::builder().build(redis_client).unwrap();
-    let payload_cache = PayloadCache::new(redis_pool.clone());
+    let postgres_db = PostgresDB::new(&config.postgres_url).await.unwrap();
+    let payload_cache = PayloadCache::new(postgres_db);
     let proof_retrier = ProofRetrier::new(
         payload_cache,
         construct_proof_queue.clone(),
