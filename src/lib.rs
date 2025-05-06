@@ -1,4 +1,5 @@
 pub mod config;
+pub mod database;
 pub mod distributor;
 pub mod error;
 pub mod gmp_api;
