@@ -2,6 +2,7 @@ use dotenv::dotenv;
 
 use axelar_relayer::{
     config::Config,
+    database::PostgresDB,
     queue::Queue,
     subscriber::Subscriber,
     utils::{setup_heartbeat, setup_logging},
@@ -18,10 +19,9 @@ async fn main() -> anyhow::Result<()> {
     setup_heartbeat(config.heartbeats.subscriber.clone());
 
     let events_queue = Queue::new(&config.queue_address, "events").await;
-    let redis_client = redis::Client::open(config.redis_server.clone()).unwrap();
-    let redis_pool = r2d2::Pool::builder().build(redis_client).unwrap();
+    let postgres_db = PostgresDB::new(&config.postgres_url).await.unwrap();
 
-    let mut subscriber = Subscriber::new_xrpl(&config.xrpl_rpc, redis_pool.clone()).await;
+    let mut subscriber = Subscriber::new_xrpl(&config.xrpl_rpc, postgres_db).await;
     let txs: Vec<&str> = vec![];
 
     let mut sigint = signal(SignalKind::interrupt())?;

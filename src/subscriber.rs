@@ -1,5 +1,4 @@
 use futures::Stream;
-use r2d2::Pool;
 use serde::{Deserialize, Serialize};
 use std::{future::Future, pin::Pin, sync::Arc};
 use tracing::{debug, error, info};
@@ -7,6 +6,7 @@ use xrpl_api::Transaction;
 use xrpl_types::AccountId;
 
 use crate::{
+    database::Database,
     queue::{Queue, QueueItem},
     xrpl::XrplSubscriber,
 };
@@ -40,8 +40,8 @@ pub trait TransactionPoller {
     ) -> impl Future<Output = Result<Self::Transaction, anyhow::Error>>;
 }
 
-pub enum Subscriber {
-    Xrpl(XrplSubscriber),
+pub enum Subscriber<DB: Database> {
+    Xrpl(XrplSubscriber<DB>),
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -49,9 +49,9 @@ pub enum ChainTransaction {
     Xrpl(Transaction),
 }
 
-impl Subscriber {
-    pub async fn new_xrpl(url: &str, redis_pool: Pool<redis::Client>) -> Subscriber {
-        let client = XrplSubscriber::new(url, redis_pool).await;
+impl<DB: Database> Subscriber<DB> {
+    pub async fn new_xrpl(url: &str, postgres_db: DB) -> Subscriber<DB> {
+        let client = XrplSubscriber::new(url, postgres_db).await.unwrap();
         Subscriber::Xrpl(client)
     }
 

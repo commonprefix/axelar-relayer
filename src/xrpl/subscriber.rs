@@ -1,60 +1,54 @@
 use anyhow::anyhow;
-use r2d2::{Pool, PooledConnection};
-use redis::Commands;
 use tracing::{info, warn};
 use xrpl_api::{RequestPagination, Transaction};
 use xrpl_types::AccountId;
 
+use crate::database::Database;
+use crate::error::SubscriberError;
 use crate::subscriber::TransactionPoller;
 
 use super::client::XRPLClient;
 
-pub struct XrplSubscriber {
+pub struct XrplSubscriber<DB: Database> {
     client: XRPLClient,
-    redis_conn: PooledConnection<redis::Client>,
     latest_ledger: i64,
+    db: DB,
 }
 
-impl XrplSubscriber {
-    pub async fn new(url: &str, redis_pool: Pool<redis::Client>) -> Self {
+impl<DB: Database> XrplSubscriber<DB> {
+    pub async fn new(url: &str, db: DB) -> Result<Self, SubscriberError> {
         let client = XRPLClient::new(url, 3).unwrap();
-        let mut redis_conn = redis_pool
-            .get()
-            .expect("Cannot get redis connection from pool");
 
-        let latest_ledger = redis_conn
-            .get("xrpl_subscriber:latest_ledger")
+        let latest_ledger = db
+            .get_latest_height("xrpl", "default")
+            .await
+            .map_err(|e| SubscriberError::GenericError(e.to_string()))?
             .unwrap_or(-1);
+
         if latest_ledger != -1 {
             info!(
                 "XRPL Subscriber: starting from ledger index: {}",
                 latest_ledger
             );
         }
-        XrplSubscriber {
+        Ok(XrplSubscriber {
             client,
-            redis_conn,
             latest_ledger,
-        }
+            db,
+        })
     }
 }
 
-impl XrplSubscriber {
+impl<DB: Database> XrplSubscriber<DB> {
     async fn store_latest_ledger(&mut self) -> Result<(), anyhow::Error> {
-        let _: () = self
-            .redis_conn
-            .set("xrpl_subscriber:latest_ledger", self.latest_ledger)
-            .map_err(|e| {
-                anyhow!(format!(
-                    "Failed to store last_task_id to Redis: {}",
-                    e.to_string()
-                ))
-            })?;
-        Ok(())
+        self.db
+            .store_latest_height("xrpl", "default", self.latest_ledger)
+            .await
+            .map_err(|e| anyhow!("Error storing latest ledger: {:?}", e))
     }
 }
 
-impl TransactionPoller for XrplSubscriber {
+impl<DB: Database> TransactionPoller for XrplSubscriber<DB> {
     type Transaction = Transaction;
 
     async fn poll_account(
