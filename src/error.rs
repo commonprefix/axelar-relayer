@@ -91,3 +91,9 @@ pub enum DistributorError {
     #[error("Generic error: {0}")]
     GenericError(String),
 }
+
+#[derive(Error, Debug)]
+pub enum SubscriberError {
+    #[error("Generic error: {0}")]
+    GenericError(String),
+}
