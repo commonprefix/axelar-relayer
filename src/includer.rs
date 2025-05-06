@@ -6,6 +6,7 @@ use std::{future::Future, sync::Arc};
 use tracing::{debug, error, info, warn};
 
 use crate::{
+    database::Database,
     error::{BroadcasterError, IncluderError, RefundManagerError},
     gmp_api::{
         gmp_types::{Amount, CommonEventFields, Event, RefundTask, Task},
@@ -56,23 +57,25 @@ pub trait Broadcaster {
     ) -> impl Future<Output = Result<String, BroadcasterError>>;
 }
 
-pub struct Includer<B, C, R>
+pub struct Includer<B, C, R, DB>
 where
     B: Broadcaster,
     R: RefundManager,
+    DB: Database,
 {
     pub chain_client: C,
     pub broadcaster: B,
     pub refund_manager: R,
     pub gmp_api: Arc<GmpApi>,
-    pub payload_cache: PayloadCache,
+    pub payload_cache: PayloadCache<DB>,
     pub construct_proof_queue: Arc<Queue>,
 }
 
-impl<B, C, R> Includer<B, C, R>
+impl<B, C, R, DB> Includer<B, C, R, DB>
 where
     B: Broadcaster,
     R: RefundManager,
+    DB: Database,
 {
     async fn work(&self, consumer: &mut Consumer, queue: Arc<Queue>) {
         match consumer.next().await {

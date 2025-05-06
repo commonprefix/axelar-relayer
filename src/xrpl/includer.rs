@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use crate::config::Config;
+use crate::database::Database;
 use crate::error::BroadcasterError;
 use crate::gmp_api::GmpApi;
 use crate::includer::Includer;
@@ -15,14 +16,14 @@ pub struct XrplIncluder {}
 
 impl XrplIncluder {
     #[allow(clippy::new_ret_no_self)]
-    pub async fn new<'a>(
+    pub async fn new<'a, DB: Database>(
         config: Config,
         gmp_api: Arc<GmpApi>,
         redis_pool: r2d2::Pool<redis::Client>,
-        payload_cache: PayloadCache,
+        payload_cache: PayloadCache<DB>,
         construct_proof_queue: Arc<Queue>,
     ) -> error_stack::Result<
-        Includer<XRPLBroadcaster, Arc<XRPLClient>, XRPLRefundManager>,
+        Includer<XRPLBroadcaster, Arc<XRPLClient>, XRPLRefundManager, DB>,
         BroadcasterError,
     > {
         let client =

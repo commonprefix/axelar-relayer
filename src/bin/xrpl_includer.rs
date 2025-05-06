@@ -4,6 +4,7 @@ use tokio::signal::unix::{signal, SignalKind};
 
 use axelar_relayer::{
     config::Config,
+    database::PostgresDB,
     gmp_api,
     payload_cache::PayloadCache,
     queue::Queue,
@@ -25,7 +26,8 @@ async fn main() -> anyhow::Result<()> {
     let gmp_api = Arc::new(gmp_api::GmpApi::new(&config, true).unwrap());
     let redis_client = redis::Client::open(config.redis_server.clone()).unwrap();
     let redis_pool = r2d2::Pool::builder().build(redis_client).unwrap();
-    let payload_cache = PayloadCache::new(redis_pool.clone());
+    let postgres_db = PostgresDB::new(&config.postgres_url).await.unwrap();
+    let payload_cache = PayloadCache::new(postgres_db);
     let xrpl_includer = XrplIncluder::new(
         config,
         gmp_api,
