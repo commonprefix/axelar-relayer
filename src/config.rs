@@ -41,6 +41,7 @@ pub struct Config {
     pub axelar_contracts: AxelarContracts,
     pub deployed_tokens: HashMap<String, String>,
     pub redis_server: String,
+    pub postgres_url: String,
     pub xrpl_relayer_sentry_dsn: String,
     pub chain_name: String,
     pub client_cert_path: String,
