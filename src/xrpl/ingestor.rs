@@ -7,6 +7,7 @@ use std::{collections::HashMap, str::FromStr, sync::Arc, vec};
 use xrpl_amplifier_types::error::XRPLError;
 
 use crate::config::Config;
+use crate::database::Database;
 use crate::error::ITSTranslationError;
 use crate::gmp_api::gmp_types::MessageExecutedEventMetadata;
 use crate::payload_cache::{PayloadCache, PayloadCacheValue};
@@ -40,20 +41,20 @@ use xrpl_amplifier_types::{
 use xrpl_api::{Memo, PaymentTransaction, Transaction};
 use xrpl_gateway::msg::{CallContract, InterchainTransfer, MessageWithPayload};
 
-pub struct XrplIngestor {
+pub struct XrplIngestor<DB: Database> {
     client: xrpl_http_client::Client,
     gmp_api: Arc<GmpApi>,
     config: Config,
-    price_view: PriceView,
-    payload_cache: PayloadCache,
+    price_view: PriceView<DB>,
+    payload_cache: PayloadCache<DB>,
 }
 
-impl XrplIngestor {
+impl<DB: Database> XrplIngestor<DB> {
     pub fn new(
         gmp_api: Arc<GmpApi>,
         config: Config,
-        price_view: PriceView,
-        payload_cache: PayloadCache,
+        price_view: PriceView<DB>,
+        payload_cache: PayloadCache<DB>,
     ) -> Self {
         let client = xrpl_http_client::Client::builder()
             .base_url(&config.xrpl_rpc)

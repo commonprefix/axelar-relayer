@@ -6,6 +6,7 @@ use tracing::{debug, error, info, warn};
 
 use crate::{
     config::Config,
+    database::Database,
     error::IngestorError,
     gmp_api::{gmp_types::Task, GmpApi},
     payload_cache::PayloadCache,
@@ -15,17 +16,17 @@ use crate::{
     xrpl::XrplIngestor,
 };
 
-pub struct Ingestor {
+pub struct Ingestor<DB: Database> {
     gmp_api: Arc<GmpApi>,
-    xrpl_ingestor: XrplIngestor,
+    xrpl_ingestor: XrplIngestor<DB>,
 }
 
-impl Ingestor {
+impl<DB: Database> Ingestor<DB> {
     pub fn new(
         gmp_api: Arc<GmpApi>,
         config: Config,
-        price_view: PriceView,
-        payload_cache: PayloadCache,
+        price_view: PriceView<DB>,
+        payload_cache: PayloadCache<DB>,
     ) -> Self {
         let xrpl_ingestor =
             XrplIngestor::new(gmp_api.clone(), config.clone(), price_view, payload_cache);

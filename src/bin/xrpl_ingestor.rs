@@ -4,6 +4,7 @@ use tokio::signal::unix::{signal, SignalKind};
 
 use axelar_relayer::{
     config::Config,
+    database::PostgresDB,
     gmp_api,
     ingestor::Ingestor,
     payload_cache::PayloadCache,
@@ -24,10 +25,9 @@ async fn main() -> anyhow::Result<()> {
     let tasks_queue = Queue::new(&config.queue_address, "tasks").await;
     let events_queue = Queue::new(&config.queue_address, "events").await;
     let gmp_api = Arc::new(gmp_api::GmpApi::new(&config, true).unwrap());
-    let redis_client = redis::Client::open(config.redis_server.clone()).unwrap();
-    let redis_pool = r2d2::Pool::builder().build(redis_client).unwrap();
-    let price_view = PriceView::new(redis_pool.clone());
-    let payload_cache = PayloadCache::new(redis_pool);
+    let postgres_db = PostgresDB::new(&config.postgres_url).await.unwrap();
+    let price_view = PriceView::new(postgres_db.clone());
+    let payload_cache = PayloadCache::new(postgres_db);
     let ingestor = Ingestor::new(gmp_api.clone(), config.clone(), price_view, payload_cache);
 
     let mut sigint = signal(SignalKind::interrupt())?;
