@@ -4,6 +4,7 @@ use tokio::signal::unix::{signal, SignalKind};
 
 use axelar_relayer::{
     config::Config,
+    database::PostgresDB,
     distributor::{Distributor, RecoverySettings},
     gmp_api::{self, gmp_types::TaskKind},
     queue::Queue,
@@ -21,12 +22,12 @@ async fn main() -> anyhow::Result<()> {
 
     let tasks_queue = Queue::new(&config.queue_address, "tasks").await;
     let gmp_api = Arc::new(gmp_api::GmpApi::new(&config, true).unwrap());
-    let redis_client = redis::Client::open(config.redis_server.clone()).unwrap();
-    let redis_pool = r2d2::Pool::builder().build(redis_client).unwrap();
+    let postgres_db = PostgresDB::new(&config.postgres_url).await.unwrap();
 
     let mut distributor = Distributor::new_with_recovery_settings(
-        redis_pool.clone(),
+        postgres_db,
         "task_recovery".to_string(),
+        gmp_api,
         RecoverySettings {
             from_task_id: Some("".to_string()),
             to_task_id: "".to_string(),
@@ -41,7 +42,7 @@ async fn main() -> anyhow::Result<()> {
     tokio::select! {
         _ = sigint.recv()  => {},
         _ = sigterm.recv() => {},
-        _ = distributor.run_recovery(gmp_api, tasks_queue.clone()) => {},
+        _ = distributor.run_recovery(tasks_queue.clone()) => {},
     }
 
     tasks_queue.close().await;

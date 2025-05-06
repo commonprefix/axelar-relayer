@@ -1,10 +1,8 @@
 use std::sync::Arc;
-
-use r2d2::{Pool, PooledConnection};
-use redis::Commands;
 use tracing::{info, warn};
 
 use crate::{
+    database::Database,
     error::DistributorError,
     gmp_api::{gmp_types::TaskKind, GmpApi},
     queue::{Queue, QueueItem},
@@ -17,44 +15,45 @@ pub struct RecoverySettings {
     pub tasks_filter: Option<Vec<TaskKind>>,
 }
 
-pub struct Distributor {
-    redis_conn: PooledConnection<redis::Client>,
+pub struct Distributor<DB: Database> {
+    db: DB,
     last_task_id: Option<String>,
-    redis_context: String,
+    context: String,
     recovery_settings: Option<RecoverySettings>,
+    gmp_api: Arc<GmpApi>,
 }
 
-impl Distributor {
-    pub fn new(redis_pool: Pool<redis::Client>, redis_context: String) -> Self {
-        let mut redis_conn = redis_pool
-            .get()
+impl<DB: Database> Distributor<DB> {
+    pub async fn new(db: DB, context: String, gmp_api: Arc<GmpApi>) -> Self {
+        let last_task_id = db
+            .get_latest_task_id(&gmp_api.chain, &context)
+            .await
             .expect("Cannot get redis connection from pool");
 
-        let last_task_id = redis_conn
-            .get(format!("{}:last_task_id", redis_context))
-            .unwrap_or(None);
         if last_task_id.is_some() {
             info!(
                 "Distributor: recovering last task id from {}: {}",
-                redis_context,
+                context,
                 last_task_id.clone().unwrap()
             );
         }
 
         Self {
-            redis_conn,
+            db,
             last_task_id,
-            redis_context,
+            context,
             recovery_settings: None,
+            gmp_api,
         }
     }
 
     pub async fn new_with_recovery_settings(
-        redis_pool: Pool<redis::Client>,
-        redis_context: String,
+        db: DB,
+        context: String,
+        gmp_api: Arc<GmpApi>,
         recovery_settings: RecoverySettings,
     ) -> Self {
-        let mut distributor = Self::new(redis_pool, redis_context);
+        let mut distributor = Self::new(db, context, gmp_api).await;
         distributor.recovery_settings = Some(recovery_settings.clone());
         distributor.last_task_id = recovery_settings.from_task_id;
         distributor.store_last_task_id().await.unwrap();
@@ -66,29 +65,28 @@ impl Distributor {
             return Ok(());
         }
 
-        let _: () = self
-            .redis_conn
-            .set(
-                format!("{}:last_task_id", self.redis_context),
-                self.last_task_id.clone().unwrap(),
+        self.db
+            .store_latest_task_id(
+                &self.gmp_api.chain,
+                &self.context,
+                &self.last_task_id.clone().unwrap(),
             )
+            .await
             .map_err(|e| {
-                DistributorError::GenericError(format!(
-                    "Failed to store last_task_id to Redis: {}",
-                    e
-                ))
+                DistributorError::GenericError(format!("Failed to store last_task_id: {}", e))
             })?;
+
         Ok(())
     }
 
     async fn work(
         &mut self,
-        gmp_api: Arc<GmpApi>,
         queue: Arc<Queue>,
         tasks_filter: Option<Vec<TaskKind>>,
     ) -> Result<Vec<String>, DistributorError> {
         let mut processed_task_ids = Vec::new();
-        let tasks = gmp_api
+        let tasks = self
+            .gmp_api
             .get_tasks_action(self.last_task_id.clone())
             .await
             .map_err(|e| DistributorError::GenericError(format!("Failed to get tasks: {}", e)))?;
@@ -113,10 +111,10 @@ impl Distributor {
         Ok(processed_task_ids)
     }
 
-    pub async fn run(&mut self, gmp_api: Arc<GmpApi>, queue: Arc<Queue>) {
+    pub async fn run(&mut self, queue: Arc<Queue>) {
         loop {
             info!("Distributor is alive.");
-            let work_res = self.work(gmp_api.clone(), queue.clone(), None).await;
+            let work_res = self.work(queue.clone(), None).await;
             if let Err(err) = work_res {
                 warn!("{:?}\nRetrying in 2 seconds", err);
             }
@@ -124,16 +122,12 @@ impl Distributor {
         }
     }
 
-    pub async fn run_recovery(&mut self, gmp_api: Arc<GmpApi>, queue: Arc<Queue>) {
+    pub async fn run_recovery(&mut self, queue: Arc<Queue>) {
         let recovery_settings = self.recovery_settings.clone().unwrap();
         loop {
             info!("Distributor is recovering.");
             let work_res = self
-                .work(
-                    gmp_api.clone(),
-                    queue.clone(),
-                    recovery_settings.tasks_filter.clone(),
-                )
+                .work(queue.clone(), recovery_settings.tasks_filter.clone())
                 .await;
             if let Err(err) = work_res {
                 warn!("{:?}\nRetrying in 2 seconds", err);
