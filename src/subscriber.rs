@@ -65,10 +65,10 @@ impl<DB: Database> Subscriber<DB> {
                     Ok(txs) => {
                         for tx in txs {
                             let chain_transaction = ChainTransaction::Xrpl(tx.clone());
-                            let tx = &QueueItem::Transaction(chain_transaction.clone());
-                            info!("Publishing tx: {:?}", chain_transaction);
-                            queue.publish(tx.clone()).await;
-                            debug!("Published tx: {:?}", tx);
+                            let item = &QueueItem::Transaction(chain_transaction.clone());
+                            info!("Publishing XRPL transaction: {:?}", tx.common().hash);
+                            queue.publish(item.clone()).await;
+                            debug!("Published tx: {:?}", item);
                         }
                     }
                     Err(e) => {
@@ -95,10 +95,10 @@ impl<DB: Database> Subscriber<DB> {
                     match res {
                         Ok(tx) => {
                             let chain_transaction = ChainTransaction::Xrpl(tx.clone());
-                            let tx = &QueueItem::Transaction(chain_transaction.clone());
-                            info!("Publishing tx: {:?}", chain_transaction);
-                            queue.publish(tx.clone()).await;
-                            debug!("Published tx: {:?}", tx);
+                            let item = &QueueItem::Transaction(chain_transaction.clone());
+                            info!("Publishing XRPL transaction: {:?}", tx.common().hash);
+                            queue.publish(item.clone()).await;
+                            debug!("Published tx: {:?}", item);
                         }
                         Err(e) => {
                             error!("Error getting txs: {:?}", e);
