@@ -1,24 +1,23 @@
-use std::{future::Future, str::FromStr};
-
-use redis::Commands;
+use crate::database::Database;
 use rust_decimal::Decimal;
+use std::future::Future;
 
 pub trait PriceViewTrait {
     fn get_price(&self, pair: &str) -> impl Future<Output = Result<Decimal, anyhow::Error>>;
 }
 
-pub struct PriceView {
-    pub redis_pool: r2d2::Pool<redis::Client>,
+pub struct PriceView<DB: Database> {
+    pub db: DB,
 }
 
-impl PriceView {
-    pub fn new(redis_pool: r2d2::Pool<redis::Client>) -> Self {
-        Self { redis_pool }
+impl<DB: Database> PriceView<DB> {
+    pub fn new(db: DB) -> Self {
+        Self { db }
     }
 }
 
 #[cfg_attr(test, mockall::automock)]
-impl PriceViewTrait for PriceView {
+impl<DB: Database> PriceViewTrait for PriceView<DB> {
     async fn get_price(&self, pair: &str) -> Result<Decimal, anyhow::Error> {
         let (symbol_a, symbol_b) = pair
             .split_once('/')
@@ -28,12 +27,12 @@ impl PriceViewTrait for PriceView {
             return Ok(Decimal::ONE);
         }
 
-        let mut conn = self
-            .redis_pool
-            .get()
-            .map_err(|e| anyhow::anyhow!("Failed to get redis connection: {}", e))?;
-        let price: String = conn.get(pair)?;
+        let maybe_price = self
+            .db
+            .get_price(pair)
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to get price: {}", e))?;
 
-        Ok(Decimal::from_str(&price)?)
+        maybe_price.ok_or_else(|| anyhow::anyhow!("Price not found"))
     }
 }

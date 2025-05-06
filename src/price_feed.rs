@@ -2,11 +2,12 @@ use std::{collections::HashMap, future::Future, pin::Pin};
 
 use chrono::{DateTime, Utc};
 use coingecko::CoinGeckoClient;
-use r2d2::Pool;
-use redis::Commands;
+use rust_decimal::prelude::FromPrimitive;
+use rust_decimal::Decimal;
 use tracing::{error, info, warn};
 
 use crate::config::{Config, PriceFeedConfig};
+use crate::database::Database;
 
 trait PriceFeed: Send + Sync {
     fn fetch<'a>(
@@ -15,7 +16,7 @@ trait PriceFeed: Send + Sync {
     ) -> Pin<Box<dyn Future<Output = FetchResult> + Send + 'a>>;
 }
 
-type FetchResult = Result<Vec<Option<f64>>, anyhow::Error>;
+type FetchResult = Result<Vec<Option<Decimal>>, anyhow::Error>;
 
 struct CoinGeckoPriceFeed {
     client: CoinGeckoClient,
@@ -109,7 +110,7 @@ impl PriceFeed for CoinGeckoPriceFeed {
                                 serde_json::to_value(p).ok()
                             })
                             .and_then(|v| v.get(token_b.to_lowercase()).cloned())
-                            .and_then(|v| v.as_f64())
+                            .and_then(|v| v.as_f64().and_then(Decimal::from_f64))
                     })
                 })
                 .collect())
@@ -117,36 +118,26 @@ impl PriceFeed for CoinGeckoPriceFeed {
     }
 }
 
-pub struct PriceFeeder {
+pub struct PriceFeeder<DB: Database> {
     feeds: Vec<Box<dyn PriceFeed>>,
     pairs: Vec<String>,
-    redis_pool: Pool<redis::Client>,
+    db: DB,
 }
 
-impl PriceFeeder {
-    pub async fn new(
-        config: &Config,
-        redis_pool: Pool<redis::Client>,
-    ) -> Result<Self, anyhow::Error> {
+impl<DB: Database> PriceFeeder<DB> {
+    pub async fn new(config: &Config, db: DB) -> Result<Self, anyhow::Error> {
         let price_feed = CoinGeckoPriceFeed::new(&config.price_feed).await?;
         Ok(Self {
             feeds: vec![Box::new(price_feed)],
             pairs: config.price_feed.pairs.clone(),
-            redis_pool,
+            db,
         })
     }
 
-    async fn store_prices(&self, prices: Vec<Option<f64>>) -> Result<(), anyhow::Error> {
-        let mut redis_client = self
-            .redis_pool
-            .get()
-            .map_err(|e| anyhow::anyhow!("Failed to get Redis client: {}", e))?;
-
+    async fn store_prices(&self, prices: Vec<Option<Decimal>>) -> Result<(), anyhow::Error> {
         for (pair, price) in self.pairs.iter().zip(prices.iter()) {
             if let Some(price) = price {
-                let _: () = redis_client.set_ex(pair, price, 60 * 2).map_err(|e| {
-                    anyhow::anyhow!("Failed to store price for {} in Redis: {}", pair, e)
-                })?;
+                let _: () = self.db.store_price(pair, *price).await?;
             } else {
                 warn!("No price returned for {}", pair);
             }

@@ -1,5 +1,6 @@
 use axelar_relayer::{
     config::Config,
+    database::PostgresDB,
     price_feed::PriceFeeder,
     utils::{setup_heartbeat, setup_logging},
 };
@@ -14,8 +15,7 @@ async fn main() {
     let _guard = setup_logging(&config);
     setup_heartbeat(config.heartbeats.price_feed.clone());
 
-    let redis_client = redis::Client::open(config.redis_server.clone()).unwrap();
-    let redis_pool = r2d2::Pool::builder().build(redis_client).unwrap();
-    let price_feeder = PriceFeeder::new(&config, redis_pool).await.unwrap();
+    let db = PostgresDB::new(&config.postgres_url).await.unwrap();
+    let price_feeder = PriceFeeder::new(&config, db).await.unwrap();
     price_feeder.run().await.unwrap();
 }

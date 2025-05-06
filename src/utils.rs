@@ -308,7 +308,7 @@ where
 mod tests {
     use std::collections::HashMap;
 
-    use crate::price_view::MockPriceView;
+    use crate::{database::MockDatabase, price_view::MockPriceView};
 
     use super::*;
 
@@ -319,7 +319,7 @@ mod tests {
             ..Default::default()
         };
 
-        let mut price_view = MockPriceView::new();
+        let mut price_view = MockPriceView::<MockDatabase>::new();
         price_view
             .expect_get_price()
             .returning(|_| Ok(Decimal::from_str("1.5").unwrap()));
@@ -341,7 +341,7 @@ mod tests {
             ..Default::default()
         };
 
-        let mut price_view = MockPriceView::new();
+        let mut price_view = MockPriceView::<MockDatabase>::new();
         price_view
             .expect_get_price()
             .returning(|_| Ok(Decimal::from_str("1.5").unwrap()));
@@ -363,7 +363,7 @@ mod tests {
             ..Default::default()
         };
 
-        let mut price_view = MockPriceView::new();
+        let mut price_view = MockPriceView::<MockDatabase>::new();
         price_view
             .expect_get_price()
             .returning(|_| Ok(Decimal::from_str("1.0").unwrap()));
@@ -385,7 +385,7 @@ mod tests {
             ..Default::default()
         };
 
-        let mut price_view = MockPriceView::new();
+        let mut price_view = MockPriceView::<MockDatabase>::new();
         price_view
             .expect_get_price()
             .returning(|_| Ok(Decimal::from_str("1.0").unwrap()));
@@ -407,7 +407,7 @@ mod tests {
             ..Default::default()
         };
 
-        let mut price_view = MockPriceView::new();
+        let mut price_view = MockPriceView::<MockDatabase>::new();
         price_view
             .expect_get_price()
             .returning(|_| Ok(Decimal::from_str("1.0").unwrap()));
@@ -426,7 +426,7 @@ mod tests {
     async fn test_convert_token_amount_to_drops_no_rate() {
         let config = Config::default();
 
-        let mut price_view = MockPriceView::new();
+        let mut price_view = MockPriceView::<MockDatabase>::new();
         price_view
             .expect_get_price()
             .returning(|_| Ok(Decimal::from_str("1.0").unwrap()));
@@ -450,7 +450,7 @@ mod tests {
             ..Default::default()
         };
 
-        let mut price_view = MockPriceView::new();
+        let mut price_view = MockPriceView::<MockDatabase>::new();
         price_view
             .expect_get_price()
             .returning(|_| Ok(Decimal::from_str("1.0").unwrap()));
