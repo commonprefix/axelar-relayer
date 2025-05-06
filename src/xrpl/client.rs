@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use anyhow::anyhow;
 use serde::{de::DeserializeOwned, Serialize};
-use tracing::warn;
+use tracing::debug;
 use xrpl_api::{Request, RequestPagination, Transaction};
 use xrpl_types::AccountId;
 
@@ -38,7 +38,7 @@ impl XRPLClient {
                         return Err(e);
                     }
 
-                    warn!(
+                    debug!(
                         "RPC call ({}) failed (retry {}/{}): {}. Retrying in {:?}...",
                         request.method(),
                         retries + 1,
