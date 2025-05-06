@@ -22,7 +22,7 @@ use gmp_types::{
 pub struct GmpApi {
     rpc_url: String,
     client: Client,
-    chain: String,
+    pub chain: String,
 }
 
 fn identity_from_config(config: &Config) -> Result<Identity, GmpApiError> {
