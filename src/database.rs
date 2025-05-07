@@ -122,7 +122,7 @@ impl Database for PostgresDB {
     }
 
     async fn clear_payload(&self, cc_id: CrossChainId) -> Result<()> {
-        let query = "DELETE FROM messages_with_payload WHERE cc_id = $1 LIMIT 1";
+        let query = "DELETE FROM messages_with_payload WHERE cc_id = $1";
         sqlx::query(query)
             .bind(cc_id.to_string())
             .execute(&self.pool)
