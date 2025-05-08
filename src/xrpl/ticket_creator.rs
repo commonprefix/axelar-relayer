@@ -38,6 +38,8 @@ impl XrplTicketCreator {
             } else {
                 error!("Failed to broadcast XRPL Ticket Create request: {:?}", e);
             }
+        } else {
+            info!("Ticket create submitted: {}", res.unwrap());
         }
 
         tokio::time::sleep(tokio::time::Duration::from_secs(60)).await

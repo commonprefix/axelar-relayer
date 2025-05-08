@@ -29,7 +29,7 @@ use crate::{
     },
 };
 use router_api::{ChainNameRaw, CrossChainId};
-use tracing::{debug, warn};
+use tracing::{debug, info, warn};
 use xrpl_amplifier_types::{
     msg::{
         WithCrossChainId, WithPayload, XRPLAddGasMessage, XRPLAddReservesMessage,
@@ -193,12 +193,19 @@ impl<DB: Database> XrplIngestor<DB> {
                 IngestorError::GenericError(format!("Failed to serialize VerifyMessages: {}", e))
             })?);
 
-        self.gmp_api
+        let verify_tx_hash = self
+            .gmp_api
             .post_broadcast(self.config.axelar_contracts.xrpl_gateway.clone(), &request)
             .await
             .map_err(|e| {
                 IngestorError::GenericError(format!("Failed to broadcast message: {}", e))
             })?;
+
+        info!(
+            "VerifyAddGas({}) tx hash: {}",
+            xrpl_message_with_payload.message.tx_id(),
+            verify_tx_hash
+        );
 
         Ok(vec![gas_credit_event])
     }
@@ -217,12 +224,19 @@ impl<DB: Database> XrplIngestor<DB> {
                 IngestorError::GenericError(format!("Failed to serialize VerifyMessages: {}", e))
             })?);
 
-        self.gmp_api
+        let verify_tx_hash = self
+            .gmp_api
             .post_broadcast(self.config.axelar_contracts.xrpl_gateway.clone(), &request)
             .await
             .map_err(|e| {
                 IngestorError::GenericError(format!("Failed to broadcast message: {}", e))
             })?;
+
+        info!(
+            "VerifyAddReserves({}) tx hash: {}",
+            xrpl_message_with_payload.message.tx_id(),
+            verify_tx_hash
+        );
 
         Ok(vec![])
     }
@@ -269,12 +283,19 @@ impl<DB: Database> XrplIngestor<DB> {
                 IngestorError::GenericError(format!("Failed to serialize VerifyMessages: {}", e))
             })?);
 
-        self.gmp_api
+        let verify_tx_hash = self
+            .gmp_api
             .post_broadcast(self.config.axelar_contracts.xrpl_gateway.clone(), &request)
             .await
             .map_err(|e| {
                 IngestorError::GenericError(format!("Failed to broadcast message: {}", e))
             })?;
+
+        info!(
+            "VerifyProverMessage({:?}) tx hash: {}",
+            tx.common().hash,
+            verify_tx_hash
+        );
 
         Ok(vec![])
     }
@@ -623,18 +644,26 @@ impl<DB: Database> XrplIngestor<DB> {
     pub async fn handle_verify(&self, task: VerifyTask) -> Result<(), IngestorError> {
         let xrpl_message = parse_message_from_context(&task.common.meta)?;
 
-        let execute_msg = xrpl_gateway::msg::ExecuteMsg::VerifyMessages(vec![xrpl_message]);
+        let execute_msg = xrpl_gateway::msg::ExecuteMsg::VerifyMessages(vec![xrpl_message.clone()]);
         let request =
             BroadcastRequest::Generic(serde_json::to_value(&execute_msg).map_err(|e| {
                 IngestorError::GenericError(format!("Failed to serialize VerifyMessages: {}", e))
             })?);
 
-        self.gmp_api
+        let verify_tx_hash = self
+            .gmp_api
             .post_broadcast(self.config.axelar_contracts.xrpl_gateway.clone(), &request)
             .await
             .map_err(|e| {
                 IngestorError::GenericError(format!("Failed to broadcast message: {}", e))
             })?;
+
+        info!(
+            "Verify({}) tx hash: {}",
+            xrpl_message.tx_id(),
+            verify_tx_hash
+        );
+
         Ok(())
     }
 
@@ -828,12 +857,19 @@ impl<DB: Database> XrplIngestor<DB> {
                 };
 
                 debug!("Broadcasting request: {:?}", request);
-                self.gmp_api
+                let confirmation_tx_hash = self
+                    .gmp_api
                     .post_broadcast(contract_address, &request)
                     .await
                     .map_err(|e| {
                         IngestorError::GenericError(format!("Failed to broadcast message: {}", e))
                     })?;
+
+                info!(
+                    "Confirm({}) tx hash: {}",
+                    xrpl_message.tx_id(),
+                    confirmation_tx_hash
+                );
 
                 self.handle_successful_routing(xrpl_message, prover_tx, task)
                     .await?;
@@ -983,7 +1019,7 @@ impl<DB: Database> XrplIngestor<DB> {
 
         self.payload_cache
             .store(
-                cc_id,
+                cc_id.clone(),
                 PayloadCacheValue {
                     message: task.task.message,
                     payload: task.task.payload,
@@ -997,7 +1033,8 @@ impl<DB: Database> XrplIngestor<DB> {
                 IngestorError::GenericError(format!("Failed to serialize ConstructProof: {}", e))
             })?);
 
-        self.gmp_api
+        let construct_proof_tx_hash = self
+            .gmp_api
             .post_broadcast(
                 self.config.axelar_contracts.xrpl_multisig_prover.clone(),
                 &request,
@@ -1006,6 +1043,12 @@ impl<DB: Database> XrplIngestor<DB> {
             .map_err(|e| {
                 IngestorError::GenericError(format!("Failed to broadcast message: {}", e))
             })?;
+
+        info!(
+            "ConstructProof({}) transaction hash: {}",
+            cc_id, construct_proof_tx_hash
+        );
+
         Ok(())
     }
 
