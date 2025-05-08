@@ -1,5 +1,7 @@
 pub mod gmp_types;
 
+use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
+use reqwest_retry::{policies::ExponentialBackoff, RetryTransientMiddleware};
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 use std::{
@@ -11,7 +13,7 @@ use std::{
 use tracing::{debug, info, warn};
 use xrpl_amplifier_types::msg::XRPLMessage;
 
-use reqwest::{Client, Identity};
+use reqwest::Identity;
 
 use crate::{config::Config, error::GmpApiError, utils::parse_task};
 use gmp_types::{
@@ -21,7 +23,7 @@ use gmp_types::{
 
 pub struct GmpApi {
     rpc_url: String,
-    client: Client,
+    client: ClientWithMiddleware,
     pub chain: String,
 }
 
@@ -55,20 +57,24 @@ fn identity_from_config(config: &Config) -> Result<Identity, GmpApiError> {
 
 impl GmpApi {
     pub fn new(config: &Config, connection_pooling: bool) -> Result<Self, GmpApiError> {
-        let mut client = reqwest::ClientBuilder::new()
+        let mut client_builder = reqwest::ClientBuilder::new()
             .connect_timeout(Duration::from_secs(5))
             .timeout(Duration::from_secs(30))
             .identity(identity_from_config(config)?);
-
         if connection_pooling {
-            client = client.pool_idle_timeout(Some(Duration::from_secs(300)));
+            client_builder = client_builder.pool_idle_timeout(Some(Duration::from_secs(300)));
         } else {
-            client = client.pool_max_idle_per_host(0);
+            client_builder = client_builder.pool_max_idle_per_host(0);
         }
 
-        let client = client
-            .build()
-            .map_err(|e| GmpApiError::ConnectionFailed(e.to_string()))?;
+        let retry_policy = ExponentialBackoff::builder().build_with_max_retries(3);
+        let client = ClientBuilder::new(
+            client_builder
+                .build()
+                .map_err(|e| GmpApiError::ConnectionFailed(e.to_string()))?,
+        )
+        .with(RetryTransientMiddleware::new_with_policy(retry_policy))
+        .build();
 
         Ok(Self {
             rpc_url: config.gmp_api_url.to_owned(),
@@ -78,7 +84,7 @@ impl GmpApi {
     }
 
     async fn request_bytes_if_success(
-        request: reqwest::RequestBuilder,
+        request: reqwest_middleware::RequestBuilder,
     ) -> Result<Vec<u8>, GmpApiError> {
         let response = request
             .send()
@@ -102,7 +108,7 @@ impl GmpApi {
     }
 
     async fn request_text_if_success(
-        request: reqwest::RequestBuilder,
+        request: reqwest_middleware::RequestBuilder,
     ) -> Result<String, GmpApiError> {
         let response = request
             .send()
@@ -126,7 +132,7 @@ impl GmpApi {
     }
 
     async fn request_json<T: DeserializeOwned>(
-        request: reqwest::RequestBuilder,
+        request: reqwest_middleware::RequestBuilder,
     ) -> Result<T, GmpApiError> {
         let response = request.send().await.map_err(|e| {
             debug!("{:?}", e);

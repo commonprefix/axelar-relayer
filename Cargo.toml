@@ -45,6 +45,8 @@ rand = "0.9.1"
 coingecko = "1.1.3"
 rust_decimal = "1.37.1"
 sqlx = { version = "0.8.5", features = ["postgres", "runtime-tokio"] }
+reqwest-retry = "0.7.0"
+reqwest-middleware = "0.4.2"
 
 [dev-dependencies]
 mockall = "0.13.1"
