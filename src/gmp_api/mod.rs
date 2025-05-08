@@ -220,9 +220,114 @@ impl GmpApi {
         let response = GmpApi::request_text_if_success(request).await;
         if response.is_ok() {
             debug!("Broadcast successful: {:?}", response.as_ref().unwrap());
+
+            let response_json: serde_json::Value = serde_json::from_str(response.as_ref().unwrap())
+                .map_err(|e| {
+                    GmpApiError::GenericError(format!(
+                        "Failed to parse GMP response {}: {}",
+                        response.as_ref().unwrap(),
+                        e
+                    ))
+                })?;
+
+            let broadcast_id = response_json
+                .get("broadcastID")
+                .ok_or_else(|| {
+                    GmpApiError::GenericError("Missing 'broadcastID' field".to_string())
+                })?
+                .as_str()
+                .ok_or_else(|| {
+                    GmpApiError::GenericError("'broadcastID' field is not a string".to_string())
+                })?;
+
+            debug!("Getting broadcast result for {}", broadcast_id);
+
+            return self
+                .get_broadcast_result(contract_address, broadcast_id.to_string())
+                .await;
         }
-        // TODO: parse response and check for errors
         response
+    }
+
+    pub async fn get_broadcast_result(
+        &self,
+        contract_address: String,
+        broadcast_id: String,
+    ) -> Result<String, GmpApiError> {
+        let url = format!(
+            "{}/contracts/{}/broadcasts/{}",
+            self.rpc_url, contract_address, broadcast_id
+        );
+        let mut retries = 0;
+        loop {
+            if retries > 30 {
+                return Err(GmpApiError::GenericError(format!(
+                    "Broadcast with id {} timed out",
+                    broadcast_id
+                )));
+            }
+            retries += 1;
+
+            let request = self.client.get(&url);
+            let response: Value = GmpApi::request_json(request).await?;
+
+            match response.get("status") {
+                Some(status) => match status.as_str() {
+                    Some("RECEIVED") => {
+                        tokio::time::sleep(Duration::from_secs(2)).await;
+                        continue;
+                    }
+                    Some("SUCCESS") => {
+                        let tx_hash = response
+                            .get("txHash")
+                            .ok_or_else(|| {
+                                GmpApiError::GenericError(
+                                    "Broadcast result missing 'txHash' field".to_string(),
+                                )
+                            })?
+                            .as_str()
+                            .ok_or_else(|| {
+                                GmpApiError::GenericError(
+                                    "'txHash' field is not a string".to_string(),
+                                )
+                            })?;
+
+                        debug!("Broadcast with id {} succeeded: {}", broadcast_id, tx_hash);
+                        return Ok(tx_hash.to_string());
+                    }
+                    _ => {
+                        return Err(GmpApiError::GenericError(format!(
+                            "Broadcast with id {} failed with status: {}",
+                            broadcast_id,
+                            response.get("status").unwrap()
+                        )));
+                    }
+                },
+                None => match response.get("error") {
+                    Some(error) => {
+                        debug!("Broadcast with id {} failed: {:?}", broadcast_id, response);
+                        return Err(GmpApiError::GenericError(format!(
+                            "Broadcast with id {} failed: {:?}",
+                            broadcast_id,
+                            error
+                        )));
+                    }
+                    None => {
+                        let string_response = serde_json::to_string(&response).map_err(|e| {
+                            GmpApiError::GenericError(format!(
+                                "Failed to parse broadcast result {:?}: {}",
+                                response, e
+                            ))
+                        })?;
+
+                        return Err(GmpApiError::GenericError(format!(
+                            "Broadcast with id {} failed: {}",
+                            broadcast_id, string_response
+                        )));
+                    }
+                },
+            }
+        }
     }
 
     pub async fn post_query(
