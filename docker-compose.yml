@@ -86,9 +86,12 @@ services:
   rabbitmq_devnet:
     image: rabbitmq:3-management
     container_name: rabbitmq_devnet
+    environment:
+      RABBITMQ_PLUGINS: "rabbitmq_prometheus rabbitmq_management"
     ports:
       - "127.0.0.1:5672:5672"
       - "127.0.0.1:15672:15672"
+      - "127.0.0.1:15692:15692"
 
   redis_testnet:
     image: redis:alpine
@@ -99,9 +102,12 @@ services:
   rabbitmq_testnet:
     image: rabbitmq:3-management
     container_name: rabbitmq_testnet
+    environment:
+      RABBITMQ_PLUGINS: "rabbitmq_prometheus rabbitmq_management"
     ports:
       - "127.0.0.1:5673:5672"
       - "127.0.0.1:15673:15672"
+      - "127.0.0.1:15693:15692"
 
   redis_mainnet:
     image: redis:alpine
@@ -112,6 +118,9 @@ services:
   rabbitmq_mainnet:
     image: rabbitmq:3-management
     container_name: rabbitmq_mainnet
+    environment:
+      RABBITMQ_PLUGINS: "rabbitmq_prometheus rabbitmq_management"
     ports:
       - "127.0.0.1:5674:5672"
       - "127.0.0.1:15674:15672"
+      - "127.0.0.1:15694:15692"
