@@ -1223,7 +1223,7 @@ version = "3.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fde0e0ec90c9dfb3b4b1a0891a7dcd0e2bffde2f7efed5fe7c9bb00e5bfb915e"
 dependencies = [
- "windows-sys 0.59.0",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]
@@ -6976,7 +6976,7 @@ dependencies = [
 [[package]]
 name = "xrpl_api"
 version = "0.16.6"
-source = "git+https://github.com/commonprefix/xrpl-sdk-rust?branch=main#2461cb322ce794eccef4f99e065e57a2d32f67f5"
+source = "git+https://github.com/commonprefix/xrpl-sdk-rust?branch=main#3fce0735db95825192f3fd9c08034b7c0b06c6d5"
 dependencies = [
  "enumflags2",
  "serde",
@@ -6987,7 +6987,7 @@ dependencies = [
 [[package]]
 name = "xrpl_binary_codec"
 version = "0.16.6"
-source = "git+https://github.com/commonprefix/xrpl-sdk-rust?branch=main#2461cb322ce794eccef4f99e065e57a2d32f67f5"
+source = "git+https://github.com/commonprefix/xrpl-sdk-rust?branch=main#3fce0735db95825192f3fd9c08034b7c0b06c6d5"
 dependencies = [
  "bytes",
  "hashbrown 0.14.5",
@@ -7002,7 +7002,7 @@ dependencies = [
 [[package]]
 name = "xrpl_http_client"
 version = "0.16.6"
-source = "git+https://github.com/commonprefix/xrpl-sdk-rust?branch=main#2461cb322ce794eccef4f99e065e57a2d32f67f5"
+source = "git+https://github.com/commonprefix/xrpl-sdk-rust?branch=main#3fce0735db95825192f3fd9c08034b7c0b06c6d5"
 dependencies = [
  "libsecp256k1",
  "reqwest",
@@ -7020,7 +7020,7 @@ dependencies = [
 [[package]]
 name = "xrpl_types"
 version = "0.16.6"
-source = "git+https://github.com/commonprefix/xrpl-sdk-rust?branch=main#2461cb322ce794eccef4f99e065e57a2d32f67f5"
+source = "git+https://github.com/commonprefix/xrpl-sdk-rust?branch=main#3fce0735db95825192f3fd9c08034b7c0b06c6d5"
 dependencies = [
  "ascii",
  "bs58",
@@ -7033,7 +7033,7 @@ dependencies = [
 [[package]]
 name = "xrpl_ws_client"
 version = "0.16.6"
-source = "git+https://github.com/commonprefix/xrpl-sdk-rust?branch=main#2461cb322ce794eccef4f99e065e57a2d32f67f5"
+source = "git+https://github.com/commonprefix/xrpl-sdk-rust?branch=main#3fce0735db95825192f3fd9c08034b7c0b06c6d5"
 dependencies = [
  "async-stream",
  "futures",
