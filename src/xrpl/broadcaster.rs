@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use tracing::{error, warn};
+use tracing::{debug, error, warn};
 use xrpl_api::{
     ResultCategory, SubmitRequest, SubmitResponse, Transaction, TransactionResult, TxRequest,
 };
@@ -120,6 +120,17 @@ impl Broadcaster for XRPLBroadcaster {
                 },
                 Err(_) => log_and_return_error(&tx, &response, message_id, source_chain),
             }
+        } else if response.engine_result == TransactionResult::terQUEUED {
+            debug!("Transaction {} is queued (terQUEUED)", tx_hash);
+            // The transaction is queued, but will probably make it into the ledger soon
+            // TODO: What if it never makes it into the ledger?
+            return Ok(BroadcastResult {
+                transaction: tx.clone(),
+                tx_hash,
+                status: Ok(()),
+                message_id,
+                source_chain,
+            });
         } else {
             log_and_return_error(&tx, &response, message_id, source_chain)
         }
