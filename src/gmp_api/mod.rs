@@ -21,7 +21,7 @@ use gmp_types::{
     PostEventResponse, PostEventResult, QueryRequest, StorePayloadResult, Task,
 };
 
-const MAX_BROADCAST_WAIT_TIME_SECONDS: u32 = 60 * 5; // 5 minutes
+const MAX_BROADCAST_WAIT_TIME_SECONDS: u32 = 60 * 2; // 2 minutes
 const BROADCAST_POLL_INTERVAL_SECONDS: u32 = 2; // 2 seconds
 
 pub struct GmpApi {
