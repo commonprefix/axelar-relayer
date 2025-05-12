@@ -6,7 +6,7 @@ services:
         BINARY_NAME: xrpl_ingestor
     deploy:
       mode: replicated
-      replicas: 4
+      replicas: 10
     environment:
       - NETWORK=testnet
       - ENVIRONMENT=production
