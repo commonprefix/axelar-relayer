@@ -297,9 +297,10 @@ impl GmpApi {
                     }
                     _ => {
                         return Err(GmpApiError::GenericError(format!(
-                            "Broadcast with id {} failed with status: {}",
+                            "Broadcast with id {} failed with status {} and error {:?}",
                             broadcast_id,
-                            response.get("status").unwrap()
+                            response.get("status").unwrap(),
+                            response.get("error")
                         )));
                     }
                 },
@@ -308,8 +309,7 @@ impl GmpApi {
                         debug!("Broadcast with id {} failed: {:?}", broadcast_id, response);
                         return Err(GmpApiError::GenericError(format!(
                             "Broadcast with id {} failed: {:?}",
-                            broadcast_id,
-                            error
+                            broadcast_id, error
                         )));
                     }
                     None => {
