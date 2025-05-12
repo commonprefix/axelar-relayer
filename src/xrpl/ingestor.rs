@@ -857,19 +857,32 @@ impl<DB: Database> XrplIngestor<DB> {
                 };
 
                 debug!("Broadcasting request: {:?}", request);
-                let confirmation_tx_hash = self
+                let maybe_confirmation_tx_hash = self
                     .gmp_api
                     .post_broadcast(contract_address, &request)
                     .await
                     .map_err(|e| {
                         IngestorError::GenericError(format!("Failed to broadcast message: {}", e))
-                    })?;
+                    });
 
-                info!(
-                    "Confirm({}) tx hash: {}",
-                    xrpl_message.tx_id(),
-                    confirmation_tx_hash
-                );
+                match maybe_confirmation_tx_hash {
+                    Ok(confirmation_tx_hash) => {
+                        info!(
+                            "Confirm({}) tx hash: {}",
+                            xrpl_message.tx_id(),
+                            confirmation_tx_hash
+                        );
+                    }
+                    Err(e) => {
+                        if !e
+                            .to_string()
+                            .contains("transaction status is already confirmed")
+                        {
+                            return Err(e);
+                        }
+                        info!("Transaction {} is already confirmed", xrpl_message.tx_id());
+                    }
+                }
 
                 self.handle_successful_routing(xrpl_message, prover_tx, task)
                     .await?;
