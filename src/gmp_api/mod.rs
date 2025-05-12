@@ -21,7 +21,7 @@ use gmp_types::{
     PostEventResponse, PostEventResult, QueryRequest, StorePayloadResult, Task,
 };
 
-const MAX_BROADCAST_WAIT_TIME_SECONDS: u32 = 60 * 2; // 2 minutes
+const MAX_BROADCAST_WAIT_TIME_SECONDS: u32 = 30; // 30 seconds
 const BROADCAST_POLL_INTERVAL_SECONDS: u32 = 2; // 2 seconds
 
 pub struct GmpApi {
@@ -247,6 +247,17 @@ impl GmpApi {
                 .get_broadcast_result(contract_address, broadcast_id.to_string())
                 .await;
 
+            if broadcast_result.is_err()
+                && matches!(
+                    broadcast_result.clone().unwrap_err(),
+                    GmpApiError::Timeout(_)
+                )
+            {
+                // TODO: handle timeouts
+                info!("Broadcast id {} timed out.", broadcast_id);
+                return Ok("timeout".to_string());
+            }
+
             debug!(
                 "Broadcast id {} result: {:?}",
                 broadcast_id, broadcast_result
@@ -269,7 +280,7 @@ impl GmpApi {
         let mut retries = 0;
         loop {
             if retries > (MAX_BROADCAST_WAIT_TIME_SECONDS / BROADCAST_POLL_INTERVAL_SECONDS) {
-                return Err(GmpApiError::GenericError(format!(
+                return Err(GmpApiError::Timeout(format!(
                     "Broadcast with id {} timed out",
                     broadcast_id
                 )));

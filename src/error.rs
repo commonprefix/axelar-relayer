@@ -42,7 +42,7 @@ pub enum ClientError {
     ConnectionFailed(String),
 }
 
-#[derive(Error, Debug)]
+#[derive(Error, Debug, Clone)]
 pub enum GmpApiError {
     #[error("Connection failed: {0}")]
     ConnectionFailed(String),
@@ -54,6 +54,8 @@ pub enum GmpApiError {
     InvalidResponse(String),
     #[error("Invalid Request: {0}")]
     InvalidRequest(String),
+    #[error("Timeout: {0}")]
+    Timeout(String),
     #[error("Generic error: {0}")]
     GenericError(String),
 }
