@@ -21,6 +21,9 @@ use gmp_types::{
     PostEventResponse, PostEventResult, QueryRequest, StorePayloadResult, Task,
 };
 
+const MAX_BROADCAST_WAIT_TIME_SECONDS: u32 = 60 * 5; // 5 minutes
+const BROADCAST_POLL_INTERVAL_SECONDS: u32 = 2; // 2 seconds
+
 pub struct GmpApi {
     rpc_url: String,
     client: ClientWithMiddleware,
@@ -265,7 +268,7 @@ impl GmpApi {
         );
         let mut retries = 0;
         loop {
-            if retries > 30 {
+            if retries > (MAX_BROADCAST_WAIT_TIME_SECONDS / BROADCAST_POLL_INTERVAL_SECONDS) {
                 return Err(GmpApiError::GenericError(format!(
                     "Broadcast with id {} timed out",
                     broadcast_id
@@ -279,7 +282,10 @@ impl GmpApi {
             match response.get("status") {
                 Some(status) => match status.as_str() {
                     Some("RECEIVED") => {
-                        tokio::time::sleep(Duration::from_secs(2)).await;
+                        tokio::time::sleep(Duration::from_secs(
+                            BROADCAST_POLL_INTERVAL_SECONDS as u64,
+                        ))
+                        .await;
                         continue;
                     }
                     Some("SUCCESS") => {
