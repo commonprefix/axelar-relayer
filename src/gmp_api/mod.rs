@@ -240,11 +240,16 @@ impl GmpApi {
                     GmpApiError::GenericError("'broadcastID' field is not a string".to_string())
                 })?;
 
-            debug!("Getting broadcast result for {}", broadcast_id);
-
-            return self
+            let broadcast_result = self
                 .get_broadcast_result(contract_address, broadcast_id.to_string())
                 .await;
+
+            debug!(
+                "Broadcast id {} result: {:?}",
+                broadcast_id, broadcast_result
+            );
+
+            return broadcast_result;
         }
         response
     }
@@ -292,25 +297,21 @@ impl GmpApi {
                                 )
                             })?;
 
-                        debug!("Broadcast with id {} succeeded: {}", broadcast_id, tx_hash);
                         return Ok(tx_hash.to_string());
                     }
                     _ => {
-                        return Err(GmpApiError::GenericError(format!(
-                            "Broadcast with id {} failed with status {} and error {:?}",
-                            broadcast_id,
-                            response.get("status").unwrap(),
-                            response.get("error")
-                        )));
+                        if let Some(error) = response.get("error") {
+                            return Err(GmpApiError::GenericError(error.to_string()));
+                        } else {
+                            return Err(GmpApiError::GenericError(
+                                response.get("status").unwrap().to_string(),
+                            ));
+                        }
                     }
                 },
                 None => match response.get("error") {
                     Some(error) => {
-                        debug!("Broadcast with id {} failed: {:?}", broadcast_id, response);
-                        return Err(GmpApiError::GenericError(format!(
-                            "Broadcast with id {} failed: {:?}",
-                            broadcast_id, error
-                        )));
+                        return Err(GmpApiError::GenericError(error.to_string()));
                     }
                     None => {
                         let string_response = serde_json::to_string(&response).map_err(|e| {
@@ -321,8 +322,8 @@ impl GmpApi {
                         })?;
 
                         return Err(GmpApiError::GenericError(format!(
-                            "Broadcast with id {} failed: {}",
-                            broadcast_id, string_response
+                            "Broadcast failed: {}",
+                            string_response
                         )));
                     }
                 },

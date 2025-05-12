@@ -1021,7 +1021,7 @@ impl<DB: Database> XrplIngestor<DB> {
             .store(
                 cc_id.clone(),
                 PayloadCacheValue {
-                    message: task.task.message,
+                    message: task.task.message.clone(),
                     payload: task.task.payload,
                 },
             )
@@ -1033,7 +1033,7 @@ impl<DB: Database> XrplIngestor<DB> {
                 IngestorError::GenericError(format!("Failed to serialize ConstructProof: {}", e))
             })?);
 
-        let construct_proof_tx_hash = self
+        let maybe_construct_proof_tx_hash = self
             .gmp_api
             .post_broadcast(
                 self.config.axelar_contracts.xrpl_multisig_prover.clone(),
@@ -1042,12 +1042,24 @@ impl<DB: Database> XrplIngestor<DB> {
             .await
             .map_err(|e| {
                 IngestorError::GenericError(format!("Failed to broadcast message: {}", e))
-            })?;
+            });
 
-        info!(
-            "ConstructProof({}) transaction hash: {}",
-            cc_id, construct_proof_tx_hash
-        );
+        match maybe_construct_proof_tx_hash {
+            Ok(tx_hash) => {
+                info!("ConstructProof({}) transaction hash: {}", cc_id, tx_hash);
+            }
+            Err(e) => {
+                self.gmp_api
+                    .cannot_execute_message(
+                        task.common.id,
+                        task.task.message.message_id.clone(),
+                        task.task.message.source_chain.clone(),
+                        e.to_string(),
+                    )
+                    .await
+                    .map_err(|e| IngestorError::GenericError(e.to_string()))?;
+            }
+        }
 
         Ok(())
     }
