@@ -709,7 +709,7 @@ impl<DB: Database> XrplIngestor<DB> {
 
         self.db_models
             .xrpl_transaction
-            .update_verify_tx(&xrpl_tx_hash, &verify_tx_hash)
+            .update_verify_tx(&xrpl_tx_hash, &verify_tx_hash.to_lowercase())
             .await
             .map_err(|e| IngestorError::GenericError(e.to_string()))?;
 
@@ -899,6 +899,12 @@ impl<DB: Database> XrplIngestor<DB> {
                     .await
                     .map_err(|e| IngestorError::GenericError(e.to_string()))?;
 
+                self.db_models
+                    .xrpl_transaction
+                    .update_status(&xrpl_tx_hash, XrplTransactionStatus::Verified)
+                    .await
+                    .map_err(|e| IngestorError::GenericError(e.to_string()))?;
+
                 let mut prover_tx = None;
 
                 let (contract_address, request) = match &xrpl_message {
@@ -939,7 +945,13 @@ impl<DB: Database> XrplIngestor<DB> {
                     Ok(confirmation_tx_hash) => {
                         self.db_models
                             .xrpl_transaction
-                            .update_route_tx(&xrpl_tx_hash, &confirmation_tx_hash)
+                            .update_route_tx(&xrpl_tx_hash, &confirmation_tx_hash.to_lowercase())
+                            .await
+                            .map_err(|e| IngestorError::GenericError(e.to_string()))?;
+
+                        self.db_models
+                            .xrpl_transaction
+                            .update_status(&xrpl_tx_hash, XrplTransactionStatus::Routed)
                             .await
                             .map_err(|e| IngestorError::GenericError(e.to_string()))?;
 
