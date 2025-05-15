@@ -1,6 +1,6 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
-use sqlx::{postgres::PgRow, PgPool, Row, Type};
+use sqlx::{PgPool, Type};
 use xrpl_api::Transaction;
 
 use super::Model;
@@ -51,7 +51,7 @@ pub enum XrplTransactionSource {
     User,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, sqlx::FromRow)]
 pub struct XrplTransaction {
     pub tx_hash: String,
     pub tx_type: XrplTransactionType,
@@ -91,23 +91,6 @@ impl XrplTransaction {
                 XrplTransactionSource::User
             },
             sequence: Some(tx.common().ticket_sequence.unwrap_or(tx.common().sequence) as i64),
-        })
-    }
-}
-
-impl sqlx::FromRow<'_, PgRow> for XrplTransaction {
-    fn from_row(row: &PgRow) -> Result<Self, sqlx::Error> {
-        Ok(XrplTransaction {
-            tx_hash: row.get("tx_hash"),
-            tx_type: row.get("tx_type"),
-            message_id: row.get("message_id"),
-            status: row.get("status"),
-            verify_task: row.get("verify_task"),
-            verify_tx: row.get("verify_tx"),
-            quorum_reached_task: row.get("quorum_reached_task"),
-            route_tx: row.get("route_tx"),
-            source: row.get("source"),
-            sequence: row.get("sequence"),
         })
     }
 }
