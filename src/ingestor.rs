@@ -9,7 +9,7 @@ use crate::{
     database::Database,
     error::IngestorError,
     gmp_api::{gmp_types::Task, GmpApi},
-    models::{Model, Models},
+    models::Models,
     payload_cache::PayloadCache,
     price_view::PriceView,
     queue::{Queue, QueueItem},

@@ -6,8 +6,6 @@ use std::str::FromStr;
 
 use router_api::CrossChainId;
 
-use crate::models::PgXrplTransactionModel;
-
 // TODO: split to models
 #[cfg_attr(test, mockall::automock)]
 pub trait Database {

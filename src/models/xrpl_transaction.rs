@@ -1,4 +1,5 @@
 use anyhow::Result;
+use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use sqlx::{PgPool, Type};
 use xrpl_api::Transaction;
@@ -63,6 +64,7 @@ pub struct XrplTransaction {
     pub route_tx: Option<String>,
     pub source: XrplTransactionSource,
     pub sequence: Option<i64>,
+    pub created_at: chrono::DateTime<chrono::Utc>,
 }
 
 impl XrplTransaction {
@@ -76,6 +78,20 @@ impl XrplTransaction {
             .clone()
             .ok_or(anyhow::anyhow!("No hash found"))?
             .to_lowercase();
+
+        let ledger_timestamp =
+            Decimal::from(tx.common().date.ok_or(anyhow::anyhow!("No date found"))?);
+        let ripple_epoch = Decimal::from(946684800);
+        let created_at = chrono::DateTime::from_timestamp(
+            (ledger_timestamp + ripple_epoch)
+                .to_string()
+                .parse::<i64>()?,
+            0,
+        )
+        .ok_or(anyhow::anyhow!(
+            "Failed to convert ledger timestamp to chrono datetime"
+        ))?;
+
         Ok(XrplTransaction {
             tx_hash: tx_hash.clone(),
             tx_type: XrplTransactionType::try_from(tx.clone()).unwrap_or_default(),
@@ -91,6 +107,7 @@ impl XrplTransaction {
                 XrplTransactionSource::User
             },
             sequence: Some(tx.common().ticket_sequence.unwrap_or(tx.common().sequence) as i64),
+            created_at,
         })
     }
 }
@@ -116,7 +133,7 @@ impl Model for PgXrplTransactionModel {
 
     async fn upsert(&self, tx: XrplTransaction) -> Result<()> {
         let query = format!(
-            "INSERT INTO {} (tx_hash, tx_type, message_id, status, verify_task, verify_tx, quorum_reached_task, route_tx, source, sequence) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) ON CONFLICT (tx_hash) DO UPDATE SET tx_type = $2, message_id = $3, status = $4, verify_task = $5, verify_tx = $6, quorum_reached_task = $7, route_tx = $8, source = $9, sequence = $10",
+            "INSERT INTO {} (tx_hash, tx_type, message_id, status, verify_task, verify_tx, quorum_reached_task, route_tx, source, sequence, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) ON CONFLICT (tx_hash) DO UPDATE SET tx_type = $2, message_id = $3, status = $4, verify_task = $5, verify_tx = $6, quorum_reached_task = $7, route_tx = $8, source = $9, sequence = $10, created_at = $11 RETURNING *",
             PG_TABLE_NAME
         );
 
@@ -131,6 +148,7 @@ impl Model for PgXrplTransactionModel {
             .bind(tx.route_tx)
             .bind(tx.source)
             .bind(tx.sequence)
+            .bind(tx.created_at)
             .execute(&self.pool)
             .await?;
 

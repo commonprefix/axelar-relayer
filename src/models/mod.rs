@@ -10,9 +10,12 @@ pub trait Model {
     type Entity;
     type PrimaryKey;
 
-    async fn upsert(&self, entity: Self::Entity) -> Result<()>;
-    async fn find(&self, id: Self::PrimaryKey) -> Result<Option<Self::Entity>>;
-    async fn delete(&self, entity: Self::Entity) -> Result<()>;
+    fn upsert(&self, entity: Self::Entity) -> impl std::future::Future<Output = Result<()>> + Send;
+    fn find(
+        &self,
+        id: Self::PrimaryKey,
+    ) -> impl std::future::Future<Output = Result<Option<Self::Entity>>> + Send;
+    fn delete(&self, entity: Self::Entity) -> impl std::future::Future<Output = Result<()>> + Send;
 }
 
 pub struct Models {

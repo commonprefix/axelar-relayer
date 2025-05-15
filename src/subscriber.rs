@@ -7,7 +7,6 @@ use xrpl_types::AccountId;
 
 use crate::{
     database::Database,
-    models::{XrplTransaction, XrplTransactionStatus, XrplTransactionType},
     queue::{Queue, QueueItem},
     xrpl::XrplSubscriber,
 };
