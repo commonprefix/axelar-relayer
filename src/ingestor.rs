@@ -9,6 +9,7 @@ use crate::{
     database::Database,
     error::IngestorError,
     gmp_api::{gmp_types::Task, GmpApi},
+    models::{Model, Models},
     payload_cache::PayloadCache,
     price_view::PriceView,
     queue::{Queue, QueueItem},
@@ -27,9 +28,15 @@ impl<DB: Database> Ingestor<DB> {
         config: Config,
         price_view: PriceView<DB>,
         payload_cache: PayloadCache<DB>,
+        db_models: Models,
     ) -> Self {
-        let xrpl_ingestor =
-            XrplIngestor::new(gmp_api.clone(), config.clone(), price_view, payload_cache);
+        let xrpl_ingestor = XrplIngestor::new(
+            gmp_api.clone(),
+            config.clone(),
+            price_view,
+            payload_cache,
+            db_models,
+        );
         Self {
             gmp_api,
             xrpl_ingestor,

@@ -10,6 +10,7 @@ use crate::config::Config;
 use crate::database::Database;
 use crate::error::ITSTranslationError;
 use crate::gmp_api::gmp_types::MessageExecutedEventMetadata;
+use crate::models::{Model, Models, XrplTransaction, XrplTransactionStatus};
 use crate::payload_cache::{PayloadCache, PayloadCacheValue};
 use crate::price_view::PriceView;
 use crate::utils::convert_token_amount_to_drops;
@@ -47,6 +48,7 @@ pub struct XrplIngestor<DB: Database> {
     config: Config,
     price_view: PriceView<DB>,
     payload_cache: PayloadCache<DB>,
+    db_models: Models,
 }
 
 impl<DB: Database> XrplIngestor<DB> {
@@ -55,6 +57,7 @@ impl<DB: Database> XrplIngestor<DB> {
         config: Config,
         price_view: PriceView<DB>,
         payload_cache: PayloadCache<DB>,
+        db_models: Models,
     ) -> Self {
         let client = xrpl_http_client::Client::builder()
             .base_url(&config.xrpl_rpc)
@@ -65,10 +68,29 @@ impl<DB: Database> XrplIngestor<DB> {
             client,
             price_view,
             payload_cache,
+            db_models,
         }
     }
 
     pub async fn handle_transaction(&self, tx: Transaction) -> Result<Vec<Event>, IngestorError> {
+        let xrpl_transaction =
+            XrplTransaction::from_native_transaction(&tx, &self.config.xrpl_multisig)
+                .map_err(|e| IngestorError::GenericError(e.to_string()))?;
+
+        match tx.clone() {
+            Transaction::Payment(_)
+            | Transaction::TicketCreate(_)
+            | Transaction::SignerListSet(_)
+            | Transaction::TrustSet(_) => {
+                self.db_models
+                    .xrpl_transaction
+                    .upsert(xrpl_transaction.clone())
+                    .await
+                    .map_err(|e| IngestorError::GenericError(e.to_string()))?;
+            }
+            _ => {}
+        }
+
         match tx.clone() {
             Transaction::Payment(payment) => {
                 if payment.destination == self.config.xrpl_multisig {
@@ -451,6 +473,21 @@ impl<DB: Database> XrplIngestor<DB> {
             }
         };
 
+        let xrpl_tx_hash = message_with_payload
+            .message
+            .cc_id
+            .message_id
+            .strip_prefix("0x")
+            .ok_or(IngestorError::GenericError(
+                "Message id is not prefixed with 0x".to_string(),
+            ))?;
+
+        self.db_models
+            .xrpl_transaction
+            .update_status(xrpl_tx_hash, XrplTransactionStatus::Initialized)
+            .await
+            .map_err(|e| IngestorError::GenericError(e.to_string()))?;
+
         let b64_payload = BASE64_STANDARD.encode(
             hex::decode(message_with_payload.payload.to_string()).map_err(|e| {
                 IngestorError::GenericError(format!("Failed to decode payload: {}", e))
@@ -644,6 +681,18 @@ impl<DB: Database> XrplIngestor<DB> {
     pub async fn handle_verify(&self, task: VerifyTask) -> Result<(), IngestorError> {
         let xrpl_message = parse_message_from_context(&task.common.meta)?;
 
+        let xrpl_tx_hash = xrpl_message.tx_id().tx_hash_as_hex_no_prefix();
+        self.db_models
+            .xrpl_transaction
+            .update_verify_task(
+                &xrpl_tx_hash,
+                &serde_json::to_string(&task).map_err(|e| {
+                    IngestorError::GenericError(format!("Failed to serialize VerifyTask: {}", e))
+                })?,
+            )
+            .await
+            .map_err(|e| IngestorError::GenericError(e.to_string()))?;
+
         let execute_msg = xrpl_gateway::msg::ExecuteMsg::VerifyMessages(vec![xrpl_message.clone()]);
         let request =
             BroadcastRequest::Generic(serde_json::to_value(&execute_msg).map_err(|e| {
@@ -657,6 +706,12 @@ impl<DB: Database> XrplIngestor<DB> {
             .map_err(|e| {
                 IngestorError::GenericError(format!("Failed to broadcast message: {}", e))
             })?;
+
+        self.db_models
+            .xrpl_transaction
+            .update_verify_tx(&xrpl_tx_hash, &verify_tx_hash)
+            .await
+            .map_err(|e| IngestorError::GenericError(e.to_string()))?;
 
         info!(
             "Verify({}) tx hash: {}",
@@ -829,6 +884,21 @@ impl<DB: Database> XrplIngestor<DB> {
                     })?,
                 };
 
+                let xrpl_tx_hash = xrpl_message.tx_id().tx_hash_as_hex_no_prefix();
+                self.db_models
+                    .xrpl_transaction
+                    .update_quorum_reached_task(
+                        &xrpl_tx_hash,
+                        &serde_json::to_string(&task).map_err(|e| {
+                            IngestorError::GenericError(format!(
+                                "Failed to serialize QuorumReachedTask: {}",
+                                e
+                            ))
+                        })?,
+                    )
+                    .await
+                    .map_err(|e| IngestorError::GenericError(e.to_string()))?;
+
                 let mut prover_tx = None;
 
                 let (contract_address, request) = match &xrpl_message {
@@ -867,6 +937,12 @@ impl<DB: Database> XrplIngestor<DB> {
 
                 match maybe_confirmation_tx_hash {
                     Ok(confirmation_tx_hash) => {
+                        self.db_models
+                            .xrpl_transaction
+                            .update_route_tx(&xrpl_tx_hash, &confirmation_tx_hash)
+                            .await
+                            .map_err(|e| IngestorError::GenericError(e.to_string()))?;
+
                         info!(
                             "Confirm({}) tx hash: {}",
                             xrpl_message.tx_id(),
