@@ -87,3 +87,11 @@ path = "src/bin/xrpl_relayer/xrpl_funder.rs"
 [[bin]]
 name = "xrpl_ticket_creator"
 path = "src/bin/xrpl_relayer/xrpl_ticket_creator.rs"
+
+[[bin]]
+name = "xrpl_subscriber_recovery"
+path = "src/bin/xrpl_relayer/recovery/xrpl_subscriber_recovery.rs"
+
+[[bin]]
+name = "xrpl_task_recovery"
+path = "src/bin/xrpl_relayer/recovery/xrpl_task_recovery.rs"
