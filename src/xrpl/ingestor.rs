@@ -223,6 +223,16 @@ impl<DB: Database> XrplIngestor<DB> {
                 IngestorError::GenericError(format!("Failed to broadcast message: {}", e))
             })?;
 
+        let xrpl_tx_hash = xrpl_message_with_payload
+            .message
+            .tx_id()
+            .tx_hash_as_hex_no_prefix();
+        self.db_models
+            .xrpl_transaction
+            .update_verify_tx(&xrpl_tx_hash, &verify_tx_hash)
+            .await
+            .map_err(|e| IngestorError::GenericError(e.to_string()))?;
+
         info!(
             "VerifyAddGas({}) tx hash: {}",
             xrpl_message_with_payload.message.tx_id(),
@@ -253,6 +263,16 @@ impl<DB: Database> XrplIngestor<DB> {
             .map_err(|e| {
                 IngestorError::GenericError(format!("Failed to broadcast message: {}", e))
             })?;
+
+        let xrpl_tx_hash = xrpl_message_with_payload
+            .message
+            .tx_id()
+            .tx_hash_as_hex_no_prefix();
+        self.db_models
+            .xrpl_transaction
+            .update_verify_tx(&xrpl_tx_hash, &verify_tx_hash)
+            .await
+            .map_err(|e| IngestorError::GenericError(e.to_string()))?;
 
         info!(
             "VerifyAddReserves({}) tx hash: {}",
@@ -312,6 +332,18 @@ impl<DB: Database> XrplIngestor<DB> {
             .map_err(|e| {
                 IngestorError::GenericError(format!("Failed to broadcast message: {}", e))
             })?;
+
+        let xrpl_tx_hash = tx
+            .common()
+            .hash
+            .clone()
+            .ok_or_else(|| IngestorError::GenericError("Transaction missing hash".into()))?
+            .to_lowercase();
+        self.db_models
+            .xrpl_transaction
+            .update_verify_tx(&xrpl_tx_hash, &verify_tx_hash)
+            .await
+            .map_err(|e| IngestorError::GenericError(e.to_string()))?;
 
         info!(
             "VerifyProverMessage({:?}) tx hash: {}",
