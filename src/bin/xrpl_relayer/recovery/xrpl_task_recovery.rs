@@ -29,9 +29,12 @@ async fn main() -> anyhow::Result<()> {
         "task_recovery".to_string(),
         gmp_api,
         RecoverySettings {
-            from_task_id: Some("".to_string()),
-            to_task_id: "".to_string(),
-            tasks_filter: Some(vec![]),
+            from_task_id: Some("01968759-7d7f-7ccc-a5d0-d03539d725bb".to_string()),
+            to_task_id: "01968759-b2eb-72d3-93da-4d7384617be0".to_string(),
+            tasks_filter: Some(vec![TaskKind::GatewayTx]),
+            // from_task_id: Some("01968759-4ebe-746a-a992-c63f6f7c2f1d".to_string()),
+            // to_task_id: "01968759-51c7-7367-a8d0-7f12f2e0efdb".to_string(),
+            // tasks_filter: Some(vec![TaskKind::ConstructProof]),
         },
     )
     .await;

@@ -51,3 +51,39 @@ reqwest-middleware = "0.4.2"
 [dev-dependencies]
 mockall = "0.13.1"
 mockito = "1.6.1"
+
+[[bin]]
+name = "proof_retrier"
+path = "src/bin/proof_retrier.rs"
+
+[[bin]]
+name = "price_feed"
+path = "src/bin/price_feed.rs"
+
+[[bin]]
+name = "dlq_recovery"
+path = "src/bin/dlq_recovery.rs"
+
+[[bin]]
+name = "xrpl_ingestor"
+path = "src/bin/xrpl_relayer/xrpl_ingestor.rs"
+
+[[bin]]
+name = "xrpl_distributor"
+path = "src/bin/xrpl_relayer/xrpl_distributor.rs"
+
+[[bin]]
+name = "xrpl_subscriber"
+path = "src/bin/xrpl_relayer/xrpl_subscriber.rs"
+
+[[bin]]
+name = "xrpl_includer"
+path = "src/bin/xrpl_relayer/xrpl_includer.rs"
+
+[[bin]]
+name = "xrpl_funder"
+path = "src/bin/xrpl_relayer/xrpl_funder.rs"
+
+[[bin]]
+name = "xrpl_ticket_creator"
+path = "src/bin/xrpl_relayer/xrpl_ticket_creator.rs"
