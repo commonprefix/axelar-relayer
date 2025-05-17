@@ -262,4 +262,16 @@ impl PgXrplTransactionModel {
 
         Ok(())
     }
+
+    pub async fn find_expired_events(&self) -> Result<Vec<XrplTransaction>> {
+        let query = format!(
+            "SELECT * FROM {} WHERE quorum_reached_task IS NULL AND verify_tx IS NOT NULL AND created_at < NOW() - INTERVAL '5 minutes'",
+            PG_TABLE_NAME
+        );
+        let txs = sqlx::query_as::<_, XrplTransaction>(&query)
+            .fetch_all(&self.pool)
+            .await?;
+
+        Ok(txs)
+    }
 }
