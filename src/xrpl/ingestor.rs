@@ -193,6 +193,36 @@ impl<DB: Database> XrplIngestor<DB> {
         Ok(events)
     }
 
+    pub async fn verify_message(&self, message: &XRPLMessage) -> Result<(), IngestorError> {
+        let execute_msg = xrpl_gateway::msg::ExecuteMsg::VerifyMessages(vec![message.clone()]);
+
+        let request =
+            BroadcastRequest::Generic(serde_json::to_value(&execute_msg).map_err(|e| {
+                IngestorError::GenericError(format!("Failed to serialize VerifyMessages: {}", e))
+            })?);
+
+        let verify_tx_hash = self
+            .gmp_api
+            .post_broadcast(self.config.axelar_contracts.xrpl_gateway.clone(), &request)
+            .await
+            .map_err(|e| IngestorError::GenericError(e.to_string()))?;
+
+        let xrpl_tx_hash = message.tx_id().tx_hash_as_hex_no_prefix();
+        self.db_models
+            .xrpl_transaction
+            .update_verify_tx(&xrpl_tx_hash, &verify_tx_hash)
+            .await
+            .map_err(|e| IngestorError::GenericError(e.to_string()))?;
+
+        info!(
+            "VerifyMessage({}) tx hash: {}",
+            message.tx_id(),
+            verify_tx_hash
+        );
+
+        Ok(())
+    }
+
     pub async fn handle_add_gas_message(
         &self,
         xrpl_message_with_payload: &WithPayload<XRPLMessage>,
@@ -205,39 +235,8 @@ impl<DB: Database> XrplIngestor<DB> {
             .gas_credit_event_from_payment(xrpl_message_with_payload, token_id)
             .await?;
 
-        let execute_msg =
-            xrpl_gateway::msg::ExecuteMsg::VerifyMessages(vec![xrpl_message_with_payload
-                .message
-                .clone()]);
-
-        let request =
-            BroadcastRequest::Generic(serde_json::to_value(&execute_msg).map_err(|e| {
-                IngestorError::GenericError(format!("Failed to serialize VerifyMessages: {}", e))
-            })?);
-
-        let verify_tx_hash = self
-            .gmp_api
-            .post_broadcast(self.config.axelar_contracts.xrpl_gateway.clone(), &request)
-            .await
-            .map_err(|e| {
-                IngestorError::GenericError(format!("Failed to broadcast message: {}", e))
-            })?;
-
-        let xrpl_tx_hash = xrpl_message_with_payload
-            .message
-            .tx_id()
-            .tx_hash_as_hex_no_prefix();
-        self.db_models
-            .xrpl_transaction
-            .update_verify_tx(&xrpl_tx_hash, &verify_tx_hash)
-            .await
-            .map_err(|e| IngestorError::GenericError(e.to_string()))?;
-
-        info!(
-            "VerifyAddGas({}) tx hash: {}",
-            xrpl_message_with_payload.message.tx_id(),
-            verify_tx_hash
-        );
+        self.verify_message(&xrpl_message_with_payload.message)
+            .await?;
 
         Ok(vec![gas_credit_event])
     }
@@ -246,39 +245,8 @@ impl<DB: Database> XrplIngestor<DB> {
         &self,
         xrpl_message_with_payload: &WithPayload<XRPLMessage>,
     ) -> Result<Vec<Event>, IngestorError> {
-        let execute_msg =
-            xrpl_gateway::msg::ExecuteMsg::VerifyMessages(vec![xrpl_message_with_payload
-                .message
-                .clone()]);
-
-        let request =
-            BroadcastRequest::Generic(serde_json::to_value(&execute_msg).map_err(|e| {
-                IngestorError::GenericError(format!("Failed to serialize VerifyMessages: {}", e))
-            })?);
-
-        let verify_tx_hash = self
-            .gmp_api
-            .post_broadcast(self.config.axelar_contracts.xrpl_gateway.clone(), &request)
-            .await
-            .map_err(|e| {
-                IngestorError::GenericError(format!("Failed to broadcast message: {}", e))
-            })?;
-
-        let xrpl_tx_hash = xrpl_message_with_payload
-            .message
-            .tx_id()
-            .tx_hash_as_hex_no_prefix();
-        self.db_models
-            .xrpl_transaction
-            .update_verify_tx(&xrpl_tx_hash, &verify_tx_hash)
-            .await
-            .map_err(|e| IngestorError::GenericError(e.to_string()))?;
-
-        info!(
-            "VerifyAddReserves({}) tx hash: {}",
-            xrpl_message_with_payload.message.tx_id(),
-            verify_tx_hash
-        );
+        self.verify_message(&xrpl_message_with_payload.message)
+            .await?;
 
         Ok(vec![])
     }
@@ -290,66 +258,31 @@ impl<DB: Database> XrplIngestor<DB> {
             IngestorError::GenericError(format!("Failed to decode unsigned tx hash: {}", e))
         })?;
 
-        let execute_msg =
-            xrpl_gateway::msg::ExecuteMsg::VerifyMessages(vec![XRPLMessage::ProverMessage(
-                XRPLProverMessage {
-                    tx_id: HexTxHash::new(
-                        std::convert::TryInto::<[u8; 32]>::try_into(
-                            hex::decode(tx.common().hash.clone().ok_or_else(|| {
-                                IngestorError::GenericError("Transaction missing hash".into())
-                            })?)
-                            .map_err(|_| {
-                                IngestorError::GenericError("Cannot decode tx hash".into())
-                            })?,
+        self.verify_message(&XRPLMessage::ProverMessage(XRPLProverMessage {
+            tx_id: HexTxHash::new(
+                std::convert::TryInto::<[u8; 32]>::try_into(
+                    hex::decode(tx.common().hash.clone().ok_or_else(|| {
+                        IngestorError::GenericError("Transaction missing hash".into())
+                    })?)
+                    .map_err(|_| IngestorError::GenericError("Cannot decode tx hash".into()))?,
+                )
+                .map_err(|_| {
+                    IngestorError::GenericError(
+                        "Cannot convert tx hash to bytes: invalid length".into(),
+                    )
+                })?,
+            ),
+            unsigned_tx_hash: HexTxHash::new(
+                std::convert::TryInto::<[u8; 32]>::try_into(unsigned_tx_hash_bytes).map_err(
+                    |_| {
+                        IngestorError::GenericError(
+                            "Cannot convert unsigned tx hash to bytes: invalid length".into(),
                         )
-                        .map_err(|_| {
-                            IngestorError::GenericError(
-                                "Cannot convert tx hash to bytes: invalid length".into(),
-                            )
-                        })?,
-                    ),
-                    unsigned_tx_hash: HexTxHash::new(
-                        std::convert::TryInto::<[u8; 32]>::try_into(unsigned_tx_hash_bytes)
-                            .map_err(|_| {
-                                IngestorError::GenericError(
-                                    "Cannot convert unsigned tx hash to bytes: invalid length"
-                                        .into(),
-                                )
-                            })?,
-                    ),
-                },
-            )]);
-
-        let request =
-            BroadcastRequest::Generic(serde_json::to_value(&execute_msg).map_err(|e| {
-                IngestorError::GenericError(format!("Failed to serialize VerifyMessages: {}", e))
-            })?);
-
-        let verify_tx_hash = self
-            .gmp_api
-            .post_broadcast(self.config.axelar_contracts.xrpl_gateway.clone(), &request)
-            .await
-            .map_err(|e| {
-                IngestorError::GenericError(format!("Failed to broadcast message: {}", e))
-            })?;
-
-        let xrpl_tx_hash = tx
-            .common()
-            .hash
-            .clone()
-            .ok_or_else(|| IngestorError::GenericError("Transaction missing hash".into()))?
-            .to_lowercase();
-        self.db_models
-            .xrpl_transaction
-            .update_verify_tx(&xrpl_tx_hash, &verify_tx_hash)
-            .await
-            .map_err(|e| IngestorError::GenericError(e.to_string()))?;
-
-        info!(
-            "VerifyProverMessage({:?}) tx hash: {}",
-            tx.common().hash,
-            verify_tx_hash
-        );
+                    },
+                )?,
+            ),
+        }))
+        .await?;
 
         Ok(vec![])
     }
@@ -725,31 +658,7 @@ impl<DB: Database> XrplIngestor<DB> {
             .await
             .map_err(|e| IngestorError::GenericError(e.to_string()))?;
 
-        let execute_msg = xrpl_gateway::msg::ExecuteMsg::VerifyMessages(vec![xrpl_message.clone()]);
-        let request =
-            BroadcastRequest::Generic(serde_json::to_value(&execute_msg).map_err(|e| {
-                IngestorError::GenericError(format!("Failed to serialize VerifyMessages: {}", e))
-            })?);
-
-        let verify_tx_hash = self
-            .gmp_api
-            .post_broadcast(self.config.axelar_contracts.xrpl_gateway.clone(), &request)
-            .await
-            .map_err(|e| {
-                IngestorError::GenericError(format!("Failed to broadcast message: {}", e))
-            })?;
-
-        self.db_models
-            .xrpl_transaction
-            .update_verify_tx(&xrpl_tx_hash, &verify_tx_hash.to_lowercase())
-            .await
-            .map_err(|e| IngestorError::GenericError(e.to_string()))?;
-
-        info!(
-            "Verify({}) tx hash: {}",
-            xrpl_message.tx_id(),
-            verify_tx_hash
-        );
+        self.verify_message(&xrpl_message).await?;
 
         Ok(())
     }
