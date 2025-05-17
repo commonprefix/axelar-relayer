@@ -57,6 +57,10 @@ name = "proof_retrier"
 path = "src/bin/proof_retrier.rs"
 
 [[bin]]
+name = "voting_retrier"
+path = "src/bin/voting_retrier.rs"
+
+[[bin]]
 name = "price_feed"
 path = "src/bin/price_feed.rs"
 

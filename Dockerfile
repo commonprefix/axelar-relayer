@@ -7,12 +7,6 @@ WORKDIR /app
 # Copy Cargo manifest files first to cache dependencies
 COPY Cargo.toml Cargo.lock ./
 
-# Create a dummy source file to compile dependencies
-RUN mkdir src && echo "fn main() {}" > src/main.rs
-
-# Build dependencies
-RUN cargo build --release
-
 # Now copy the entire project source code into the container
 COPY src/ ./src/
 
