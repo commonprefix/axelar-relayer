@@ -1,0 +1,2 @@
+ALTER TABLE xrpl_transactions
+    ADD COLUMN tx TEXT DEFAULT NULL;
