@@ -2,7 +2,10 @@ use anyhow::Result;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use sqlx::{PgPool, Type};
+use xrpl_amplifier_types::msg::XRPLMessageType;
 use xrpl_api::Transaction;
+
+use crate::utils::extract_and_decode_memo;
 
 use super::Model;
 
@@ -55,8 +58,10 @@ pub enum XrplTransactionSource {
 #[derive(Debug, Serialize, Deserialize, Clone, sqlx::FromRow)]
 pub struct XrplTransaction {
     pub tx_hash: String,
+    pub tx: String,
     pub tx_type: XrplTransactionType,
     pub message_id: Option<String>,
+    pub message_type: String,
     pub status: XrplTransactionStatus,
     pub verify_task: Option<String>,
     pub verify_tx: Option<String>,
@@ -72,15 +77,15 @@ impl XrplTransaction {
         tx: &Transaction,
         multisig_address: &str,
     ) -> Result<XrplTransaction, anyhow::Error> {
-        let tx_hash = tx
-            .common()
+        let common = tx.common();
+        let tx_hash = common
             .hash
             .clone()
             .ok_or(anyhow::anyhow!("No hash found"))?
             .to_lowercase();
 
-        let ledger_timestamp =
-            Decimal::from(tx.common().date.ok_or(anyhow::anyhow!("No date found"))?);
+        // Calculate created_at from ledger timestamp + ripple epoch
+        let ledger_timestamp = Decimal::from(common.date.ok_or(anyhow::anyhow!("No date found"))?);
         let ripple_epoch = Decimal::from(946684800);
         let created_at = chrono::DateTime::from_timestamp(
             (ledger_timestamp + ripple_epoch)
@@ -92,10 +97,24 @@ impl XrplTransaction {
             "Failed to convert ledger timestamp to chrono datetime"
         ))?;
 
+        // Get message type from memos
+        let memos = common.memos.clone();
+        let message_type_str =
+            extract_and_decode_memo(&memos, "type").map_err(|e| anyhow::anyhow!(e.to_string()))?;
+        let message_type: XRPLMessageType =
+            serde_json::from_str(&format!("\"{}\"", message_type_str)).map_err(|e| {
+                anyhow::anyhow!(format!(
+                    "Failed to parse message type {}: {}",
+                    message_type_str, e
+                ))
+            })?;
+
         Ok(XrplTransaction {
             tx_hash: tx_hash.clone(),
+            tx: serde_json::to_string(&tx).unwrap_or_default(),
             tx_type: XrplTransactionType::try_from(tx.clone()).unwrap_or_default(),
             message_id: Some(tx_hash),
+            message_type: message_type.to_string(),
             status: XrplTransactionStatus::Detected,
             verify_task: None,
             verify_tx: None,
@@ -133,14 +152,16 @@ impl Model for PgXrplTransactionModel {
 
     async fn upsert(&self, tx: XrplTransaction) -> Result<()> {
         let query = format!(
-            "INSERT INTO {} (tx_hash, tx_type, message_id, status, verify_task, verify_tx, quorum_reached_task, route_tx, source, sequence, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) ON CONFLICT (tx_hash) DO UPDATE SET tx_type = $2, message_id = $3, status = $4, verify_task = $5, verify_tx = $6, quorum_reached_task = $7, route_tx = $8, source = $9, sequence = $10, created_at = $11 RETURNING *",
+            "INSERT INTO {} (tx_hash, tx, tx_type, message_id, message_type, status, verify_task, verify_tx, quorum_reached_task, route_tx, source, sequence, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) ON CONFLICT (tx_hash) DO UPDATE SET tx = $2, tx_type = $3, message_id = $4, message_type = $5, status = $6, verify_task = $7, verify_tx = $8, quorum_reached_task = $9, route_tx = $10, source = $11, sequence = $12, created_at = $13 RETURNING *",
             PG_TABLE_NAME
         );
 
         sqlx::query(&query)
             .bind(tx.tx_hash)
+            .bind(tx.tx)
             .bind(tx.tx_type)
             .bind(tx.message_id)
+            .bind(tx.message_type)
             .bind(tx.status)
             .bind(tx.verify_task)
             .bind(tx.verify_tx)
