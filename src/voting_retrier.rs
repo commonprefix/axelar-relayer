@@ -62,8 +62,7 @@ impl VotingRetrier {
                 match entry.message_type.as_str() {
                     "proof" | "add_gas" | "add_reserves" => {
                         let event = QueueItem::Transaction(ChainTransaction::Xrpl(tx));
-                        // DRY RUN
-                        // self.events_queue.publish(event.clone()).await;
+                        self.events_queue.publish(event.clone()).await;
                         debug!("Published event: {:?}", event);
                     }
                     "interchain_transfer" | "call_contract" => {
@@ -82,8 +81,7 @@ impl VotingRetrier {
                             warn!("Failed to parse verify task: {}", verify_task_str);
                             continue;
                         };
-                        // DRY RUN
-                        // self.tasks_queue.publish(task.clone()).await;
+                        self.tasks_queue.publish(task.clone()).await;
                         debug!("Published task: {:?}", task);
                     }
                     _ => {
