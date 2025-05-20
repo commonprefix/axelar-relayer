@@ -808,16 +808,6 @@ impl<DB: Database> XrplIngestor<DB> {
                     IngestorError::GenericError(format!("Failed to parse status: {}", e))
                 })?;
 
-                match tx_status.as_str() {
-                    "succeeded_on_source_chain" => {}
-                    "failed_on_source_chain" => {}
-                    _ => {
-                        // TODO: should not skip
-                        warn!("QuorumReached event has status: {}", tx_status);
-                        return Ok(());
-                    }
-                };
-
                 let xrpl_message = match serde_json::from_str::<WithCrossChainId<XRPLMessage>>(&content) {
                     Ok(WithCrossChainId { content: message, cc_id: _ }) => message,
                     Err(_) => serde_json::from_str::<XRPLMessage>(&content).map_err(|e| {
@@ -839,6 +829,16 @@ impl<DB: Database> XrplIngestor<DB> {
                     )
                     .await
                     .map_err(|e| IngestorError::GenericError(e.to_string()))?;
+
+                match tx_status.as_str() {
+                    "succeeded_on_source_chain" => {}
+                    "failed_on_source_chain" => {}
+                    _ => {
+                        // TODO: should not skip
+                        warn!("QuorumReached event has status: {}", tx_status);
+                        return Ok(());
+                    }
+                };
 
                 self.db_models
                     .xrpl_transaction
