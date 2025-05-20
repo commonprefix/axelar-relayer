@@ -11,6 +11,18 @@ services:
       - NETWORK=testnet
       - ENVIRONMENT=production
 
+  xrpl_ingestor_devnet:
+    build:
+      context: .
+      args:
+        BINARY_NAME: xrpl_ingestor
+    deploy:
+      mode: replicated
+      replicas: 1
+    environment:
+      - NETWORK=devnet
+      - ENVIRONMENT=production
+
   xrpl_distributor_testnet:
     build:
       context: .
@@ -20,6 +32,15 @@ services:
       - NETWORK=testnet
       - ENVIRONMENT=production
 
+  xrpl_distributor_devnet:
+    build:
+      context: .
+      args:
+        BINARY_NAME: xrpl_distributor
+    environment:
+      - NETWORK=devnet
+      - ENVIRONMENT=production
+
   xrpl_ticket_creator_testnet:
     build:
       context: .
@@ -27,6 +48,15 @@ services:
         BINARY_NAME: xrpl_ticket_creator
     environment:
       - NETWORK=testnet
+      - ENVIRONMENT=production
+
+  xrpl_ticket_creator_devnet:
+    build:
+      context: .
+      args:
+        BINARY_NAME: xrpl_ticket_creator
+    environment:
+      - NETWORK=devnet
       - ENVIRONMENT=production
 
   xrpl_includer_testnet:
@@ -41,6 +71,18 @@ services:
       - NETWORK=testnet
       - ENVIRONMENT=production
 
+  xrpl_includer_devnet:
+    build:
+      context: .
+      args:
+        BINARY_NAME: xrpl_includer
+    deploy:
+      mode: replicated
+      replicas: 4
+    environment:
+      - NETWORK=devnet
+      - ENVIRONMENT=production
+
   xrpl_subscriber_testnet:
     build:
       context: .
@@ -50,6 +92,15 @@ services:
       - NETWORK=testnet
       - ENVIRONMENT=production
 
+  xrpl_subscriber_devnet:
+    build:
+      context: .
+      args:
+        BINARY_NAME: xrpl_subscriber
+    environment:
+      - NETWORK=devnet
+      - ENVIRONMENT=production
+
   xrpl_funder_testnet:
     build:
       context: .
@@ -57,6 +108,15 @@ services:
         BINARY_NAME: xrpl_funder
     environment:
       - NETWORK=testnet
+      - ENVIRONMENT=production
+
+  xrpl_funder_devnet:
+    build:
+      context: .
+      args:
+        BINARY_NAME: xrpl_funder
+    environment:
+      - NETWORK=devnet
       - ENVIRONMENT=production
 
   price_feed:
