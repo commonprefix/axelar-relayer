@@ -6,7 +6,7 @@ use tracing::{debug, info, warn};
 use xrpl_api::Transaction;
 
 use crate::gmp_api::gmp_types::{Task, VerifyTask};
-use crate::models::PgXrplTransactionModel;
+//use crate::models::PgXrplTransactionModel;
 use crate::queue::{Queue, QueueItem};
 use crate::subscriber::ChainTransaction;
 

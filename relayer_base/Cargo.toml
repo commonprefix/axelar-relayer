@@ -1,0 +1,68 @@
+[package]
+name = "relayer-base"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = { workspace = true }
+lapin = { workspace = true }
+async-stream = { workspace = true }
+futures = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+xrpl_api = { workspace = true }
+xrpl_ws_client = { workspace = true }
+xrpl_types = { workspace = true }
+xrpl_http_client = { workspace = true }
+xrpl_binary_codec = { workspace = true }
+xrpl_amplifier_types = { workspace = true }
+axelar_wasm_std = { workspace = true }
+xrpl_gateway = { workspace = true }
+xrpl_multisig_prover = { workspace = true }
+router_api = { workspace = true }
+multisig = { workspace = true }
+interchain-token-service = { workspace = true }
+hex = { workspace = true }
+reqwest = { workspace = true }
+thiserror = { workspace = true }
+error-stack = { workspace = true }
+serde = { workspace = true }
+libsecp256k1 = { workspace = true } 
+tokio-util = { workspace = true }
+uuid = { workspace = true }
+redis = { workspace = true }
+r2d2 = { workspace = true }
+async-std = { workspace = true }
+sentry = { workspace = true }
+sentry-tracing = { workspace = true }
+base64 = { workspace = true }
+serde_yaml = { workspace = true }
+chrono = { workspace = true }
+rand = { workspace = true }
+coingecko = { workspace = true }
+rust_decimal = { workspace = true }
+reqwest-retry = { workspace = true }
+reqwest-middleware = { workspace = true }
+sqlx = { workspace = true }
+
+
+[dev-dependencies]
+mockall = "0.13.1"
+mockito = "1.6.1"
+
+[[bin]]
+name = "proof_retrier"
+path = "src/bin/proof_retrier.rs"
+
+[[bin]]
+name = "voting_retrier"
+path = "src/bin/voting_retrier.rs"
+
+[[bin]]
+name = "dlq_recovery"
+path = "src/bin/dlq_recovery.rs"
+
+
+

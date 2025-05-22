@@ -1,11 +1,4 @@
-mod xrpl_transaction;
-
 use anyhow::Result;
-pub use xrpl_transaction::{
-    PgXrplTransactionModel, XrplTransaction, XrplTransactionSource, XrplTransactionStatus,
-    XrplTransactionType,
-};
-
 pub trait Model {
     type Entity;
     type PrimaryKey;
@@ -19,5 +12,4 @@ pub trait Model {
 }
 
 pub struct Models {
-    pub xrpl_transaction: PgXrplTransactionModel,
 }

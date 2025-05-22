@@ -1,45 +1,52 @@
 use futures::StreamExt;
 use lapin::{options::BasicAckOptions, Consumer};
-use std::sync::Arc;
+use std::{future::Future, sync::Arc};
 use tokio::select;
 use tracing::{debug, error, info, warn};
 
 use crate::{
-    config::Config,
-    database::Database,
+    // config::Config,
+    // database::Database,
     error::IngestorError,
-    gmp_api::{gmp_types::Task, GmpApi},
-    models::Models,
-    payload_cache::PayloadCache,
-    price_view::PriceView,
+    gmp_api::{gmp_types::{ConstructProofTask, Event, ReactToWasmEventTask, Task, VerifyTask}, GmpApi},
+    // models::Models,
+    // payload_cache::PayloadCache,
+    // price_view::PriceView,
     queue::{Queue, QueueItem},
     subscriber::ChainTransaction,
-    xrpl::XrplIngestor,
 };
 
-pub struct Ingestor<DB: Database> {
+pub struct Ingestor<I: IngestorTrait> {
     gmp_api: Arc<GmpApi>,
-    xrpl_ingestor: XrplIngestor<DB>,
+    ingestor: I,
 }
 
-impl<DB: Database> Ingestor<DB> {
+pub trait IngestorTrait {
+    fn handle_verify(&self, task: VerifyTask) ->  impl Future<Output =  Result<(), IngestorError>>;
+    fn handle_transaction(&self, transaction: ChainTransaction) -> impl Future<Output = Result<Vec<Event>, IngestorError>>;
+    fn handle_wasm_event(&self, task: ReactToWasmEventTask) -> impl Future<Output = Result<(), IngestorError>>;
+    fn handle_construct_proof(&self, task: ConstructProofTask) -> impl Future<Output = Result<(), IngestorError>>;
+}
+
+impl<I: IngestorTrait> Ingestor<I> {
     pub fn new(
         gmp_api: Arc<GmpApi>,
-        config: Config,
-        price_view: PriceView<DB>,
-        payload_cache: PayloadCache<DB>,
-        db_models: Models,
+        // config: Config,
+        // price_view: PriceView<DB>,
+        // payload_cache: PayloadCache<DB>,
+        // db_models: Models,
+        ingestor: I
     ) -> Self {
-        let xrpl_ingestor = XrplIngestor::new(
-            gmp_api.clone(),
-            config.clone(),
-            price_view,
-            payload_cache,
-            db_models,
-        );
+        // let xrpl_ingestor = XrplIngestor::new(
+        //     gmp_api.clone(),
+        //     config.clone(),
+        //     price_view,
+        //     payload_cache,
+        //     db_models,
+        // );
         Self {
             gmp_api,
-            xrpl_ingestor,
+            ingestor,
         }
     }
 
@@ -116,9 +123,7 @@ impl<DB: Database> Ingestor<DB> {
         transaction: ChainTransaction,
     ) -> Result<(), IngestorError> {
         info!("Consuming transaction: {:?}", transaction);
-        let events = match transaction {
-            ChainTransaction::Xrpl(tx) => self.xrpl_ingestor.handle_transaction(tx).await?,
-        };
+        let events = self.ingestor.handle_transaction(transaction).await?;
 
         if events.is_empty() {
             info!("No GMP events to post.");
@@ -151,17 +156,19 @@ impl<DB: Database> Ingestor<DB> {
         match task {
             Task::Verify(verify_task) => {
                 info!("Consuming task: {:?}", verify_task);
-                self.xrpl_ingestor.handle_verify(verify_task).await
+                self.ingestor
+                    .handle_verify(verify_task)
+                    .await
             }
             Task::ReactToWasmEvent(react_to_wasm_event_task) => {
                 info!("Consuming task: {:?}", react_to_wasm_event_task);
-                self.xrpl_ingestor
+                self.ingestor
                     .handle_wasm_event(react_to_wasm_event_task)
                     .await
             }
             Task::ConstructProof(construct_proof_task) => {
                 info!("Consuming task: {:?}", construct_proof_task);
-                self.xrpl_ingestor
+                self.ingestor
                     .handle_construct_proof(construct_proof_task)
                     .await
             }

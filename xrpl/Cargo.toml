@@ -1,0 +1,40 @@
+[package]
+name = "xrpl-relayer"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+relayer-base = { workspace = true }
+
+
+[[bin]]
+name = "xrpl_ingestor"
+path = "src/bin/xrpl_ingestor.rs"
+
+[[bin]]
+name = "xrpl_distributor"
+path = "src/bin/xrpl_distributor.rs"
+
+[[bin]]
+name = "xrpl_subscriber"
+path = "src/bin/xrpl_subscriber.rs"
+
+[[bin]]
+name = "xrpl_includer"
+path = "src/bin/xrpl_includer.rs"
+
+[[bin]]
+name = "xrpl_funder"
+path = "src/bin/xrpl_funder.rs"
+
+[[bin]]
+name = "xrpl_ticket_creator"
+path = "src/bin/xrpl_ticket_creator.rs"
+
+[[bin]]
+name = "xrpl_subscriber_recovery"
+path = "src/bin/recovery/xrpl_subscriber_recovery.rs"
+
+[[bin]]
+name = "xrpl_task_recovery"
+path = "src/bin/recovery/xrpl_task_recovery.rs"

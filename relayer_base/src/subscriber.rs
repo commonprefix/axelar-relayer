@@ -4,12 +4,11 @@ use std::{future::Future, pin::Pin, sync::Arc};
 use tracing::{debug, error, info};
 use xrpl_api::Transaction;
 use xrpl_types::AccountId;
-
 use crate::{
     database::Database,
     queue::{Queue, QueueItem},
-    xrpl::XrplSubscriber,
 };
+//use relayer_base::xrpl::xrpl_subscriber::XrplSubscriber;
 
 pub trait TransactionListener {
     type Transaction;

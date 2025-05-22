@@ -3,7 +3,7 @@ use sqlx::PgPool;
 use std::sync::Arc;
 use tokio::signal::unix::{signal, SignalKind};
 
-use axelar_relayer::{
+use relayer_base::{
     config::Config,
     database::PostgresDB,
     gmp_api,
