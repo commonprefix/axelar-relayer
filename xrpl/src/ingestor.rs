@@ -15,7 +15,7 @@ use relayer_base::{
         },
         GmpApi,
     },
-    models::{Model, Models},
+    models::Model,
     payload_cache::{PayloadCache, PayloadCacheValue},
     price_view::PriceView,
     utils::{

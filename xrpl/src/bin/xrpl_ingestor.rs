@@ -12,7 +12,6 @@ use relayer_base::{
     database::PostgresDB,
     gmp_api,
     ingestor::Ingestor,
-    models::Models,
     payload_cache::PayloadCache,
     price_view::PriceView,
     queue::Queue,
@@ -46,7 +45,7 @@ async fn main() -> anyhow::Result<()> {
         payload_cache,
         xrpl_transaction_model,
     );
-    let mut ingestor = Ingestor::new(gmp_api, xrpl_ingestor);
+    let ingestor = Ingestor::new(gmp_api, xrpl_ingestor);
 
     let mut sigint = signal(SignalKind::interrupt())?;
     let mut sigterm = signal(SignalKind::terminate())?;
