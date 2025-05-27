@@ -3,12 +3,16 @@ use sqlx::PgPool;
 use std::sync::Arc;
 use tokio::signal::unix::{signal, SignalKind};
 
+use xrpl::{ingestor::XrplIngestor, xrpl_transaction::PgXrplTransactionModel};
+
+//use xrpl::xrpl_transaction::PgXrplTransactionModel;
+
 use relayer_base::{
     config::Config,
     database::PostgresDB,
     gmp_api,
     ingestor::Ingestor,
-    models::{Models, PgXrplTransactionModel},
+    models::Models,
     payload_cache::PayloadCache,
     price_view::PriceView,
     queue::Queue,
@@ -31,17 +35,18 @@ async fn main() -> anyhow::Result<()> {
     let pg_pool = PgPool::connect(&config.postgres_url).await.unwrap();
     let price_view = PriceView::new(postgres_db.clone());
     let payload_cache = PayloadCache::new(postgres_db.clone());
-    let ingestor = Ingestor::new(
+    let xrpl_transaction_model = PgXrplTransactionModel {
+        pool: pg_pool.clone(),
+    };
+    // make an xrpl ingestor
+    let xrpl_ingestor = XrplIngestor::new(
         gmp_api.clone(),
         config.clone(),
         price_view,
         payload_cache,
-        Models {
-            xrpl_transaction: PgXrplTransactionModel {
-                pool: pg_pool.clone(),
-            },
-        },
+        xrpl_transaction_model,
     );
+    let mut ingestor = Ingestor::new(gmp_api, xrpl_ingestor);
 
     let mut sigint = signal(SignalKind::interrupt())?;
     let mut sigterm = signal(SignalKind::terminate())?;

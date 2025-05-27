@@ -11,5 +11,4 @@ pub trait Model {
     fn delete(&self, entity: Self::Entity) -> impl std::future::Future<Output = Result<()>> + Send;
 }
 
-pub struct Models {
-}
+pub struct Models {}

@@ -6,7 +6,8 @@ use tracing::debug;
 use xrpl_api::{Request, RequestPagination, Transaction};
 use xrpl_types::AccountId;
 
-use crate::error::ClientError;
+use relayer_base::error::ClientError;
+use xrpl_http_client;
 
 const DEFAULT_RPC_TIMEOUT: Duration = Duration::from_secs(3);
 pub struct XRPLClient {

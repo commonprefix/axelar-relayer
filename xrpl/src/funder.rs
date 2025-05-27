@@ -2,7 +2,7 @@ use reqwest::Client;
 use tracing::{error, info};
 use xrpl_api::{AccountInfoRequest, Amount};
 
-use crate::config::Config;
+use relayer_base::config::Config;
 
 use super::client::XRPLClient;
 

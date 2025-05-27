@@ -1,10 +1,10 @@
 use dotenv::dotenv;
 use sqlx::PgPool;
 
-use axelar_relayer::{
-    config::Config, models::PgXrplTransactionModel, queue::Queue, utils::setup_logging,
-    voting_retrier::VotingRetrier,
-};
+use relayer_base::{config::Config, queue::Queue, utils::setup_logging};
+use xrpl::models::xrpl_transaction::PgXrplTransactionModel;
+
+use xrpl::voting_retrier::VotingRetrier;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {

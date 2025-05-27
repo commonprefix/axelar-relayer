@@ -1,36 +1,35 @@
 use axelar_wasm_std::{msg_id::HexTxHash, nonempty};
 use base64::prelude::*;
 use interchain_token_service::TokenId;
-use rust_decimal::Decimal;
-use std::ops::Sub;
-use std::{collections::HashMap, str::FromStr, sync::Arc, vec};
-use xrpl_amplifier_types::error::XRPLError;
-
-use crate::config::Config;
-use crate::database::Database;
-use crate::error::ITSTranslationError;
-use crate::gmp_api::gmp_types::MessageExecutedEventMetadata;
-use crate::models::{Model, Models, XrplTransaction, XrplTransactionStatus};
-use crate::payload_cache::{PayloadCache, PayloadCacheValue};
-use crate::price_view::PriceView;
-use crate::utils::convert_token_amount_to_drops;
-use crate::{
-    error::IngestorError,
+use relayer_base::ingestor::IngestorTrait;
+use relayer_base::subscriber::ChainTransaction;
+use relayer_base::{
+    config::Config,
+    database::Database,
+    error::{ITSTranslationError, IngestorError},
     gmp_api::{
         gmp_types::{
             self, Amount, BroadcastRequest, CommonEventFields, ConstructProofTask, Event,
-            EventMetadata, GatewayV2Message, MessageExecutionStatus, QueryRequest,
-            ReactToWasmEventTask, VerifyTask,
+            EventMetadata, GatewayV2Message, MessageExecutedEventMetadata, MessageExecutionStatus,
+            QueryRequest, ReactToWasmEventTask, VerifyTask,
         },
         GmpApi,
     },
+    models::{Model, Models},
+    payload_cache::{PayloadCache, PayloadCacheValue},
+    price_view::PriceView,
     utils::{
-        event_attribute, extract_and_decode_memo, extract_hex_xrpl_memo, extract_memo,
-        parse_gas_fee_amount, parse_message_from_context, parse_payment_amount, xrpl_tx_from_hash,
+        convert_token_amount_to_drops, event_attribute, extract_and_decode_memo,
+        extract_hex_xrpl_memo, extract_memo, parse_gas_fee_amount, parse_message_from_context,
+        parse_payment_amount, xrpl_tx_from_hash,
     },
 };
 use router_api::{ChainNameRaw, CrossChainId};
+use rust_decimal::Decimal;
+use std::ops::Sub;
+use std::{collections::HashMap, str::FromStr, sync::Arc, vec};
 use tracing::{debug, info, warn};
+use xrpl_amplifier_types::error::XRPLError;
 use xrpl_amplifier_types::{
     msg::{
         WithCrossChainId, WithPayload, XRPLAddGasMessage, XRPLAddReservesMessage,
@@ -39,8 +38,11 @@ use xrpl_amplifier_types::{
     },
     types::{XRPLAccountId, XRPLPaymentAmount},
 };
-use xrpl_api::{Memo, PaymentTransaction, Transaction};
+use xrpl_api::Transaction;
+use xrpl_api::{Memo, PaymentTransaction};
 use xrpl_gateway::msg::{CallContract, InterchainTransfer, MessageWithPayload};
+
+use crate::xrpl_transaction::{PgXrplTransactionModel, XrplTransaction, XrplTransactionStatus};
 
 pub struct XrplIngestor<DB: Database> {
     client: xrpl_http_client::Client,
@@ -48,8 +50,10 @@ pub struct XrplIngestor<DB: Database> {
     config: Config,
     price_view: PriceView<DB>,
     payload_cache: PayloadCache<DB>,
-    db_models: Models,
+    xrpl_transaction_model: PgXrplTransactionModel,
 }
+// impl ingestortrait for XrplIngestor
+// take the functions in here
 
 impl<DB: Database> XrplIngestor<DB> {
     pub fn new(
@@ -57,7 +61,7 @@ impl<DB: Database> XrplIngestor<DB> {
         config: Config,
         price_view: PriceView<DB>,
         payload_cache: PayloadCache<DB>,
-        db_models: Models,
+        xrpl_transaction_model: PgXrplTransactionModel,
     ) -> Self {
         let client = xrpl_http_client::Client::builder()
             .base_url(&config.xrpl_rpc)
@@ -68,60 +72,9 @@ impl<DB: Database> XrplIngestor<DB> {
             client,
             price_view,
             payload_cache,
-            db_models,
+            xrpl_transaction_model,
         }
     }
-
-    pub async fn handle_transaction(&self, tx: Transaction) -> Result<Vec<Event>, IngestorError> {
-        let xrpl_transaction =
-            XrplTransaction::from_native_transaction(&tx, &self.config.xrpl_multisig)
-                .map_err(|e| IngestorError::GenericError(e.to_string()))?;
-
-        match tx.clone() {
-            Transaction::Payment(_)
-            | Transaction::TicketCreate(_)
-            | Transaction::SignerListSet(_)
-            | Transaction::TrustSet(_) => {
-                self.db_models
-                    .xrpl_transaction
-                    .upsert(xrpl_transaction.clone())
-                    .await
-                    .map_err(|e| IngestorError::GenericError(e.to_string()))?;
-            }
-            _ => {}
-        }
-
-        match tx.clone() {
-            Transaction::Payment(payment) => {
-                if payment.destination == self.config.xrpl_multisig {
-                    self.handle_payment(payment).await
-                } else if payment.common.account == self.config.xrpl_multisig {
-                    // prover message
-                    self.handle_prover_tx(tx).await
-                } else {
-                    Err(IngestorError::UnsupportedTransaction(
-                        serde_json::to_string(&payment).unwrap(),
-                    ))
-                }
-            }
-            Transaction::TicketCreate(_) => self.handle_prover_tx(tx).await,
-            Transaction::TrustSet(trust_set) => {
-                if trust_set.common.account == self.config.xrpl_multisig {
-                    return self.handle_prover_tx(tx).await;
-                }
-                Ok(vec![])
-            }
-            Transaction::SignerListSet(_) => self.handle_prover_tx(tx).await,
-            tx => {
-                warn!(
-                    "Unsupported transaction type: {}",
-                    serde_json::to_string(&tx).unwrap()
-                );
-                Ok(vec![])
-            }
-        }
-    }
-
     pub async fn handle_payment(
         &self,
         payment: PaymentTransaction,
@@ -208,8 +161,7 @@ impl<DB: Database> XrplIngestor<DB> {
             .map_err(|e| IngestorError::GenericError(e.to_string()))?;
 
         let xrpl_tx_hash = message.tx_id().tx_hash_as_hex_no_prefix();
-        self.db_models
-            .xrpl_transaction
+        self.xrpl_transaction_model
             .update_verify_tx(&xrpl_tx_hash, &verify_tx_hash)
             .await
             .map_err(|e| IngestorError::GenericError(e.to_string()))?;
@@ -447,8 +399,7 @@ impl<DB: Database> XrplIngestor<DB> {
                 "Message id is not prefixed with 0x".to_string(),
             ))?;
 
-        self.db_models
-            .xrpl_transaction
+        self.xrpl_transaction_model
             .update_status(xrpl_tx_hash, XrplTransactionStatus::Initialized)
             .await
             .map_err(|e| IngestorError::GenericError(e.to_string()))?;
@@ -643,26 +594,6 @@ impl<DB: Database> XrplIngestor<DB> {
         })
     }
 
-    pub async fn handle_verify(&self, task: VerifyTask) -> Result<(), IngestorError> {
-        let xrpl_message = parse_message_from_context(&task.common.meta)?;
-
-        let xrpl_tx_hash = xrpl_message.tx_id().tx_hash_as_hex_no_prefix();
-        self.db_models
-            .xrpl_transaction
-            .update_verify_task(
-                &xrpl_tx_hash,
-                &serde_json::to_string(&task).map_err(|e| {
-                    IngestorError::GenericError(format!("Failed to serialize VerifyTask: {}", e))
-                })?,
-            )
-            .await
-            .map_err(|e| IngestorError::GenericError(e.to_string()))?;
-
-        self.verify_message(&xrpl_message).await?;
-
-        Ok(())
-    }
-
     pub async fn confirm_add_gas_message_request(
         &self,
         message: &XRPLAddGasMessage,
@@ -785,146 +716,6 @@ impl<DB: Database> XrplIngestor<DB> {
         Ok((self.config.axelar_contracts.xrpl_gateway.clone(), request))
     }
 
-    pub async fn handle_wasm_event(&self, task: ReactToWasmEventTask) -> Result<(), IngestorError> {
-        let event_name = task.task.event.r#type.clone();
-
-        // TODO: check the source contract of the event
-        match event_name.as_str() {
-            "wasm-quorum_reached" => {
-                let content = event_attribute(&task.task.event, "content").ok_or_else(|| {
-                    IngestorError::GenericError("QuorumReached event missing content".to_owned())
-                })?;
-
-                let tx_status: String = serde_json::from_str(
-                    event_attribute(&task.task.event, "status")
-                        .ok_or_else(|| {
-                            IngestorError::GenericError(
-                                "QuorumReached event for ProverMessage missing status".to_owned(),
-                            )
-                        })?
-                        .as_str(),
-                )
-                .map_err(|e| {
-                    IngestorError::GenericError(format!("Failed to parse status: {}", e))
-                })?;
-
-                let xrpl_message = match serde_json::from_str::<WithCrossChainId<XRPLMessage>>(&content) {
-                    Ok(WithCrossChainId { content: message, cc_id: _ }) => message,
-                    Err(_) => serde_json::from_str::<XRPLMessage>(&content).map_err(|e| {
-                        IngestorError::GenericError(format!("Failed to parse content as either WithCrossChainId<XRPLMessage> or XRPLMessage: {}", e))
-                    })?,
-                };
-
-                let xrpl_tx_hash = xrpl_message.tx_id().tx_hash_as_hex_no_prefix();
-                self.db_models
-                    .xrpl_transaction
-                    .update_quorum_reached_task(
-                        &xrpl_tx_hash,
-                        &serde_json::to_string(&task).map_err(|e| {
-                            IngestorError::GenericError(format!(
-                                "Failed to serialize QuorumReachedTask: {}",
-                                e
-                            ))
-                        })?,
-                    )
-                    .await
-                    .map_err(|e| IngestorError::GenericError(e.to_string()))?;
-
-                match tx_status.as_str() {
-                    "succeeded_on_source_chain" => {}
-                    "failed_on_source_chain" => {}
-                    _ => {
-                        // TODO: should not skip
-                        warn!("QuorumReached event has status: {}", tx_status);
-                        return Ok(());
-                    }
-                };
-
-                self.db_models
-                    .xrpl_transaction
-                    .update_status(&xrpl_tx_hash, XrplTransactionStatus::Verified)
-                    .await
-                    .map_err(|e| IngestorError::GenericError(e.to_string()))?;
-
-                let mut prover_tx = None;
-
-                let (contract_address, request) = match &xrpl_message {
-                    XRPLMessage::InterchainTransferMessage(_)
-                    | XRPLMessage::CallContractMessage(_) => {
-                        debug!("Quorum reached for XRPLMessage: {:?}", xrpl_message);
-                        self.route_incoming_message_request(&xrpl_message).await?
-                    }
-                    XRPLMessage::ProverMessage(prover_message) => {
-                        debug!(
-                            "Quorum reached for XRPLProverMessage: {:?}",
-                            prover_message.tx_id
-                        );
-                        let tx =
-                            xrpl_tx_from_hash(prover_message.tx_id.clone(), &self.client).await?;
-                        prover_tx = Some(tx);
-                        self.confirm_prover_message_request(prover_tx.as_ref().unwrap())
-                            .await?
-                    }
-                    XRPLMessage::AddGasMessage(msg) => {
-                        self.confirm_add_gas_message_request(msg).await?
-                    }
-                    XRPLMessage::AddReservesMessage(msg) => {
-                        self.confirm_add_reserves_message_request(msg).await?
-                    }
-                };
-
-                debug!("Broadcasting request: {:?}", request);
-                let maybe_confirmation_tx_hash = self
-                    .gmp_api
-                    .post_broadcast(contract_address, &request)
-                    .await
-                    .map_err(|e| {
-                        IngestorError::GenericError(format!("Failed to broadcast message: {}", e))
-                    });
-
-                match maybe_confirmation_tx_hash {
-                    Ok(confirmation_tx_hash) => {
-                        self.db_models
-                            .xrpl_transaction
-                            .update_route_tx(&xrpl_tx_hash, &confirmation_tx_hash.to_lowercase())
-                            .await
-                            .map_err(|e| IngestorError::GenericError(e.to_string()))?;
-
-                        self.db_models
-                            .xrpl_transaction
-                            .update_status(&xrpl_tx_hash, XrplTransactionStatus::Routed)
-                            .await
-                            .map_err(|e| IngestorError::GenericError(e.to_string()))?;
-
-                        info!(
-                            "Confirm({}) tx hash: {}",
-                            xrpl_message.tx_id(),
-                            confirmation_tx_hash
-                        );
-                    }
-                    Err(e) => {
-                        if !e
-                            .to_string()
-                            .contains("transaction status is already confirmed")
-                        {
-                            return Err(e);
-                        }
-                        info!("Transaction {} is already confirmed", xrpl_message.tx_id());
-                    }
-                }
-
-                self.handle_successful_routing(xrpl_message, prover_tx, task)
-                    .await?;
-
-                Ok(())
-            }
-            _ => Err(IngestorError::GenericError(format!(
-                "Unknown event name: {}",
-                event_name
-            ))),
-        }
-    }
-
     pub async fn handle_successful_routing(
         &self,
         xrpl_message: XRPLMessage,
@@ -1036,74 +827,6 @@ impl<DB: Database> XrplIngestor<DB> {
             }
             _ => Ok(()),
         }
-    }
-
-    pub async fn handle_construct_proof(
-        &self,
-        task: ConstructProofTask,
-    ) -> Result<(), IngestorError> {
-        let cc_id = CrossChainId::new(
-            task.task.message.source_chain.clone(),
-            task.task.message.message_id.clone(),
-        )
-        .map_err(|e| {
-            IngestorError::GenericError(format!("Failed to construct CrossChainId: {}", e))
-        })?;
-
-        let payload_bytes = BASE64_STANDARD.decode(&task.task.payload).map_err(|e| {
-            IngestorError::GenericError(format!("Failed to decode task payload: {}", e))
-        })?;
-
-        let execute_msg = xrpl_multisig_prover::msg::ExecuteMsg::ConstructProof {
-            cc_id: cc_id.clone(),
-            payload: payload_bytes.clone().into(),
-        };
-
-        self.payload_cache
-            .store(
-                cc_id.clone(),
-                PayloadCacheValue {
-                    message: task.task.message.clone(),
-                    payload: task.task.payload,
-                },
-            )
-            .await
-            .map_err(|e| IngestorError::GenericError(e.to_string()))?;
-
-        let request =
-            BroadcastRequest::Generic(serde_json::to_value(&execute_msg).map_err(|e| {
-                IngestorError::GenericError(format!("Failed to serialize ConstructProof: {}", e))
-            })?);
-
-        let maybe_construct_proof_tx_hash = self
-            .gmp_api
-            .post_broadcast(
-                self.config.axelar_contracts.xrpl_multisig_prover.clone(),
-                &request,
-            )
-            .await
-            .map_err(|e| {
-                IngestorError::GenericError(format!("Failed to broadcast message: {}", e))
-            });
-
-        match maybe_construct_proof_tx_hash {
-            Ok(tx_hash) => {
-                info!("ConstructProof({}) transaction hash: {}", cc_id, tx_hash);
-            }
-            Err(e) => {
-                self.gmp_api
-                    .cannot_execute_message(
-                        task.common.id,
-                        task.task.message.message_id.clone(),
-                        task.task.message.source_chain.clone(),
-                        e.to_string(),
-                    )
-                    .await
-                    .map_err(|e| IngestorError::GenericError(e.to_string()))?;
-            }
-        }
-
-        Ok(())
     }
 
     async fn parse_payload_and_payload_hash(
@@ -1334,5 +1057,286 @@ impl<DB: Database> XrplIngestor<DB> {
                 message_type
             ))),
         }
+    }
+}
+
+impl<DB: Database> IngestorTrait for XrplIngestor<DB> {
+    async fn handle_transaction(&self, tx: ChainTransaction) -> Result<Vec<Event>, IngestorError> {
+        let tx = match tx {
+            ChainTransaction::Xrpl(tx) => tx,
+            _ => {
+                return Err(IngestorError::GenericError(
+                    "Unsupported transaction type".to_owned(),
+                ))
+            }
+        };
+        // QUESTION : is this fine?
+
+        let xrpl_transaction =
+            XrplTransaction::from_native_transaction(&tx, &self.config.xrpl_multisig)
+                .map_err(|e| IngestorError::GenericError(e.to_string()))?;
+
+        match tx.clone() {
+            Transaction::Payment(_)
+            | Transaction::TicketCreate(_)
+            | Transaction::SignerListSet(_)
+            | Transaction::TrustSet(_) => {
+                self.xrpl_transaction_model
+                    .upsert(xrpl_transaction.clone())
+                    .await
+                    .map_err(|e| IngestorError::GenericError(e.to_string()))?;
+            }
+            _ => {}
+        }
+
+        match tx.clone() {
+            Transaction::Payment(payment) => {
+                if payment.destination == self.config.xrpl_multisig {
+                    self.handle_payment(payment).await
+                } else if payment.common.account == self.config.xrpl_multisig {
+                    // prover message
+                    self.handle_prover_tx(tx).await
+                } else {
+                    Err(IngestorError::UnsupportedTransaction(
+                        serde_json::to_string(&payment).unwrap(),
+                    ))
+                }
+            }
+            Transaction::TicketCreate(_) => self.handle_prover_tx(tx).await,
+            Transaction::TrustSet(trust_set) => {
+                if trust_set.common.account == self.config.xrpl_multisig {
+                    return self.handle_prover_tx(tx).await;
+                }
+                Ok(vec![])
+            }
+            Transaction::SignerListSet(_) => self.handle_prover_tx(tx).await,
+            tx => {
+                warn!(
+                    "Unsupported transaction type: {}",
+                    serde_json::to_string(&tx).unwrap()
+                );
+                Ok(vec![])
+            }
+        }
+    }
+
+    async fn handle_verify(&self, task: VerifyTask) -> Result<(), IngestorError> {
+        let xrpl_message = parse_message_from_context(&task.common.meta)?;
+
+        let xrpl_tx_hash = xrpl_message.tx_id().tx_hash_as_hex_no_prefix();
+        self.xrpl_transaction_model
+            .update_verify_task(
+                &xrpl_tx_hash,
+                &serde_json::to_string(&task).map_err(|e| {
+                    IngestorError::GenericError(format!("Failed to serialize VerifyTask: {}", e))
+                })?,
+            )
+            .await
+            .map_err(|e| IngestorError::GenericError(e.to_string()))?;
+
+        self.verify_message(&xrpl_message).await?;
+
+        Ok(())
+    }
+
+    async fn handle_wasm_event(&self, task: ReactToWasmEventTask) -> Result<(), IngestorError> {
+        let event_name = task.task.event.r#type.clone();
+
+        // TODO: check the source contract of the event
+        match event_name.as_str() {
+            "wasm-quorum_reached" => {
+                let content = event_attribute(&task.task.event, "content").ok_or_else(|| {
+                    IngestorError::GenericError("QuorumReached event missing content".to_owned())
+                })?;
+
+                let tx_status: String = serde_json::from_str(
+                    event_attribute(&task.task.event, "status")
+                        .ok_or_else(|| {
+                            IngestorError::GenericError(
+                                "QuorumReached event for ProverMessage missing status".to_owned(),
+                            )
+                        })?
+                        .as_str(),
+                )
+                .map_err(|e| {
+                    IngestorError::GenericError(format!("Failed to parse status: {}", e))
+                })?;
+
+                let xrpl_message = match serde_json::from_str::<WithCrossChainId<XRPLMessage>>(&content) {
+                    Ok(WithCrossChainId { content: message, cc_id: _ }) => message,
+                    Err(_) => serde_json::from_str::<XRPLMessage>(&content).map_err(|e| {
+                        IngestorError::GenericError(format!("Failed to parse content as either WithCrossChainId<XRPLMessage> or XRPLMessage: {}", e))
+                    })?,
+                };
+
+                let xrpl_tx_hash = xrpl_message.tx_id().tx_hash_as_hex_no_prefix();
+                self.xrpl_transaction_model
+                    .update_quorum_reached_task(
+                        &xrpl_tx_hash,
+                        &serde_json::to_string(&task).map_err(|e| {
+                            IngestorError::GenericError(format!(
+                                "Failed to serialize QuorumReachedTask: {}",
+                                e
+                            ))
+                        })?,
+                    )
+                    .await
+                    .map_err(|e| IngestorError::GenericError(e.to_string()))?;
+
+                match tx_status.as_str() {
+                    "succeeded_on_source_chain" => {}
+                    "failed_on_source_chain" => {}
+                    _ => {
+                        // TODO: should not skip
+                        warn!("QuorumReached event has status: {}", tx_status);
+                        return Ok(());
+                    }
+                };
+
+                self.xrpl_transaction_model
+                    .update_status(&xrpl_tx_hash, XrplTransactionStatus::Verified)
+                    .await
+                    .map_err(|e| IngestorError::GenericError(e.to_string()))?;
+
+                let mut prover_tx = None;
+
+                let (contract_address, request) = match &xrpl_message {
+                    XRPLMessage::InterchainTransferMessage(_)
+                    | XRPLMessage::CallContractMessage(_) => {
+                        debug!("Quorum reached for XRPLMessage: {:?}", xrpl_message);
+                        self.route_incoming_message_request(&xrpl_message).await?
+                    }
+                    XRPLMessage::ProverMessage(prover_message) => {
+                        debug!(
+                            "Quorum reached for XRPLProverMessage: {:?}",
+                            prover_message.tx_id
+                        );
+                        let tx =
+                            xrpl_tx_from_hash(prover_message.tx_id.clone(), &self.client).await?;
+                        prover_tx = Some(tx);
+                        self.confirm_prover_message_request(prover_tx.as_ref().unwrap())
+                            .await?
+                    }
+                    XRPLMessage::AddGasMessage(msg) => {
+                        self.confirm_add_gas_message_request(msg).await?
+                    }
+                    XRPLMessage::AddReservesMessage(msg) => {
+                        self.confirm_add_reserves_message_request(msg).await?
+                    }
+                };
+
+                debug!("Broadcasting request: {:?}", request);
+                let maybe_confirmation_tx_hash = self
+                    .gmp_api
+                    .post_broadcast(contract_address, &request)
+                    .await
+                    .map_err(|e| {
+                        IngestorError::GenericError(format!("Failed to broadcast message: {}", e))
+                    });
+
+                match maybe_confirmation_tx_hash {
+                    Ok(confirmation_tx_hash) => {
+                        self.xrpl_transaction_model
+                            .update_route_tx(&xrpl_tx_hash, &confirmation_tx_hash.to_lowercase())
+                            .await
+                            .map_err(|e| IngestorError::GenericError(e.to_string()))?;
+
+                        self.xrpl_transaction_model
+                            .update_status(&xrpl_tx_hash, XrplTransactionStatus::Routed)
+                            .await
+                            .map_err(|e| IngestorError::GenericError(e.to_string()))?;
+
+                        info!(
+                            "Confirm({}) tx hash: {}",
+                            xrpl_message.tx_id(),
+                            confirmation_tx_hash
+                        );
+                    }
+                    Err(e) => {
+                        if !e
+                            .to_string()
+                            .contains("transaction status is already confirmed")
+                        {
+                            return Err(e);
+                        }
+                        info!("Transaction {} is already confirmed", xrpl_message.tx_id());
+                    }
+                }
+
+                self.handle_successful_routing(xrpl_message, prover_tx, task)
+                    .await?;
+
+                Ok(())
+            }
+            _ => Err(IngestorError::GenericError(format!(
+                "Unknown event name: {}",
+                event_name
+            ))),
+        }
+    }
+
+    async fn handle_construct_proof(&self, task: ConstructProofTask) -> Result<(), IngestorError> {
+        let cc_id = CrossChainId::new(
+            task.task.message.source_chain.clone(),
+            task.task.message.message_id.clone(),
+        )
+        .map_err(|e| {
+            IngestorError::GenericError(format!("Failed to construct CrossChainId: {}", e))
+        })?;
+
+        let payload_bytes = BASE64_STANDARD.decode(&task.task.payload).map_err(|e| {
+            IngestorError::GenericError(format!("Failed to decode task payload: {}", e))
+        })?;
+
+        let execute_msg = xrpl_multisig_prover::msg::ExecuteMsg::ConstructProof {
+            cc_id: cc_id.clone(),
+            payload: payload_bytes.clone().into(),
+        };
+
+        self.payload_cache
+            .store(
+                cc_id.clone(),
+                PayloadCacheValue {
+                    message: task.task.message.clone(),
+                    payload: task.task.payload,
+                },
+            )
+            .await
+            .map_err(|e| IngestorError::GenericError(e.to_string()))?;
+
+        let request =
+            BroadcastRequest::Generic(serde_json::to_value(&execute_msg).map_err(|e| {
+                IngestorError::GenericError(format!("Failed to serialize ConstructProof: {}", e))
+            })?);
+
+        let maybe_construct_proof_tx_hash = self
+            .gmp_api
+            .post_broadcast(
+                self.config.axelar_contracts.xrpl_multisig_prover.clone(),
+                &request,
+            )
+            .await
+            .map_err(|e| {
+                IngestorError::GenericError(format!("Failed to broadcast message: {}", e))
+            });
+
+        match maybe_construct_proof_tx_hash {
+            Ok(tx_hash) => {
+                info!("ConstructProof({}) transaction hash: {}", cc_id, tx_hash);
+            }
+            Err(e) => {
+                self.gmp_api
+                    .cannot_execute_message(
+                        task.common.id,
+                        task.task.message.message_id.clone(),
+                        task.task.message.source_chain.clone(),
+                        e.to_string(),
+                    )
+                    .await
+                    .map_err(|e| IngestorError::GenericError(e.to_string()))?;
+            }
+        }
+
+        Ok(())
     }
 }

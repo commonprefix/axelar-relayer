@@ -1,9 +1,10 @@
 use dotenv::dotenv;
 
-use axelar_relayer::{
+use xrpl::funder::XRPLFunder;
+
+use relayer_base::{
     config::Config,
     utils::{setup_heartbeat, setup_logging},
-    xrpl::XRPLFunder,
 };
 
 #[tokio::main]

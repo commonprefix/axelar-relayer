@@ -5,10 +5,13 @@ use tokio::time::{sleep, Duration};
 use tracing::{debug, info, warn};
 use xrpl_api::Transaction;
 
-use crate::gmp_api::gmp_types::{Task, VerifyTask};
-//use crate::models::PgXrplTransactionModel;
-use crate::queue::{Queue, QueueItem};
-use crate::subscriber::ChainTransaction;
+use relayer_base::{
+    gmp_api::gmp_types::{Task, VerifyTask},
+    queue::{Queue, QueueItem},
+    subscriber::ChainTransaction,
+};
+
+use crate::xrpl_transaction::PgXrplTransactionModel;
 
 const CACHE_EXPIRATION: u64 = 60 * 5;
 

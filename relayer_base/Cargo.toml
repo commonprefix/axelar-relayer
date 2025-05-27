@@ -18,7 +18,7 @@ xrpl_types = { workspace = true }
 xrpl_http_client = { workspace = true }
 xrpl_binary_codec = { workspace = true }
 xrpl_amplifier_types = { workspace = true }
-axelar_wasm_std = { workspace = true }
+axelar-wasm-std = { workspace = true }
 xrpl_gateway = { workspace = true }
 xrpl_multisig_prover = { workspace = true }
 router_api = { workspace = true }
@@ -46,23 +46,12 @@ rust_decimal = { workspace = true }
 reqwest-retry = { workspace = true }
 reqwest-middleware = { workspace = true }
 sqlx = { workspace = true }
-
+dotenv = { workspace = true }
 
 [dev-dependencies]
-mockall = "0.13.1"
-mockito = "1.6.1"
+mockall = { workspace = true }
+mockito = { workspace = true }
 
 [[bin]]
-name = "proof_retrier"
-path = "src/bin/proof_retrier.rs"
-
-[[bin]]
-name = "voting_retrier"
-path = "src/bin/voting_retrier.rs"
-
-[[bin]]
-name = "dlq_recovery"
-path = "src/bin/dlq_recovery.rs"
-
-
-
+name = "price_feed"
+path = "src/bin/price_feed.rs"

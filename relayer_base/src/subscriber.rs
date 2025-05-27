@@ -1,13 +1,13 @@
+use crate::{
+    // database::Database,
+    queue::{Queue, QueueItem},
+};
 use futures::Stream;
 use serde::{Deserialize, Serialize};
 use std::{future::Future, pin::Pin, sync::Arc};
 use tracing::{debug, error, info};
 use xrpl_api::Transaction;
 use xrpl_types::AccountId;
-use crate::{
-    database::Database,
-    queue::{Queue, QueueItem},
-};
 //use relayer_base::xrpl::xrpl_subscriber::XrplSubscriber;
 
 pub trait TransactionListener {
@@ -28,6 +28,8 @@ pub trait TransactionListener {
 pub trait TransactionPoller {
     type Transaction;
 
+    fn make_queue_item(&mut self, tx: Self::Transaction) -> ChainTransaction;
+
     fn poll_account(
         &mut self,
         account: AccountId,
@@ -38,9 +40,10 @@ pub trait TransactionPoller {
         tx_hash: String,
     ) -> impl Future<Output = Result<Self::Transaction, anyhow::Error>>;
 }
+// impl transactionpoller for XrplSubscriber
 
-pub enum Subscriber<DB: Database> {
-    Xrpl(XrplSubscriber<DB>),
+pub struct Subscriber<TP: TransactionPoller> {
+    transaction_poller: TP,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -48,33 +51,37 @@ pub enum ChainTransaction {
     Xrpl(Transaction),
 }
 
-impl<DB: Database> Subscriber<DB> {
-    pub async fn new_xrpl(url: &str, postgres_db: DB) -> Subscriber<DB> {
-        let client = XrplSubscriber::new(url, postgres_db).await.unwrap();
-        Subscriber::Xrpl(client)
+impl<TP: TransactionPoller> Subscriber<TP> {
+    // new subscriber(transactionpoller)
+    pub fn new(transaction_poller: TP) -> Self {
+        Self { transaction_poller }
     }
 
+    // pub async fn new_xrpl(url: &str, postgres_db: DB) -> Subscriber<DB> {
+    //     let client = XrplSubscriber::new(url, postgres_db).await.unwrap();
+    //     Subscriber::Xrpl(client)
+    // }
+
     async fn work(&mut self, account: String, queue: Arc<Queue>) {
-        match self {
-            Subscriber::Xrpl(sub) => {
-                let res = sub
-                    .poll_account(AccountId::from_address(&account).unwrap())
-                    .await;
-                match res {
-                    Ok(txs) => {
-                        for tx in txs {
-                            let chain_transaction = ChainTransaction::Xrpl(tx.clone());
-                            let item = &QueueItem::Transaction(chain_transaction.clone());
-                            info!("Publishing XRPL transaction: {:?}", tx.common().hash);
-                            queue.publish(item.clone()).await;
-                            debug!("Published tx: {:?}", item);
-                        }
-                    }
-                    Err(e) => {
-                        error!("Error getting txs: {:?}", e);
-                        debug!("Retrying in 2 seconds");
-                    }
+        // no match, just call poll_account
+        let res = self
+            .transaction_poller
+            .poll_account(AccountId::from_address(&account).unwrap())
+            .await;
+        match res {
+            Ok(txs) => {
+                for tx in txs {
+                    let chain_transaction = self.transaction_poller.make_queue_item(tx);
+                    // let chain_transaction = ChainTransaction::Xrpl(tx.clone()); // call the function we defined maybe on self
+                    let item = &QueueItem::Transaction(chain_transaction.clone());
+                    info!("Publishing transaction: {:?}", chain_transaction);
+                    queue.publish(item.clone()).await;
+                    debug!("Published tx: {:?}", item);
                 }
+            }
+            Err(e) => {
+                error!("Error getting txs: {:?}", e);
+                debug!("Retrying in 2 seconds");
             }
         }
         tokio::time::sleep(tokio::time::Duration::from_secs(2)).await
@@ -87,23 +94,19 @@ impl<DB: Database> Subscriber<DB> {
     }
 
     pub async fn recover_txs(&mut self, txs: Vec<String>, queue: Arc<Queue>) {
-        match self {
-            Subscriber::Xrpl(sub) => {
-                for tx in txs {
-                    let res = sub.poll_tx(tx).await;
-                    match res {
-                        Ok(tx) => {
-                            let chain_transaction = ChainTransaction::Xrpl(tx.clone());
-                            let item = &QueueItem::Transaction(chain_transaction.clone());
-                            info!("Publishing XRPL transaction: {:?}", tx.common().hash);
-                            queue.publish(item.clone()).await;
-                            debug!("Published tx: {:?}", item);
-                        }
-                        Err(e) => {
-                            error!("Error getting txs: {:?}", e);
-                            debug!("Retrying in 2 seconds");
-                        }
-                    }
+        for tx in txs {
+            let res = self.transaction_poller.poll_tx(tx).await;
+            match res {
+                Ok(tx) => {
+                    let chain_transaction = self.transaction_poller.make_queue_item(tx);
+                    let item = &QueueItem::Transaction(chain_transaction.clone());
+                    info!("Publishing transaction: {:?}", chain_transaction);
+                    queue.publish(item.clone()).await;
+                    debug!("Published tx: {:?}", item);
+                }
+                Err(e) => {
+                    error!("Error getting txs: {:?}", e);
+                    debug!("Retrying in 2 seconds");
                 }
             }
         }

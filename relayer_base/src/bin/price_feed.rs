@@ -1,10 +1,10 @@
-use axelar_relayer::{
+use dotenv::dotenv;
+use relayer_base::{
     config::Config,
     database::PostgresDB,
     price_feed::PriceFeeder,
     utils::{setup_heartbeat, setup_logging},
 };
-use dotenv::dotenv;
 
 #[tokio::main]
 async fn main() {

@@ -2,15 +2,16 @@ use dotenv::dotenv;
 use std::sync::Arc;
 use tokio::signal::unix::{signal, SignalKind};
 
-use axelar_relayer::{
+use relayer_base::{
     config::Config,
     database::PostgresDB,
     gmp_api,
     payload_cache::PayloadCache,
     queue::Queue,
     utils::{setup_heartbeat, setup_logging},
-    xrpl::XrplIncluder,
 };
+
+use xrpl::includer::XrplIncluder;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {

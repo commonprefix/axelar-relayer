@@ -1,6 +1,6 @@
 use dotenv::dotenv;
 
-use axelar_relayer::{
+use relayer_base::{
     config::Config,
     database::PostgresDB,
     queue::Queue,
@@ -9,6 +9,8 @@ use axelar_relayer::{
 };
 use tokio::signal::unix::{signal, SignalKind};
 use xrpl_types::AccountId;
+
+use xrpl::subscriber::XrplSubscriber;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -24,8 +26,8 @@ async fn main() -> anyhow::Result<()> {
 
     let account = AccountId::from_address(&config.xrpl_multisig).unwrap();
 
-    let mut subscriber = Subscriber::new_xrpl(&config.xrpl_rpc, postgres_db).await;
-
+    let xrpl_subscriber = XrplSubscriber::new(&config.xrpl_rpc, postgres_db).await?;
+    let mut subscriber = Subscriber::new(xrpl_subscriber);
     let mut sigint = signal(SignalKind::interrupt())?;
     let mut sigterm = signal(SignalKind::terminate())?;
 

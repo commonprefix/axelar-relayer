@@ -5,9 +5,7 @@ use sqlx::{PgPool, Type};
 use xrpl_amplifier_types::msg::XRPLMessageType;
 use xrpl_api::Transaction;
 
-use crate::utils::extract_and_decode_memo;
-
-use super::Model;
+use relayer_base::{models::Model, utils::extract_and_decode_memo};
 
 #[derive(Debug, Serialize, Deserialize, Clone, Type)]
 #[sqlx(type_name = "tx_type_enum", rename_all = "PascalCase")]

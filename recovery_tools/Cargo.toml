@@ -10,7 +10,26 @@ futures = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
+serde = { workspace = true }
+serde_derive = { workspace = true }
 serde_json = { workspace = true }
 dotenv = { workspace = true }
 sqlx = { workspace = true }
 relayer-base = { workspace = true }
+xrpl = { workspace = true }
+redis = { workspace = true }
+r2d2 = { workspace = true }
+
+[dev-dependencies]
+
+[[bin]]
+name = "dlq_recovery"
+path = "src/bin/dlq_recovery.rs"
+
+[[bin]]
+name = "proof_retrier"
+path = "src/bin/proof_retrier.rs"
+
+[[bin]]
+name = "voting_retrier"
+path = "src/bin/voting_retrier.rs"

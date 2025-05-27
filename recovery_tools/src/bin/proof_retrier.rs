@@ -1,7 +1,7 @@
 use dotenv::dotenv;
 use tokio::signal::unix::{signal, SignalKind};
 
-use axelar_relayer::{
+use relayer_base::{
     config::Config,
     database::PostgresDB,
     payload_cache::PayloadCache,

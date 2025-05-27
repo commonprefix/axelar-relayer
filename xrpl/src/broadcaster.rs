@@ -5,7 +5,7 @@ use xrpl_api::{
     ResultCategory, SubmitRequest, SubmitResponse, Transaction, TransactionResult, TxRequest,
 };
 
-use crate::{
+use relayer_base::{
     error::BroadcasterError,
     includer::{BroadcastResult, Broadcaster},
     utils::extract_hex_xrpl_memo,

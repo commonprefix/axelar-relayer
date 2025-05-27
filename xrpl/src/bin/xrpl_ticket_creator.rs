@@ -1,12 +1,13 @@
 use dotenv::dotenv;
 use std::sync::Arc;
 
-use axelar_relayer::{
+use relayer_base::{
     config::Config,
     gmp_api,
     utils::{setup_heartbeat, setup_logging},
-    xrpl::XrplTicketCreator,
 };
+
+use xrpl::ticket_creator::XrplTicketCreator;
 
 #[tokio::main]
 async fn main() {

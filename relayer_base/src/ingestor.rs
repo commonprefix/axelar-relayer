@@ -8,7 +8,10 @@ use crate::{
     // config::Config,
     // database::Database,
     error::IngestorError,
-    gmp_api::{gmp_types::{ConstructProofTask, Event, ReactToWasmEventTask, Task, VerifyTask}, GmpApi},
+    gmp_api::{
+        gmp_types::{ConstructProofTask, Event, ReactToWasmEventTask, Task, VerifyTask},
+        GmpApi,
+    },
     // models::Models,
     // payload_cache::PayloadCache,
     // price_view::PriceView,
@@ -22,32 +25,24 @@ pub struct Ingestor<I: IngestorTrait> {
 }
 
 pub trait IngestorTrait {
-    fn handle_verify(&self, task: VerifyTask) ->  impl Future<Output =  Result<(), IngestorError>>;
-    fn handle_transaction(&self, transaction: ChainTransaction) -> impl Future<Output = Result<Vec<Event>, IngestorError>>;
-    fn handle_wasm_event(&self, task: ReactToWasmEventTask) -> impl Future<Output = Result<(), IngestorError>>;
-    fn handle_construct_proof(&self, task: ConstructProofTask) -> impl Future<Output = Result<(), IngestorError>>;
+    fn handle_verify(&self, task: VerifyTask) -> impl Future<Output = Result<(), IngestorError>>;
+    fn handle_transaction(
+        &self,
+        transaction: ChainTransaction,
+    ) -> impl Future<Output = Result<Vec<Event>, IngestorError>>;
+    fn handle_wasm_event(
+        &self,
+        task: ReactToWasmEventTask,
+    ) -> impl Future<Output = Result<(), IngestorError>>;
+    fn handle_construct_proof(
+        &self,
+        task: ConstructProofTask,
+    ) -> impl Future<Output = Result<(), IngestorError>>;
 }
 
 impl<I: IngestorTrait> Ingestor<I> {
-    pub fn new(
-        gmp_api: Arc<GmpApi>,
-        // config: Config,
-        // price_view: PriceView<DB>,
-        // payload_cache: PayloadCache<DB>,
-        // db_models: Models,
-        ingestor: I
-    ) -> Self {
-        // let xrpl_ingestor = XrplIngestor::new(
-        //     gmp_api.clone(),
-        //     config.clone(),
-        //     price_view,
-        //     payload_cache,
-        //     db_models,
-        // );
-        Self {
-            gmp_api,
-            ingestor,
-        }
+    pub fn new(gmp_api: Arc<GmpApi>, ingestor: I) -> Self {
+        Self { gmp_api, ingestor }
     }
 
     async fn work(&self, consumer: &mut Consumer, queue: Arc<Queue>) {
@@ -156,9 +151,7 @@ impl<I: IngestorTrait> Ingestor<I> {
         match task {
             Task::Verify(verify_task) => {
                 info!("Consuming task: {:?}", verify_task);
-                self.ingestor
-                    .handle_verify(verify_task)
-                    .await
+                self.ingestor.handle_verify(verify_task).await
             }
             Task::ReactToWasmEvent(react_to_wasm_event_task) => {
                 info!("Consuming task: {:?}", react_to_wasm_event_task);

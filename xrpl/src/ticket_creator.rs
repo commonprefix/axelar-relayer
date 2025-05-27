@@ -2,10 +2,11 @@ use std::sync::Arc;
 
 use tracing::{debug, error, info};
 
-use crate::{
+use relayer_base::{
     config::Config,
     gmp_api::{gmp_types::BroadcastRequest, GmpApi},
 };
+use xrpl_multisig_prover;
 
 pub struct XrplTicketCreator {
     gmp_api: Arc<GmpApi>,
