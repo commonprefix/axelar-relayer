@@ -1,3 +1,4 @@
+use core::fmt;
 use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
@@ -172,6 +173,12 @@ pub struct RefundTask {
     #[serde(flatten)]
     pub common: CommonTaskFields,
     pub task: RefundTaskFields,
+}
+
+impl fmt::Display for VerificationStatus {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", serde_json::to_string(self).unwrap())
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]

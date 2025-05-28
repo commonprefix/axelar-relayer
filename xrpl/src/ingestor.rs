@@ -1,6 +1,7 @@
 use axelar_wasm_std::{msg_id::HexTxHash, nonempty};
 use base64::prelude::*;
 use interchain_token_service::TokenId;
+use relayer_base::gmp_api::gmp_types::VerificationStatus;
 use relayer_base::ingestor::IngestorTrait;
 use relayer_base::subscriber::ChainTransaction;
 use relayer_base::{
@@ -1143,7 +1144,7 @@ impl<DB: Database> IngestorTrait for XrplIngestor<DB> {
                     IngestorError::GenericError("QuorumReached event missing content".to_owned())
                 })?;
 
-                let tx_status: String = serde_json::from_str(
+                let tx_status: VerificationStatus = serde_json::from_str(
                     event_attribute(&task.task.event, "status")
                         .ok_or_else(|| {
                             IngestorError::GenericError(
@@ -1177,9 +1178,9 @@ impl<DB: Database> IngestorTrait for XrplIngestor<DB> {
                     .await
                     .map_err(|e| IngestorError::GenericError(e.to_string()))?;
 
-                match tx_status.as_str() {
-                    "succeeded_on_source_chain" => {}
-                    "failed_on_source_chain" => {}
+                match tx_status {
+                    VerificationStatus::SucceededOnSourceChain => {}
+                    VerificationStatus::FailedOnSourceChain => {}
                     _ => {
                         // TODO: should not skip
                         warn!("QuorumReached event has status: {}", tx_status);
