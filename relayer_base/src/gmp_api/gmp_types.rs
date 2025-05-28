@@ -94,6 +94,37 @@ pub struct ReactToWasmEventTaskFields {
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct ReactToExpiredSigningSessionTaskFields {
+    pub session_id: u64,
+    pub broadcast_id: String,
+    pub invoked_contract_address: String,
+    pub request_payload: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct ReactToExpiredSigningSessionTask {
+    #[serde(flatten)]
+    pub common: CommonTaskFields,
+    pub task: ReactToExpiredSigningSessionTaskFields,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct ReactToRetriablePollTaskFields {
+    pub poll_id: u64,
+    pub broadcast_id: String,
+    pub invoked_contract_address: String,
+    pub request_payload: String,
+    pub quorum_reached_events: Vec<WasmEvent>,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct ReactToRetriablePollTask {
+    #[serde(flatten)]
+    pub common: CommonTaskFields,
+    pub task: ReactToRetriablePollTaskFields,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct EventAttribute {
     pub key: String,
     pub value: String,
@@ -136,6 +167,8 @@ pub enum Task {
     ConstructProof(ConstructProofTask),
     ReactToWasmEvent(ReactToWasmEventTask),
     Refund(RefundTask),
+    ReactToExpiredSigningSession(ReactToExpiredSigningSessionTask),
+    ReactToRetriablePoll(ReactToRetriablePollTask),
 }
 
 #[derive(Clone, Eq, PartialEq, Hash)]
@@ -146,6 +179,8 @@ pub enum TaskKind {
     ConstructProof,
     ReactToWasmEvent,
     Refund,
+    ReactToExpiredSigningSession,
+    ReactToRetriablePoll,
 }
 
 impl Task {
@@ -157,6 +192,8 @@ impl Task {
             Task::ConstructProof(t) => t.common.id.clone(),
             Task::ReactToWasmEvent(t) => t.common.id.clone(),
             Task::Refund(t) => t.common.id.clone(),
+            Task::ReactToExpiredSigningSession(t) => t.common.id.clone(),
+            Task::ReactToRetriablePoll(t) => t.common.id.clone(),
         }
     }
 
@@ -169,6 +206,8 @@ impl Task {
             ConstructProof(_) => TaskKind::ConstructProof,
             ReactToWasmEvent(_) => TaskKind::ReactToWasmEvent,
             Refund(_) => TaskKind::Refund,
+            ReactToExpiredSigningSession(_) => TaskKind::ReactToExpiredSigningSession,
+            ReactToRetriablePoll(_) => TaskKind::ReactToRetriablePoll,
         }
     }
 }
