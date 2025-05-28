@@ -1,3 +1,4 @@
+use core::fmt;
 use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
@@ -174,6 +175,12 @@ pub enum VerificationStatus {
     InProgress,
     #[serde(rename = "unknown")]
     Unknown,
+}
+
+impl fmt::Display for VerificationStatus {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", serde_json::to_string(self).unwrap())
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]

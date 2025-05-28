@@ -9,7 +9,7 @@ use xrpl_amplifier_types::error::XRPLError;
 use crate::config::Config;
 use crate::database::Database;
 use crate::error::ITSTranslationError;
-use crate::gmp_api::gmp_types::MessageExecutedEventMetadata;
+use crate::gmp_api::gmp_types::{MessageExecutedEventMetadata, VerificationStatus};
 use crate::models::{Model, Models, XrplTransaction, XrplTransactionStatus};
 use crate::payload_cache::{PayloadCache, PayloadCacheValue};
 use crate::price_view::PriceView;
@@ -797,7 +797,7 @@ impl<DB: Database> XrplIngestor<DB> {
                     IngestorError::GenericError("QuorumReached event missing content".to_owned())
                 })?;
 
-                let tx_status: String = serde_json::from_str(
+                let tx_status: VerificationStatus = serde_json::from_str(
                     event_attribute(&task.task.event, "status")
                         .ok_or_else(|| {
                             IngestorError::GenericError(
@@ -832,9 +832,9 @@ impl<DB: Database> XrplIngestor<DB> {
                     .await
                     .map_err(|e| IngestorError::GenericError(e.to_string()))?;
 
-                match tx_status.as_str() {
-                    "succeeded_on_source_chain" => {}
-                    "failed_on_source_chain" => {}
+                match tx_status {
+                    VerificationStatus::SucceededOnSourceChain => {}
+                    VerificationStatus::FailedOnSourceChain => {}
                     _ => {
                         // TODO: should not skip
                         warn!("QuorumReached event has status: {}", tx_status);
