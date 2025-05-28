@@ -5,16 +5,11 @@ use tokio::select;
 use tracing::{debug, error, info, warn};
 
 use crate::{
-    // config::Config,
-    // database::Database,
     error::IngestorError,
     gmp_api::{
         gmp_types::{ConstructProofTask, Event, ReactToWasmEventTask, Task, VerifyTask},
         GmpApi,
     },
-    // models::Models,
-    // payload_cache::PayloadCache,
-    // price_view::PriceView,
     queue::{Queue, QueueItem},
     subscriber::ChainTransaction,
 };

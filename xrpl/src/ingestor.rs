@@ -52,8 +52,6 @@ pub struct XrplIngestor<DB: Database> {
     payload_cache: PayloadCache<DB>,
     xrpl_transaction_model: PgXrplTransactionModel,
 }
-// impl ingestortrait for XrplIngestor
-// take the functions in here
 
 impl<DB: Database> XrplIngestor<DB> {
     pub fn new(
@@ -1064,13 +1062,7 @@ impl<DB: Database> IngestorTrait for XrplIngestor<DB> {
     async fn handle_transaction(&self, tx: ChainTransaction) -> Result<Vec<Event>, IngestorError> {
         let tx = match tx {
             ChainTransaction::Xrpl(tx) => tx,
-            _ => {
-                return Err(IngestorError::GenericError(
-                    "Unsupported transaction type".to_owned(),
-                ))
-            }
         };
-        // QUESTION : is this fine?
 
         let xrpl_transaction =
             XrplTransaction::from_native_transaction(&tx, &self.config.xrpl_multisig)
