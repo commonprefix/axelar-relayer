@@ -440,10 +440,19 @@ impl<DB: Database> XrplIngestor<DB> {
     ) -> Result<Event, IngestorError> {
         Ok(match xrpl_message {
             XRPLMessage::InterchainTransferMessage(message) => {
-                let transfer_amount = message.transfer_amount;
-
-                let transfer_amount_drops = match &transfer_amount {
-                    XRPLPaymentAmount::Drops(amount) => amount.to_string(),
+                let (transfer_amount, token_id) = match &message.transfer_amount {
+                    XRPLPaymentAmount::Drops(amount) => {
+                        let xrpl_token_id = self
+                            .config
+                            .deployed_tokens
+                            .iter()
+                            .find(|(_, token_symbol)| token_symbol == &"XRP")
+                            .ok_or(IngestorError::GenericError(
+                                "XRP token id not found".to_string(),
+                            ))?
+                            .0;
+                        (amount.to_string(), xrpl_token_id.to_owned())
+                    }
                     XRPLPaymentAmount::Issued(_, amount) => {
                         if let Some(token_id) = maybe_token_id {
                             let amount =
@@ -453,14 +462,7 @@ impl<DB: Database> XrplIngestor<DB> {
                                         amount, e
                                     ))
                                 })?;
-                            convert_token_amount_to_drops(
-                                &self.config,
-                                amount,
-                                &token_id.to_string(),
-                                &self.price_view,
-                            )
-                            .await
-                            .map_err(|e| IngestorError::GenericError(e.to_string()))?
+                            (amount.to_string(), token_id.to_string())
                         } else {
                             return Err(IngestorError::GenericError(
                                 "Token id can't be None for IOU transfer".to_owned(),
@@ -484,8 +486,8 @@ impl<DB: Database> XrplIngestor<DB> {
                     message_id: message.tx_id.to_string(),
                     destination_chain: message.destination_chain.to_string(),
                     token_spent: Amount {
-                        token_id: None,
-                        amount: transfer_amount_drops,
+                        token_id: Some(token_id),
+                        amount: transfer_amount,
                     },
                     source_address: message.source_address.to_string(),
                     destination_address: message.destination_address.to_string(),
