@@ -1093,6 +1093,7 @@ impl<DB: Database> XrplIngestor<DB> {
                 info!("ConstructProof({}) transaction hash: {}", cc_id, tx_hash);
             }
             Err(e) => {
+                error!("Failed to construct proof: {}", e);
                 self.gmp_api
                     .cannot_execute_message(
                         task.common.id,
