@@ -160,19 +160,19 @@ pub struct ReactToRetriablePollTask {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum VerificationStatus {
-    #[serde(rename = "SUCCEEDED_ON_SOURCE_CHAIN")]
+    #[serde(rename = "succeeded_on_source_chain")]
     SucceededOnSourceChain,
-    #[serde(rename = "FAILED_ON_SOURCE_CHAIN")]
+    #[serde(rename = "failed_on_source_chain")]
     FailedOnSourceChain,
-    #[serde(rename = "FAILED_ON_DESTINATION_CHAIN")]
+    #[serde(rename = "failed_on_destination_chain")]
     FailedOnDestinationChain,
-    #[serde(rename = "NOT_FOUND_ON_SOURCE_CHAIN")]
+    #[serde(rename = "not_found_on_source_chain")]
     NotFoundOnSourceChain,
-    #[serde(rename = "FAILED_TO_VERIFY")]
+    #[serde(rename = "failed_to_verify")]
     FailedToVerify,
-    #[serde(rename = "IN_PROGRESS")]
+    #[serde(rename = "in_progress")]
     InProgress,
-    #[serde(rename = "UNKNOWN")]
+    #[serde(rename = "unknown")]
     Unknown,
 }
 
