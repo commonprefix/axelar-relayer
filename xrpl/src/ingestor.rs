@@ -28,7 +28,7 @@ use router_api::{ChainNameRaw, CrossChainId};
 use rust_decimal::Decimal;
 use std::ops::Sub;
 use std::{collections::HashMap, str::FromStr, sync::Arc, vec};
-use tracing::{debug, info, warn};
+use tracing::{debug, error, info, warn};
 use xrpl_amplifier_types::error::XRPLError;
 use xrpl_amplifier_types::{
     msg::{
@@ -1319,6 +1319,7 @@ impl<DB: Database> IngestorTrait for XrplIngestor<DB> {
                 info!("ConstructProof({}) transaction hash: {}", cc_id, tx_hash);
             }
             Err(e) => {
+                error!("Failed to construct proof: {}", e);
                 self.gmp_api
                     .cannot_execute_message(
                         task.common.id,
