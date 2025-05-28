@@ -8,7 +8,10 @@ use crate::{
     config::Config,
     database::Database,
     error::IngestorError,
-    gmp_api::{gmp_types::Task, GmpApi},
+    gmp_api::{
+        gmp_types::{BroadcastRequest, Task},
+        GmpApi,
+    },
     models::Models,
     payload_cache::PayloadCache,
     price_view::PriceView,
@@ -165,7 +168,49 @@ impl<DB: Database> Ingestor<DB> {
                     .handle_construct_proof(construct_proof_task)
                     .await
             }
+            Task::ReactToRetriablePoll(react_to_retriable_poll_task) => {
+                info!("Consuming task: {:?}", react_to_retriable_poll_task);
+                self.handle_retriable_task(
+                    react_to_retriable_poll_task.request_payload,
+                    react_to_retriable_poll_task.invoked_contract_address,
+                )
+                .await
+            }
+            Task::ReactToExpiredSigningSession(react_to_expired_signing_session_task) => {
+                info!(
+                    "Consuming task: {:?}",
+                    react_to_expired_signing_session_task
+                );
+                self.handle_retriable_task(
+                    react_to_expired_signing_session_task.request_payload,
+                    react_to_expired_signing_session_task.invoked_contract_address,
+                )
+                .await
+            }
             _ => Err(IngestorError::IrrelevantTask),
         }
+    }
+
+    async fn handle_retriable_task(
+        &self,
+        request_payload: String,
+        invoked_contract_address: String,
+    ) -> Result<(), IngestorError> {
+        info!("Retrying: {:?}", request_payload);
+
+        let payload: BroadcastRequest = BroadcastRequest::Generic(
+            serde_json::from_str(&request_payload)
+                .map_err(|e| IngestorError::ParseError(format!("Invalid JSON: {}", e)))?,
+        );
+
+        let request = self
+            .gmp_api
+            .post_broadcast(invoked_contract_address, &payload)
+            .await
+            .map_err(|e| IngestorError::PostEventError(e.to_string()))?;
+
+        info!("Broadcast request sent: {:?}", request);
+
+        Ok(())
     }
 }
