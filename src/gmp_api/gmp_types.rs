@@ -129,6 +129,60 @@ pub struct RefundTask {
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct ReactToExpiredSigningSessionTask {
+    #[serde(flatten)]
+    pub common: CommonTaskFields,
+    #[serde(rename = "sessionID")]
+    pub session_id: u64,
+    #[serde(rename = "broadcastID")]
+    pub broadcast_id: String,
+    #[serde(rename = "invokedContractAddress")]
+    pub invoked_contract_address: String,
+    #[serde(rename = "requestPayload")]
+    pub request_payload: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct ReactToRetriablePollTask {
+    #[serde(flatten)]
+    pub common: CommonTaskFields,
+    #[serde(rename = "pollID")]
+    pub poll_id: u64,
+    #[serde(rename = "broadcastID")]
+    pub broadcast_id: String,
+    #[serde(rename = "invokedContractAddress")]
+    pub invoked_contract_address: String,
+    #[serde(rename = "requestPayload")]
+    pub request_payload: String,
+    #[serde(rename = "quorumReachedEvents")]
+    pub quorum_reached_events: Vec<QuorumReachedEvent>,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub enum VerificationStatus {
+    #[serde(rename = "SUCCEEDED_ON_SOURCE_CHAIN")]
+    SucceededOnSourceChain,
+    #[serde(rename = "FAILED_ON_SOURCE_CHAIN")]
+    FailedOnSourceChain,
+    #[serde(rename = "FAILED_ON_DESTINATION_CHAIN")]
+    FailedOnDestinationChain,
+    #[serde(rename = "NOT_FOUND_ON_SOURCE_CHAIN")]
+    NotFoundOnSourceChain,
+    #[serde(rename = "FAILED_TO_VERIFY")]
+    FailedToVerify,
+    #[serde(rename = "IN_PROGRESS")]
+    InProgress,
+    #[serde(rename = "UNKNOWN")]
+    Unknown,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct QuorumReachedEvent {
+    pub status: VerificationStatus,
+    pub content: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum Task {
     Verify(VerifyTask),
     Execute(ExecuteTask),
@@ -136,6 +190,8 @@ pub enum Task {
     ConstructProof(ConstructProofTask),
     ReactToWasmEvent(ReactToWasmEventTask),
     Refund(RefundTask),
+    ReactToExpiredSigningSession(ReactToExpiredSigningSessionTask),
+    ReactToRetriablePoll(ReactToRetriablePollTask),
 }
 
 #[derive(Clone, Eq, PartialEq, Hash)]
@@ -146,6 +202,8 @@ pub enum TaskKind {
     ConstructProof,
     ReactToWasmEvent,
     Refund,
+    ReactToExpiredSigningSession,
+    ReactToRetriablePoll,
 }
 
 impl Task {
@@ -157,6 +215,8 @@ impl Task {
             Task::ConstructProof(t) => t.common.id.clone(),
             Task::ReactToWasmEvent(t) => t.common.id.clone(),
             Task::Refund(t) => t.common.id.clone(),
+            Task::ReactToExpiredSigningSession(t) => t.common.id.clone(),
+            Task::ReactToRetriablePoll(t) => t.common.id.clone(),
         }
     }
 
@@ -169,6 +229,8 @@ impl Task {
             ConstructProof(_) => TaskKind::ConstructProof,
             ReactToWasmEvent(_) => TaskKind::ReactToWasmEvent,
             Refund(_) => TaskKind::Refund,
+            ReactToExpiredSigningSession(_) => TaskKind::ReactToExpiredSigningSession,
+            ReactToRetriablePoll(_) => TaskKind::ReactToRetriablePoll,
         }
     }
 }
