@@ -104,6 +104,11 @@ impl<DB: Database> Distributor<DB> {
                 }
             }
 
+            if task.kind() == TaskKind::Unknown {
+                warn!("Dropping unknown task: {:?}", task);
+                continue;
+            }
+
             let task_item = &QueueItem::Task(task.clone());
             info!("Publishing task: {:?}", task);
             queue.publish(task_item.clone()).await;
