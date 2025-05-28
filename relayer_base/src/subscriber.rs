@@ -1,5 +1,4 @@
 use crate::{
-    // database::Database,
     queue::{Queue, QueueItem},
 };
 use futures::Stream;
@@ -8,7 +7,6 @@ use std::{future::Future, pin::Pin, sync::Arc};
 use tracing::{debug, error, info};
 use xrpl_api::Transaction;
 use xrpl_types::AccountId;
-//use relayer_base::xrpl::xrpl_subscriber::XrplSubscriber;
 
 pub trait TransactionListener {
     type Transaction;
@@ -40,7 +38,6 @@ pub trait TransactionPoller {
         tx_hash: String,
     ) -> impl Future<Output = Result<Self::Transaction, anyhow::Error>>;
 }
-// impl transactionpoller for XrplSubscriber
 
 pub struct Subscriber<TP: TransactionPoller> {
     transaction_poller: TP,
@@ -52,15 +49,9 @@ pub enum ChainTransaction {
 }
 
 impl<TP: TransactionPoller> Subscriber<TP> {
-    // new subscriber(transactionpoller)
     pub fn new(transaction_poller: TP) -> Self {
         Self { transaction_poller }
     }
-
-    // pub async fn new_xrpl(url: &str, postgres_db: DB) -> Subscriber<DB> {
-    //     let client = XrplSubscriber::new(url, postgres_db).await.unwrap();
-    //     Subscriber::Xrpl(client)
-    // }
 
     async fn work(&mut self, account: String, queue: Arc<Queue>) {
         // no match, just call poll_account
@@ -72,7 +63,6 @@ impl<TP: TransactionPoller> Subscriber<TP> {
             Ok(txs) => {
                 for tx in txs {
                     let chain_transaction = self.transaction_poller.make_queue_item(tx);
-                    // let chain_transaction = ChainTransaction::Xrpl(tx.clone()); // call the function we defined maybe on self
                     let item = &QueueItem::Transaction(chain_transaction.clone());
                     info!("Publishing transaction: {:?}", chain_transaction);
                     queue.publish(item.clone()).await;
