@@ -156,7 +156,7 @@ pub struct ReactToRetriablePollTask {
     #[serde(rename = "requestPayload")]
     pub request_payload: String,
     #[serde(rename = "quorumReachedEvents")]
-    pub quorum_reached_events: Vec<QuorumReachedEvent>,
+    pub quorum_reached_events: Option<Vec<QuorumReachedEvent>>,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -186,7 +186,7 @@ impl fmt::Display for VerificationStatus {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct QuorumReachedEvent {
     pub status: VerificationStatus,
-    pub content: String,
+    pub content: Value,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
