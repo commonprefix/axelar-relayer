@@ -48,6 +48,7 @@ pub struct Config {
     pub client_key_path: String,
     pub heartbeats: HeartbeatsConfig,
     pub price_feed: PriceFeedConfig,
+    pub refunds_enabled: bool,
 }
 
 impl Config {

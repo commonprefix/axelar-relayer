@@ -24,7 +24,13 @@ async fn main() -> anyhow::Result<()> {
     let gmp_api = Arc::new(gmp_api::GmpApi::new(&config, true).unwrap());
     let postgres_db = PostgresDB::new(&config.postgres_url).await.unwrap();
 
-    let mut distributor = Distributor::new(postgres_db, "default".to_string(), gmp_api).await;
+    let mut distributor = Distributor::new(
+        postgres_db,
+        "default".to_string(),
+        gmp_api,
+        config.refunds_enabled,
+    )
+    .await;
 
     let mut sigint = signal(SignalKind::interrupt())?;
     let mut sigterm = signal(SignalKind::terminate())?;
