@@ -36,6 +36,7 @@ async fn main() -> anyhow::Result<()> {
             // to_task_id: "01968759-51c7-7367-a8d0-7f12f2e0efdb".to_string(),
             // tasks_filter: Some(vec![TaskKind::ConstructProof]),
         },
+        config.refunds_enabled,
     )
     .await;
 
