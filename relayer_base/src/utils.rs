@@ -19,7 +19,8 @@ use crate::{
     config::Config,
     error::{GmpApiError, IngestorError},
     gmp_api::gmp_types::{
-        CommonTaskFields, ConstructProofTask, ExecuteTask, GatewayTxTask, ReactToWasmEventTask,
+        CommonTaskFields, ConstructProofTask, ExecuteTask, GatewayTxTask,
+        ReactToExpiredSigningSessionTask, ReactToRetriablePollTask, ReactToWasmEventTask,
         RefundTask, Task, TaskMetadata, VerifyTask, WasmEvent,
     },
     price_view::PriceViewTrait,
@@ -57,6 +58,14 @@ pub fn parse_task(task_json: &Value) -> Result<Task, GmpApiError> {
         "REACT_TO_WASM_EVENT" => {
             let task: ReactToWasmEventTask = parse_as(task_json)?;
             Ok(Task::ReactToWasmEvent(task))
+        }
+        "REACT_TO_RETRIABLE_POLL" => {
+            let task: ReactToRetriablePollTask = parse_as(task_json)?;
+            Ok(Task::ReactToRetriablePoll(task))
+        }
+        "REACT_TO_EXPIRED_SIGNING_SESSION" => {
+            let task: ReactToExpiredSigningSessionTask = parse_as(task_json)?;
+            Ok(Task::ReactToExpiredSigningSession(task))
         }
         _ => {
             let error_message = format!("Failed to parse task: {:?}", task_json);
