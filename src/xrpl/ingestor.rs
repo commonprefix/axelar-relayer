@@ -30,7 +30,7 @@ use crate::{
     },
 };
 use router_api::{ChainNameRaw, CrossChainId};
-use tracing::{debug, info, warn};
+use tracing::{debug, error, info, warn};
 use xrpl_amplifier_types::{
     msg::{
         WithCrossChainId, WithPayload, XRPLAddGasMessage, XRPLAddReservesMessage,

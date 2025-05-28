@@ -183,6 +183,12 @@ pub struct QuorumReachedEvent {
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct UnknownTask {
+    #[serde(flatten)]
+    pub common: CommonTaskFields,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum Task {
     Verify(VerifyTask),
     Execute(ExecuteTask),
@@ -192,6 +198,7 @@ pub enum Task {
     Refund(RefundTask),
     ReactToExpiredSigningSession(ReactToExpiredSigningSessionTask),
     ReactToRetriablePoll(ReactToRetriablePollTask),
+    Unknown(UnknownTask),
 }
 
 #[derive(Clone, Eq, PartialEq, Hash)]
@@ -204,6 +211,7 @@ pub enum TaskKind {
     Refund,
     ReactToExpiredSigningSession,
     ReactToRetriablePoll,
+    Unknown,
 }
 
 impl Task {
@@ -217,6 +225,7 @@ impl Task {
             Task::Refund(t) => t.common.id.clone(),
             Task::ReactToExpiredSigningSession(t) => t.common.id.clone(),
             Task::ReactToRetriablePoll(t) => t.common.id.clone(),
+            Task::Unknown(t) => t.common.id.clone(),
         }
     }
 
@@ -231,6 +240,7 @@ impl Task {
             Refund(_) => TaskKind::Refund,
             ReactToExpiredSigningSession(_) => TaskKind::ReactToExpiredSigningSession,
             ReactToRetriablePoll(_) => TaskKind::ReactToRetriablePoll,
+            Unknown(_) => TaskKind::Unknown,
         }
     }
 }

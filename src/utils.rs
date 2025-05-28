@@ -20,7 +20,7 @@ use crate::{
     error::{GmpApiError, IngestorError},
     gmp_api::gmp_types::{
         CommonTaskFields, ConstructProofTask, ExecuteTask, GatewayTxTask, ReactToWasmEventTask,
-        RefundTask, Task, TaskMetadata, VerifyTask, WasmEvent,
+        RefundTask, Task, TaskMetadata, UnknownTask, VerifyTask, WasmEvent,
     },
     price_view::PriceViewTrait,
 };
@@ -59,9 +59,8 @@ pub fn parse_task(task_json: &Value) -> Result<Task, GmpApiError> {
             Ok(Task::ReactToWasmEvent(task))
         }
         _ => {
-            let error_message = format!("Failed to parse task: {:?}", task_json);
-            warn!(error_message);
-            Err(GmpApiError::InvalidResponse(error_message))
+            let task: UnknownTask = parse_as(task_json)?;
+            Ok(Task::Unknown(task))
         }
     }
 }
