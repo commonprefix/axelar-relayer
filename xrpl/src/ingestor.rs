@@ -1,6 +1,7 @@
 use axelar_wasm_std::{msg_id::HexTxHash, nonempty};
 use base64::prelude::*;
 use interchain_token_service::TokenId;
+use regex::Regex;
 use relayer_base::gmp_api::gmp_types::VerificationStatus;
 use relayer_base::ingestor::IngestorTrait;
 use relayer_base::subscriber::ChainTransaction;
@@ -1320,6 +1321,13 @@ impl<DB: Database> IngestorTrait for XrplIngestor<DB> {
                 info!("ConstructProof({}) transaction hash: {}", cc_id, tx_hash);
             }
             Err(e) => {
+                let re = Regex::new(r"(payment for .*? already succeeded)").unwrap();
+
+                if re.is_match(&e.to_string()) {
+                    info!("Payment for {} already succeeded", cc_id);
+                    return Ok(());
+                }
+
                 error!("Failed to construct proof: {}", e);
                 self.gmp_api
                     .cannot_execute_message(
