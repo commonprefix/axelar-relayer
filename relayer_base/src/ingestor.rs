@@ -8,13 +8,17 @@ use crate::{
     error::IngestorError,
     gmp_api::{
         gmp_types::{
-            BroadcastRequest, ConstructProofTask, Event, ReactToWasmEventTask, Task, VerifyTask,
+            BroadcastRequest, ConstructProofTask, Event, ReactToExpiredSigningSessionTask,
+            ReactToWasmEventTask, Task, VerifyTask,
         },
         GmpApi,
     },
     queue::{Queue, QueueItem},
     subscriber::ChainTransaction,
+    utils::message_id_from_retry_task,
 };
+
+const MAX_TASK_RETRIES: u32 = 5;
 
 pub struct Ingestor<I: IngestorTrait> {
     gmp_api: Arc<GmpApi>,
@@ -164,9 +168,13 @@ impl<I: IngestorTrait> Ingestor<I> {
             }
             Task::ReactToRetriablePoll(react_to_retriable_poll_task) => {
                 info!("Consuming task: {:?}", react_to_retriable_poll_task);
+                let msg_id = message_id_from_retry_task(Task::ReactToRetriablePoll(
+                    react_to_retriable_poll_task.clone(),
+                ))?;
                 self.handle_retriable_task(
                     react_to_retriable_poll_task.task.request_payload,
                     react_to_retriable_poll_task.task.invoked_contract_address,
+                    msg_id,
                 )
                 .await
             }
@@ -175,11 +183,15 @@ impl<I: IngestorTrait> Ingestor<I> {
                     "Consuming task: {:?}",
                     react_to_expired_signing_session_task
                 );
+                let msg_id = message_id_from_retry_task(Task::ReactToExpiredSigningSession(
+                    react_to_expired_signing_session_task.clone(),
+                ))?;
                 self.handle_retriable_task(
                     react_to_expired_signing_session_task.task.request_payload,
                     react_to_expired_signing_session_task
                         .task
                         .invoked_contract_address,
+                    msg_id,
                 )
                 .await
             }
@@ -191,6 +203,7 @@ impl<I: IngestorTrait> Ingestor<I> {
         &self,
         request_payload: String,
         invoked_contract_address: String,
+        message_id: String,
     ) -> Result<(), IngestorError> {
         info!("Retrying: {:?}", request_payload);
 
