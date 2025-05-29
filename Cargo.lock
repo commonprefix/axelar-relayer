@@ -789,6 +789,7 @@ dependencies = [
  "r2d2",
  "rand 0.9.1",
  "redis",
+ "regex",
  "reqwest",
  "reqwest-middleware",
  "reqwest-retry",

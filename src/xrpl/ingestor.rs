@@ -1,6 +1,7 @@
 use axelar_wasm_std::{msg_id::HexTxHash, nonempty};
 use base64::prelude::*;
 use interchain_token_service::TokenId;
+use regex::Regex;
 use rust_decimal::Decimal;
 use std::ops::Sub;
 use std::{collections::HashMap, str::FromStr, sync::Arc, vec};
@@ -1093,6 +1094,13 @@ impl<DB: Database> XrplIngestor<DB> {
                 info!("ConstructProof({}) transaction hash: {}", cc_id, tx_hash);
             }
             Err(e) => {
+                let re = Regex::new(r"(payment for .*? already succeeded)").unwrap();
+
+                if re.is_match(&e.to_string()) {
+                    info!("Payment for {} already succeeded", cc_id);
+                    return Ok(());
+                }
+
                 error!("Failed to construct proof: {}", e);
                 self.gmp_api
                     .cannot_execute_message(

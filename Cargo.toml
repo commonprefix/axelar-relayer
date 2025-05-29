@@ -47,6 +47,7 @@ rust_decimal = "1.37.1"
 sqlx = { version = "0.8.5", features = ["postgres", "runtime-tokio", "chrono"] }
 reqwest-retry = "0.7.0"
 reqwest-middleware = "0.4.2"
+regex = "1.11.1"
 
 [dev-dependencies]
 mockall = "0.13.1"
