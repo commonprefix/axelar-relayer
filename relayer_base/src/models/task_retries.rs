@@ -1,0 +1,70 @@
+use super::Model;
+use anyhow::Result;
+use serde::{Deserialize, Serialize};
+use sqlx::PgPool;
+
+#[derive(Debug, Serialize, Deserialize, Clone, sqlx::FromRow)]
+pub struct TaskRetries {
+    pub message_id: String,
+    pub retries: i64,
+    pub updated_at: chrono::DateTime<chrono::Utc>,
+}
+
+const PG_TABLE_NAME: &str = "task_retries";
+#[derive(Debug, Clone)]
+pub struct PgTaskRetriesModel {
+    pub pool: PgPool,
+}
+
+impl Model for PgTaskRetriesModel {
+    type Entity = TaskRetries;
+    type PrimaryKey = String;
+
+    async fn find(&self, id: Self::PrimaryKey) -> Result<Option<Self::Entity>> {
+        let query = format!("SELECT * FROM {} WHERE message_id = $1", PG_TABLE_NAME);
+        let tx = sqlx::query_as::<_, TaskRetries>(&query)
+            .bind(id)
+            .fetch_optional(&self.pool)
+            .await?;
+        Ok(tx)
+    }
+
+    async fn upsert(&self, entry: TaskRetries) -> Result<()> {
+        let query = format!(
+            "INSERT INTO {} (message_id, retries, updated_at) VALUES ($1, $2, NOW()) ON CONFLICT (message_id) DO UPDATE SET retries = $2, updated_at = NOW() RETURNING *",
+            PG_TABLE_NAME
+        );
+
+        sqlx::query(&query)
+            .bind(entry.message_id)
+            .bind(entry.retries)
+            .execute(&self.pool)
+            .await?;
+
+        Ok(())
+    }
+
+    async fn delete(&self, entry: TaskRetries) -> Result<()> {
+        let query = format!("DELETE FROM {} WHERE message_id = $1", PG_TABLE_NAME);
+        sqlx::query(&query)
+            .bind(entry.message_id)
+            .execute(&self.pool)
+            .await?;
+
+        Ok(())
+    }
+}
+
+impl PgTaskRetriesModel {
+    pub async fn increment_retries(&self, message_id: String) -> Result<()> {
+        let query = format!(
+            "UPDATE {} SET retries = retries + 1, updated_at = NOW() WHERE message_id = $1",
+            PG_TABLE_NAME
+        );
+        sqlx::query(&query)
+            .bind(message_id)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+}
