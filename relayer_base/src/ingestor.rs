@@ -8,21 +8,29 @@ use crate::{
     error::IngestorError,
     gmp_api::{
         gmp_types::{
-            BroadcastRequest, ConstructProofTask, Event, ReactToExpiredSigningSessionTask,
-            ReactToWasmEventTask, Task, VerifyTask,
+            BroadcastRequest, ConstructProofTask, Event, ReactToWasmEventTask, Task, VerifyTask,
         },
         GmpApi,
+    },
+    models::{
+        task_retries::{PgTaskRetriesModel, TaskRetries},
+        Model,
     },
     queue::{Queue, QueueItem},
     subscriber::ChainTransaction,
     utils::message_id_from_retry_task,
 };
 
-const MAX_TASK_RETRIES: u32 = 5;
+const MAX_TASK_RETRIES: i64 = 5;
 
 pub struct Ingestor<I: IngestorTrait> {
     gmp_api: Arc<GmpApi>,
     ingestor: I,
+    models: IngestorModels,
+}
+
+pub struct IngestorModels {
+    pub task_retries: PgTaskRetriesModel,
 }
 
 pub trait IngestorTrait {
@@ -42,8 +50,12 @@ pub trait IngestorTrait {
 }
 
 impl<I: IngestorTrait> Ingestor<I> {
-    pub fn new(gmp_api: Arc<GmpApi>, ingestor: I) -> Self {
-        Self { gmp_api, ingestor }
+    pub fn new(gmp_api: Arc<GmpApi>, ingestor: I, models: IngestorModels) -> Self {
+        Self {
+            gmp_api,
+            ingestor,
+            models,
+        }
     }
 
     async fn work(&self, consumer: &mut Consumer, queue: Arc<Queue>) {
@@ -205,6 +217,35 @@ impl<I: IngestorTrait> Ingestor<I> {
         invoked_contract_address: String,
         message_id: String,
     ) -> Result<(), IngestorError> {
+        let task_retries = self
+            .models
+            .task_retries
+            .find(message_id.clone())
+            .await
+            .map_err(|e| {
+                IngestorError::GenericError(format!("Failed to find task retries: {}", e))
+            })?;
+
+        if task_retries.is_none() {
+            info!("Creating task retries for message id: {}", message_id);
+            let new_retry = TaskRetries {
+                message_id: message_id.clone(),
+                retries: 0,
+                updated_at: chrono::Utc::now(),
+            };
+            self.models
+                .task_retries
+                .upsert(new_retry)
+                .await
+                .map_err(|e| {
+                    IngestorError::GenericError(format!("Failed to create task retries: {}", e))
+                })?;
+        }
+
+        if task_retries.unwrap().retries >= MAX_TASK_RETRIES {
+            return Err(IngestorError::TaskMaxRetriesReached);
+        }
+
         info!("Retrying: {:?}", request_payload);
 
         let payload: BroadcastRequest = BroadcastRequest::Generic(
@@ -219,6 +260,14 @@ impl<I: IngestorTrait> Ingestor<I> {
             .map_err(|e| IngestorError::PostEventError(e.to_string()))?;
 
         info!("Broadcast request sent: {:?}", request);
+
+        self.models
+            .task_retries
+            .increment_retries(message_id.clone())
+            .await
+            .map_err(|e| {
+                IngestorError::GenericError(format!("Failed to increment task retries: {}", e))
+            })?;
 
         Ok(())
     }
