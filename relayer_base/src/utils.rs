@@ -2,6 +2,7 @@ use std::str::FromStr;
 
 use anyhow::Context;
 use axelar_wasm_std::msg_id::HexTxHash;
+use router_api::CrossChainId;
 use rust_decimal::Decimal;
 use sentry::ClientInitGuard;
 use sentry_tracing::{layer as sentry_layer, EventFilter};
@@ -19,7 +20,8 @@ use crate::{
     config::Config,
     error::{GmpApiError, IngestorError},
     gmp_api::gmp_types::{
-        CommonTaskFields, ConstructProofTask, ExecuteTask, GatewayTxTask, ReactToWasmEventTask,
+        BroadcastRequest, CommonTaskFields, ConstructProofTask, ExecuteTask, GatewayTxTask,
+        ReactToExpiredSigningSessionTask, ReactToRetriablePollTask, ReactToWasmEventTask,
         RefundTask, Task, TaskMetadata, VerifyTask, WasmEvent,
     },
     price_view::PriceViewTrait,
@@ -57,6 +59,14 @@ pub fn parse_task(task_json: &Value) -> Result<Task, GmpApiError> {
         "REACT_TO_WASM_EVENT" => {
             let task: ReactToWasmEventTask = parse_as(task_json)?;
             Ok(Task::ReactToWasmEvent(task))
+        }
+        "REACT_TO_RETRIABLE_POLL" => {
+            let task: ReactToRetriablePollTask = parse_as(task_json)?;
+            Ok(Task::ReactToRetriablePoll(task))
+        }
+        "REACT_TO_EXPIRED_SIGNING_SESSION" => {
+            let task: ReactToExpiredSigningSessionTask = parse_as(task_json)?;
+            Ok(Task::ReactToExpiredSigningSession(task))
         }
         _ => {
             let error_message = format!("Failed to parse task: {:?}", task_json);
@@ -302,6 +312,38 @@ where
         warn!("Losing precision, drops have decimal points: {}", drops);
     }
     Ok(drops.trunc().to_string())
+}
+
+pub fn message_id_from_retry_task(task: Task) -> Result<String, IngestorError> {
+    match task {
+        Task::ReactToRetriablePoll(task) => {
+            let payload: Value = serde_json::from_str(&task.task.request_payload)
+                .map_err(|e| IngestorError::GenericError(e.to_string()))?;
+            Ok(payload["verify_messages"][0]["add_gas_message"]["tx_id"]
+                .as_str()
+                .unwrap()
+                .to_string())
+        }
+        Task::ReactToExpiredSigningSession(task) => {
+            let payload: Value = serde_json::from_str(&task.task.request_payload)
+                .map_err(|e| IngestorError::GenericError(e.to_string()))?;
+            let cc_id = &payload["construct_proof"]["cc_id"];
+            let message_id = cc_id["message_id"]
+                .as_str()
+                .ok_or_else(|| IngestorError::GenericError("message_id is missing".into()))?;
+            let source_chain = cc_id["source_chain"]
+                .as_str()
+                .ok_or_else(|| IngestorError::GenericError("source_chain is missing".into()))?;
+            let msg_id = source_chain.to_string() + "_" + message_id;
+            // let cc_id = CrossChainId::new(
+            //     cc_id["source_chain"].as_str().unwrap(),
+            //     cc_id["message_id"].as_str().unwrap(),
+            // )
+            //.map_err(|e| IngestorError::GenericError(e.to_string()))?;
+            Ok(msg_id)
+        }
+        _ => Err(IngestorError::IrrelevantTask),
+    }
 }
 
 #[cfg(test)]
