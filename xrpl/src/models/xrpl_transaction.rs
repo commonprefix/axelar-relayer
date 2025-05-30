@@ -150,7 +150,7 @@ impl Model for PgXrplTransactionModel {
 
     async fn upsert(&self, tx: XrplTransaction) -> Result<()> {
         let query = format!(
-            "INSERT INTO {} (tx_hash, tx, tx_type, message_id, message_type, status, verify_task, verify_tx, quorum_reached_task, route_tx, source, sequence, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) ON CONFLICT (tx_hash) DO UPDATE SET tx = $2, tx_type = $3, message_id = $4, message_type = $5, status = $6, verify_task = $7, verify_tx = $8, quorum_reached_task = $9, route_tx = $10, source = $11, sequence = $12, created_at = $13 RETURNING *",
+            "INSERT INTO {} (tx_hash, tx, tx_type, message_id, message_type, status, verify_task, verify_tx, quorum_reached_task, route_tx, source, sequence, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW()) ON CONFLICT (tx_hash) DO UPDATE SET tx = $2, tx_type = $3, message_id = $4, message_type = $5, status = $6, verify_task = $7, verify_tx = $8, quorum_reached_task = $9, route_tx = $10, source = $11, sequence = $12, created_at = $13, updated_at = NOW() RETURNING *",
             PG_TABLE_NAME
         );
 
@@ -188,7 +188,7 @@ impl Model for PgXrplTransactionModel {
 impl PgXrplTransactionModel {
     pub async fn update_status(&self, tx_hash: &str, status: XrplTransactionStatus) -> Result<()> {
         let query = format!(
-            "UPDATE {} SET status = $1 WHERE tx_hash = $2",
+            "UPDATE {} SET status = $1, updated_at = NOW() WHERE tx_hash = $2",
             PG_TABLE_NAME
         );
 
@@ -203,7 +203,7 @@ impl PgXrplTransactionModel {
 
     pub async fn update_verify_task(&self, tx_hash: &str, verify_task: &str) -> Result<()> {
         let query = format!(
-            "UPDATE {} SET verify_task = $1 WHERE tx_hash = $2",
+            "UPDATE {} SET verify_task = $1, updated_at = NOW() WHERE tx_hash = $2",
             PG_TABLE_NAME
         );
         sqlx::query(&query)
@@ -217,7 +217,7 @@ impl PgXrplTransactionModel {
 
     pub async fn update_verify_tx(&self, tx_hash: &str, verify_tx: &str) -> Result<()> {
         let query = format!(
-            "UPDATE {} SET verify_tx = $1 WHERE tx_hash = $2",
+            "UPDATE {} SET verify_tx = $1, updated_at = NOW() WHERE tx_hash = $2",
             PG_TABLE_NAME
         );
         sqlx::query(&query)
@@ -235,7 +235,7 @@ impl PgXrplTransactionModel {
         quorum_reached_task: &str,
     ) -> Result<()> {
         let query = format!(
-            "UPDATE {} SET quorum_reached_task = $1 WHERE tx_hash = $2",
+            "UPDATE {} SET quorum_reached_task = $1, updated_at = NOW() WHERE tx_hash = $2",
             PG_TABLE_NAME
         );
         sqlx::query(&query)
@@ -249,7 +249,7 @@ impl PgXrplTransactionModel {
 
     pub async fn update_route_tx(&self, tx_hash: &str, route_tx: &str) -> Result<()> {
         let query = format!(
-            "UPDATE {} SET route_tx = $1 WHERE tx_hash = $2",
+            "UPDATE {} SET route_tx = $1, updated_at = NOW() WHERE tx_hash = $2",
             PG_TABLE_NAME
         );
         sqlx::query(&query)

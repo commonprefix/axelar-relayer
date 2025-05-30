@@ -5,13 +5,12 @@ use tokio::signal::unix::{signal, SignalKind};
 
 use xrpl::{ingestor::XrplIngestor, xrpl_transaction::PgXrplTransactionModel};
 
-//use xrpl::xrpl_transaction::PgXrplTransactionModel;
-
 use relayer_base::{
     config::Config,
     database::PostgresDB,
     gmp_api,
-    ingestor::Ingestor,
+    ingestor::{Ingestor, IngestorModels},
+    models::task_retries::PgTaskRetriesModel,
     payload_cache::PayloadCache,
     price_view::PriceView,
     queue::Queue,
@@ -45,7 +44,12 @@ async fn main() -> anyhow::Result<()> {
         payload_cache,
         xrpl_transaction_model,
     );
-    let ingestor = Ingestor::new(gmp_api, xrpl_ingestor);
+    let models = IngestorModels {
+        task_retries: PgTaskRetriesModel {
+            pool: pg_pool.clone(),
+        },
+    };
+    let ingestor = Ingestor::new(gmp_api, xrpl_ingestor, models);
 
     let mut sigint = signal(SignalKind::interrupt())?;
     let mut sigterm = signal(SignalKind::terminate())?;
