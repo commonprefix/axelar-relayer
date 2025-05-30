@@ -171,8 +171,8 @@ impl<DB: Database> Ingestor<DB> {
             Task::ReactToRetriablePoll(react_to_retriable_poll_task) => {
                 info!("Consuming task: {:?}", react_to_retriable_poll_task);
                 self.handle_retriable_task(
-                    react_to_retriable_poll_task.request_payload,
-                    react_to_retriable_poll_task.invoked_contract_address,
+                    react_to_retriable_poll_task.task.request_payload,
+                    react_to_retriable_poll_task.task.invoked_contract_address,
                 )
                 .await
             }
@@ -182,8 +182,10 @@ impl<DB: Database> Ingestor<DB> {
                     react_to_expired_signing_session_task
                 );
                 self.handle_retriable_task(
-                    react_to_expired_signing_session_task.request_payload,
-                    react_to_expired_signing_session_task.invoked_contract_address,
+                    react_to_expired_signing_session_task.task.request_payload,
+                    react_to_expired_signing_session_task
+                        .task
+                        .invoked_contract_address,
                 )
                 .await
             }

@@ -130,9 +130,7 @@ pub struct RefundTask {
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct ReactToExpiredSigningSessionTask {
-    #[serde(flatten)]
-    pub common: CommonTaskFields,
+pub struct ReactToExpiredSigningSessionTaskFields {
     #[serde(rename = "sessionID")]
     pub session_id: u64,
     #[serde(rename = "broadcastID")]
@@ -144,9 +142,14 @@ pub struct ReactToExpiredSigningSessionTask {
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct ReactToRetriablePollTask {
+pub struct ReactToExpiredSigningSessionTask {
     #[serde(flatten)]
     pub common: CommonTaskFields,
+    pub task: ReactToExpiredSigningSessionTaskFields,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct ReactToRetriablePollTaskFields {
     #[serde(rename = "pollID")]
     pub poll_id: u64,
     #[serde(rename = "broadcastID")]
@@ -157,6 +160,13 @@ pub struct ReactToRetriablePollTask {
     pub request_payload: String,
     #[serde(rename = "quorumReachedEvents")]
     pub quorum_reached_events: Option<Vec<QuorumReachedEvent>>,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct ReactToRetriablePollTask {
+    #[serde(flatten)]
+    pub common: CommonTaskFields,
+    pub task: ReactToRetriablePollTaskFields,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
