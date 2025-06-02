@@ -20,7 +20,7 @@ use crate::{
     config::Config,
     error::{GmpApiError, IngestorError},
     gmp_api::gmp_types::{
-        BroadcastRequest, CommonTaskFields, ConstructProofTask, ExecuteTask, GatewayTxTask,
+        CommonTaskFields, ConstructProofTask, ExecuteTask, GatewayTxTask,
         ReactToExpiredSigningSessionTask, ReactToRetriablePollTask, ReactToWasmEventTask,
         RefundTask, Task, TaskMetadata, VerifyTask, WasmEvent,
     },
@@ -314,35 +314,49 @@ where
     Ok(drops.trunc().to_string())
 }
 
-pub fn message_id_from_retry_task(task: Task) -> Result<String, IngestorError> {
+pub fn message_id_from_retry_task(task: Task) -> Result<String, anyhow::Error> {
     match task {
         Task::ReactToRetriablePoll(task) => {
-            let payload: Value = serde_json::from_str(&task.task.request_payload)
-                .map_err(|e| IngestorError::GenericError(e.to_string()))?;
-            Ok(payload["verify_messages"][0]["add_gas_message"]["tx_id"]
+            let payload: Value = serde_json::from_str(&task.task.request_payload)?;
+            let tx_id_value = payload
+                .get("verify_messages")
+                .ok_or_else(|| anyhow::anyhow!("verify_messages is missing"))?
+                .get(0)
+                .ok_or_else(|| anyhow::anyhow!("verify_messages[0] is missing"))?
+                .get("add_gas_message")
+                .ok_or_else(|| anyhow::anyhow!("add_gas_message is missing"))?
+                .get("tx_id")
+                .ok_or_else(|| anyhow::anyhow!("tx_id is missing"))?;
+            let tx_id_str = tx_id_value
                 .as_str()
-                .unwrap()
-                .to_string())
+                .ok_or_else(|| anyhow::anyhow!("tx_id is not a string: {:?}", tx_id_value))?
+                .to_owned();
+            Ok(tx_id_str)
         }
         Task::ReactToExpiredSigningSession(task) => {
-            let payload: Value = serde_json::from_str(&task.task.request_payload)
-                .map_err(|e| IngestorError::GenericError(e.to_string()))?;
-            let cc_id = &payload["construct_proof"]["cc_id"];
-            let message_id = cc_id["message_id"]
+            let payload: Value = serde_json::from_str(&task.task.request_payload)?;
+            let construct_proof = payload
+                .get("construct_proof")
+                .ok_or_else(|| anyhow::anyhow!("construct_proof is missing"))?;
+            let cc_id = construct_proof
+                .get("cc_id")
+                .ok_or_else(|| anyhow::anyhow!("cc_id is missing"))?;
+            let message_id = cc_id
+                .get("message_id")
+                .ok_or_else(|| anyhow::anyhow!("message_id is missing"))?
                 .as_str()
-                .ok_or_else(|| IngestorError::GenericError("message_id is missing".into()))?;
-            let source_chain = cc_id["source_chain"]
+                .ok_or_else(|| anyhow::anyhow!("message_id is not a string"))?;
+            let source_chain = cc_id
+                .get("source_chain")
+                .ok_or_else(|| anyhow::anyhow!("source_chain is missing"))?
                 .as_str()
-                .ok_or_else(|| IngestorError::GenericError("source_chain is missing".into()))?;
-            let msg_id = source_chain.to_string() + "_" + message_id;
-            // let cc_id = CrossChainId::new(
-            //     cc_id["source_chain"].as_str().unwrap(),
-            //     cc_id["message_id"].as_str().unwrap(),
-            // )
-            //.map_err(|e| IngestorError::GenericError(e.to_string()))?;
-            Ok(msg_id)
+                .ok_or_else(|| anyhow::anyhow!("source_chain is not a string"))?;
+            let cc_id = CrossChainId::new(source_chain, message_id)
+                .map_err(|e| anyhow::anyhow!("Failed to create CrossChainId: {}", e))?;
+            let cc_id_str = cc_id.to_string();
+            Ok(cc_id_str)
         }
-        _ => Err(IngestorError::IrrelevantTask),
+        _ => Err(anyhow::anyhow!("Irrelevant task")),
     }
 }
 

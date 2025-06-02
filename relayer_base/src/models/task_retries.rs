@@ -22,11 +22,11 @@ impl Model for PgTaskRetriesModel {
 
     async fn find(&self, id: Self::PrimaryKey) -> Result<Option<Self::Entity>> {
         let query = format!("SELECT * FROM {} WHERE message_id = $1", PG_TABLE_NAME);
-        let tx = sqlx::query_as::<_, TaskRetries>(&query)
+        let entry = sqlx::query_as::<_, TaskRetries>(&query)
             .bind(id)
             .fetch_optional(&self.pool)
             .await?;
-        Ok(tx)
+        Ok(entry)
     }
 
     async fn upsert(&self, entry: TaskRetries) -> Result<()> {

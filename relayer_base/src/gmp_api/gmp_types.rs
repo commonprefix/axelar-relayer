@@ -418,7 +418,6 @@ pub struct StorePayloadResult {
 mod tests {
     use super::{ReactToExpiredSigningSessionTask, ReactToRetriablePollTask};
     use crate::{gmp_api, utils::message_id_from_retry_task};
-    use serde_json::{from_str, to_string, Error, Value};
 
     #[test]
     fn test_react_to_expired_signing_session_task() {
@@ -447,26 +446,31 @@ mod tests {
             }
         }"#;
 
-        let res_task: Result<ReactToExpiredSigningSessionTask, serde_json::Error> =
+        let maybe_actual_task: Result<ReactToExpiredSigningSessionTask, serde_json::Error> =
             serde_json::from_str(task);
         assert!(
-            res_task.is_ok(),
+            maybe_actual_task.is_ok(),
             "Failed to parse task: {:?}",
-            res_task.err()
+            maybe_actual_task.err()
         );
-        let unwrapped_task = res_task.unwrap();
-        let msg_id = message_id_from_retry_task(
-            gmp_api::gmp_types::Task::ReactToExpiredSigningSession(unwrapped_task.clone()),
+        let actual_task = maybe_actual_task.unwrap();
+        let maybe_message_id = message_id_from_retry_task(
+            gmp_api::gmp_types::Task::ReactToExpiredSigningSession(actual_task.clone()),
         );
-        assert!(msg_id.is_ok());
-        let msg_id = msg_id.unwrap();
+        assert!(maybe_message_id.is_ok());
+        let message_id = maybe_message_id.unwrap();
         assert_eq!(
-            msg_id,
+            message_id,
             "axelar_0xb8ecb910c92c4937c548b7b1fe63c512d8f68743d41bfb539ca181999736d597-98806061"
         );
-        let serialized_task = serde_json::to_string(&unwrapped_task).unwrap();
+        let maybe_serialized_task = serde_json::to_string(&actual_task);
+        assert!(maybe_serialized_task.is_ok());
+        let actual_serialized_task = maybe_serialized_task.unwrap();
 
-        assert_eq!(serialized_task, task.split_whitespace().collect::<String>());
+        assert_eq!(
+            actual_serialized_task,
+            task.split_whitespace().collect::<String>()
+        );
     }
 
     #[test]
@@ -500,29 +504,31 @@ mod tests {
   }
 }"#;
 
-        let res_task: Result<ReactToRetriablePollTask, serde_json::Error> =
+        let maybe_actual_task: Result<ReactToRetriablePollTask, serde_json::Error> =
             serde_json::from_str(task);
         assert!(
-            res_task.is_ok(),
+            maybe_actual_task.is_ok(),
             "Failed to parse task: {:?}",
-            res_task.err()
+            maybe_actual_task.err()
         );
-        let unwrapped_task = res_task.unwrap();
+        let actual_task = maybe_actual_task.unwrap();
         let tx_id_res = message_id_from_retry_task(gmp_api::gmp_types::Task::ReactToRetriablePoll(
-            unwrapped_task.clone(),
+            actual_task.clone(),
         ));
         assert!(tx_id_res.is_ok());
         let tx_id = tx_id_res.unwrap();
-        // let payload = unwrapped_task.clone().task.request_payload
-        // let parsed_payload: Value = serde_json::from_str(&payload).unwrap();
-        // let msg_id = &parsed_payload["verify_messages"][0]["add_gas_message"]["msg_id"];
         assert_eq!(
             tx_id,
             "5fa140ff4b90c83df9fdfdc81595bd134f41d929694eedb15cf7fd1c511e8025"
         );
 
-        let serialized_task = serde_json::to_string(&unwrapped_task).unwrap();
+        let maybe_serialized_task = serde_json::to_string(&actual_task);
+        assert!(maybe_serialized_task.is_ok());
+        let actual_serialized_task = maybe_serialized_task.unwrap();
 
-        assert_eq!(serialized_task, task.split_whitespace().collect::<String>());
+        assert_eq!(
+            actual_serialized_task,
+            task.split_whitespace().collect::<String>()
+        );
     }
 }
