@@ -34,6 +34,7 @@ hex = { workspace = true }
 base64 = { workspace = true }
 rust_decimal = { workspace = true }
 xrpl_amplifier_types = { workspace = true }
+regex = { workspace = true }
 
 [[bin]]
 name = "xrpl_ingestor"
@@ -66,4 +67,3 @@ path = "src/bin/recovery/xrpl_subscriber_recovery.rs"
 [[bin]]
 name = "xrpl_task_recovery"
 path = "src/bin/recovery/xrpl_task_recovery.rs"
-

@@ -1077,10 +1077,18 @@ impl<DB: Database> IngestorTrait for XrplIngestor<DB> {
             | Transaction::TicketCreate(_)
             | Transaction::SignerListSet(_)
             | Transaction::TrustSet(_) => {
-                self.xrpl_transaction_model
-                    .upsert(xrpl_transaction.clone())
+                if self
+                    .xrpl_transaction_model
+                    .find(xrpl_transaction.tx_hash.clone())
                     .await
-                    .map_err(|e| IngestorError::GenericError(e.to_string()))?;
+                    .map_err(|e| IngestorError::GenericError(e.to_string()))?
+                    .is_none()
+                {
+                    self.xrpl_transaction_model
+                        .upsert(xrpl_transaction.clone())
+                        .await
+                        .map_err(|e| IngestorError::GenericError(e.to_string()))?;
+                }
             }
             _ => {}
         }
