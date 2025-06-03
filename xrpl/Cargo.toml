@@ -61,8 +61,8 @@ name = "xrpl_ticket_creator"
 path = "src/bin/xrpl_ticket_creator.rs"
 
 [[bin]]
-name = "xrpl_ticket_checker"
-path = "src/bin/xrpl_ticket_checker.rs"
+name = "xrpl_ticket_monitor"
+path = "src/bin/xrpl_ticket_monitor.rs"
 
 [[bin]]
 name = "xrpl_subscriber_recovery"
