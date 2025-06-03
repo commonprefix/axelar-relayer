@@ -83,11 +83,20 @@ impl<DB: Database> XrplIngestor<DB> {
             | Transaction::TicketCreate(_)
             | Transaction::SignerListSet(_)
             | Transaction::TrustSet(_) => {
-                self.db_models
+                if self
+                    .db_models
                     .xrpl_transaction
-                    .upsert(xrpl_transaction.clone())
+                    .find(xrpl_transaction.tx_hash.clone())
                     .await
-                    .map_err(|e| IngestorError::GenericError(e.to_string()))?;
+                    .map_err(|e| IngestorError::GenericError(e.to_string()))?
+                    .is_none()
+                {
+                    self.db_models
+                        .xrpl_transaction
+                        .upsert(xrpl_transaction.clone())
+                        .await
+                        .map_err(|e| IngestorError::GenericError(e.to_string()))?;
+                }
             }
             _ => {}
         }
