@@ -23,10 +23,13 @@ async fn main() -> anyhow::Result<()> {
     let tasks_queue = Queue::new(&config.queue_address, "tasks").await;
     let postgres_db = PostgresDB::new(&config.postgres_url).await.unwrap();
     let payload_cache = PayloadCache::new(postgres_db);
+    let redis_client = redis::Client::open(config.redis_server.clone()).unwrap();
+    let redis_pool = r2d2::Pool::builder().build(redis_client).unwrap();
     let proof_retrier = ProofRetrier::new(
         payload_cache,
         construct_proof_queue.clone(),
         tasks_queue.clone(),
+        redis_pool,
     );
 
     let mut sigint = signal(SignalKind::interrupt())?;
