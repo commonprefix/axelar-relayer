@@ -3,7 +3,7 @@ use std::time::Duration;
 use anyhow::anyhow;
 use serde::{de::DeserializeOwned, Serialize};
 use tracing::{debug, info};
-use xrpl_api::{Request, RequestPagination, Transaction};
+use xrpl_api::{LedgerObject, ObjectType, Request, RequestPagination, Transaction};
 use xrpl_types::AccountId;
 
 use relayer_base::error::ClientError;
@@ -116,5 +116,20 @@ impl XRPLClient {
         }
 
         Ok(all_transactions)
+    }
+
+    pub async fn get_available_tickets_for_account(
+        &self,
+        account: &AccountId,
+    ) -> Result<Vec<LedgerObject>, anyhow::Error> {
+        let request = xrpl_api::AccountObjectsRequest {
+            account: account.to_address(),
+            object_type: Some(ObjectType::Ticket),
+            ..Default::default()
+        };
+        let res = self.call(request.clone()).await;
+        let response = res.map_err(|e| anyhow!("Error getting tickets: {:?}", e.to_string()))?;
+        let tickets = response.account_objects;
+        Ok(tickets)
     }
 }
