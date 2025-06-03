@@ -1,6 +1,7 @@
 use base64::{prelude::BASE64_STANDARD, Engine};
 use futures::StreamExt;
 use lapin::{options::BasicAckOptions, Consumer};
+use redis::Commands;
 use router_api::CrossChainId;
 use std::{future::Future, sync::Arc};
 use tracing::{debug, error, info, warn};
@@ -69,6 +70,7 @@ where
     pub gmp_api: Arc<GmpApi>,
     pub payload_cache: PayloadCache<DB>,
     pub construct_proof_queue: Arc<Queue>,
+    pub redis_pool: r2d2::Pool<redis::Client>,
 }
 
 impl<B, C, R, DB> Includer<B, C, R, DB>
@@ -151,13 +153,21 @@ where
 
                         if broadcast_result.status.is_err() {
                             // Retry creating proof for this message
+                            let cross_chain_id =
+                                CrossChainId::new(source_chain.as_str(), message_id.as_str())
+                                    .unwrap();
                             self.construct_proof_queue
-                                .publish(QueueItem::RetryConstructProof(
-                                    CrossChainId::new(source_chain.as_str(), message_id.as_str())
-                                        .unwrap()
-                                        .to_string(),
-                                ))
+                                .publish(QueueItem::RetryConstructProof(cross_chain_id.to_string()))
                                 .await;
+
+                            let mut redis_conn = self.redis_pool.get().unwrap();
+                            let redis_key = format!("failed_proof:{}", cross_chain_id.to_string());
+                            let _: i64 = redis_conn
+                                .incr(redis_key.clone(), 1)
+                                .map_err(|e| IncluderError::GenericError(e.to_string()))?;
+                            redis_conn
+                                .expire(redis_key.clone(), 60 * 60 * 12) // 12 hours
+                                .map_err(|e| IncluderError::GenericError(e.to_string()))?;
 
                             self.gmp_api
                                 .cannot_execute_message(

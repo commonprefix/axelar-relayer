@@ -32,8 +32,9 @@ impl XrplIncluder {
         let broadcaster = XRPLBroadcaster::new(Arc::clone(&client))
             .map_err(|e| e.attach_printable("Failed to create XRPLBroadcaster"))?;
 
-        let refund_manager = XRPLRefundManager::new(Arc::clone(&client), config, redis_pool)
-            .map_err(|e| error_stack::report!(BroadcasterError::GenericError(e.to_string())))?;
+        let refund_manager =
+            XRPLRefundManager::new(Arc::clone(&client), config, redis_pool.clone())
+                .map_err(|e| error_stack::report!(BroadcasterError::GenericError(e.to_string())))?;
 
         let includer = Includer {
             chain_client: client,
@@ -42,6 +43,7 @@ impl XrplIncluder {
             gmp_api,
             payload_cache,
             construct_proof_queue,
+            redis_pool: redis_pool.clone(),
         };
 
         Ok(includer)
