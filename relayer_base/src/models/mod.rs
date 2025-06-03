@@ -1,4 +1,6 @@
 use anyhow::Result;
+pub mod task_retries;
+
 pub trait Model {
     type Entity;
     type PrimaryKey;

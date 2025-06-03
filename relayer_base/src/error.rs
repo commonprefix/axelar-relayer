@@ -68,6 +68,8 @@ pub enum IngestorError {
     RetriableError(String),
     #[error("Irrelevant task")]
     IrrelevantTask,
+    #[error("Task max retries reached")]
+    TaskMaxRetriesReached,
     #[error("Failed to parse data: {0}")]
     ParseError(String),
     #[error("Unsupported transaction: {0}")]

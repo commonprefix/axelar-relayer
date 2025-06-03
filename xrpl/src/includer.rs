@@ -14,7 +14,7 @@ pub struct XrplIncluder {}
 
 impl XrplIncluder {
     #[allow(clippy::new_ret_no_self)]
-    pub async fn new<'a, DB: Database>(
+    pub async fn new<DB: Database>(
         config: Config,
         gmp_api: Arc<GmpApi>,
         redis_pool: r2d2::Pool<redis::Client>,

@@ -48,19 +48,6 @@ impl<DB: Database> XrplSubscriber<DB> {
     }
 }
 
-// impl<DB: Database> XrplSubscriber<DB> {
-//     async fn store_latest_ledger(&mut self) -> Result<(), anyhow::Error> {
-//         self.db
-//             .store_latest_height("xrpl", "default", self.latest_ledger)
-//             .await
-//             .map_err(|e| anyhow!("Error storing latest ledger: {:?}", e))
-//     }
-// }
-// pub async fn new_xrpl(url: &str, postgres_db: DB) -> Subscriber<DB> {
-//     let client = XrplSubscriber::new(url, postgres_db).await.unwrap();
-//     Subscriber::Xrpl(client)
-// }
-
 impl<DB: Database> TransactionPoller for XrplSubscriber<DB> {
     type Transaction = Transaction;
 
