@@ -1,7 +1,11 @@
 use std::sync::Arc;
 
 use async_std::stream::StreamExt;
-use lapin::{message::Delivery, options::BasicAckOptions};
+use lapin::{
+    message::Delivery,
+    options::{BasicAckOptions, BasicNackOptions},
+};
+use redis::Commands;
 use router_api::CrossChainId;
 use tracing::{debug, error, info, warn};
 
@@ -16,6 +20,7 @@ pub struct ProofRetrier<DB: Database> {
     pub payload_cache: PayloadCache<DB>,
     pub construct_proof_queue: Arc<Queue>,
     pub tasks_queue: Arc<Queue>,
+    pub redis_pool: r2d2::Pool<redis::Client>,
 }
 
 impl<DB: Database> ProofRetrier<DB> {
@@ -23,11 +28,13 @@ impl<DB: Database> ProofRetrier<DB> {
         payload_cache: PayloadCache<DB>,
         construct_proof_queue: Arc<Queue>,
         tasks_queue: Arc<Queue>,
+        redis_pool: r2d2::Pool<redis::Client>,
     ) -> Self {
         Self {
             payload_cache,
             construct_proof_queue,
             tasks_queue,
+            redis_pool,
         }
     }
 
@@ -40,6 +47,20 @@ impl<DB: Database> ProofRetrier<DB> {
                 return Err(anyhow::anyhow!("Irrelevant queue item"));
             }
         };
+
+        let mut redis_conn = self.redis_pool.get().unwrap();
+        let redis_key = format!("failed_proof:{}", cc_id);
+        let redis_value: Option<i64> = redis_conn
+            .get(redis_key.clone())
+            .map_err(|e| anyhow::anyhow!("Failed to get Redis key: {}", e))?;
+
+        if redis_value.is_some() && redis_value.unwrap() >= 10 {
+            debug!("Message {} has failed too many times, skipping", cc_id);
+            return Err(anyhow::anyhow!(
+                "Message {} has failed too many times",
+                cc_id
+            ));
+        }
 
         let source_chain = cc_id.split('_').next().unwrap();
         let message_id = cc_id.split('_').nth(1).unwrap();
@@ -100,11 +121,26 @@ impl<DB: Database> ProofRetrier<DB> {
                             match self.process_delivery(&delivery).await {
                                 Ok(_) => delivery.ack(BasicAckOptions::default()).await?,
                                 Err(e) => {
-                                    error!("Failed to process delivery: {:?}", e);
-                                    if let Err(nack_err) =
-                                        self.construct_proof_queue.republish(delivery, false).await
-                                    {
-                                        error!("Failed to republish message: {:?}", nack_err);
+                                    if e.to_string().contains("has failed too many times") {
+                                        warn!("{}", e);
+                                        if let Err(nack_err) = delivery
+                                            .nack(BasicNackOptions {
+                                                multiple: false,
+                                                requeue: false,
+                                            })
+                                            .await
+                                        {
+                                            error!("Failed to nack message: {:?}", nack_err);
+                                        }
+                                    } else {
+                                        error!("Failed to process delivery: {:?}", e);
+                                        if let Err(nack_err) = self
+                                            .construct_proof_queue
+                                            .republish(delivery, false)
+                                            .await
+                                        {
+                                            error!("Failed to republish message: {:?}", nack_err);
+                                        }
                                     }
                                 }
                             }
