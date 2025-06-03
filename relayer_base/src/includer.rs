@@ -166,7 +166,7 @@ where
                                 .incr(redis_key.clone(), 1)
                                 .map_err(|e| IncluderError::GenericError(e.to_string()))?;
                             redis_conn
-                                .expire(redis_key.clone(), 60 * 60 * 12) // 12 hours
+                                .expire::<_, ()>(redis_key.clone(), 60 * 60 * 12) // 12 hours
                                 .map_err(|e| IncluderError::GenericError(e.to_string()))?;
 
                             self.gmp_api
