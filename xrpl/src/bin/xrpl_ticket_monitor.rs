@@ -28,9 +28,10 @@ async fn main() -> anyhow::Result<()> {
             Ok(tickets) => {
                 let ticket_count = tickets.len() as i64;
                 debug!("Ticket count: {}", ticket_count);
+                debug!("Tickets: {:?}", tickets);
                 if ticket_count < THRESHOLD {
                     error!("Tickets are below threshold");
-                    return Err(anyhow::anyhow!("Tickets are below threshold"));
+                    return Err(anyhow::anyhow!("Tickets are bellow threshold"));
                 }
             }
             Err(e) => {
