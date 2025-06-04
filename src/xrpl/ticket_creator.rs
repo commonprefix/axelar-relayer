@@ -30,6 +30,7 @@ impl XrplTicketCreator {
             )
             .await;
 
+        let mut sleep_duration = 5;
         if let Err(e) = res {
             if e.to_string()
                 .contains("ticket count threshold has not been reached")
@@ -40,9 +41,10 @@ impl XrplTicketCreator {
             }
         } else {
             info!("Ticket create submitted: {}", res.unwrap());
+            sleep_duration = 60; // that's usually how long it takes for the tickets to be confirmed
         }
 
-        tokio::time::sleep(tokio::time::Duration::from_secs(60)).await
+        tokio::time::sleep(tokio::time::Duration::from_secs(sleep_duration)).await;
     }
 
     pub async fn run(&self) {
