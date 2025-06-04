@@ -30,7 +30,7 @@ async fn main() -> anyhow::Result<()> {
                 debug!("Ticket count: {}", ticket_count);
                 debug!("Tickets: {:?}", tickets);
                 if ticket_count < THRESHOLD {
-                    error!("Tickets are below threshold");
+                    error!("Tickets are bellow threshold");
                     return Err(anyhow::anyhow!("Tickets are bellow threshold"));
                 }
             }
