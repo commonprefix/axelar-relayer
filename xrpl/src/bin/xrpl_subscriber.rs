@@ -26,7 +26,7 @@ async fn main() -> anyhow::Result<()> {
 
     let account = AccountId::from_address(&config.xrpl_multisig).unwrap();
 
-    let xrpl_subscriber = XrplSubscriber::new(&config.xrpl_rpc, postgres_db).await?;
+    let xrpl_subscriber = XrplSubscriber::new(&config.xrpl_rpc, postgres_db, "default".to_string()).await?;
     let mut subscriber = Subscriber::new(xrpl_subscriber);
     let mut sigint = signal(SignalKind::interrupt())?;
     let mut sigterm = signal(SignalKind::terminate())?;

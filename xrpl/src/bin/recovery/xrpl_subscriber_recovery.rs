@@ -23,7 +23,8 @@ async fn main() -> anyhow::Result<()> {
     let events_queue = Queue::new(&config.queue_address, "events").await;
     let postgres_db = PostgresDB::new(&config.postgres_url).await.unwrap();
 
-    let xrpl_subscriber = XrplSubscriber::new(&config.xrpl_rpc, postgres_db).await?;
+    let xrpl_subscriber =
+        XrplSubscriber::new(&config.xrpl_rpc, postgres_db, "recovery".to_string()).await?;
     let mut subscriber = Subscriber::new(xrpl_subscriber);
     let txs: Vec<&str> = vec![
         "80B60B79FF9402BDFAD32AD531E7679206E67C29B8F048162F0FFBEF59814D32",

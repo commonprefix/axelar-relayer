@@ -15,14 +15,15 @@ pub struct XrplSubscriber<DB: Database> {
     client: XRPLClient,
     latest_ledger: i64,
     db: DB,
+    context: String,
 }
 
 impl<DB: Database> XrplSubscriber<DB> {
-    pub async fn new(url: &str, db: DB) -> Result<Self, SubscriberError> {
+    pub async fn new(url: &str, db: DB, context: String) -> Result<Self, SubscriberError> {
         let client = XRPLClient::new(url, 3).unwrap();
 
         let latest_ledger = db
-            .get_latest_height("xrpl", "default")
+            .get_latest_height("xrpl", &context)
             .await
             .map_err(|e| SubscriberError::GenericError(e.to_string()))?
             .unwrap_or(-1);
@@ -37,12 +38,13 @@ impl<DB: Database> XrplSubscriber<DB> {
             client,
             latest_ledger,
             db,
+            context,
         })
     }
 
     pub async fn store_latest_ledger(&mut self) -> Result<(), anyhow::Error> {
         self.db
-            .store_latest_height("xrpl", "default", self.latest_ledger)
+            .store_latest_height("xrpl", &self.context, self.latest_ledger)
             .await
             .map_err(|e| anyhow!("Error storing latest ledger: {:?}", e))
     }
