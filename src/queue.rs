@@ -164,7 +164,8 @@ impl Queue {
         delivery: Delivery,
         force_requeue: bool,
     ) -> Result<(), anyhow::Error> {
-        let item: QueueItem = serde_json::from_slice(&delivery.data)?;
+        let data = delivery.data.clone();
+        let item: QueueItem = serde_json::from_slice(&data)?;
 
         if force_requeue {
             if let Err(nack_err) = delivery
@@ -179,8 +180,8 @@ impl Queue {
             return Ok(());
         }
 
-        let retry_count = delivery
-            .properties
+        let properties = delivery.properties.clone();
+        let retry_count = properties
             .headers()
             .as_ref()
             .and_then(|headers| headers.inner().get("x-retry-count"))
@@ -200,8 +201,7 @@ impl Queue {
             }
         } else {
             debug!("Republishing message: {:?}", item);
-            let mut new_headers = delivery
-                .properties
+            let mut new_headers = properties
                 .headers()
                 .clone()
                 .unwrap_or(FieldTable::from(BTreeMap::new()))
@@ -211,12 +211,16 @@ impl Queue {
                 ShortString::from("x-retry-count"),
                 AMQPValue::ShortUInt(retry_count + 1),
             );
-            let properties = delivery
-                .properties
-                .clone()
-                .with_headers(FieldTable::from(new_headers));
+            let properties = properties.with_headers(FieldTable::from(new_headers));
 
             if let Err(e) = self.publish_item(&item, true, Some(properties)).await {
+                delivery
+                    .nack(BasicNackOptions {
+                        multiple: false,
+                        requeue: true,
+                    })
+                    .await
+                    .ok(); // best effort
                 return Err(anyhow!("Failed to republish item: {:?}", e));
             }
 
