@@ -50,8 +50,10 @@ pub enum ChainTransaction {
 }
 
 impl<DB: Database> Subscriber<DB> {
-    pub async fn new_xrpl(url: &str, postgres_db: DB) -> Subscriber<DB> {
-        let client = XrplSubscriber::new(url, postgres_db).await.unwrap();
+    pub async fn new_xrpl(url: &str, postgres_db: DB, context: String) -> Subscriber<DB> {
+        let client = XrplSubscriber::new(url, postgres_db, context)
+            .await
+            .unwrap();
         Subscriber::Xrpl(client)
     }
 
