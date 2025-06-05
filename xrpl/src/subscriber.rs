@@ -1,6 +1,6 @@
 use anyhow::anyhow;
 use tracing::{info, warn};
-use xrpl_api::{RequestPagination, Transaction};
+use xrpl_api::Transaction;
 use xrpl_types::AccountId;
 
 use relayer_base::{
@@ -61,25 +61,14 @@ impl<DB: Database> TransactionPoller for XrplSubscriber<DB> {
         &mut self,
         account_id: AccountId,
     ) -> Result<Vec<Self::Transaction>, anyhow::Error> {
-        let request = xrpl_api::AccountTxRequest {
-            account: account_id.to_address(),
-            forward: Some(true),
-            ledger_index_min: Some((self.latest_ledger + 1).to_string()),
-            ledger_index_max: Some((-1).to_string()),
-            pagination: RequestPagination {
-                limit: Some(50),
-                ..Default::default()
-            },
-            ..Default::default()
-        };
-        let res = self.client.call(request).await;
+        let transactions = self
+            .client
+            .get_transactions_for_account(&account_id, self.latest_ledger as u32 + 1)
+            .await?;
 
-        let response = res.map_err(|e| anyhow!("Error getting txs: {:?}", e.to_string()))?;
-
-        let max_response_ledger = response
-            .transactions
+        let max_response_ledger = transactions
             .iter()
-            .map(|tx| tx.tx.common().ledger_index.unwrap_or(0))
+            .map(|tx| tx.common().ledger_index.unwrap_or(0))
             .max();
         if max_response_ledger.is_some() {
             self.latest_ledger = max_response_ledger.unwrap().into();
@@ -87,7 +76,7 @@ impl<DB: Database> TransactionPoller for XrplSubscriber<DB> {
                 warn!("{:?}", err);
             }
         }
-        Ok(response.transactions.into_iter().map(|tx| tx.tx).collect())
+        Ok(transactions)
     }
 
     async fn poll_tx(&mut self, tx_hash: String) -> Result<Self::Transaction, anyhow::Error> {

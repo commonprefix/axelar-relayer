@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use anyhow::anyhow;
 use serde::{de::DeserializeOwned, Serialize};
-use tracing::debug;
+use tracing::{debug, info};
 use xrpl_api::{Request, RequestPagination, Transaction};
 use xrpl_types::AccountId;
 
@@ -110,6 +110,8 @@ impl XRPLClient {
             marker = response.pagination.marker;
             if marker.is_none() {
                 break;
+            } else {
+                info!("More pages to fetch");
             }
         }
 
