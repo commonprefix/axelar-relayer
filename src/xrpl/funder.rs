@@ -45,7 +45,7 @@ impl XRPLFunder {
                     resp.json().await.map_err(|e| anyhow::anyhow!(e))?;
                 let transaction_hash = result["transactionHash"]
                     .as_str()
-                    .ok_or(anyhow::anyhow!("transactionHash not found"))?;
+                    .ok_or(anyhow::anyhow!("transactionHash not found in {:?}", result))?;
                 Ok(transaction_hash.to_string())
             }
             Err(e) => Err(anyhow::anyhow!("Error topping up account: {}", e)),
