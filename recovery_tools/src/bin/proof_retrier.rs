@@ -2,12 +2,8 @@ use dotenv::dotenv;
 use tokio::signal::unix::{signal, SignalKind};
 
 use relayer_base::{
-    config::Config,
-    database::PostgresDB,
-    payload_cache::PayloadCache,
-    proof_retrier::ProofRetrier,
-    queue::Queue,
-    utils::{setup_heartbeat, setup_logging},
+    config::Config, database::PostgresDB, payload_cache::PayloadCache, proof_retrier::ProofRetrier,
+    queue::Queue, utils::setup_logging,
 };
 
 #[tokio::main]
@@ -17,7 +13,6 @@ async fn main() -> anyhow::Result<()> {
     let config = Config::from_yaml(&format!("config.{}.yaml", network)).unwrap();
 
     let _guard = setup_logging(&config);
-    setup_heartbeat(config.heartbeats.proof_retrier.clone());
 
     let construct_proof_queue = Queue::new(&config.queue_address, "construct_proof").await;
     let tasks_queue = Queue::new(&config.queue_address, "tasks").await;

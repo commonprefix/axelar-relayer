@@ -14,7 +14,7 @@ use relayer_base::{
     payload_cache::PayloadCache,
     price_view::PriceView,
     queue::Queue,
-    utils::{setup_heartbeat, setup_logging},
+    utils::setup_logging,
 };
 
 #[tokio::main]
@@ -24,7 +24,6 @@ async fn main() -> anyhow::Result<()> {
     let config = Config::from_yaml(&format!("config.{}.yaml", network)).unwrap();
 
     let _guard = setup_logging(&config);
-    setup_heartbeat(config.heartbeats.ingestor.clone());
 
     let tasks_queue = Queue::new(&config.queue_address, "tasks").await;
     let events_queue = Queue::new(&config.queue_address, "events").await;

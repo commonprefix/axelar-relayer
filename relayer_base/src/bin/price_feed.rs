@@ -1,9 +1,6 @@
 use dotenv::dotenv;
 use relayer_base::{
-    config::Config,
-    database::PostgresDB,
-    price_feed::PriceFeeder,
-    utils::{setup_heartbeat, setup_logging},
+    config::Config, database::PostgresDB, price_feed::PriceFeeder, utils::setup_logging,
 };
 
 #[tokio::main]
@@ -13,7 +10,6 @@ async fn main() {
     let config = Config::from_yaml(&format!("config.{}.yaml", network)).unwrap();
 
     let _guard = setup_logging(&config);
-    setup_heartbeat(config.heartbeats.price_feed.clone());
 
     let db = PostgresDB::new(&config.postgres_url).await.unwrap();
     let price_feeder = PriceFeeder::new(&config, db).await.unwrap();

@@ -1,11 +1,8 @@
 use dotenv::dotenv;
 
 use relayer_base::{
-    config::Config,
-    database::PostgresDB,
-    queue::Queue,
-    subscriber::Subscriber,
-    utils::{setup_heartbeat, setup_logging},
+    config::Config, database::PostgresDB, queue::Queue, subscriber::Subscriber,
+    utils::setup_logging,
 };
 use tokio::signal::unix::{signal, SignalKind};
 use xrpl_types::AccountId;
@@ -19,14 +16,14 @@ async fn main() -> anyhow::Result<()> {
     let config = Config::from_yaml(&format!("config.{}.yaml", network)).unwrap();
 
     let _guard = setup_logging(&config);
-    setup_heartbeat(config.heartbeats.subscriber.clone());
 
     let events_queue = Queue::new(&config.queue_address, "events").await;
     let postgres_db = PostgresDB::new(&config.postgres_url).await.unwrap();
 
     let account = AccountId::from_address(&config.xrpl_multisig).unwrap();
 
-    let xrpl_subscriber = XrplSubscriber::new(&config.xrpl_rpc, postgres_db, "default".to_string()).await?;
+    let xrpl_subscriber =
+        XrplSubscriber::new(&config.xrpl_rpc, postgres_db, "default".to_string()).await?;
     let mut subscriber = Subscriber::new(xrpl_subscriber);
     let mut sigint = signal(SignalKind::interrupt())?;
     let mut sigterm = signal(SignalKind::terminate())?;

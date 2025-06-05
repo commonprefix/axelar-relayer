@@ -3,12 +3,8 @@ use std::sync::Arc;
 use tokio::signal::unix::{signal, SignalKind};
 
 use relayer_base::{
-    config::Config,
-    database::PostgresDB,
-    gmp_api,
-    payload_cache::PayloadCache,
-    queue::Queue,
-    utils::{setup_heartbeat, setup_logging},
+    config::Config, database::PostgresDB, gmp_api, payload_cache::PayloadCache, queue::Queue,
+    utils::setup_logging,
 };
 
 use xrpl::includer::XrplIncluder;
@@ -20,7 +16,6 @@ async fn main() -> anyhow::Result<()> {
     let config = Config::from_yaml(&format!("config.{}.yaml", network)).unwrap();
 
     let _guard = setup_logging(&config);
-    setup_heartbeat(config.heartbeats.includer.clone());
 
     let tasks_queue = Queue::new(&config.queue_address, "tasks").await;
     let construct_proof_queue = Queue::new(&config.queue_address, "construct_proof").await;
