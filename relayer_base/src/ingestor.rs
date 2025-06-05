@@ -63,7 +63,8 @@ impl<I: IngestorTrait> Ingestor<I> {
             info!("Waiting for messages from {}..", consumer.queue());
             match consumer.next().await {
                 Some(Ok(delivery)) => {
-                    if let Err(e) = self.process_delivery(&delivery.data).await {
+                    let data = delivery.data.clone();
+                    if let Err(e) = self.process_delivery(&data).await {
                         let mut force_requeue = false;
                         match e {
                             IngestorError::IrrelevantTask => {
