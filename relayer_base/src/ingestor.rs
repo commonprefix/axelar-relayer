@@ -79,7 +79,8 @@ impl<I: IngestorTrait> Ingestor<I> {
                             error!("Failed to republish message: {:?}", nack_err);
                         }
                     } else if let Err(ack_err) = delivery.ack(BasicAckOptions::default()).await {
-                        error!("Failed to ack message: {:?}", ack_err);
+                        let item = serde_json::from_slice::<QueueItem>(&delivery.data);
+                        error!("Failed to ack item {:?}: {:?}", item, ack_err);
                     }
                 }
                 Some(Err(e)) => {
