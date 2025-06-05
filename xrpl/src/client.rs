@@ -90,7 +90,7 @@ impl XRPLClient {
             account: account.to_address(),
             forward: Some(true),
             ledger_index_min: Some(ledger_index_min.to_string()),
-            ledger_index_max: Some((-1).to_string()),
+            ledger_index_max: Some("current".to_string()),
             pagination: RequestPagination {
                 limit: Some(100),
                 ..Default::default()
