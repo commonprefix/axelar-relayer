@@ -1,11 +1,8 @@
 use dotenv::dotenv;
 
 use axelar_relayer::{
-    config::Config,
-    database::PostgresDB,
-    queue::Queue,
-    subscriber::Subscriber,
-    utils::{setup_heartbeat, setup_logging},
+    config::Config, database::PostgresDB, queue::Queue, subscriber::Subscriber,
+    utils::setup_logging,
 };
 use tokio::signal::unix::{signal, SignalKind};
 use xrpl_types::AccountId;
@@ -17,7 +14,6 @@ async fn main() -> anyhow::Result<()> {
     let config = Config::from_yaml(&format!("config.{}.yaml", network)).unwrap();
 
     let _guard = setup_logging(&config);
-    setup_heartbeat(config.heartbeats.subscriber.clone());
 
     let events_queue = Queue::new(&config.queue_address, "events").await;
     let postgres_db = PostgresDB::new(&config.postgres_url).await.unwrap();
