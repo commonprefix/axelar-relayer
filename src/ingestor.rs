@@ -207,13 +207,13 @@ impl<DB: Database> Ingestor<DB> {
                 .map_err(|e| IngestorError::ParseError(format!("Invalid JSON: {}", e)))?,
         );
 
-        let request = self
-            .gmp_api
-            .post_broadcast(invoked_contract_address, &payload)
-            .await
-            .map_err(|e| IngestorError::PostEventError(e.to_string()))?;
+        // let request = self
+        //     .gmp_api
+        //     .post_broadcast(invoked_contract_address, &payload)
+        //     .await
+        //     .map_err(|e| IngestorError::PostEventError(e.to_string()))?;
 
-        info!("Broadcast request sent: {:?}", request);
+        // info!("Broadcast request sent: {:?}", request);
 
         Ok(())
     }
