@@ -11,7 +11,8 @@ use lapin::{
     message::Delivery,
     options::{
         BasicAckOptions, BasicConsumeOptions, BasicNackOptions, BasicPublishOptions,
-        ConfirmSelectOptions, ExchangeDeclareOptions, QueueBindOptions, QueueDeclareOptions,
+        BasicQosOptions, ConfirmSelectOptions, ExchangeDeclareOptions, QueueBindOptions,
+        QueueDeclareOptions,
     },
     types::{AMQPValue, FieldTable, ShortString},
     BasicProperties, Channel, Connection, ConnectionProperties, Consumer, ExchangeKind,
@@ -262,6 +263,8 @@ impl Queue {
         channel
             .confirm_select(ConfirmSelectOptions { nowait: false })
             .await?;
+
+        channel.basic_qos(1, BasicQosOptions::default()).await?;
 
         // Declare DLX
         channel
