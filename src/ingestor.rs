@@ -80,7 +80,6 @@ impl<DB: Database> Ingestor<DB> {
                     warn!("No more messages from consumer.");
                 }
             }
-            tokio::time::sleep(std::time::Duration::from_secs(1)).await;
         }
     }
 

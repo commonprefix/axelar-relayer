@@ -123,7 +123,6 @@ where
         loop {
             info!("Includer is alive.");
             self.work(&mut consumer, queue.clone()).await;
-            tokio::time::sleep(std::time::Duration::from_secs(1)).await;
         }
     }
 
