@@ -169,15 +169,10 @@ impl Queue {
         let item: QueueItem = serde_json::from_slice(&data)?;
 
         if force_requeue {
-            if let Err(nack_err) = delivery
-                .nack(BasicNackOptions {
-                    multiple: false,
-                    requeue: true,
-                })
-                .await
-            {
-                return Err(anyhow!("Failed to nack message: {:?}", nack_err));
+            if let Err(ack_err) = delivery.ack(BasicAckOptions { multiple: false }).await {
+                return Err(anyhow!("Failed to ack message: {:?}", ack_err));
             }
+            self.publish(item).await; // publish at the tail of the queue
             return Ok(());
         }
 
