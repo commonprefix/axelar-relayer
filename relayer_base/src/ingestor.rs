@@ -242,8 +242,10 @@ impl<I: IngestorTrait> Ingestor<I> {
                 .map_err(|e| {
                     IngestorError::GenericError(format!("Failed to create task retries: {}", e))
                 })?;
-        }
-        if MAX_TASK_RETRIES == 0 || task_retries.unwrap().retries >= MAX_TASK_RETRIES {
+            if MAX_TASK_RETRIES == 0 {
+                return Err(IngestorError::TaskMaxRetriesReached);
+            }
+        } else if task_retries.unwrap().retries >= MAX_TASK_RETRIES {
             return Err(IngestorError::TaskMaxRetriesReached);
         }
 
