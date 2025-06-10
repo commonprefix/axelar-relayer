@@ -130,7 +130,7 @@ impl XRPLClient {
             account: account.to_address(),
             object_type: Some(ObjectType::Ticket),
             pagination: RequestPagination {
-                limit: Some(250),
+                limit: Some(253),
                 ..Default::default()
             },
             ledger_spec: RetrieveLedgerSpec {

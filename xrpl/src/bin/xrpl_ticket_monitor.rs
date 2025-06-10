@@ -5,8 +5,8 @@ use tracing::{debug, error};
 use xrpl::client::XRPLClient;
 use xrpl_types::AccountId;
 
-const RETRIES: usize = 4;
-const THRESHOLD: i64 = 150;
+const RETRIES: u8 = 4;
+const THRESHOLD: u8 = 150;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -16,7 +16,7 @@ async fn main() -> anyhow::Result<()> {
 
     let _guard = setup_logging(&config);
 
-    let client = XRPLClient::new(&config.xrpl_rpc, RETRIES)?;
+    let client = XRPLClient::new(&config.xrpl_rpc, RETRIES as usize)?;
     let account = AccountId::from_address(&config.xrpl_multisig).unwrap();
 
     loop {
@@ -27,7 +27,7 @@ async fn main() -> anyhow::Result<()> {
 
         match maybe_tickets {
             Ok(tickets) => {
-                let ticket_count = tickets.len() as i64;
+                let ticket_count = tickets.len() as u8;
                 debug!("Ticket count: {}", ticket_count);
                 debug!("Tickets: {:?}", tickets);
                 if ticket_count < THRESHOLD {
