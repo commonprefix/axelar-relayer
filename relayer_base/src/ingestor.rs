@@ -180,14 +180,14 @@ impl<I: IngestorTrait> Ingestor<I> {
             }
             Task::ReactToRetriablePoll(react_to_retriable_poll_task) => {
                 info!("Consuming task: {:?}", react_to_retriable_poll_task);
-                let msg_id = message_id_from_retry_task(Task::ReactToRetriablePoll(
+                let message_id = message_id_from_retry_task(Task::ReactToRetriablePoll(
                     react_to_retriable_poll_task.clone(),
                 ))
                 .map_err(|e| IngestorError::GenericError(e.to_string()))?;
                 self.handle_retriable_task(
                     react_to_retriable_poll_task.task.request_payload,
                     react_to_retriable_poll_task.task.invoked_contract_address,
-                    msg_id,
+                    message_id,
                 )
                 .await
             }
