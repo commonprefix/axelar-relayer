@@ -512,13 +512,13 @@ mod tests {
             maybe_actual_task.err()
         );
         let actual_task = maybe_actual_task.unwrap();
-        let tx_id_res = message_id_from_retry_task(gmp_api::gmp_types::Task::ReactToRetriablePoll(
-            actual_task.clone(),
-        ));
-        assert!(tx_id_res.is_ok());
-        let tx_id = tx_id_res.unwrap();
+        let maybe_message_id = message_id_from_retry_task(
+            gmp_api::gmp_types::Task::ReactToRetriablePoll(actual_task.clone()),
+        );
+        assert!(maybe_message_id.is_ok());
+        let message_id = maybe_message_id.unwrap();
         assert_eq!(
-            tx_id,
+            message_id,
             "5fa140ff4b90c83df9fdfdc81595bd134f41d929694eedb15cf7fd1c511e8025"
         );
 
