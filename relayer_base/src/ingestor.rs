@@ -196,7 +196,7 @@ impl<I: IngestorTrait> Ingestor<I> {
                     "Consuming task: {:?}",
                     react_to_expired_signing_session_task
                 );
-                let msg_id = message_id_from_retry_task(Task::ReactToExpiredSigningSession(
+                let message_id = message_id_from_retry_task(Task::ReactToExpiredSigningSession(
                     react_to_expired_signing_session_task.clone(),
                 ))
                 .map_err(|e| IngestorError::GenericError(e.to_string()))?;
@@ -205,7 +205,7 @@ impl<I: IngestorTrait> Ingestor<I> {
                     react_to_expired_signing_session_task
                         .task
                         .invoked_contract_address,
-                    msg_id,
+                    message_id,
                 )
                 .await
             }
