@@ -3,6 +3,10 @@ use std::time::Duration;
 use anyhow::anyhow;
 use serde::{de::DeserializeOwned, Serialize};
 use tracing::{debug, info};
+use xrpl_api::{
+    LedgerIndex, LedgerObject, ObjectType, Request, RequestPagination, RetrieveLedgerSpec,
+    Transaction,
+};
 use xrpl_api::{LedgerObject, ObjectType, Request, RequestPagination, Transaction};
 use xrpl_types::AccountId;
 
@@ -125,7 +129,14 @@ impl XRPLClient {
         let request = xrpl_api::AccountObjectsRequest {
             account: account.to_address(),
             object_type: Some(ObjectType::Ticket),
-            ..Default::default()
+            pagination: RequestPagination {
+                limit: Some(250),
+                ..Default::default()
+            },
+            ledger_spec: RetrieveLedgerSpec {
+                ledger_index: Some(LedgerIndex::Validated),
+                ..Default::default()
+            },
         };
         let res = self.call(request.clone()).await;
         let response = res.map_err(|e| anyhow!("Error getting tickets: {:?}", e.to_string()))?;
