@@ -229,7 +229,7 @@ impl<I: IngestorTrait> Ingestor<I> {
             })?;
 
         if task_retries.is_none() {
-            info!("Creating task retries for message id: {}", message_id);
+            debug!("Creating task retries for message id: {}", message_id);
             let new_retry = TaskRetries {
                 message_id: message_id.clone(),
                 retries: 0,
