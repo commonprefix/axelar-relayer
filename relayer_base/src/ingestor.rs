@@ -219,7 +219,7 @@ impl<I: IngestorTrait> Ingestor<I> {
         invoked_contract_address: String,
         message_id: String,
     ) -> Result<(), IngestorError> {
-        let task_retries = self
+        let maybe_task_retries = self
             .models
             .task_retries
             .find(message_id.clone())
@@ -228,7 +228,9 @@ impl<I: IngestorTrait> Ingestor<I> {
                 IngestorError::GenericError(format!("Failed to find task retries: {}", e))
             })?;
 
-        if task_retries.is_none() {
+        let task_retries = if let Some(task_retries) = maybe_task_retries {
+            task_retries
+        } else {
             debug!("Creating task retries for message id: {}", message_id);
             let new_retry = TaskRetries {
                 message_id: message_id.clone(),
@@ -237,15 +239,15 @@ impl<I: IngestorTrait> Ingestor<I> {
             };
             self.models
                 .task_retries
-                .upsert(new_retry)
+                .upsert(new_retry.clone())
                 .await
                 .map_err(|e| {
                     IngestorError::GenericError(format!("Failed to create task retries: {}", e))
                 })?;
-            if MAX_TASK_RETRIES == 0 {
-                return Err(IngestorError::TaskMaxRetriesReached);
-            }
-        } else if task_retries.unwrap().retries >= MAX_TASK_RETRIES {
+            new_retry
+        };
+
+        if task_retries.retries >= MAX_TASK_RETRIES {
             return Err(IngestorError::TaskMaxRetriesReached);
         }
 
