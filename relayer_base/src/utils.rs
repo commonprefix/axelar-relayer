@@ -320,13 +320,14 @@ pub fn message_id_from_retry_task(task: Task) -> Result<String, anyhow::Error> {
             let payload: Value = serde_json::from_str(&task.task.request_payload)?;
             let tx_id_value = payload
                 .get("verify_messages")
-                .ok_or_else(|| anyhow::anyhow!("verify_messages is missing"))?
-                .get(0)
-                .ok_or_else(|| anyhow::anyhow!("verify_messages[0] is missing"))?
-                .get("add_gas_message")
-                .ok_or_else(|| anyhow::anyhow!("add_gas_message is missing"))?
-                .get("tx_id")
-                .ok_or_else(|| anyhow::anyhow!("tx_id is missing"))?;
+                .and_then(|v| v.get(0))
+                .and_then(|v| v.get("add_gas_message"))
+                .and_then(|v| v.get("tx_id"))
+                .ok_or_else(|| {
+                    anyhow::anyhow!(
+                        "Failed to extract tx_id from verify_messages[0].add_gas_message.tx_id"
+                    )
+                })?;
             let tx_id_str = tx_id_value
                 .as_str()
                 .ok_or_else(|| anyhow::anyhow!("tx_id is not a string: {:?}", tx_id_value))?
