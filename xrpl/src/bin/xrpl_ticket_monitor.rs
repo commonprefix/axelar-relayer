@@ -3,6 +3,7 @@ use dotenv::dotenv;
 use relayer_base::{config::Config, utils::setup_logging};
 use tracing::{debug, error};
 use xrpl::client::XRPLClient;
+use xrpl_api::Ticket;
 use xrpl_types::AccountId;
 
 const RETRIES: u8 = 4;
@@ -22,7 +23,7 @@ async fn main() -> anyhow::Result<()> {
     loop {
         debug!("Checking tickets for account: {}", account.to_address());
 
-        let maybe_tickets: Result<Vec<xrpl_api::LedgerObject>, anyhow::Error> =
+        let maybe_tickets: Result<Vec<Ticket>, anyhow::Error> =
             client.get_available_tickets_for_account(&account).await;
 
         match maybe_tickets {

@@ -4,7 +4,7 @@ use anyhow::anyhow;
 use serde::{de::DeserializeOwned, Serialize};
 use tracing::{debug, info};
 use xrpl_api::{
-    LedgerIndex, LedgerObject, ObjectType, Request, RequestPagination, RetrieveLedgerSpec,
+    LedgerIndex, LedgerObject, ObjectType, Request, RequestPagination, RetrieveLedgerSpec, Ticket,
     Transaction,
 };
 use xrpl_api::{LedgerObject, ObjectType, Request, RequestPagination, Transaction};
@@ -125,7 +125,7 @@ impl XRPLClient {
     pub async fn get_available_tickets_for_account(
         &self,
         account: &AccountId,
-    ) -> Result<Vec<LedgerObject>, anyhow::Error> {
+    ) -> Result<Vec<Ticket>, anyhow::Error> {
         let request = xrpl_api::AccountObjectsRequest {
             account: account.to_address(),
             object_type: Some(ObjectType::Ticket),
@@ -140,7 +140,14 @@ impl XRPLClient {
         };
         let res = self.call(request.clone()).await;
         let response = res.map_err(|e| anyhow!("Error getting tickets: {:?}", e.to_string()))?;
-        let tickets = response.account_objects;
+        let tickets = response
+            .account_objects
+            .into_iter()
+            .filter_map(|o| match o {
+                LedgerObject::Ticket(ticket) => Some(ticket),
+                _ => None,
+            })
+            .collect();
         Ok(tickets)
     }
 }
