@@ -6890,7 +6890,6 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber",
- "uuid",
  "xrpl-gateway",
  "xrpl-multisig-prover",
  "xrpl-types",
