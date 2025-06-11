@@ -4263,6 +4263,7 @@ dependencies = [
  "mockall",
  "mockito",
  "multisig",
+ "r2d2",
  "redis",
  "reqwest",
  "reqwest-middleware",
