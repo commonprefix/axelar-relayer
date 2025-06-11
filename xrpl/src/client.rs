@@ -7,7 +7,6 @@ use xrpl_api::{
     LedgerIndex, LedgerObject, ObjectType, Request, RequestPagination, RetrieveLedgerSpec, Ticket,
     Transaction,
 };
-use xrpl_api::{LedgerObject, ObjectType, Request, RequestPagination, Transaction};
 use xrpl_types::AccountId;
 
 use relayer_base::error::ClientError;
