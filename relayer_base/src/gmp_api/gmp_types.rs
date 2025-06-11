@@ -94,6 +94,52 @@ pub struct ReactToWasmEventTaskFields {
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct ReactToExpiredSigningSessionTaskFields {
+    #[serde(rename = "sessionID")]
+    pub session_id: u64,
+    #[serde(rename = "broadcastID")]
+    pub broadcast_id: String,
+    #[serde(rename = "invokedContractAddress")]
+    pub invoked_contract_address: String,
+    #[serde(rename = "requestPayload")]
+    pub request_payload: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct ReactToExpiredSigningSessionTask {
+    #[serde(flatten)]
+    pub common: CommonTaskFields,
+    pub task: ReactToExpiredSigningSessionTaskFields,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct ReactToRetriablePollTaskFields {
+    #[serde(rename = "pollID")]
+    pub poll_id: u64,
+    #[serde(rename = "broadcastID")]
+    pub broadcast_id: String,
+    #[serde(rename = "invokedContractAddress")]
+    pub invoked_contract_address: String,
+    #[serde(rename = "requestPayload")]
+    pub request_payload: String,
+    #[serde(rename = "quorumReachedEvents")]
+    pub quorum_reached_events: Option<Vec<QuorumReachedEvent>>,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct QuorumReachedEvent {
+    pub status: VerificationStatus,
+    pub content: Value,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct ReactToRetriablePollTask {
+    #[serde(flatten)]
+    pub common: CommonTaskFields,
+    pub task: ReactToRetriablePollTaskFields,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct EventAttribute {
     pub key: String,
     pub value: String,
@@ -136,6 +182,8 @@ pub enum Task {
     ConstructProof(ConstructProofTask),
     ReactToWasmEvent(ReactToWasmEventTask),
     Refund(RefundTask),
+    ReactToExpiredSigningSession(ReactToExpiredSigningSessionTask),
+    ReactToRetriablePoll(ReactToRetriablePollTask),
 }
 
 #[derive(Clone, Eq, PartialEq, Hash)]
@@ -146,6 +194,8 @@ pub enum TaskKind {
     ConstructProof,
     ReactToWasmEvent,
     Refund,
+    ReactToExpiredSigningSession,
+    ReactToRetriablePoll,
 }
 
 impl Task {
@@ -157,6 +207,8 @@ impl Task {
             Task::ConstructProof(t) => t.common.id.clone(),
             Task::ReactToWasmEvent(t) => t.common.id.clone(),
             Task::Refund(t) => t.common.id.clone(),
+            Task::ReactToExpiredSigningSession(t) => t.common.id.clone(),
+            Task::ReactToRetriablePoll(t) => t.common.id.clone(),
         }
     }
 
@@ -169,6 +221,8 @@ impl Task {
             ConstructProof(_) => TaskKind::ConstructProof,
             ReactToWasmEvent(_) => TaskKind::ReactToWasmEvent,
             Refund(_) => TaskKind::Refund,
+            ReactToExpiredSigningSession(_) => TaskKind::ReactToExpiredSigningSession,
+            ReactToRetriablePoll(_) => TaskKind::ReactToRetriablePoll,
         }
     }
 }
@@ -238,6 +292,24 @@ pub enum CannotExecuteMessageReason {
 pub enum MessageExecutionStatus {
     SUCCESSFUL,
     REVERTED,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub enum VerificationStatus {
+    #[serde(rename = "succeeded_on_source_chain")]
+    SucceededOnSourceChain,
+    #[serde(rename = "failed_on_source_chain")]
+    FailedOnSourceChain,
+    #[serde(rename = "failed_on_destination_chain")]
+    FailedOnDestinationChain,
+    #[serde(rename = "not_found_on_source_chain")]
+    NotFoundOnSourceChain,
+    #[serde(rename = "failed_to_verify")]
+    FailedToVerify,
+    #[serde(rename = "in_progress")]
+    InProgress,
+    #[serde(rename = "unknown")]
+    Unknown,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -340,4 +412,123 @@ pub enum QueryRequest {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct StorePayloadResult {
     pub keccak256: String,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{ReactToExpiredSigningSessionTask, ReactToRetriablePollTask};
+    use crate::{gmp_api, utils::message_id_from_retry_task};
+
+    #[test]
+    fn test_react_to_expired_signing_session_task() {
+        let task = r#"{
+            "id": "0197159e-a704-7cce-b89b-e7eba3e9d7d7",
+            "chain": "xrpl",
+            "timestamp": "2025-05-28T06:40:08.453075Z",
+            "type": "REACT_TO_EXPIRED_SIGNING_SESSION",
+            "meta": {
+                "txID" : null,
+                "fromAddress" : null,
+                "finalized" : null,
+                "sourceContext" : null,
+                "scopedMessages": [
+                    {
+                        "messageID": "0xb8ecb910c92c4937c548b7b1fe63c512d8f68743d41bfb539ca181999736d597-98806061",
+                        "sourceChain": "axelar"
+                    }
+                ]
+            },
+            "task": {
+                "sessionID": 874302,
+                "broadcastID": "01971594-4e05-7ef5-869f-716616729956",
+                "invokedContractAddress": "axelar1k82qfzu3l6rvc7twlp9lpwsnav507czl6xyrk0xv287t4439ymvsl6n470",
+                "requestPayload": "{\"construct_proof\":{\"cc_id\":{\"message_id\":\"0xb8ecb910c92c4937c548b7b1fe63c512d8f68743d41bfb539ca181999736d597-98806061\",\"source_chain\":\"axelar\"},\"payload\":\"0000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000a000000000000000000000000000000000000000000000000000000000000000087872706c2d65766d00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001800000000000000000000000000000000000000000000000000000000000000000ba5a21ca88ef6bba2bfff5088994f90e1077e2a1cc3dcc38bd261f00fce2824f00000000000000000000000000000000000000000000000000000000000000c00000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000081b32000000000000000000000000000000000000000000000000000000000000001600000000000000000000000000000000000000000000000000000000000000014d07a2ebf4caded3297753dd95c8fc08e971300cf00000000000000000000000000000000000000000000000000000000000000000000000000000000000000227245616279676243506d397744565731325557504d37344c63314d38546970594d580000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000\"}}"
+            }
+        }"#;
+
+        let maybe_actual_task: Result<ReactToExpiredSigningSessionTask, serde_json::Error> =
+            serde_json::from_str(task);
+        assert!(
+            maybe_actual_task.is_ok(),
+            "Failed to parse task: {:?}",
+            maybe_actual_task.err()
+        );
+        let actual_task = maybe_actual_task.unwrap();
+        let maybe_message_id = message_id_from_retry_task(
+            gmp_api::gmp_types::Task::ReactToExpiredSigningSession(actual_task.clone()),
+        );
+        assert!(maybe_message_id.is_ok());
+        let message_id = maybe_message_id.unwrap();
+        assert_eq!(
+            message_id,
+            "axelar_0xb8ecb910c92c4937c548b7b1fe63c512d8f68743d41bfb539ca181999736d597-98806061"
+        );
+        let maybe_serialized_task = serde_json::to_string(&actual_task);
+        assert!(maybe_serialized_task.is_ok());
+        let actual_serialized_task = maybe_serialized_task.unwrap();
+
+        assert_eq!(
+            actual_serialized_task,
+            task.split_whitespace().collect::<String>()
+        );
+    }
+
+    #[test]
+    fn test_react_to_retriable_poll_task() {
+        let task = r#"{
+  "id": "019715e8-5570-7f31-a6cf-90ad32e2b9b6",
+  "chain": "xrpl",
+  "timestamp": "2025-05-28T08:00:37.239699Z",
+  "type": "REACT_TO_RETRIABLE_POLL",
+  "meta": null,
+  "task": {
+    "pollID": 1742631,
+    "broadcastID": "019715e5-c882-7c12-83b8-e771588c1353",
+    "invokedContractAddress": "axelar1pnynr6wnmchutkv6490mdqqxkz54fnrtmq8krqhvglhsqhmu7wzsnc86sy",
+    "requestPayload": "{\"verify_messages\":[{\"add_gas_message\":{\"tx_id\":\"5fa140ff4b90c83df9fdfdc81595bd134f41d929694eedb15cf7fd1c511e8025\",\"amount\":{\"drops\":169771},\"msg_id\":\"67f6ddc5421acc8f17e3f1942d2fbc718295894f2ea1647229e054c125a261e8\",\"source_address\":\"rBs8uSfoAePdbr8eZtq7FK2QnTgvHyWAee\"}}]}",
+    "quorumReachedEvents": [
+      {
+        "status": "not_found_on_source_chain",
+        "content": {
+          "add_gas_message": {
+            "amount": {
+              "drops": 169771
+            },
+            "msg_id": "67f6ddc5421acc8f17e3f1942d2fbc718295894f2ea1647229e054c125a261e8",
+            "source_address": "rBs8uSfoAePdbr8eZtq7FK2QnTgvHyWAee",
+            "tx_id": "5fa140ff4b90c83df9fdfdc81595bd134f41d929694eedb15cf7fd1c511e8025"
+          }
+        }
+      }
+    ]
+  }
+}"#;
+
+        let maybe_actual_task: Result<ReactToRetriablePollTask, serde_json::Error> =
+            serde_json::from_str(task);
+        assert!(
+            maybe_actual_task.is_ok(),
+            "Failed to parse task: {:?}",
+            maybe_actual_task.err()
+        );
+        let actual_task = maybe_actual_task.unwrap();
+        let maybe_message_id = message_id_from_retry_task(
+            gmp_api::gmp_types::Task::ReactToRetriablePoll(actual_task.clone()),
+        );
+        assert!(maybe_message_id.is_ok());
+        let message_id = maybe_message_id.unwrap();
+        assert_eq!(
+            message_id,
+            "5fa140ff4b90c83df9fdfdc81595bd134f41d929694eedb15cf7fd1c511e8025"
+        );
+
+        let maybe_serialized_task = serde_json::to_string(&actual_task);
+        assert!(maybe_serialized_task.is_ok());
+        let actual_serialized_task = maybe_serialized_task.unwrap();
+
+        assert_eq!(
+            actual_serialized_task,
+            task.split_whitespace().collect::<String>()
+        );
+    }
 }
