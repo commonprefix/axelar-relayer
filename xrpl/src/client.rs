@@ -130,7 +130,10 @@ impl XRPLClient {
             account: account.to_address(),
             object_type: Some(ObjectType::Ticket),
             pagination: RequestPagination {
-                limit: Some(253),
+                // the max limit is 400
+                // The limit refers to all the objects before applying the object_type filter,
+                // so setting that to 250 (max number of tickets) would miss tickets if the account had 250 tickets + some other objects.
+                limit: Some(400),
                 ..Default::default()
             },
             ledger_spec: RetrieveLedgerSpec {
