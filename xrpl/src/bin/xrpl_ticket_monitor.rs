@@ -30,6 +30,13 @@ async fn main() -> anyhow::Result<()> {
             Ok(tickets) => {
                 let ticket_count = tickets.len() as u8;
                 debug!("Ticket count: {}", ticket_count);
+                debug!(
+                    "Tickets: {:?}",
+                    tickets
+                        .iter()
+                        .map(|t| t.ticket_sequence)
+                        .collect::<Vec<u32>>()
+                );
                 if ticket_count < THRESHOLD {
                     error!("Tickets are bellow threshold");
                     return Err(anyhow::anyhow!("Tickets are bellow threshold"));
