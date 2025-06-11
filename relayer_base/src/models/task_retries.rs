@@ -54,17 +54,3 @@ impl Model for PgTaskRetriesModel {
         Ok(())
     }
 }
-
-impl PgTaskRetriesModel {
-    pub async fn increment_retries(&self, message_id: String) -> Result<()> {
-        let query = format!(
-            "UPDATE {} SET retries = retries + 1, updated_at = NOW() WHERE message_id = $1",
-            PG_TABLE_NAME
-        );
-        sqlx::query(&query)
-            .bind(message_id)
-            .execute(&self.pool)
-            .await?;
-        Ok(())
-    }
-}
