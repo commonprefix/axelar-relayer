@@ -3,7 +3,11 @@ use std::time::Duration;
 use anyhow::anyhow;
 use serde::{de::DeserializeOwned, Serialize};
 use tracing::{debug, info};
-use xrpl_api::{Request, RequestPagination, Transaction};
+use xrpl_api::{
+    LedgerIndex, LedgerObject, ObjectType, Request, RequestPagination, RetrieveLedgerSpec, Ticket,
+    Transaction,
+};
+use xrpl_api::{LedgerObject, ObjectType, Request, RequestPagination, Transaction};
 use xrpl_types::AccountId;
 
 use relayer_base::error::ClientError;
@@ -116,5 +120,37 @@ impl XRPLClient {
         }
 
         Ok(all_transactions)
+    }
+
+    pub async fn get_available_tickets_for_account(
+        &self,
+        account: &AccountId,
+    ) -> Result<Vec<Ticket>, anyhow::Error> {
+        let request = xrpl_api::AccountObjectsRequest {
+            account: account.to_address(),
+            object_type: Some(ObjectType::Ticket),
+            pagination: RequestPagination {
+                // the max limit is 400
+                // The limit refers to all the objects before applying the object_type filter,
+                // so setting that to 250 (max number of tickets) would miss tickets if the account had 250 tickets + some other objects.
+                limit: Some(400),
+                ..Default::default()
+            },
+            ledger_spec: RetrieveLedgerSpec {
+                ledger_index: Some(LedgerIndex::Validated),
+                ..Default::default()
+            },
+        };
+        let res = self.call(request.clone()).await;
+        let response = res.map_err(|e| anyhow!("Error getting tickets: {:?}", e.to_string()))?;
+        let tickets = response
+            .account_objects
+            .into_iter()
+            .filter_map(|o| match o {
+                LedgerObject::Ticket(ticket) => Some(ticket),
+                _ => None,
+            })
+            .collect();
+        Ok(tickets)
     }
 }
