@@ -228,28 +228,22 @@ impl<I: IngestorTrait> Ingestor<I> {
                 IngestorError::GenericError(format!("Failed to find task retries: {}", e))
             })?;
 
-        let task_retries = if let Some(task_retries) = maybe_task_retries {
+        let mut task_retries = if let Some(task_retries) = maybe_task_retries {
             task_retries
         } else {
             debug!("Creating task retries for message id: {}", message_id);
-            let new_retry = TaskRetries {
+            TaskRetries {
                 message_id: message_id.clone(),
                 retries: 0,
                 updated_at: chrono::Utc::now(),
-            };
-            self.models
-                .task_retries
-                .upsert(new_retry.clone())
-                .await
-                .map_err(|e| {
-                    IngestorError::GenericError(format!("Failed to create task retries: {}", e))
-                })?;
-            new_retry
+            }
         };
 
         if task_retries.retries >= MAX_TASK_RETRIES {
             return Err(IngestorError::TaskMaxRetriesReached);
         }
+
+        task_retries.retries += 1;
 
         info!("Retrying: {:?}", request_payload);
 
@@ -268,7 +262,7 @@ impl<I: IngestorTrait> Ingestor<I> {
 
         self.models
             .task_retries
-            .increment_retries(message_id.clone())
+            .upsert(task_retries)
             .await
             .map_err(|e| {
                 IngestorError::GenericError(format!("Failed to increment task retries: {}", e))
