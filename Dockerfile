@@ -63,6 +63,10 @@ RUN apt-get update && \
 
 WORKDIR /app
 
+# Set the base path environment variable
+ENV BASE_PATH=/app
+
+# Copy config and certs
 COPY certs/ ./certs/
 COPY config/ ./config/
 

@@ -53,8 +53,15 @@ pub struct Config {
 
 impl Config {
     pub fn from_yaml(path: &str) -> Result<Self> {
-        let project_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        let config_path = project_root.join("../config/").join(path);
+        let base_path = std::env::var("BASE_PATH").ok();
+
+        let project_root = if let Some(path) = base_path {
+            PathBuf::from(path)
+        } else {
+            PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        };
+
+        let config_path = project_root.join("./config/").join(path);
 
         let content = fs::read_to_string(config_path.clone())
             .with_context(|| format!("Failed to read config file: {:?}", config_path))?;
