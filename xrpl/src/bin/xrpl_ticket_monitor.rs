@@ -1,6 +1,5 @@
 use dotenv::dotenv;
 
-use redis::Commands;
 use relayer_base::{
     config::Config,
     utils::{setup_heartbeat, setup_logging},
