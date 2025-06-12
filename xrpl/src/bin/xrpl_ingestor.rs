@@ -14,7 +14,7 @@ use relayer_base::{
     payload_cache::PayloadCache,
     price_view::PriceView,
     queue::Queue,
-    utils::setup_logging,
+    utils::{setup_heartbeat, setup_logging},
 };
 
 #[tokio::main]
@@ -52,6 +52,11 @@ async fn main() -> anyhow::Result<()> {
 
     let mut sigint = signal(SignalKind::interrupt())?;
     let mut sigterm = signal(SignalKind::terminate())?;
+
+    let redis_client = redis::Client::open(config.redis_server.clone())?;
+    let redis_pool = r2d2::Pool::builder().build(redis_client)?;
+
+    setup_heartbeat(config.heartbeats.ingestor.clone(), redis_pool);
 
     tokio::select! {
         _ = sigint.recv()  => {},
