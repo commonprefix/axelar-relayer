@@ -48,7 +48,11 @@ COPY recovery_tools/src/ ./recovery_tools/src/
 COPY xrpl/src/ ./xrpl/src/
 
 # Build the project with actual source code
-RUN cargo build --release --package xrpl --bin ${BINARY_NAME}
+RUN if [ "${BINARY_NAME}" = "proof_retrier" ]; then \
+      cargo build --release --package recovery-tools --bin ${BINARY_NAME}; \
+    else \
+      cargo build --release --package xrpl --bin ${BINARY_NAME}; \
+    fi
 
 # Final Stage: Produce a lean runtime image
 FROM debian:bookworm-slim
