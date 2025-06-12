@@ -31,7 +31,7 @@ async fn main() -> anyhow::Result<()> {
     let xrpl_includer = XrplIncluder::new(
         config.clone(),
         gmp_api,
-        redis_pool,
+        redis_pool.clone(),
         payload_cache,
         construct_proof_queue.clone(),
     )
@@ -40,9 +40,6 @@ async fn main() -> anyhow::Result<()> {
 
     let mut sigint = signal(SignalKind::interrupt())?;
     let mut sigterm = signal(SignalKind::terminate())?;
-
-    let redis_client = redis::Client::open(config.redis_server.clone())?;
-    let redis_pool = r2d2::Pool::builder().build(redis_client)?;
 
     setup_heartbeat(config.heartbeats.includer.clone(), redis_pool);
 
