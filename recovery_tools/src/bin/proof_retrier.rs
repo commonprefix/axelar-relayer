@@ -2,8 +2,12 @@ use dotenv::dotenv;
 use tokio::signal::unix::{signal, SignalKind};
 
 use relayer_base::{
-    config::Config, database::PostgresDB, payload_cache::PayloadCache, proof_retrier::ProofRetrier,
-    queue::Queue, utils::setup_logging,
+    config::Config,
+    database::PostgresDB,
+    payload_cache::PayloadCache,
+    proof_retrier::ProofRetrier,
+    queue::Queue,
+    utils::{setup_heartbeat, setup_logging},
 };
 
 #[tokio::main]
@@ -24,11 +28,13 @@ async fn main() -> anyhow::Result<()> {
         payload_cache,
         construct_proof_queue.clone(),
         tasks_queue.clone(),
-        redis_pool,
+        redis_pool.clone(),
     );
 
     let mut sigint = signal(SignalKind::interrupt())?;
     let mut sigterm = signal(SignalKind::terminate())?;
+
+    setup_heartbeat(config.heartbeats.proof_retrier.clone(), redis_pool);
 
     tokio::select! {
         _ = sigint.recv()  => {},
