@@ -2,8 +2,6 @@ use std::str::FromStr;
 
 use anyhow::Context;
 use axelar_wasm_std::msg_id::HexTxHash;
-use r2d2::PooledConnection;
-use redis::Commands;
 use router_api::CrossChainId;
 use rust_decimal::Decimal;
 use sentry::ClientInitGuard;
