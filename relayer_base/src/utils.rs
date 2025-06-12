@@ -2,6 +2,8 @@ use std::str::FromStr;
 
 use anyhow::Context;
 use axelar_wasm_std::msg_id::HexTxHash;
+use r2d2::PooledConnection;
+use redis::Commands;
 use router_api::CrossChainId;
 use rust_decimal::Decimal;
 use sentry::ClientInitGuard;
@@ -255,33 +257,20 @@ pub fn parse_message_from_context(
     })
 }
 
-pub fn setup_heartbeat(url: String) {
+pub fn setup_heartbeat(url: String, redis_pool: r2d2::Pool<redis::Client>) {
     tokio::spawn(async move {
         loop {
-            tracing::info!("Sending heartbeat to sentry monitoring endpoint");
+            tracing::info!("Writing heartbeat to DB");
+            let mut redis_conn = redis_pool.get().unwrap();
+            let _: () = redis::cmd("SET")
+                .arg(url.clone())
+                .arg("1")
+                .arg("EX")
+                .arg(30) // seconds
+                .query(&mut redis_conn)
+                .unwrap();
 
-            match reqwest::Client::new().get(&url).send().await {
-                Ok(response) => {
-                    if response.status().is_success() {
-                        tracing::debug!(
-                            "Successfully sent heartbeat to sentry monitoring endpoint"
-                        );
-                    } else {
-                        tracing::error!(
-                            "Failed to send heartbeat to sentry monitoring endpoint: {:?}",
-                            response
-                        );
-                    }
-                }
-                Err(e) => {
-                    tracing::error!(
-                        "Failed to send heartbeat to sentry monitoring endpoint: {}",
-                        e
-                    );
-                }
-            }
-
-            tokio::time::sleep(tokio::time::Duration::from_secs(30)).await;
+            tokio::time::sleep(tokio::time::Duration::from_secs(15)).await;
         }
     });
 }

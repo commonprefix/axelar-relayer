@@ -1,6 +1,9 @@
 use dotenv::dotenv;
 use relayer_base::{
-    config::Config, database::PostgresDB, price_feed::PriceFeeder, utils::setup_logging,
+    config::Config,
+    database::PostgresDB,
+    price_feed::PriceFeeder,
+    utils::{setup_heartbeat, setup_logging},
 };
 
 #[tokio::main]
@@ -13,5 +16,11 @@ async fn main() {
 
     let db = PostgresDB::new(&config.postgres_url).await.unwrap();
     let price_feeder = PriceFeeder::new(&config, db).await.unwrap();
+
+    let redis_client = redis::Client::open(config.redis_server.clone()).unwrap();
+    let redis_pool = r2d2::Pool::builder().build(redis_client).unwrap();
+
+    setup_heartbeat(config.heartbeats.price_feed.clone(), redis_pool);
+
     price_feeder.run().await.unwrap();
 }
