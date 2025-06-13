@@ -18,7 +18,7 @@ async fn main() {
     let redis_client = redis::Client::open(config.redis_server.clone()).unwrap();
     let redis_pool = r2d2::Pool::builder().build(redis_client).unwrap();
 
-    setup_heartbeat("heartbeat:xrpl_funder".to_owned(), redis_pool);
+    setup_heartbeat("heartbeat:funder".to_owned(), redis_pool);
 
     let funder = XRPLFunder::new(config);
     funder.run().await;

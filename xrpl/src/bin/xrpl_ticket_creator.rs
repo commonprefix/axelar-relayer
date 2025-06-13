@@ -20,7 +20,7 @@ async fn main() {
     let redis_client = redis::Client::open(config.redis_server.clone()).unwrap();
     let redis_pool = r2d2::Pool::builder().build(redis_client).unwrap();
 
-    setup_heartbeat("heartbeat:xrpl_ticket_creator".to_owned(), redis_pool);
+    setup_heartbeat("heartbeat:ticket_creator".to_owned(), redis_pool);
 
     let gmp_api = Arc::new(gmp_api::GmpApi::new(&config, false).unwrap());
     let ticket_creator = XrplTicketCreator::new(gmp_api.clone(), config.clone());
