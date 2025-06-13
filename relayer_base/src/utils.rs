@@ -2,6 +2,7 @@ use std::str::FromStr;
 
 use anyhow::Context;
 use axelar_wasm_std::msg_id::HexTxHash;
+use redis::{Commands, SetExpiry, SetOptions};
 use router_api::CrossChainId;
 use rust_decimal::Decimal;
 use sentry::ClientInitGuard;
@@ -260,13 +261,12 @@ pub fn setup_heartbeat(url: String, redis_pool: r2d2::Pool<redis::Client>) {
         loop {
             tracing::info!("Writing heartbeat to DB");
             let mut redis_conn = redis_pool.get().unwrap();
-            let _: () = redis::cmd("SET")
-                .arg(url.clone())
-                .arg("1")
-                .arg("EX")
-                .arg(30) // seconds
-                .query(&mut redis_conn)
-                .unwrap();
+            let set_opts = SetOptions::default().with_expiration(SetExpiry::EX(30));
+            let result: redis::RedisResult<()> = redis_conn.set_options(url.clone(), "1", set_opts);
+            if let Err(e) = result {
+                tracing::error!("Failed to write heartbeat: {}", e);
+            }
+
             tokio::time::sleep(tokio::time::Duration::from_secs(15)).await;
         }
     });
