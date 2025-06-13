@@ -267,7 +267,6 @@ pub fn setup_heartbeat(url: String, redis_pool: r2d2::Pool<redis::Client>) {
                 .arg(30) // seconds
                 .query(&mut redis_conn)
                 .unwrap();
-
             tokio::time::sleep(tokio::time::Duration::from_secs(15)).await;
         }
     });
