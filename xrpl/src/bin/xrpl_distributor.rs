@@ -37,7 +37,7 @@ async fn main() -> anyhow::Result<()> {
     let redis_client = redis::Client::open(config.redis_server.clone()).unwrap();
     let redis_pool = r2d2::Pool::builder().build(redis_client).unwrap();
 
-    setup_heartbeat(config.heartbeats.distributor.clone(), redis_pool);
+    setup_heartbeat("heartbeat:xrpl_distributor".to_owned(), redis_pool);
 
     tokio::select! {
         _ = sigint.recv()  => {},

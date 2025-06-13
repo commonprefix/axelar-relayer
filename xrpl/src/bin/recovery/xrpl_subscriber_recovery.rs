@@ -43,7 +43,7 @@ async fn main() -> anyhow::Result<()> {
     let redis_client = redis::Client::open(config.redis_server.clone()).unwrap();
     let redis_pool = r2d2::Pool::builder().build(redis_client).unwrap();
 
-    setup_heartbeat(config.heartbeats.subscriber.clone(), redis_pool);
+    setup_heartbeat("heartbeat:xrpl_subscriber_recovery".to_owned(), redis_pool);
 
     let mut sigint = signal(SignalKind::interrupt())?;
     let mut sigterm = signal(SignalKind::terminate())?;

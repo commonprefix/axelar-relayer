@@ -26,7 +26,7 @@ async fn main() -> anyhow::Result<()> {
     let redis_client = redis::Client::open(config.redis_server.clone())?;
     let redis_pool = r2d2::Pool::builder().build(redis_client)?;
 
-    setup_heartbeat(config.heartbeats.ticket_monitor, redis_pool);
+    setup_heartbeat("heartbeat:xrpl_ticket_monitor".to_owned(), redis_pool);
 
     loop {
         debug!("Checking tickets for account: {}", account.to_address());

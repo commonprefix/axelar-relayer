@@ -41,7 +41,7 @@ async fn main() -> anyhow::Result<()> {
     let mut sigint = signal(SignalKind::interrupt())?;
     let mut sigterm = signal(SignalKind::terminate())?;
 
-    setup_heartbeat(config.heartbeats.includer.clone(), redis_pool);
+    setup_heartbeat("heartbeat:xrpl_includer".to_owned(), redis_pool);
 
     tokio::select! {
         _ = sigint.recv()  => {},
