@@ -34,7 +34,7 @@ async fn main() -> anyhow::Result<()> {
     let mut sigint = signal(SignalKind::interrupt())?;
     let mut sigterm = signal(SignalKind::terminate())?;
 
-    setup_heartbeat(config.heartbeats.proof_retrier.clone(), redis_pool);
+    setup_heartbeat("heartbeat:proof_retrier".to_owned(), redis_pool);
 
     tokio::select! {
         _ = sigint.recv()  => {},
