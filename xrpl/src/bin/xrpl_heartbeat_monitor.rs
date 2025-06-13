@@ -38,9 +38,8 @@ async fn main() -> anyhow::Result<()> {
         debug!("Sending heartbeats to sentry monitoring endpoint");
 
         for url in urls.iter() {
-            let heartbeat_url = format!("heartbeat:{}", url);
             let mut redis_conn = redis_pool.get().unwrap();
-            if redis_conn.get(&heartbeat_url).unwrap_or(0) == 1 {
+            if redis_conn.get(url).unwrap_or(0) == 1 {
                 match client.get(url).send().await {
                     Ok(response) => {
                         if response.status().is_success() {
