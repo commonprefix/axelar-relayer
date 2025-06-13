@@ -7,6 +7,7 @@ pub mod models;
 pub mod refund_manager;
 pub mod subscriber;
 pub mod ticket_creator;
+pub mod utils;
 pub mod voting_retrier;
 pub use client::XRPLClient;
 pub use funder::XRPLFunder;

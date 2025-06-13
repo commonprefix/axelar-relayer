@@ -2,8 +2,9 @@ use axelar_wasm_std::{msg_id::HexTxHash, nonempty};
 use base64::prelude::*;
 use interchain_token_service::TokenId;
 use regex::Regex;
-use relayer_base::gmp_api::gmp_types::VerificationStatus;
+use relayer_base::gmp_api::gmp_types::{RetryTask, VerificationStatus};
 use relayer_base::ingestor::IngestorTrait;
+use relayer_base::models::task_retries::{PgTaskRetriesModel, TaskRetries};
 use relayer_base::subscriber::ChainTransaction;
 use relayer_base::{
     config::Config,
@@ -44,7 +45,15 @@ use xrpl_api::Transaction;
 use xrpl_api::{Memo, PaymentTransaction};
 use xrpl_gateway::msg::{CallContract, InterchainTransfer, MessageWithPayload};
 
+use crate::utils::message_id_from_retry_task;
 use crate::xrpl_transaction::{PgXrplTransactionModel, XrplTransaction, XrplTransactionStatus};
+
+const MAX_TASK_RETRIES: i64 = 5;
+
+pub struct XrplIngestorModels {
+    pub xrpl_transaction_model: PgXrplTransactionModel,
+    pub task_retries: PgTaskRetriesModel,
+}
 
 pub struct XrplIngestor<DB: Database> {
     client: xrpl_http_client::Client,
@@ -52,7 +61,7 @@ pub struct XrplIngestor<DB: Database> {
     config: Config,
     price_view: PriceView<DB>,
     payload_cache: PayloadCache<DB>,
-    xrpl_transaction_model: PgXrplTransactionModel,
+    models: XrplIngestorModels,
 }
 
 impl<DB: Database> XrplIngestor<DB> {
@@ -61,7 +70,7 @@ impl<DB: Database> XrplIngestor<DB> {
         config: Config,
         price_view: PriceView<DB>,
         payload_cache: PayloadCache<DB>,
-        xrpl_transaction_model: PgXrplTransactionModel,
+        models: XrplIngestorModels,
     ) -> Self {
         let client = xrpl_http_client::Client::builder()
             .base_url(&config.xrpl_rpc)
@@ -72,7 +81,7 @@ impl<DB: Database> XrplIngestor<DB> {
             client,
             price_view,
             payload_cache,
-            xrpl_transaction_model,
+            models,
         }
     }
     pub async fn handle_payment(
@@ -161,7 +170,8 @@ impl<DB: Database> XrplIngestor<DB> {
             .map_err(|e| IngestorError::GenericError(e.to_string()))?;
 
         let xrpl_tx_hash = message.tx_id().tx_hash_as_hex_no_prefix();
-        self.xrpl_transaction_model
+        self.models
+            .xrpl_transaction_model
             .update_verify_tx(&xrpl_tx_hash, &verify_tx_hash)
             .await
             .map_err(|e| IngestorError::GenericError(e.to_string()))?;
@@ -399,7 +409,8 @@ impl<DB: Database> XrplIngestor<DB> {
                 "Message id is not prefixed with 0x".to_string(),
             ))?;
 
-        self.xrpl_transaction_model
+        self.models
+            .xrpl_transaction_model
             .update_status(xrpl_tx_hash, XrplTransactionStatus::Initialized)
             .await
             .map_err(|e| IngestorError::GenericError(e.to_string()))?;
@@ -1088,13 +1099,15 @@ impl<DB: Database> IngestorTrait for XrplIngestor<DB> {
             | Transaction::SignerListSet(_)
             | Transaction::TrustSet(_) => {
                 if self
+                    .models
                     .xrpl_transaction_model
                     .find(xrpl_transaction.tx_hash.clone())
                     .await
                     .map_err(|e| IngestorError::GenericError(e.to_string()))?
                     .is_none()
                 {
-                    self.xrpl_transaction_model
+                    self.models
+                        .xrpl_transaction_model
                         .upsert(xrpl_transaction.clone())
                         .await
                         .map_err(|e| IngestorError::GenericError(e.to_string()))?;
@@ -1138,7 +1151,8 @@ impl<DB: Database> IngestorTrait for XrplIngestor<DB> {
         let xrpl_message = parse_message_from_context(&task.common.meta)?;
 
         let xrpl_tx_hash = xrpl_message.tx_id().tx_hash_as_hex_no_prefix();
-        self.xrpl_transaction_model
+        self.models
+            .xrpl_transaction_model
             .update_verify_task(
                 &xrpl_tx_hash,
                 &serde_json::to_string(&task).map_err(|e| {
@@ -1184,7 +1198,8 @@ impl<DB: Database> IngestorTrait for XrplIngestor<DB> {
                 };
 
                 let xrpl_tx_hash = xrpl_message.tx_id().tx_hash_as_hex_no_prefix();
-                self.xrpl_transaction_model
+                self.models
+                    .xrpl_transaction_model
                     .update_quorum_reached_task(
                         &xrpl_tx_hash,
                         &serde_json::to_string(&task).map_err(|e| {
@@ -1207,7 +1222,8 @@ impl<DB: Database> IngestorTrait for XrplIngestor<DB> {
                     }
                 };
 
-                self.xrpl_transaction_model
+                self.models
+                    .xrpl_transaction_model
                     .update_status(&xrpl_tx_hash, XrplTransactionStatus::Verified)
                     .await
                     .map_err(|e| IngestorError::GenericError(e.to_string()))?;
@@ -1250,12 +1266,14 @@ impl<DB: Database> IngestorTrait for XrplIngestor<DB> {
 
                 match maybe_confirmation_tx_hash {
                     Ok(confirmation_tx_hash) => {
-                        self.xrpl_transaction_model
+                        self.models
+                            .xrpl_transaction_model
                             .update_route_tx(&xrpl_tx_hash, &confirmation_tx_hash.to_lowercase())
                             .await
                             .map_err(|e| IngestorError::GenericError(e.to_string()))?;
 
-                        self.xrpl_transaction_model
+                        self.models
+                            .xrpl_transaction_model
                             .update_status(&xrpl_tx_hash, XrplTransactionStatus::Routed)
                             .await
                             .map_err(|e| IngestorError::GenericError(e.to_string()))?;
@@ -1358,6 +1376,65 @@ impl<DB: Database> IngestorTrait for XrplIngestor<DB> {
                     .map_err(|e| IngestorError::GenericError(e.to_string()))?;
             }
         }
+
+        Ok(())
+    }
+
+    async fn handle_retriable_task(&self, task: RetryTask) -> Result<(), IngestorError> {
+        let message_id = message_id_from_retry_task(task.clone()).map_err(|e| {
+            IngestorError::GenericError(format!("Failed to get message id from retry task: {}", e))
+        })?;
+        let request_payload = task.request_payload();
+        let invoked_contract_address = task.invoked_contract_address();
+
+        let maybe_task_retries = self
+            .models
+            .task_retries
+            .find(message_id.clone())
+            .await
+            .map_err(|e| {
+                IngestorError::GenericError(format!("Failed to find task retries: {}", e))
+            })?;
+
+        let mut task_retries = if let Some(task_retries) = maybe_task_retries {
+            task_retries
+        } else {
+            debug!("Creating task retries for message id: {}", message_id);
+            TaskRetries {
+                message_id: message_id.clone(),
+                retries: 0,
+                updated_at: chrono::Utc::now(),
+            }
+        };
+
+        if task_retries.retries >= MAX_TASK_RETRIES {
+            return Err(IngestorError::TaskMaxRetriesReached);
+        }
+
+        task_retries.retries += 1;
+
+        info!("Retrying: {:?}", request_payload);
+
+        let payload: BroadcastRequest = BroadcastRequest::Generic(
+            serde_json::from_str(&request_payload)
+                .map_err(|e| IngestorError::ParseError(format!("Invalid JSON: {}", e)))?,
+        );
+
+        let request = self
+            .gmp_api
+            .post_broadcast(invoked_contract_address, &payload)
+            .await
+            .map_err(|e| IngestorError::PostEventError(e.to_string()))?;
+
+        info!("Broadcast request sent: {:?}", request);
+
+        self.models
+            .task_retries
+            .upsert(task_retries)
+            .await
+            .map_err(|e| {
+                IngestorError::GenericError(format!("Failed to increment task retries: {}", e))
+            })?;
 
         Ok(())
     }
