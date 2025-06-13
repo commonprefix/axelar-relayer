@@ -17,35 +17,24 @@ async fn main() -> anyhow::Result<()> {
 
     let _guard = setup_logging(&config);
 
-    let urls = vec![
-        config.heartbeats.subscriber,
-        config.heartbeats.distributor,
-        config.heartbeats.includer,
-        config.heartbeats.ingestor,
-        config.heartbeats.ticket_creator,
-        config.heartbeats.funder,
-        config.heartbeats.price_feed,
-        config.heartbeats.proof_retrier,
-        config.heartbeats.ticket_monitor,
-    ];
-
     loop {
         debug!("Sending heartbeats to sentry monitoring endpoint");
 
-        for url in urls.iter() {
+        for (key, url) in config.heartbeats.iter() {
+            let redis_key = format!("heartbeat:{}", key);
             let mut redis_conn = redis_pool.get().unwrap();
-            if redis_conn.get(url).unwrap_or(0) == 1 {
+            if redis_conn.get(redis_key).unwrap_or(0) == 1 {
                 match client.get(url).send().await {
                     Ok(response) => {
                         if response.status().is_success() {
                             debug!(
                                 "Successfully sent heartbeat to sentry monitoring endpoint for {}",
-                                url
+                                key
                             );
                         } else {
                             error!(
                                 "Failed to send heartbeat to sentry monitoring endpoint for {}: {:?}",
-                                url,
+                                key,
                                 response
                             );
                         }
@@ -53,10 +42,15 @@ async fn main() -> anyhow::Result<()> {
                     Err(e) => {
                         error!(
                             "Failed to send heartbeat to sentry monitoring endpoint for {}: {}",
-                            url, e
+                            key, e
                         );
                     }
                 }
+            } else {
+                error!(
+                    "Heartbeat not sent to sentry monitoring endpoint for {}",
+                    key
+                );
             }
         }
 
