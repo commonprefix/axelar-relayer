@@ -17,11 +17,6 @@ async fn main() -> anyhow::Result<()> {
 
     let _guard = setup_logging(&config);
 
-    debug!(
-        "Heartbeats subscriber: {:?}",
-        config.heartbeats.subscriber.clone()
-    );
-
     let urls = vec![
         config.heartbeats.subscriber,
         config.heartbeats.distributor,
