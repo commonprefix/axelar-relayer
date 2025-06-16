@@ -84,7 +84,8 @@ impl<DB: Database> Distributor<DB> {
 
     async fn work(
         &mut self,
-        queue: Arc<Queue>,
+        includer_queue: Arc<Queue>,
+        ingestor_queue: Arc<Queue>,
         tasks_filter: Option<Vec<TaskKind>>,
     ) -> Result<Vec<String>, DistributorError> {
         let mut processed_task_ids = Vec::new();
@@ -118,15 +119,21 @@ impl<DB: Database> Distributor<DB> {
 
             let task_item = &QueueItem::Task(task.clone());
             info!("Publishing task: {:?}", task);
-            queue.publish(task_item.clone()).await;
+            if task.kind() == TaskKind::Refund || task.kind() == TaskKind::GatewayTx {
+                includer_queue.publish(task_item.clone()).await;
+            } else {
+                ingestor_queue.publish(task_item.clone()).await;
+            }
         }
         Ok(processed_task_ids)
     }
 
-    pub async fn run(&mut self, queue: Arc<Queue>) {
+    pub async fn run(&mut self, includer_queue: Arc<Queue>, ingestor_queue: Arc<Queue>) {
         loop {
             info!("Distributor is alive.");
-            let work_res = self.work(queue.clone(), None).await;
+            let work_res = self
+                .work(includer_queue.clone(), ingestor_queue.clone(), None)
+                .await;
             if let Err(err) = work_res {
                 warn!("{:?}\nRetrying in 2 seconds", err);
             }
@@ -134,12 +141,16 @@ impl<DB: Database> Distributor<DB> {
         }
     }
 
-    pub async fn run_recovery(&mut self, queue: Arc<Queue>) {
+    pub async fn run_recovery(&mut self, includer_queue: Arc<Queue>, ingestor_queue: Arc<Queue>) {
         let recovery_settings = self.recovery_settings.clone().unwrap();
         loop {
             info!("Distributor is recovering.");
             let work_res = self
-                .work(queue.clone(), recovery_settings.tasks_filter.clone())
+                .work(
+                    includer_queue.clone(),
+                    ingestor_queue.clone(),
+                    recovery_settings.tasks_filter.clone(),
+                )
                 .await;
             if let Err(err) = work_res {
                 warn!("{:?}\nRetrying in 2 seconds", err);
