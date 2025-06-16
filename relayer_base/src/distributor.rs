@@ -119,11 +119,19 @@ impl<DB: Database> Distributor<DB> {
 
             let task_item = &QueueItem::Task(task.clone());
             info!("Publishing task: {:?}", task);
-            if task.kind() == TaskKind::Refund || task.kind() == TaskKind::GatewayTx {
-                includer_queue.publish(task_item.clone()).await;
-            } else {
-                ingestor_queue.publish(task_item.clone()).await;
-            }
+            let queue = match task.kind() {
+                TaskKind::Refund | TaskKind::GatewayTx => includer_queue.clone(),
+                TaskKind::Verify
+                | TaskKind::ConstructProof
+                | TaskKind::ReactToWasmEvent
+                | TaskKind::ReactToRetriablePoll
+                | TaskKind::ReactToExpiredSigningSession => ingestor_queue.clone(),
+                _ => {
+                    warn!("Dropping unknown task: {:?}", task);
+                    continue;
+                }
+            };
+            queue.publish(task_item.clone()).await;
         }
         Ok(processed_task_ids)
     }
