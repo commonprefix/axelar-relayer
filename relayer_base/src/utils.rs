@@ -28,6 +28,8 @@ use crate::{
     price_view::PriceViewTrait,
 };
 
+const HEARTBEAT_EXPIRATION: u64 = 30;
+
 fn parse_as<T: DeserializeOwned>(value: &Value) -> Result<T, GmpApiError> {
     serde_json::from_value(value.clone()).map_err(|e| GmpApiError::InvalidResponse(e.to_string()))
 }
@@ -261,7 +263,8 @@ pub fn setup_heartbeat(url: String, redis_pool: r2d2::Pool<redis::Client>) {
         loop {
             tracing::info!("Writing heartbeat to DB");
             let mut redis_conn = redis_pool.get().unwrap();
-            let set_opts = SetOptions::default().with_expiration(SetExpiry::EX(30));
+            let set_opts =
+                SetOptions::default().with_expiration(SetExpiry::EX(HEARTBEAT_EXPIRATION));
             let result: redis::RedisResult<()> = redis_conn.set_options(url.clone(), "1", set_opts);
             if let Err(e) = result {
                 tracing::error!("Failed to write heartbeat: {}", e);
