@@ -126,7 +126,7 @@ impl<DB: Database> Distributor<DB> {
                 | TaskKind::ReactToWasmEvent
                 | TaskKind::ReactToRetriablePoll
                 | TaskKind::ReactToExpiredSigningSession => ingestor_queue.clone(),
-                _ => {
+                TaskKind::Unknown | TaskKind::Execute => {
                     warn!("Dropping unknown task: {:?}", task);
                     continue;
                 }
