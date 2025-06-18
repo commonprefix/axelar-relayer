@@ -63,6 +63,14 @@ services:
     env_file:
       - .env
 
+  xrpl_heartbeat_monitor:
+    build:
+      context: .
+      args:
+        BINARY_NAME: xrpl_heartbeat_monitor
+    env_file:
+      - .env
+
   # Testnet / Devnet Helper Services
 
   xrpl_funder:
