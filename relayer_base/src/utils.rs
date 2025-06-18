@@ -258,14 +258,15 @@ pub fn parse_message_from_context(
     })
 }
 
-pub fn setup_heartbeat(url: String, redis_pool: r2d2::Pool<redis::Client>) {
+pub fn setup_heartbeat(service: String, redis_pool: r2d2::Pool<redis::Client>) {
     tokio::spawn(async move {
         loop {
             tracing::info!("Writing heartbeat to DB");
             let mut redis_conn = redis_pool.get().unwrap();
             let set_opts =
                 SetOptions::default().with_expiration(SetExpiry::EX(HEARTBEAT_EXPIRATION));
-            let result: redis::RedisResult<()> = redis_conn.set_options(url.clone(), "1", set_opts);
+            let result: redis::RedisResult<()> =
+                redis_conn.set_options(service.clone(), "1", set_opts);
             if let Err(e) = result {
                 tracing::error!("Failed to write heartbeat: {}", e);
             }
