@@ -3,13 +3,16 @@ use sqlx::PgPool;
 use std::sync::Arc;
 use tokio::signal::unix::{signal, SignalKind};
 
-use xrpl::{ingestor::XrplIngestor, xrpl_transaction::PgXrplTransactionModel};
+use xrpl::{
+    ingestor::{XrplIngestor, XrplIngestorModels},
+    xrpl_transaction::PgXrplTransactionModel,
+};
 
 use relayer_base::{
     config::Config,
     database::PostgresDB,
     gmp_api,
-    ingestor::{Ingestor, IngestorModels},
+    ingestor::Ingestor,
     models::task_retries::PgTaskRetriesModel,
     payload_cache::PayloadCache,
     price_view::PriceView,
@@ -32,8 +35,13 @@ async fn main() -> anyhow::Result<()> {
     let pg_pool = PgPool::connect(&config.postgres_url).await.unwrap();
     let price_view = PriceView::new(postgres_db.clone());
     let payload_cache = PayloadCache::new(postgres_db.clone());
-    let xrpl_transaction_model = PgXrplTransactionModel {
-        pool: pg_pool.clone(),
+    let models = XrplIngestorModels {
+        xrpl_transaction_model: PgXrplTransactionModel {
+            pool: pg_pool.clone(),
+        },
+        task_retries: PgTaskRetriesModel {
+            pool: pg_pool.clone(),
+        },
     };
     // make an xrpl ingestor
     let xrpl_ingestor = XrplIngestor::new(
@@ -41,14 +49,9 @@ async fn main() -> anyhow::Result<()> {
         config.clone(),
         price_view,
         payload_cache,
-        xrpl_transaction_model,
+        models,
     );
-    let models = IngestorModels {
-        task_retries: PgTaskRetriesModel {
-            pool: pg_pool.clone(),
-        },
-    };
-    let ingestor = Ingestor::new(gmp_api, xrpl_ingestor, models);
+    let ingestor = Ingestor::new(gmp_api, xrpl_ingestor);
 
     let mut sigint = signal(SignalKind::interrupt())?;
     let mut sigterm = signal(SignalKind::terminate())?;

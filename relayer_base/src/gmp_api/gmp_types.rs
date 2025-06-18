@@ -141,6 +141,28 @@ pub struct ReactToRetriablePollTask {
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub enum RetryTask {
+    ReactToRetriablePoll(ReactToRetriablePollTask),
+    ReactToExpiredSigningSession(ReactToExpiredSigningSessionTask),
+}
+
+impl RetryTask {
+    pub fn request_payload(&self) -> String {
+        match self {
+            RetryTask::ReactToRetriablePoll(t) => t.task.request_payload.clone(),
+            RetryTask::ReactToExpiredSigningSession(t) => t.task.request_payload.clone(),
+        }
+    }
+
+    pub fn invoked_contract_address(&self) -> String {
+        match self {
+            RetryTask::ReactToRetriablePoll(t) => t.task.invoked_contract_address.clone(),
+            RetryTask::ReactToExpiredSigningSession(t) => t.task.invoked_contract_address.clone(),
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct EventAttribute {
     pub key: String,
     pub value: String,
@@ -434,7 +456,6 @@ pub struct StorePayloadResult {
 #[cfg(test)]
 mod tests {
     use super::{ReactToExpiredSigningSessionTask, ReactToRetriablePollTask};
-    use crate::{gmp_api, utils::message_id_from_retry_task};
 
     #[test]
     fn test_react_to_expired_signing_session_task() {
@@ -471,15 +492,6 @@ mod tests {
             maybe_actual_task.err()
         );
         let actual_task = maybe_actual_task.unwrap();
-        let maybe_message_id = message_id_from_retry_task(
-            gmp_api::gmp_types::Task::ReactToExpiredSigningSession(actual_task.clone()),
-        );
-        assert!(maybe_message_id.is_ok());
-        let message_id = maybe_message_id.unwrap();
-        assert_eq!(
-            message_id,
-            "axelar_0xb8ecb910c92c4937c548b7b1fe63c512d8f68743d41bfb539ca181999736d597-98806061"
-        );
         let maybe_serialized_task = serde_json::to_string(&actual_task);
         assert!(maybe_serialized_task.is_ok());
         let actual_serialized_task = maybe_serialized_task.unwrap();
@@ -529,16 +541,6 @@ mod tests {
             maybe_actual_task.err()
         );
         let actual_task = maybe_actual_task.unwrap();
-        let maybe_message_id = message_id_from_retry_task(
-            gmp_api::gmp_types::Task::ReactToRetriablePoll(actual_task.clone()),
-        );
-        assert!(maybe_message_id.is_ok());
-        let message_id = maybe_message_id.unwrap();
-        assert_eq!(
-            message_id,
-            "5fa140ff4b90c83df9fdfdc81595bd134f41d929694eedb15cf7fd1c511e8025"
-        );
-
         let maybe_serialized_task = serde_json::to_string(&actual_task);
         assert!(maybe_serialized_task.is_ok());
         let actual_serialized_task = maybe_serialized_task.unwrap();

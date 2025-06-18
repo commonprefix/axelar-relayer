@@ -31,7 +31,13 @@ pub struct GmpApi {
 }
 
 fn identity_from_config(config: &Config) -> Result<Identity, GmpApiError> {
-    let project_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let base_path = std::env::var("BASE_PATH").ok();
+
+    let project_root = if let Some(path) = base_path {
+        PathBuf::from(path)
+    } else {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+    };
 
     let key_path = project_root.join(&config.client_key_path);
     let cert_path = project_root.join(&config.client_cert_path);
