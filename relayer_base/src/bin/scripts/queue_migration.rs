@@ -1,4 +1,5 @@
 use anyhow::Result;
+use dotenv::dotenv;
 use futures::StreamExt;
 use lapin::{
     options::{
@@ -8,25 +9,30 @@ use lapin::{
     types::FieldTable,
     BasicProperties, Channel, Connection, ConnectionProperties,
 };
+use relayer_base::{config::Config, utils::setup_logging};
 use std::env;
 use tracing::{error, info};
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    tracing_subscriber::fmt::init();
+    dotenv().ok();
+    let network = std::env::var("NETWORK").expect("NETWORK must be set");
+    let config = Config::from_yaml(&format!("config.{}.yaml", network))?;
+
+    let _guard = setup_logging(&config);
 
     let args: Vec<String> = env::args().collect();
-    if args.len() != 4 {
-        eprintln!("Usage: {} <amqp_url> <src_queue> <dst_queue>", args[0]);
+    if args.len() != 3 {
+        error!("Usage: {} <src_queue> <dst_queue>", args[0]);
         std::process::exit(1);
     }
-    let queue_url = &args[1];
-    let src_queue = &args[2];
-    let dst_queue = &args[3];
 
-    let conn = Connection::connect(queue_url, ConnectionProperties::default()).await?;
+    let src_queue = &args[1];
+    let dst_queue = &args[2];
+
+    let conn = Connection::connect(&config.queue_address, ConnectionProperties::default()).await?;
     let channel: Channel = conn.create_channel().await?;
-    info!("connected to {}", queue_url);
+    info!("connected to {}", &config.queue_address);
 
     channel
         .queue_declare(
