@@ -3,8 +3,12 @@ use std::sync::Arc;
 use tokio::signal::unix::{signal, SignalKind};
 
 use relayer_base::{
-    config::Config, database::PostgresDB, gmp_api, payload_cache::PayloadCache, queue::Queue,
-    utils::setup_logging,
+    config::Config,
+    database::PostgresDB,
+    gmp_api,
+    payload_cache::PayloadCache,
+    queue::Queue,
+    utils::{setup_heartbeat, setup_logging},
 };
 
 use xrpl::includer::XrplIncluder;
@@ -25,9 +29,9 @@ async fn main() -> anyhow::Result<()> {
     let postgres_db = PostgresDB::new(&config.postgres_url).await.unwrap();
     let payload_cache = PayloadCache::new(postgres_db);
     let xrpl_includer = XrplIncluder::new(
-        config,
+        config.clone(),
         gmp_api,
-        redis_pool,
+        redis_pool.clone(),
         payload_cache,
         construct_proof_queue.clone(),
     )
@@ -36,6 +40,8 @@ async fn main() -> anyhow::Result<()> {
 
     let mut sigint = signal(SignalKind::interrupt())?;
     let mut sigterm = signal(SignalKind::terminate())?;
+
+    setup_heartbeat("heartbeat:includer".to_owned(), redis_pool);
 
     tokio::select! {
         _ = sigint.recv()  => {},

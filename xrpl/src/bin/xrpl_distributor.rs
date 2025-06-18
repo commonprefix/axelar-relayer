@@ -3,8 +3,12 @@ use std::sync::Arc;
 use tokio::signal::unix::{signal, SignalKind};
 
 use relayer_base::{
-    config::Config, database::PostgresDB, distributor::Distributor, gmp_api, queue::Queue,
-    utils::setup_logging,
+    config::Config,
+    database::PostgresDB,
+    distributor::Distributor,
+    gmp_api,
+    queue::Queue,
+    utils::{setup_heartbeat, setup_logging},
 };
 
 #[tokio::main]
@@ -29,6 +33,11 @@ async fn main() -> anyhow::Result<()> {
 
     let mut sigint = signal(SignalKind::interrupt())?;
     let mut sigterm = signal(SignalKind::terminate())?;
+
+    let redis_client = redis::Client::open(config.redis_server.clone()).unwrap();
+    let redis_pool = r2d2::Pool::builder().build(redis_client).unwrap();
+
+    setup_heartbeat("heartbeat:distributor".to_owned(), redis_pool);
 
     tokio::select! {
         _ = sigint.recv()  => {},

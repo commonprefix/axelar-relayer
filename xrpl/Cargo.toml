@@ -71,3 +71,7 @@ path = "src/bin/recovery/xrpl_subscriber_recovery.rs"
 [[bin]]
 name = "xrpl_task_recovery"
 path = "src/bin/recovery/xrpl_task_recovery.rs"
+
+[[bin]]
+name = "xrpl_heartbeat_monitor"
+path = "src/bin/xrpl_heartbeat_monitor.rs"

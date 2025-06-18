@@ -2,6 +2,7 @@ use std::str::FromStr;
 
 use anyhow::Context;
 use axelar_wasm_std::msg_id::HexTxHash;
+use redis::{Commands, SetExpiry, SetOptions};
 use router_api::CrossChainId;
 use rust_decimal::Decimal;
 use sentry::ClientInitGuard;
@@ -26,6 +27,8 @@ use crate::{
     },
     price_view::PriceViewTrait,
 };
+
+const HEARTBEAT_EXPIRATION: u64 = 30;
 
 fn parse_as<T: DeserializeOwned>(value: &Value) -> Result<T, GmpApiError> {
     serde_json::from_value(value.clone()).map_err(|e| GmpApiError::InvalidResponse(e.to_string()))
@@ -255,33 +258,20 @@ pub fn parse_message_from_context(
     })
 }
 
-pub fn setup_heartbeat(url: String) {
+pub fn setup_heartbeat(service: String, redis_pool: r2d2::Pool<redis::Client>) {
     tokio::spawn(async move {
         loop {
-            tracing::info!("Sending heartbeat to sentry monitoring endpoint");
-
-            match reqwest::Client::new().get(&url).send().await {
-                Ok(response) => {
-                    if response.status().is_success() {
-                        tracing::debug!(
-                            "Successfully sent heartbeat to sentry monitoring endpoint"
-                        );
-                    } else {
-                        tracing::error!(
-                            "Failed to send heartbeat to sentry monitoring endpoint: {:?}",
-                            response
-                        );
-                    }
-                }
-                Err(e) => {
-                    tracing::error!(
-                        "Failed to send heartbeat to sentry monitoring endpoint: {}",
-                        e
-                    );
-                }
+            tracing::info!("Writing heartbeat to DB");
+            let mut redis_conn = redis_pool.get().unwrap();
+            let set_opts =
+                SetOptions::default().with_expiration(SetExpiry::EX(HEARTBEAT_EXPIRATION));
+            let result: redis::RedisResult<()> =
+                redis_conn.set_options(service.clone(), "1", set_opts);
+            if let Err(e) = result {
+                tracing::error!("Failed to write heartbeat: {}", e);
             }
 
-            tokio::time::sleep(tokio::time::Duration::from_secs(30)).await;
+            tokio::time::sleep(tokio::time::Duration::from_secs(15)).await;
         }
     });
 }

@@ -1,6 +1,9 @@
 use dotenv::dotenv;
 
-use relayer_base::{config::Config, utils::setup_logging};
+use relayer_base::{
+    config::Config,
+    utils::{setup_heartbeat, setup_logging},
+};
 use tracing::{debug, error};
 use xrpl::client::XRPLClient;
 use xrpl_api::Ticket;
@@ -19,6 +22,11 @@ async fn main() -> anyhow::Result<()> {
 
     let client = XRPLClient::new(&config.xrpl_rpc, RETRIES as usize)?;
     let account = AccountId::from_address(&config.xrpl_multisig).unwrap();
+
+    let redis_client = redis::Client::open(config.redis_server.clone())?;
+    let redis_pool = r2d2::Pool::builder().build(redis_client)?;
+
+    setup_heartbeat("heartbeat:ticket_monitor".to_owned(), redis_pool);
 
     loop {
         debug!("Checking tickets for account: {}", account.to_address());

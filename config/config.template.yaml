@@ -38,4 +38,5 @@ heartbeats:
   funder: ""
   price_feed: ""
   proof_retrier: ""
+  ticket_monitor: ""
 refunds_enabled:

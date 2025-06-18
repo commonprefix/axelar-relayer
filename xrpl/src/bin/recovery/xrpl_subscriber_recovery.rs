@@ -18,7 +18,6 @@ async fn main() -> anyhow::Result<()> {
     let config = Config::from_yaml(&format!("config.{}.yaml", network)).unwrap();
 
     let _guard = setup_logging(&config);
-    setup_heartbeat(config.heartbeats.subscriber.clone());
 
     let events_queue = Queue::new(&config.queue_address, "events").await;
     let postgres_db = PostgresDB::new(&config.postgres_url).await.unwrap();
@@ -40,6 +39,11 @@ async fn main() -> anyhow::Result<()> {
         "23127CDC0B46863C453D69517C11F514EC293A17DC87CC2A3D7CEEE15B8BA1E2",
         "751FE03A35711903B27C8D65C29F5E52E2993E338796A979E2960868A698A737",
     ];
+
+    let redis_client = redis::Client::open(config.redis_server.clone()).unwrap();
+    let redis_pool = r2d2::Pool::builder().build(redis_client).unwrap();
+
+    setup_heartbeat("heartbeat:subscriber_recovery".to_owned(), redis_pool);
 
     let mut sigint = signal(SignalKind::interrupt())?;
     let mut sigterm = signal(SignalKind::terminate())?;

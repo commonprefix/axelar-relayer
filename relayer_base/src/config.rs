@@ -3,18 +3,6 @@ use serde::Deserialize;
 use std::{collections::HashMap, env, fs, path::PathBuf};
 
 #[derive(Debug, Clone, Deserialize, Default)]
-pub struct HeartbeatsConfig {
-    pub subscriber: String,
-    pub distributor: String,
-    pub includer: String,
-    pub ingestor: String,
-    pub ticket_creator: String,
-    pub funder: String,
-    pub price_feed: String,
-    pub proof_retrier: String,
-}
-
-#[derive(Debug, Clone, Deserialize, Default)]
 pub struct AxelarContracts {
     pub xrpl_gateway: String,
     pub xrpl_multisig_prover: String,
@@ -46,7 +34,7 @@ pub struct Config {
     pub chain_name: String,
     pub client_cert_path: String,
     pub client_key_path: String,
-    pub heartbeats: HeartbeatsConfig,
+    pub heartbeats: HashMap<String, String>,
     pub price_feed: PriceFeedConfig,
     pub refunds_enabled: bool,
 }
