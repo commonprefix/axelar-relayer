@@ -46,11 +46,6 @@ async fn main() -> anyhow::Result<()> {
                         );
                     }
                 }
-            } else {
-                error!(
-                    "Heartbeat not sent to sentry monitoring endpoint for {}",
-                    key
-                );
             }
         }
 
