@@ -34,7 +34,8 @@ RUN mkdir -p relayer_base/src/bin recovery_tools/src/bin xrpl/src/bin/recovery &
     echo 'fn main() {}' > xrpl/src/bin/xrpl_ticket_creator.rs && \
     echo 'fn main() {}' > xrpl/src/bin/xrpl_ticket_monitor.rs && \
     echo 'fn main() {}' > xrpl/src/bin/recovery/xrpl_subscriber_recovery.rs && \
-    echo 'fn main() {}' > xrpl/src/bin/recovery/xrpl_task_recovery.rs
+    echo 'fn main() {}' > xrpl/src/bin/recovery/xrpl_task_recovery.rs && \
+    echo 'fn main() {}' > xrpl/src/bin/xrpl_heartbeat_monitor.rs
 
 # Build dependencies (this will cache them)
 RUN cargo build --release
