@@ -51,6 +51,8 @@ COPY xrpl/src/ ./xrpl/src/
 # Build the project with actual source code
 RUN if [ "${BINARY_NAME}" = "proof_retrier" ]; then \
       cargo build --release --package recovery-tools --bin ${BINARY_NAME}; \
+    elif [ "${BINARY_NAME}" = "price_feed" ]; then \
+      cargo build --release --package relayer-base --bin ${BINARY_NAME}; \
     else \
       cargo build --release --package xrpl --bin ${BINARY_NAME}; \
     fi
