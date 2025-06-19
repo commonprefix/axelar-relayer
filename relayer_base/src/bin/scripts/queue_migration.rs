@@ -19,7 +19,7 @@ async fn main() -> Result<()> {
 
     let args: Vec<String> = env::args().collect();
     if args.len() != 3 {
-        eprintln!("Usage: {} <src_queue> <dst_queue>", args[0]);
+        error!("Usage: {} <src_queue> <dst_queue>", args[0]);
         std::process::exit(1);
     }
     let src_queue = &args[1];
