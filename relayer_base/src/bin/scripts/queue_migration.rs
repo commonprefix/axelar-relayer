@@ -39,8 +39,8 @@ async fn main() -> Result<()> {
         .await?;
     info!("Moving messages: from '{}' to '{}'", src_queue, dst_queue);
 
-    while let Some(delivery_result) = consumer.next().await {
-        match delivery_result {
+    while let Some(maybe_delivery) = consumer.next().await {
+        match maybe_delivery {
             Ok(delivery) => {
                 let payload = delivery.data.clone();
 
