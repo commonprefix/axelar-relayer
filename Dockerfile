@@ -23,7 +23,6 @@ COPY xrpl/Cargo.toml ./xrpl/
 # Create dummy files for each workspace member to cache dependencies
 RUN mkdir -p relayer_base/src/bin recovery_tools/src/bin xrpl/src/bin/recovery && \
     echo 'fn main() {}' > recovery_tools/src/bin/proof_retrier.rs && \
-    echo 'fn main() {}' > recovery_tools/src/bin/voting_retrier.rs && \
     echo 'fn main() {}' > recovery_tools/src/bin/dlq_recovery.rs && \
     echo 'fn main() {}' > relayer_base/src/bin/price_feed.rs && \
     echo 'fn main() {}' > xrpl/src/bin/xrpl_ingestor.rs && \
