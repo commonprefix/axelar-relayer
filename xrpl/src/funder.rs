@@ -6,8 +6,8 @@ use relayer_base::config::Config;
 
 use super::client::XRPLClient;
 
-const XRP_TOPUP_AMOUNT: u64 = 1000;
-const BALANCE_THRESHOLD: f64 = 500_000_000.0; // = 500 XRP
+const XRP_TOPUP_AMOUNT: u64 = 100;
+const BALANCE_THRESHOLD: f64 = 100_000_000.0; // = 100 XRP
 
 pub struct XRPLFunder {
     request_client: Client,
