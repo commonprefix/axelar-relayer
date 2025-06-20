@@ -19,7 +19,8 @@ async fn main() -> anyhow::Result<()> {
 
     let _guard = setup_logging(&config);
 
-    let tasks_queue = Queue::new(&config.queue_address, "tasks").await;
+    let includer_tasks_queue = Queue::new(&config.queue_address, "includer_tasks").await;
+    let ingestor_tasks_queue = Queue::new(&config.queue_address, "ingestor_tasks").await;
     let gmp_api = Arc::new(gmp_api::GmpApi::new(&config, true).unwrap());
     let postgres_db = PostgresDB::new(&config.postgres_url).await.unwrap();
 
@@ -42,10 +43,14 @@ async fn main() -> anyhow::Result<()> {
     tokio::select! {
         _ = sigint.recv()  => {},
         _ = sigterm.recv() => {},
-        _ = distributor.run(tasks_queue.clone()) => {},
+        _ = distributor.run(
+            includer_tasks_queue.clone(),
+            ingestor_tasks_queue.clone(),
+        ) => {},
     }
 
-    tasks_queue.close().await;
+    ingestor_tasks_queue.close().await;
+    includer_tasks_queue.close().await;
 
     Ok(())
 }
