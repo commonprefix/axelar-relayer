@@ -59,7 +59,7 @@ pub struct XrplTransaction {
     pub tx: String,
     pub tx_type: XrplTransactionType,
     pub message_id: Option<String>,
-    pub message_type: String,
+    pub message_type: Option<String>,
     pub status: XrplTransactionStatus,
     pub verify_task: Option<String>,
     pub verify_tx: Option<String>,
@@ -99,20 +99,15 @@ impl XrplTransaction {
         let memos = common.memos.clone();
         let message_type_str =
             extract_and_decode_memo(&memos, "type").map_err(|e| anyhow::anyhow!(e.to_string()))?;
-        let message_type: XRPLMessageType =
-            serde_json::from_str(&format!("\"{}\"", message_type_str)).map_err(|e| {
-                anyhow::anyhow!(format!(
-                    "Failed to parse message type {}: {}",
-                    message_type_str, e
-                ))
-            })?;
+        let message_type: Option<XRPLMessageType> =
+            serde_json::from_str(&format!("\"{}\"", message_type_str)).ok();
 
         Ok(XrplTransaction {
             tx_hash: tx_hash.clone(),
             tx: serde_json::to_string(&tx).unwrap_or_default(),
             tx_type: XrplTransactionType::try_from(tx.clone()).unwrap_or_default(),
             message_id: Some(tx_hash),
-            message_type: message_type.to_string(),
+            message_type: message_type.map(|message_type| message_type.to_string()),
             status: XrplTransactionStatus::Detected,
             verify_task: None,
             verify_tx: None,
