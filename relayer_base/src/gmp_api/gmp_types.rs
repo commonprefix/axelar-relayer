@@ -1,5 +1,5 @@
 use core::fmt;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -260,7 +260,7 @@ pub struct TaskMetadata {
     pub from_address: Option<String>,
     pub finalized: Option<bool>,
     #[serde(rename = "sourceContext")]
-    pub source_context: Option<HashMap<String, String>>,
+    pub source_context: Option<BTreeMap<String, String>>,
     #[serde(rename = "scopedMessages")]
     pub scoped_messages: Option<Vec<ScopedMessage>>,
 }
