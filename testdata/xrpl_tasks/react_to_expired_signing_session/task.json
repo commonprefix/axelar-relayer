@@ -1,0 +1,13 @@
+{
+    "id": "expired_session_123",
+    "chain": "xrpl",
+    "timestamp": "2023-01-01T00:00:00Z",
+    "type": "REACT_TO_EXPIRED_SIGNING_SESSION",
+    "meta": null,
+    "task": {
+        "sessionID": 99,
+        "broadcastID": "broadcast_expired",
+        "invokedContractAddress": "0xexpired_contract",
+        "requestPayload": "expired_request"
+    }
+} 

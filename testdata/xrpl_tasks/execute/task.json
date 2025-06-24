@@ -1,0 +1,21 @@
+{
+    "id": "execute_task_123",
+    "chain": "xrpl",
+    "timestamp": "2023-01-01T00:00:00Z",
+    "type": "EXECUTE",
+    "meta": null,
+    "task": {
+        "message": {
+            "messageID": "msg_456",
+            "sourceChain": "polygon",
+            "sourceAddress": "0x789",
+            "destinationAddress": "0xabc",
+            "payloadHash": "hash456"
+        },
+        "payload": "execute_payload",
+        "availableGasBalance": {
+            "tokenID": "token123",
+            "amount": "1000"
+        }
+    }
+} 

@@ -1,0 +1,18 @@
+{
+    "id": "invalid_retriable_poll",
+    "chain": "xrpl",
+    "timestamp": "2023-01-01T00:00:00Z",
+    "type": "REACT_TO_RETRIABLE_POLL",
+    "meta": null,
+    "task": {
+        "broadcastID": "broadcast_123",
+        "invokedContractAddress": "0xcontract",
+        "requestPayload": "request_data",
+        "quorumReachedEvents": [
+            {
+                "status": "succeeded_on_source_chain",
+                "content": {"key": "value"}
+            }
+        ]
+    }
+} 

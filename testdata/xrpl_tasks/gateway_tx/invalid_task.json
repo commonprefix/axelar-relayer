@@ -1,0 +1,9 @@
+{
+    "id": "invalid_gateway_tx",
+    "chain": "xrpl",
+    "timestamp": "2023-01-01T00:00:00Z",
+    "type": "GATEWAY_TX",
+    "meta": null,
+    "task": {
+    }
+} 

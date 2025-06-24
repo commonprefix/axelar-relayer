@@ -1,0 +1,20 @@
+{
+    "id": "invalid_refund",
+    "chain": "xrpl",
+    "timestamp": "2023-01-01T00:00:00Z",
+    "type": "REFUND",
+    "meta": null,
+    "task": {
+        "message": {
+            "messageID": "msg_refund",
+            "sourceChain": "binance",
+            "sourceAddress": "0xrefund",
+            "destinationAddress": "0xdest",
+            "payloadHash": "hash_refund"
+        },
+        "remainingGasBalance": {
+            "tokenID": null,
+            "amount": "500"
+        }
+    }
+} 
