@@ -407,6 +407,22 @@ mod tests {
         }
     }
 
+    fn test_edge_case_as_unknown(task_json_str: &str, expected_type: &str) {
+        let task_json: serde_json::Value = serde_json::from_str(task_json_str).unwrap();
+        let parse_result = parse_task(&task_json);
+
+        assert!(
+            parse_result.is_ok(),
+            "Expected successful parsing as Unknown"
+        );
+
+        if let Ok(Task::Unknown(unknown_task)) = parse_result {
+            assert_eq!(unknown_task.common.r#type, expected_type);
+        } else {
+            panic!("Expected Unknown task, got: {:?}", parse_result);
+        }
+    }
+
     #[tokio::test]
     async fn test_convert_token_amount_to_drops_whole_number() {
         let config = Config {
@@ -685,6 +701,60 @@ mod tests {
     #[test]
     fn test_parse_invalid_react_to_expired_signing_session_task() {
         let task = load_invalid_task_for_type("react_to_expired_signing_session");
+        test_invalid_task_parsing(&task);
+    }
+
+    #[test]
+    fn test_parse_task_mixed_case_type() {
+        let task = load_invalid_test_task("lowercase_type");
+        test_edge_case_as_unknown(&task, "Verify");
+    }
+
+    #[test]
+    fn test_parse_task_whitespace_type() {
+        let task = load_invalid_test_task("whitespace_type_simple");
+        test_edge_case_as_unknown(&task, " VERIFY ");
+    }
+
+    #[test]
+    fn test_parse_task_whitespace_data_loss() {
+        let task = load_invalid_test_task("whitespace_type");
+        let task_json: serde_json::Value = serde_json::from_str(&task).unwrap();
+
+        let parse_result = parse_task(&task_json);
+        assert!(
+            parse_result.is_ok(),
+            "Expected successful parsing as Unknown"
+        );
+
+        if let Ok(Task::Unknown(unknown_task)) = parse_result {
+            assert_eq!(unknown_task.common.r#type, " VERIFY ");
+        } else {
+            panic!("Expected Unknown task");
+        }
+    }
+
+    #[test]
+    fn test_parse_task_null_type() {
+        let task = load_invalid_test_task("null_type");
+        test_invalid_task_parsing(&task);
+    }
+
+    #[test]
+    fn test_parse_task_empty_type() {
+        let task = load_invalid_test_task("empty_type");
+        test_edge_case_as_unknown(&task, "");
+    }
+
+    #[test]
+    fn test_parse_task_underscore_type() {
+        let task = load_invalid_test_task("underscore_type_simple");
+        test_edge_case_as_unknown(&task, "GATEWAY_TX_");
+    }
+
+    #[test]
+    fn test_parse_task_number_as_string() {
+        let task = load_invalid_test_task("number_as_string");
         test_invalid_task_parsing(&task);
     }
 }
