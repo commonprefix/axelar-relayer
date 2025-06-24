@@ -3,13 +3,12 @@ use std::str::FromStr;
 use anyhow::Context;
 use axelar_wasm_std::msg_id::HexTxHash;
 use redis::{Commands, SetExpiry, SetOptions};
-use router_api::CrossChainId;
-use rust_decimal::Decimal;
+use rust_decimal::{prelude::FromPrimitive, Decimal};
 use sentry::ClientInitGuard;
 use sentry_tracing::{layer as sentry_layer, EventFilter};
 use serde::de::DeserializeOwned;
 use serde_json::Value;
-use tracing::{level_filters::LevelFilter, warn, Level};
+use tracing::{debug, level_filters::LevelFilter, warn, Level};
 use tracing_subscriber::{fmt, prelude::*, Registry};
 use xrpl_amplifier_types::{
     msg::XRPLMessage,
@@ -290,9 +289,19 @@ where
         .get(token_id)
         .ok_or_else(|| anyhow::anyhow!("Token id {} not found in deployed tokens", token_id))?;
 
-    let price = price_view
-        .get_price(&format!("{}/XRP", token_symbol))
-        .await?;
+    let maybe_price = price_view.get_price(&format!("{}/XRP", token_symbol)).await;
+    let price = if let Ok(price) = maybe_price {
+        price
+    } else {
+        debug!("Price not found in database, checking demo tokens");
+        // if it wasn't found in the database, it could be a demo token
+        let token_to_xrp_rate = config.demo_tokens_rate.get(token_id);
+        if token_to_xrp_rate.is_none() {
+            return Err(maybe_price.unwrap_err());
+        }
+        Decimal::from_f64(*token_to_xrp_rate.unwrap())
+            .ok_or_else(|| anyhow::anyhow!("Failed to convert token rate to Decimal"))?
+    };
 
     let xrp = amount * price;
     let drops = xrp * Decimal::from(1_000_000);

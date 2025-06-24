@@ -28,6 +28,7 @@ pub struct Config {
     pub xrpl_multisig: String,
     pub axelar_contracts: AxelarContracts,
     pub deployed_tokens: HashMap<String, String>,
+    pub demo_tokens_rate: HashMap<String, f64>,
     pub redis_server: String,
     pub postgres_url: String,
     pub xrpl_relayer_sentry_dsn: String,
