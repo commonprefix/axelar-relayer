@@ -354,6 +354,59 @@ mod tests {
 
     use super::*;
 
+    fn load_test_task(task_type: &str) -> String {
+        std::fs::read_to_string(format!("../testdata/xrpl_tasks/{}/task.json", task_type))
+            .expect(&format!("Failed to load test task: {}", task_type))
+    }
+
+    fn load_invalid_test_task(file_name: &str) -> String {
+        std::fs::read_to_string(format!(
+            "../testdata/xrpl_tasks/invalid_tasks/{}.json",
+            file_name
+        ))
+        .expect(&format!("Failed to load invalid test task: {}", file_name))
+    }
+
+    fn load_invalid_task_for_type(task_type: &str) -> String {
+        std::fs::read_to_string(format!(
+            "../testdata/xrpl_tasks/{}/invalid_task.json",
+            task_type
+        ))
+        .expect(&format!(
+            "Failed to load invalid task for type: {}",
+            task_type
+        ))
+    }
+
+    fn test_valid_task_parsing<T>(task_json_str: &str)
+    where
+        T: DeserializeOwned + serde::Serialize,
+    {
+        let task_json: serde_json::Value = serde_json::from_str(task_json_str).unwrap();
+        let actual_task: T = serde_json::from_value(task_json.clone()).unwrap();
+
+        let parse_result = parse_task(&task_json);
+        assert!(parse_result.is_ok(), "Expected successful parsing");
+
+        let serialized_task = serde_json::to_string(&actual_task).unwrap();
+        assert_eq!(
+            serialized_task,
+            task_json_str.split_whitespace().collect::<String>()
+        );
+    }
+
+    fn test_invalid_task_parsing(task_json_str: &str) {
+        let task_json: serde_json::Value = serde_json::from_str(task_json_str).unwrap();
+        let result = parse_task(&task_json);
+        assert!(result.is_err(), "Expected parsing to fail");
+
+        if let Err(GmpApiError::InvalidResponse(_)) = result {
+            // Expected error
+        } else {
+            panic!("Expected InvalidResponse error");
+        }
+    }
+
     #[tokio::test]
     async fn test_convert_token_amount_to_drops_whole_number() {
         let config = Config {
@@ -507,5 +560,131 @@ mod tests {
         .await
         .unwrap();
         assert_eq!(result, "123456000");
+    }
+
+    #[test]
+    fn test_parse_task_verify() {
+        let task = load_test_task("verify");
+        test_valid_task_parsing::<VerifyTask>(&task);
+    }
+
+    #[test]
+    fn test_parse_task_execute() {
+        let task = load_test_task("execute");
+        test_valid_task_parsing::<ExecuteTask>(&task);
+    }
+
+    #[test]
+    fn test_parse_task_gateway_tx() {
+        let task = load_test_task("gateway_tx");
+        test_valid_task_parsing::<GatewayTxTask>(&task);
+    }
+
+    #[test]
+    fn test_parse_task_construct_proof() {
+        let task = load_test_task("construct_proof");
+        test_valid_task_parsing::<ConstructProofTask>(&task);
+    }
+
+    #[test]
+    fn test_parse_task_react_to_wasm_event() {
+        let task = load_test_task("react_to_wasm_event");
+        test_valid_task_parsing::<ReactToWasmEventTask>(&task);
+    }
+
+    #[test]
+    fn test_parse_task_refund() {
+        let task = load_test_task("refund");
+        test_valid_task_parsing::<RefundTask>(&task);
+    }
+
+    #[test]
+    fn test_parse_task_react_to_retriable_poll() {
+        let task = load_test_task("react_to_retriable_poll");
+        test_valid_task_parsing::<ReactToRetriablePollTask>(&task);
+    }
+
+    #[test]
+    fn test_parse_task_react_to_expired_signing_session() {
+        let task = load_test_task("react_to_expired_signing_session");
+        test_valid_task_parsing::<ReactToExpiredSigningSessionTask>(&task);
+    }
+
+    #[test]
+    fn test_parse_task_unknown_type() {
+        let task = load_test_task("unknown");
+        test_valid_task_parsing::<UnknownTask>(&task);
+    }
+
+    #[test]
+    fn test_parse_task_with_metadata() {
+        let task = load_test_task("with_metadata");
+        test_valid_task_parsing::<VerifyTask>(&task);
+    }
+
+    #[test]
+    fn test_parse_task_case_sensitive_type() {
+        let task = load_test_task("case_sensitive");
+        test_valid_task_parsing::<UnknownTask>(&task);
+    }
+
+    #[test]
+    fn test_parse_task_missing_required_fields() {
+        let task = load_invalid_test_task("missing_required_fields");
+        test_invalid_task_parsing(&task);
+    }
+
+    #[test]
+    fn test_parse_task_invalid_json() {
+        let task = load_invalid_test_task("invalid_verify_task");
+        test_invalid_task_parsing(&task);
+    }
+
+    #[test]
+    fn test_parse_invalid_verify_task() {
+        let task = load_invalid_task_for_type("verify");
+        test_invalid_task_parsing(&task);
+    }
+
+    #[test]
+    fn test_parse_invalid_execute_task() {
+        let task = load_invalid_task_for_type("execute");
+        test_invalid_task_parsing(&task);
+    }
+
+    #[test]
+    fn test_parse_invalid_gateway_tx_task() {
+        let task = load_invalid_task_for_type("gateway_tx");
+        test_invalid_task_parsing(&task);
+    }
+
+    #[test]
+    fn test_parse_invalid_construct_proof_task() {
+        let task = load_invalid_task_for_type("construct_proof");
+        test_invalid_task_parsing(&task);
+    }
+
+    #[test]
+    fn test_parse_invalid_react_to_wasm_event_task() {
+        let task = load_invalid_task_for_type("react_to_wasm_event");
+        test_invalid_task_parsing(&task);
+    }
+
+    #[test]
+    fn test_parse_invalid_refund_task() {
+        let task = load_invalid_task_for_type("refund");
+        test_invalid_task_parsing(&task);
+    }
+
+    #[test]
+    fn test_parse_invalid_react_to_retriable_poll_task() {
+        let task = load_invalid_task_for_type("react_to_retriable_poll");
+        test_invalid_task_parsing(&task);
+    }
+
+    #[test]
+    fn test_parse_invalid_react_to_expired_signing_session_task() {
+        let task = load_invalid_task_for_type("react_to_expired_signing_session");
+        test_invalid_task_parsing(&task);
     }
 }
