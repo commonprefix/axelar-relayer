@@ -757,4 +757,69 @@ mod tests {
         let task = load_invalid_test_task("number_as_string");
         test_invalid_task_parsing(&task);
     }
+
+    #[test]
+    fn test_extract_from_xrpl_memo() {
+        let memos = vec![Memo {
+            memo_type: Some(hex::encode("test_type")),
+            memo_data: Some("test_data".to_string()),
+            memo_format: None,
+        }];
+        let maybe_memo_data = extract_from_xrpl_memo(Some(memos), "test_type");
+        assert!(maybe_memo_data.is_ok());
+        let memo_data = maybe_memo_data.unwrap();
+        assert_eq!(memo_data, "test_data");
+    }
+
+    #[test]
+    fn test_extract_from_xrpl_memo_not_hex_type() {
+        let memos = vec![Memo {
+            memo_type: Some("test_type".to_string()),
+            memo_data: Some("test_data".to_string()),
+            memo_format: None,
+        }];
+        let maybe_memo_data = extract_from_xrpl_memo(Some(memos), "test_type");
+        assert!(maybe_memo_data.is_err());
+    }
+
+    #[test]
+    fn test_extract_from_xrpl_memo_not_found() {
+        let memos = vec![
+            Memo {
+                memo_type: None,
+                memo_data: None,
+                memo_format: None,
+            },
+            Memo {
+                memo_type: Some(hex::encode("test_type")),
+                memo_data: Some("test_data_2".to_string()),
+                memo_format: Some("hex".to_string()),
+            },
+        ];
+        let maybe_memo_data = extract_from_xrpl_memo(Some(memos), "test_type_2");
+        assert!(maybe_memo_data.is_err());
+    }
+
+    #[test]
+    fn test_extract_from_xrpl_memo_empty_list() {
+        let maybe_memo_data = extract_from_xrpl_memo(Some(vec![]), "test_type");
+        assert!(maybe_memo_data.is_err());
+    }
+
+    #[test]
+    fn test_extract_from_xrpl_memo_missing_data() {
+        let memos = vec![Memo {
+            memo_type: Some(hex::encode("test_type")),
+            memo_data: None,
+            memo_format: None,
+        }];
+        let maybe_memo_data = extract_from_xrpl_memo(Some(memos), "test_type");
+        assert!(maybe_memo_data.is_err());
+    }
+
+    #[test]
+    fn test_extract_from_xrpl_memo_none() {
+        let maybe_memo_data = extract_from_xrpl_memo(None, "test_type");
+        assert!(maybe_memo_data.is_err());
+    }
 }
