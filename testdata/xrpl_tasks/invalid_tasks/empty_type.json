@@ -1,0 +1,7 @@
+{
+    "id": "empty_type_test",
+    "chain": "xrpl",
+    "timestamp": "2023-01-01T00:00:00Z",
+    "type": "",
+    "meta": null
+} 
