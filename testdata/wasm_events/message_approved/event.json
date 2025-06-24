@@ -1,0 +1,11 @@
+{
+    "attributes": [
+        {"key": "command_id", "value": "cmd_xyz789"},
+        {"key": "source_chain", "value": "polygon"},
+        {"key": "destination_chain", "value": "ethereum"},
+        {"key": "source_address", "value": "0x1234567890abcdef1234567890abcdef12345678"},
+        {"key": "destination_address", "value": "0xabcdef1234567890abcdef1234567890abcdef12"},
+        {"key": "payload_hash", "value": "0xfedcba0987654321fedcba0987654321fedcba0987654321fedcba0987654321"}
+    ],
+    "type": "MessageApproved"
+} 

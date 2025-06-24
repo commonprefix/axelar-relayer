@@ -1,0 +1,11 @@
+{
+    "attributes": [
+        {"key": "sender", "value": "0x9876543210fedcba9876543210fedcba98765432"},
+        {"key": "destination_chain", "value": "binance"},
+        {"key": "destination_address", "value": "0x5555666677778888999900001111222233334444"},
+        {"key": "payload", "value": "0x68656c6c6f20776f726c64"},
+        {"key": "token_address", "value": "0xaaaabbbbccccddddeeeeffffaaaaabbbbccccdddd"},
+        {"key": "amount", "value": "1000000000000000000"}
+    ],
+    "type": "ContractCall"
+} 

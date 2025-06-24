@@ -1,0 +1,10 @@
+{
+    "attributes": [
+        {"key": "message_id", "value": "msg_abc123"},
+        {"key": "source_chain", "value": "ethereum"},
+        {"key": "destination_chain", "value": "avalanche"},
+        {"key": "status", "value": "succeeded"},
+        {"key": "gas_used", "value": "45000"}
+    ],
+    "type": "MessageExecuted"
+} 
