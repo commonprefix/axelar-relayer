@@ -822,4 +822,28 @@ mod tests {
         let maybe_memo_data = extract_from_xrpl_memo(None, "test_type");
         assert!(maybe_memo_data.is_err());
     }
+
+    #[test]
+    fn test_extract_hex_xrpl_memo() {
+        let memos = vec![Memo {
+            memo_type: Some(hex::encode("test_type")),
+            memo_data: Some(hex::encode("test_data")),
+            memo_format: Some("hex".to_string()),
+        }];
+        let maybe_memo_hex = extract_hex_xrpl_memo(Some(memos), "test_type");
+        assert!(maybe_memo_hex.is_ok());
+        let memo_hex = maybe_memo_hex.unwrap();
+        assert_eq!(memo_hex, "test_data");
+    }
+
+    #[test]
+    fn test_extract_hex_xrpl_memo_no_hex_format() {
+        let memos = vec![Memo {
+            memo_type: Some("test_type".to_string()),
+            memo_data: Some("test_data".to_string()),
+            memo_format: None,
+        }];
+        let maybe_memo_hex = extract_hex_xrpl_memo(Some(memos), "test_type");
+        assert!(maybe_memo_hex.is_err());
+    }
 }
