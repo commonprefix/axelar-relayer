@@ -1,0 +1,51 @@
+[
+    {
+      "id": "wasm_event_123",
+      "chain": "xrpl",
+      "timestamp": "2023-01-01T00:00:00Z",
+      "type": "REACT_TO_WASM_EVENT",
+      "meta": null,
+      "task": {
+        "event": {
+          "attributes": [
+            { "key": "message_id", "value": "msg_123" },
+            { "key": "status", "value": "success" }
+          ],
+          "type": "MessageExecuted"
+        },
+        "height": 12345
+      }
+    },
+    {
+      "id": "0197a6a9-e41f-771b-8d23-ad76f8eb9af9",
+      "chain": "xrpl",
+      "timestamp": "2025-06-25T10:37:21.311707Z",
+      "type": "REACT_TO_WASM_EVENT",
+      "meta": null,
+      "task": {
+        "event": {
+          "attributes": [
+            {
+              "key": "_contract_address",
+              "value": "axelar1pnynr6wnmchutkv6490mdqqxkz54fnrtmq8krqhvglhsqhmu7wzsnc86sy"
+            },
+            {
+              "key": "content",
+              "value": "{\"interchain_transfer_message\":{\"tx_id\":\"171e017b4bc70f5d8809c7cd7b75b6cf7e7c5e3b06c8776894145739138f2478\",\"source_address\":\"rDbGtcJPD3nR3dd94dW8B5ihve6sJTYskf\",\"destination_chain\":\"xrpl-evm\",\"destination_address\":\"0cb43a0fe733471fa0a1d99319910b2135905a9e\",\"payload_hash\":null,\"transfer_amount\":{\"drops\":7300000},\"gas_fee_amount\":{\"drops\":1700000}},\"cc_id\":{\"source_chain\":\"xrpl\",\"message_id\":\"0x171e017b4bc70f5d8809c7cd7b75b6cf7e7c5e3b06c8776894145739138f2478\"}}"
+            },
+            {
+              "key": "poll_id",
+              "value": "\"2251230\""
+            },
+            {
+              "key": "status",
+              "value": "\"succeeded_on_source_chain\""
+            }
+          ],
+          "type": "wasm-quorum_reached"
+        },
+        "height": 19652665
+      }
+    }
+  ]
+  
