@@ -5,6 +5,7 @@ use regex::Regex;
 use relayer_base::gmp_api::gmp_types::VerificationStatus;
 use relayer_base::ingestor::IngestorTrait;
 use relayer_base::subscriber::ChainTransaction;
+use relayer_base::utils::extract_from_xrpl_memo;
 use relayer_base::{
     config::Config,
     database::Database,
@@ -22,7 +23,7 @@ use relayer_base::{
     price_view::PriceView,
     utils::{
         convert_token_amount_to_drops, event_attribute, extract_and_decode_memo,
-        extract_hex_xrpl_memo, extract_memo, parse_gas_fee_amount, parse_message_from_context,
+        extract_hex_xrpl_memo, parse_gas_fee_amount, parse_message_from_context,
         parse_payment_amount, xrpl_tx_from_hash,
     },
 };
@@ -845,8 +846,8 @@ impl<DB: Database> XrplIngestor<DB> {
         &self,
         memos: &Option<Vec<Memo>>,
     ) -> Result<(Option<String>, Option<String>), IngestorError> {
-        let payload_hash_memo = extract_memo(memos, "payload_hash");
-        let payload_memo = extract_memo(memos, "payload");
+        let payload_hash_memo = extract_from_xrpl_memo(memos.clone(), "payload_hash");
+        let payload_memo = extract_from_xrpl_memo(memos.clone(), "payload");
 
         // Payment transaction must not contain both 'payload' and 'payload_hash' memos.
         if payload_memo.is_ok() && payload_hash_memo.is_ok() {
