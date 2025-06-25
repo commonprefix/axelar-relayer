@@ -173,17 +173,11 @@ pub fn parse_gas_fee_amount(
     Ok(gas_fee_amount)
 }
 
-pub fn extract_memo(memos: &Option<Vec<Memo>>, memo_type: &str) -> Result<String, IngestorError> {
-    extract_from_xrpl_memo(memos.clone(), memo_type).map_err(|e| {
-        IngestorError::GenericError(format!("Failed to extract {} from memos: {}", memo_type, e))
-    })
-}
-
 pub fn extract_and_decode_memo(
     memos: &Option<Vec<Memo>>,
     memo_type: &str,
 ) -> Result<String, anyhow::Error> {
-    let hex_str = extract_memo(memos, memo_type)?;
+    let hex_str = extract_from_xrpl_memo(memos.clone(), memo_type)?;
     let bytes =
         hex::decode(&hex_str).with_context(|| format!("Failed to hex-decode memo {}", hex_str))?;
     String::from_utf8(bytes).with_context(|| format!("Invalid UTF-8 in memo {}", hex_str))
@@ -349,6 +343,8 @@ pub fn message_id_from_retry_task(task: Task) -> Result<String, anyhow::Error> {
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
+
+    use xrpl_amplifier_types::types::{XRPLAccountId, XRPLCurrency};
 
     use crate::{database::MockDatabase, price_view::MockPriceView};
 
@@ -727,5 +723,116 @@ mod tests {
         }];
         let maybe_memo_hex = extract_hex_xrpl_memo(Some(memos), "test_type");
         assert!(maybe_memo_hex.is_err());
+    }
+
+    #[test]
+    fn test_event_attribute() {
+        let events_json = std::fs::read_to_string("../testdata/wasm_events/events.json")
+            .expect("Failed to load events.json");
+
+        let events: Vec<serde_json::Value> =
+            serde_json::from_str(&events_json).expect("Failed to parse events.json");
+
+        for event_json in events {
+            let maybe_event: Result<WasmEvent, serde_json::Error> =
+                serde_json::from_value(event_json.clone());
+            assert!(maybe_event.is_ok());
+            let actual_event = maybe_event.unwrap();
+            let maybe_attribute = event_attribute(&actual_event, "poll_id");
+            let attribute = maybe_attribute.unwrap();
+            assert_eq!(
+                attribute,
+                event_json.get("attributes").unwrap()[2]
+                    .get("value")
+                    .unwrap()
+                    .as_str()
+                    .unwrap()
+            );
+
+            let maybe_attribute = event_attribute(&actual_event, "status");
+            let attribute = maybe_attribute.unwrap();
+            assert_eq!(
+                attribute,
+                event_json.get("attributes").unwrap()[3]
+                    .get("value")
+                    .unwrap()
+                    .as_str()
+                    .unwrap()
+            );
+        }
+    }
+
+    #[test]
+    fn test_event_attribute_not_found() {
+        let events_json = std::fs::read_to_string("../testdata/wasm_events/events.json")
+            .expect("Failed to load events.json");
+
+        let events: Vec<serde_json::Value> =
+            serde_json::from_str(&events_json).expect("Failed to parse events.json");
+
+        for event_json in events {
+            let maybe_event: Result<WasmEvent, serde_json::Error> =
+                serde_json::from_value(event_json.clone());
+            assert!(maybe_event.is_ok());
+            let actual_event = maybe_event.unwrap();
+            let maybe_attribute = event_attribute(&actual_event, "random_key");
+            assert!(maybe_attribute.is_none());
+        }
+    }
+
+    #[test]
+    fn test_event_attribute_invalid_event() {
+        let events_json = std::fs::read_to_string("../testdata/wasm_events/invalid_events.json")
+            .expect("Failed to load events.json");
+
+        let events: Vec<serde_json::Value> =
+            serde_json::from_str(&events_json).expect("Failed to parse events.json");
+
+        for event_json in events {
+            let maybe_event: Result<WasmEvent, serde_json::Error> =
+                serde_json::from_value(event_json.clone());
+            assert!(maybe_event.is_err());
+        }
+    }
+
+    #[test]
+    fn test_parse_gas_fee_amount_drops() {
+        let payment_amount = XRPLPaymentAmount::Drops(10);
+
+        let result = parse_gas_fee_amount(&payment_amount, "500000".to_string());
+        assert!(result.is_ok());
+        if let Ok(XRPLPaymentAmount::Drops(amount)) = result {
+            assert_eq!(amount, 500000);
+        }
+
+        let result = parse_gas_fee_amount(&payment_amount, "invalid".to_string());
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_gas_fee_amount_issued() {
+        let token = XRPLToken {
+            issuer: XRPLAccountId::from_str("rPT1Sjq2YGrBMTttX4GZHjKu9dyfzbpAYe").unwrap(),
+            currency: XRPLCurrency::new("USD").unwrap(),
+        };
+        let payment_amount =
+            XRPLPaymentAmount::Issued(token.clone(), XRPLTokenAmount::from_str("100.0").unwrap());
+
+        let gas_fee_amount = parse_gas_fee_amount(&payment_amount, "50.0".to_string())
+            .expect("Valid gas fee amount for issued tokens");
+        if let XRPLPaymentAmount::Issued(result_token, amount) = gas_fee_amount {
+            assert_eq!(result_token.issuer, token.issuer);
+            assert_eq!(result_token.currency, token.currency);
+            let expected_amount = XRPLTokenAmount::from_str("50.0").unwrap();
+            assert_eq!(amount, expected_amount);
+        } else {
+            panic!("Expected XRPLPaymentAmount::Issued variant");
+        }
+
+        let err = parse_gas_fee_amount(&payment_amount, "invalid_amount".to_string());
+        assert!(
+            err.is_err(),
+            "Expected error parsing invalid issued gas fee amount"
+        );
     }
 }
