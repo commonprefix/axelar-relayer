@@ -354,30 +354,6 @@ mod tests {
 
     use super::*;
 
-    fn load_test_task(task_type: &str) -> String {
-        std::fs::read_to_string(format!("../testdata/xrpl_tasks/{}/task.json", task_type))
-            .expect(&format!("Failed to load test task: {}", task_type))
-    }
-
-    fn load_invalid_test_task(file_name: &str) -> String {
-        std::fs::read_to_string(format!(
-            "../testdata/xrpl_tasks/invalid_tasks/{}.json",
-            file_name
-        ))
-        .expect(&format!("Failed to load invalid test task: {}", file_name))
-    }
-
-    fn load_invalid_task_for_type(task_type: &str) -> String {
-        std::fs::read_to_string(format!(
-            "../testdata/xrpl_tasks/{}/invalid_task.json",
-            task_type
-        ))
-        .expect(&format!(
-            "Failed to load invalid task for type: {}",
-            task_type
-        ))
-    }
-
     fn test_valid_task_parsing<T>(task_json_str: &str)
     where
         T: DeserializeOwned + serde::Serialize,
@@ -389,38 +365,9 @@ mod tests {
         assert!(parse_result.is_ok(), "Expected successful parsing");
 
         let serialized_task = serde_json::to_string(&actual_task).unwrap();
-        assert_eq!(
-            serialized_task,
-            task_json_str.split_whitespace().collect::<String>()
-        );
-    }
+        let reserialized_json: serde_json::Value = serde_json::from_str(&serialized_task).unwrap();
 
-    fn test_invalid_task_parsing(task_json_str: &str) {
-        let task_json: serde_json::Value = serde_json::from_str(task_json_str).unwrap();
-        let result = parse_task(&task_json);
-        assert!(result.is_err(), "Expected parsing to fail");
-
-        if let Err(GmpApiError::InvalidResponse(_)) = result {
-            // Expected error
-        } else {
-            panic!("Expected InvalidResponse error");
-        }
-    }
-
-    fn test_edge_case_as_unknown(task_json_str: &str, expected_type: &str) {
-        let task_json: serde_json::Value = serde_json::from_str(task_json_str).unwrap();
-        let parse_result = parse_task(&task_json);
-
-        assert!(
-            parse_result.is_ok(),
-            "Expected successful parsing as Unknown"
-        );
-
-        if let Ok(Task::Unknown(unknown_task)) = parse_result {
-            assert_eq!(unknown_task.common.r#type, expected_type);
-        } else {
-            panic!("Expected Unknown task, got: {:?}", parse_result);
-        }
+        assert_eq!(reserialized_json, task_json);
     }
 
     #[tokio::test]
@@ -579,183 +526,118 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_task_verify() {
-        let task = load_test_task("verify");
-        test_valid_task_parsing::<VerifyTask>(&task);
-    }
+    fn test_parse_all_valid_tasks() {
+        use std::fs;
+        let valid_tasks_dir = "../testdata/xrpl_tasks/valid_tasks";
+        let entries = fs::read_dir(valid_tasks_dir).expect("Failed to read valid_tasks directory");
 
-    #[test]
-    fn test_parse_task_execute() {
-        let task = load_test_task("execute");
-        test_valid_task_parsing::<ExecuteTask>(&task);
-    }
+        for entry in entries {
+            let entry = entry.expect("Failed to read directory entry");
+            let path = entry.path();
 
-    #[test]
-    fn test_parse_task_gateway_tx() {
-        let task = load_test_task("gateway_tx");
-        test_valid_task_parsing::<GatewayTxTask>(&task);
-    }
+            if path.extension().and_then(|s| s.to_str()) == Some("json") {
+                let file_name = path
+                    .file_stem()
+                    .and_then(|s| s.to_str())
+                    .expect("Failed to get file name");
 
-    #[test]
-    fn test_parse_task_construct_proof() {
-        let task = load_test_task("construct_proof");
-        test_valid_task_parsing::<ConstructProofTask>(&task);
-    }
+                let tasks_json = fs::read_to_string(&path)
+                    .expect(&format!("Failed to load tasks from {}", path.display()));
 
-    #[test]
-    fn test_parse_task_react_to_wasm_event() {
-        let task = load_test_task("react_to_wasm_event");
-        test_valid_task_parsing::<ReactToWasmEventTask>(&task);
-    }
+                let tasks: Vec<serde_json::Value> = serde_json::from_str(&tasks_json).expect(
+                    &format!("Failed to parse tasks JSON from {}", path.display()),
+                );
 
-    #[test]
-    fn test_parse_task_refund() {
-        let task = load_test_task("refund");
-        test_valid_task_parsing::<RefundTask>(&task);
-    }
+                for task_json in tasks {
+                    let task_json_str = serde_json::to_string(&task_json)
+                        .expect("Failed to serialize task back to string");
 
-    #[test]
-    fn test_parse_task_react_to_retriable_poll() {
-        let task = load_test_task("react_to_retriable_poll");
-        test_valid_task_parsing::<ReactToRetriablePollTask>(&task);
-    }
-
-    #[test]
-    fn test_parse_task_react_to_expired_signing_session() {
-        let task = load_test_task("react_to_expired_signing_session");
-        test_valid_task_parsing::<ReactToExpiredSigningSessionTask>(&task);
-    }
-
-    #[test]
-    fn test_parse_task_unknown_type() {
-        let task = load_test_task("unknown");
-        test_valid_task_parsing::<UnknownTask>(&task);
-    }
-
-    #[test]
-    fn test_parse_task_with_metadata() {
-        let task = load_test_task("with_metadata");
-        test_valid_task_parsing::<VerifyTask>(&task);
-    }
-
-    #[test]
-    fn test_parse_task_case_sensitive_type() {
-        let task = load_test_task("case_sensitive");
-        test_valid_task_parsing::<UnknownTask>(&task);
-    }
-
-    #[test]
-    fn test_parse_task_missing_required_fields() {
-        let task = load_invalid_test_task("missing_required_fields");
-        test_invalid_task_parsing(&task);
-    }
-
-    #[test]
-    fn test_parse_task_invalid_json() {
-        let task = load_invalid_test_task("invalid_verify_task");
-        test_invalid_task_parsing(&task);
-    }
-
-    #[test]
-    fn test_parse_invalid_verify_task() {
-        let task = load_invalid_task_for_type("verify");
-        test_invalid_task_parsing(&task);
-    }
-
-    #[test]
-    fn test_parse_invalid_execute_task() {
-        let task = load_invalid_task_for_type("execute");
-        test_invalid_task_parsing(&task);
-    }
-
-    #[test]
-    fn test_parse_invalid_gateway_tx_task() {
-        let task = load_invalid_task_for_type("gateway_tx");
-        test_invalid_task_parsing(&task);
-    }
-
-    #[test]
-    fn test_parse_invalid_construct_proof_task() {
-        let task = load_invalid_task_for_type("construct_proof");
-        test_invalid_task_parsing(&task);
-    }
-
-    #[test]
-    fn test_parse_invalid_react_to_wasm_event_task() {
-        let task = load_invalid_task_for_type("react_to_wasm_event");
-        test_invalid_task_parsing(&task);
-    }
-
-    #[test]
-    fn test_parse_invalid_refund_task() {
-        let task = load_invalid_task_for_type("refund");
-        test_invalid_task_parsing(&task);
-    }
-
-    #[test]
-    fn test_parse_invalid_react_to_retriable_poll_task() {
-        let task = load_invalid_task_for_type("react_to_retriable_poll");
-        test_invalid_task_parsing(&task);
-    }
-
-    #[test]
-    fn test_parse_invalid_react_to_expired_signing_session_task() {
-        let task = load_invalid_task_for_type("react_to_expired_signing_session");
-        test_invalid_task_parsing(&task);
-    }
-
-    #[test]
-    fn test_parse_task_mixed_case_type() {
-        let task = load_invalid_test_task("lowercase_type");
-        test_edge_case_as_unknown(&task, "Verify");
-    }
-
-    #[test]
-    fn test_parse_task_whitespace_type() {
-        let task = load_invalid_test_task("whitespace_type_simple");
-        test_edge_case_as_unknown(&task, " VERIFY ");
-    }
-
-    #[test]
-    fn test_parse_task_whitespace_data_loss() {
-        let task = load_invalid_test_task("whitespace_type");
-        let task_json: serde_json::Value = serde_json::from_str(&task).unwrap();
-
-        let parse_result = parse_task(&task_json);
-        assert!(
-            parse_result.is_ok(),
-            "Expected successful parsing as Unknown"
-        );
-
-        if let Ok(Task::Unknown(unknown_task)) = parse_result {
-            assert_eq!(unknown_task.common.r#type, " VERIFY ");
-        } else {
-            panic!("Expected Unknown task");
+                    match file_name {
+                        "VerifyTask" => test_valid_task_parsing::<VerifyTask>(&task_json_str),
+                        "ExecuteTask" => test_valid_task_parsing::<ExecuteTask>(&task_json_str),
+                        "GatewayTxTask" => test_valid_task_parsing::<GatewayTxTask>(&task_json_str),
+                        "ConstructProofTask" => {
+                            test_valid_task_parsing::<ConstructProofTask>(&task_json_str)
+                        }
+                        "ReactToWasmEventTask" => {
+                            test_valid_task_parsing::<ReactToWasmEventTask>(&task_json_str)
+                        }
+                        "RefundTask" => test_valid_task_parsing::<RefundTask>(&task_json_str),
+                        "ReactToRetriablePollTask" => {
+                            test_valid_task_parsing::<ReactToRetriablePollTask>(&task_json_str)
+                        }
+                        "ReactToExpiredSigningSessionTask" => {
+                            test_valid_task_parsing::<ReactToExpiredSigningSessionTask>(
+                                &task_json_str,
+                            )
+                        }
+                        _ => panic!(
+                            "Unknown task file: {} - filename should match the task type name",
+                            file_name
+                        ),
+                    }
+                }
+            }
         }
     }
 
     #[test]
-    fn test_parse_task_null_type() {
-        let task = load_invalid_test_task("null_type");
-        test_invalid_task_parsing(&task);
+    fn test_parse_invalid_tasks() {
+        let tasks_json =
+            std::fs::read_to_string("../testdata/xrpl_tasks/invalid_tasks/invalid_tasks.json")
+                .expect("Failed to load invalid tasks");
+
+        let tasks: Vec<serde_json::Value> =
+            serde_json::from_str(&tasks_json).expect("Failed to parse invalid tasks JSON");
+
+        for task_json in tasks {
+            let task_id = task_json["id"].as_str().unwrap_or("unknown");
+            let result = parse_task(&task_json);
+
+            assert!(
+                result.is_err(),
+                "Expected parsing to fail for task: {}",
+                task_id
+            );
+
+            if let Err(GmpApiError::InvalidResponse(_)) = result {
+                // Expected error
+            } else {
+                panic!("Expected InvalidResponse error for task: {}", task_id);
+            }
+        }
     }
 
     #[test]
-    fn test_parse_task_empty_type() {
-        let task = load_invalid_test_task("empty_type");
-        test_edge_case_as_unknown(&task, "");
-    }
+    fn test_parse_unknown_tasks() {
+        let tasks_json =
+            std::fs::read_to_string("../testdata/xrpl_tasks/unknown_tasks/unknown_tasks.json")
+                .expect("Failed to load unknown tasks");
 
-    #[test]
-    fn test_parse_task_underscore_type() {
-        let task = load_invalid_test_task("underscore_type_simple");
-        test_edge_case_as_unknown(&task, "GATEWAY_TX_");
-    }
+        let tasks: Vec<serde_json::Value> =
+            serde_json::from_str(&tasks_json).expect("Failed to parse unknown tasks JSON");
 
-    #[test]
-    fn test_parse_task_number_as_string() {
-        let task = load_invalid_test_task("number_as_string");
-        test_invalid_task_parsing(&task);
+        for task_json in tasks {
+            let task_id = task_json["id"].as_str().unwrap_or("unknown");
+            let expected_type = task_json["type"].as_str().unwrap_or("");
+
+            let parse_result = parse_task(&task_json);
+            assert!(
+                parse_result.is_ok(),
+                "Expected successful parsing as Unknown for task: {}",
+                task_id
+            );
+
+            if let Ok(Task::Unknown(unknown_task)) = parse_result {
+                assert_eq!(
+                    unknown_task.common.r#type, expected_type,
+                    "Type mismatch for task: {}",
+                    task_id
+                );
+            } else {
+                panic!("Expected Unknown task for: {}", task_id);
+            }
+        }
     }
 
     #[test]
