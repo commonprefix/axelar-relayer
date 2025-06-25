@@ -1,0 +1,64 @@
+[
+  {
+    "comment": "Missing required attributes array",
+    "type": "wasm-quorum_reached",
+    "height": 19651056
+   },
+  {
+    "comment": "Invalid attributes structure - missing key/value pairs",
+    "attributes": [
+      "invalid_attribute_structure",
+      {
+        "key": "_contract_address"
+      },
+      {
+        "value": "axelar1pnynr6wnmchutkv6490mdqqxkz54fnrtmq8krqhvglhsqhmu7wzsnc86sy"
+      }
+    ],
+    "type": "wasm-quorum_reached",
+    "height": 19651056
+  },
+  {
+    "attributes": [
+      {
+        "key": "_contract_address",
+        "value": "axelar1pnynr6wnmchutkv6490mdqqxkz54fnrtmq8krqhvglhsqhmu7wzsnc86sy"
+      },
+      {
+        "key": "content",
+        "value": "{\"interchain_transfer_message\":{\"tx_id\":\"8bc410a55e7e82a9d82c2ef7371926289cf115e120553241ee18f2737d07e679\",\"source_address\":\"rMCPebYHtFx4ydkhrX2wQzmyd4PLuj63ba\",\"destination_chain\":\"xrpl-evm\",\"destination_address\":\"63875cf7d6f099a203e4d0a3bd0bf76352d28046\",\"payload_hash\":null,\"transfer_amount\":{\"drops\":7300000},\"gas_fee_amount\":{\"drops\":1700000}},\"cc_id\":{\"source_chain\":\"xrpl\",\"message_id\":\"0x8bc410a55e7e82a9d82c2ef7371926289cf115e120553241ee18f2737d07e679\"}}"
+      },
+      {
+        "key": "poll_id",
+        "value": "2249317"
+      },
+      {
+        "key": "status",
+        "value": "succeeded_on_source_chain"
+      }
+    ],
+    "comment": "Missing Type"
+  },
+  {
+    "attributes": [
+      {
+        "key": "_contract_address",
+        "value": "axelar1pnynr6wnmchutkv6490mdqqxkz54fnrtmq8krqhvglhsqhmu7wzsnc86sy"
+      },
+      {
+        "key": "content",
+        "value": "{\"interchain_transfer_message\":{\"tx_id\":\"8bc410a55e7e82a9d82c2ef7371926289cf115e120553241ee18f2737d07e679\",\"source_address\":\"rMCPebYHtFx4ydkhrX2wQzmyd4PLuj63ba\",\"destination_chain\":\"xrpl-evm\",\"destination_address\":\"63875cf7d6f099a203e4d0a3bd0bf76352d28046\",\"payload_hash\":null,\"transfer_amount\":{\"drops\":7300000},\"gas_fee_amount\":{\"drops\":1700000}},\"cc_id\":{\"source_chain\":\"xrpl\",\"message_id\":\"0x8bc410a55e7e82a9d82c2ef7371926289cf115e120553241ee18f2737d07e679\"}}"
+      },
+      {
+        "key": "poll_id",
+        "value": "2249317"
+      },
+      {
+        "key": "status",
+        "value": "succeeded_on_source_chain"
+      }
+    ],
+    "comment": "Wrong Type",
+    "type": 35329
+  }
+]
