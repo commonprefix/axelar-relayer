@@ -108,11 +108,6 @@ impl<DB: Database> Distributor<DB> {
                 }
             }
 
-            if task.kind() == TaskKind::Unknown {
-                warn!("Dropping unknown task: {:?}", task);
-                continue;
-            }
-
             if task.kind() == TaskKind::Refund && !self.refunds_enabled {
                 continue;
             }
