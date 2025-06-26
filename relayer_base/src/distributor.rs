@@ -122,7 +122,7 @@ impl<DB: Database> Distributor<DB> {
                 | TaskKind::ReactToRetriablePoll
                 | TaskKind::ReactToExpiredSigningSession => ingestor_queue.clone(),
                 TaskKind::Unknown | TaskKind::Execute => {
-                    warn!("Dropping unknown task: {:?}", task);
+                    warn!("Dropping unsupported task: {:?}", task);
                     continue;
                 }
             };
