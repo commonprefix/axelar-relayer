@@ -28,7 +28,7 @@ async fn main() -> anyhow::Result<()> {
 
     let _guard = setup_logging(&config);
 
-    let tasks_queue = Queue::new(&config.queue_address, "tasks").await;
+    let tasks_queue = Queue::new(&config.queue_address, "ingestor_tasks").await;
     let events_queue = Queue::new(&config.queue_address, "events").await;
     let gmp_api = Arc::new(gmp_api::GmpApi::new(&config, true).unwrap());
     let postgres_db = PostgresDB::new(&config.postgres_url).await.unwrap();
