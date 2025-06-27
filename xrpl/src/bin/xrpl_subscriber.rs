@@ -1,7 +1,6 @@
 use dotenv::dotenv;
 
 use relayer_base::{
-    config::Config,
     database::PostgresDB,
     queue::Queue,
     subscriber::Subscriber,
@@ -9,19 +8,20 @@ use relayer_base::{
 };
 use tokio::signal::unix::{signal, SignalKind};
 use xrpl_types::AccountId;
-
+use relayer_base::config::{config_from_yaml};
+use xrpl::config::XRPLConfig;
 use xrpl::subscriber::XrplSubscriber;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     dotenv().ok();
     let network = std::env::var("NETWORK").expect("NETWORK must be set");
-    let config = Config::from_yaml(&format!("config.{}.yaml", network)).unwrap();
+    let config: XRPLConfig = config_from_yaml(&format!("config.{}.yaml", network)).unwrap();
 
-    let _guard = setup_logging(&config);
+    let _guard = setup_logging(&config.common_config);
 
-    let events_queue = Queue::new(&config.queue_address, "events").await;
-    let postgres_db = PostgresDB::new(&config.postgres_url).await.unwrap();
+    let events_queue = Queue::new(&config.common_config.queue_address, "events").await;
+    let postgres_db = PostgresDB::new(&config.common_config.postgres_url).await.unwrap();
 
     let account = AccountId::from_address(&config.xrpl_multisig).unwrap();
 
@@ -31,7 +31,7 @@ async fn main() -> anyhow::Result<()> {
     let mut sigint = signal(SignalKind::interrupt())?;
     let mut sigterm = signal(SignalKind::terminate())?;
 
-    let redis_client = redis::Client::open(config.redis_server.clone())?;
+    let redis_client = redis::Client::open(config.common_config.redis_server.clone())?;
     let redis_pool = r2d2::Pool::builder().build(redis_client)?;
 
     setup_heartbeat("heartbeat:subscriber".to_owned(), redis_pool);

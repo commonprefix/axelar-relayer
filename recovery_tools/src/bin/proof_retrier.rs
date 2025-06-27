@@ -2,19 +2,19 @@ use dotenv::dotenv;
 use tokio::signal::unix::{signal, SignalKind};
 
 use relayer_base::{
-    config::Config,
     database::PostgresDB,
     payload_cache::PayloadCache,
     proof_retrier::ProofRetrier,
     queue::Queue,
     utils::{setup_heartbeat, setup_logging},
 };
+use relayer_base::config::{config_from_yaml, Config};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     dotenv().ok();
     let network = std::env::var("NETWORK").expect("NETWORK must be set");
-    let config = Config::from_yaml(&format!("config.{}.yaml", network)).unwrap();
+    let config: Config = config_from_yaml(&format!("config.{}.yaml", network)).unwrap();
 
     let _guard = setup_logging(&config);
 

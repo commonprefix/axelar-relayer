@@ -4,7 +4,6 @@ use libsecp256k1::{PublicKey, SecretKey};
 use rand::seq::SliceRandom;
 use redis::{Commands, ExistenceCheck, SetExpiry, SetOptions};
 use relayer_base::{
-    config::Config,
     error::RefundManagerError,
     gmp_api::gmp_types::RefundTask,
     includer::RefundManager,
@@ -13,18 +12,19 @@ use relayer_base::{
 use tracing::debug;
 use xrpl_binary_codec::{serialize, sign::sign_transaction};
 use xrpl_types::{AccountId, Amount, Blob, Memo, PaymentTransaction};
-
+use crate::config::XRPLConfig;
 use super::client::XRPLClient;
+
 pub struct XRPLRefundManager {
     client: Arc<XRPLClient>,
     redis_pool: r2d2::Pool<redis::Client>,
-    config: Config,
+    config: XRPLConfig,
 }
 
 impl XRPLRefundManager {
     pub fn new(
         client: Arc<XRPLClient>,
-        config: Config,
+        config: XRPLConfig,
         redis_pool: r2d2::Pool<redis::Client>,
     ) -> Result<Self, RefundManagerError> {
         Ok(Self {

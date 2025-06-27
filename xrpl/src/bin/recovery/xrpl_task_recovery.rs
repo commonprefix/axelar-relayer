@@ -3,26 +3,27 @@ use std::sync::Arc;
 use tokio::signal::unix::{signal, SignalKind};
 
 use relayer_base::{
-    config::Config,
     database::PostgresDB,
     distributor::{Distributor, RecoverySettings},
     gmp_api::{self, gmp_types::TaskKind},
     queue::Queue,
     utils::setup_logging,
 };
+use relayer_base::config::{config_from_yaml};
+use xrpl::config::XRPLConfig;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     dotenv().ok();
     let network = std::env::var("NETWORK").expect("NETWORK must be set");
-    let config = Config::from_yaml(&format!("config.{}.yaml", network)).unwrap();
+    let config: XRPLConfig = config_from_yaml(&format!("config.{}.yaml", network)).unwrap();
 
-    let _guard = setup_logging(&config);
+    let _guard = setup_logging(&config.common_config);
 
-    let includer_tasks_queue = Queue::new(&config.queue_address, "includer_tasks").await;
-    let ingestor_tasks_queue = Queue::new(&config.queue_address, "ingestor_tasks").await;
-    let gmp_api = Arc::new(gmp_api::GmpApi::new(&config, true).unwrap());
-    let postgres_db = PostgresDB::new(&config.postgres_url).await.unwrap();
+    let includer_tasks_queue = Queue::new(&config.common_config.queue_address, "includer_tasks").await;
+    let ingestor_tasks_queue = Queue::new(&config.common_config.queue_address, "ingestor_tasks").await;
+    let gmp_api = Arc::new(gmp_api::GmpApi::new(&config.common_config, true).unwrap());
+    let postgres_db = PostgresDB::new(&config.common_config.postgres_url).await.unwrap();
 
     let mut distributor = Distributor::new_with_recovery_settings(
         postgres_db,
@@ -36,7 +37,7 @@ async fn main() -> anyhow::Result<()> {
             // to_task_id: "01968759-51c7-7367-a8d0-7f12f2e0efdb".to_string(),
             // tasks_filter: Some(vec![TaskKind::ConstructProof]),
         },
-        config.refunds_enabled,
+        config.common_config.refunds_enabled,
     )
     .await;
 
