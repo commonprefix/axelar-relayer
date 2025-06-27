@@ -197,19 +197,19 @@ impl Database for PostgresDB {
     }
 
     async fn mark_queued_transaction_confirmed(&self, tx_hash: &str) -> Result<()> {
-        let query = "UPDATE xrpl_queued_transactions SET status = 'confirmed' WHERE tx_hash = $1";
+        let query = "UPDATE xrpl_queued_transactions SET status = 'confirmed', last_checked = now() WHERE tx_hash = $1";
         sqlx::query(query).bind(tx_hash).execute(&self.pool).await?;
         Ok(())
     }
 
     async fn mark_queued_transaction_dropped(&self, tx_hash: &str) -> Result<()> {
-        let query = "UPDATE xrpl_queued_transactions SET status = 'dropped' WHERE tx_hash = $1";
+        let query = "UPDATE xrpl_queued_transactions SET status = 'dropped', last_checked = now() WHERE tx_hash = $1";
         sqlx::query(query).bind(tx_hash).execute(&self.pool).await?;
         Ok(())
     }
 
     async fn mark_queued_transaction_expired(&self, tx_hash: &str) -> Result<()> {
-        let query = "UPDATE xrpl_queued_transactions SET status = 'expired' WHERE tx_hash = $1";
+        let query = "UPDATE xrpl_queued_transactions SET status = 'expired', last_checked = now() WHERE tx_hash = $1";
         sqlx::query(query).bind(tx_hash).execute(&self.pool).await?;
         Ok(())
     }
