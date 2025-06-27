@@ -27,13 +27,14 @@ async fn main() -> anyhow::Result<()> {
     let redis_client = redis::Client::open(config.redis_server.clone()).unwrap();
     let redis_pool = r2d2::Pool::builder().build(redis_client).unwrap();
     let postgres_db = PostgresDB::new(&config.postgres_url).await.unwrap();
-    let payload_cache = PayloadCache::new(postgres_db);
+    let payload_cache = PayloadCache::new(postgres_db.clone());
     let xrpl_includer = XrplIncluder::new(
         config.clone(),
         gmp_api,
         redis_pool.clone(),
         payload_cache,
         construct_proof_queue.clone(),
+        postgres_db.clone(),
     )
     .await
     .unwrap();
