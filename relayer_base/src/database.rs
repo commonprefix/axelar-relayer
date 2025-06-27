@@ -44,11 +44,33 @@ pub trait Database {
     // Price view functions
     fn get_price(&self, pair: &str) -> impl Future<Output = Result<Option<Decimal>>>;
     fn store_price(&self, pair: &str, price: Decimal) -> impl Future<Output = Result<()>>;
+
+    // Queued transaction functions
+    fn get_queued_transactions_ready_for_check(
+        &self,
+    ) -> impl Future<Output = Result<Vec<QueuedTransaction>>>;
+    fn mark_queued_transaction_confirmed(&self, tx_hash: &str) -> impl Future<Output = Result<()>>;
+    fn mark_queued_transaction_dropped(&self, tx_hash: &str) -> impl Future<Output = Result<()>>;
+    fn mark_queued_transaction_expired(&self, tx_hash: &str) -> impl Future<Output = Result<()>>;
+    fn increment_queued_transaction_retry(&self, tx_hash: &str)
+        -> impl Future<Output = Result<()>>;
+    fn store_queued_transaction(
+        &self,
+        tx_hash: &str,
+        account: &str,
+        sequence: i64,
+    ) -> impl Future<Output = Result<()>>;
 }
 
 #[derive(Clone, Debug)]
 pub struct PostgresDB {
     pool: PgPool,
+}
+
+#[derive(Debug, Clone)]
+pub struct QueuedTransaction {
+    pub tx_hash: String,
+    pub retries: i32,
 }
 
 impl PostgresDB {
@@ -154,5 +176,63 @@ impl Database for PostgresDB {
         } else {
             Ok(None)
         }
+    }
+
+    // TODO: Logic of this query requires some testing
+    async fn get_queued_transactions_ready_for_check(&self) -> Result<Vec<QueuedTransaction>> {
+        let query = "SELECT tx_hash, retries FROM xrpl_queued_transactions 
+                     WHERE status = 'queued'
+                     AND (last_checked IS NULL OR last_checked < NOW() - INTERVAL '1 second' * POW(2, retries) * 10)";
+        // 10 secs -> 20 secs -> 40 secs -> ...
+        let rows = sqlx::query(query).fetch_all(&self.pool).await?;
+
+        let mut transactions = Vec::new();
+        for row in rows {
+            transactions.push(QueuedTransaction {
+                tx_hash: row.try_get("tx_hash")?,
+                retries: row.try_get("retries")?,
+            });
+        }
+        Ok(transactions)
+    }
+
+    async fn mark_queued_transaction_confirmed(&self, tx_hash: &str) -> Result<()> {
+        let query = "UPDATE xrpl_queued_transactions SET status = 'confirmed' WHERE tx_hash = $1";
+        sqlx::query(query).bind(tx_hash).execute(&self.pool).await?;
+        Ok(())
+    }
+
+    async fn mark_queued_transaction_dropped(&self, tx_hash: &str) -> Result<()> {
+        let query = "UPDATE xrpl_queued_transactions SET status = 'dropped' WHERE tx_hash = $1";
+        sqlx::query(query).bind(tx_hash).execute(&self.pool).await?;
+        Ok(())
+    }
+
+    async fn mark_queued_transaction_expired(&self, tx_hash: &str) -> Result<()> {
+        let query = "UPDATE xrpl_queued_transactions SET status = 'expired' WHERE tx_hash = $1";
+        sqlx::query(query).bind(tx_hash).execute(&self.pool).await?;
+        Ok(())
+    }
+
+    async fn increment_queued_transaction_retry(&self, tx_hash: &str) -> Result<()> {
+        let query = "UPDATE xrpl_queued_transactions SET retries = retries + 1, last_checked = now() WHERE tx_hash = $1";
+        sqlx::query(query).bind(tx_hash).execute(&self.pool).await?;
+        Ok(())
+    }
+
+    async fn store_queued_transaction(
+        &self,
+        tx_hash: &str,
+        account: &str,
+        sequence: i64,
+    ) -> Result<()> {
+        let query = "INSERT INTO xrpl_queued_transactions (tx_hash, account, sequence, status) VALUES ($1, $2, $3, 'queued') ON CONFLICT (tx_hash) DO UPDATE SET account = $2, sequence = $3";
+        sqlx::query(query)
+            .bind(tx_hash)
+            .bind(account)
+            .bind(sequence)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
     }
 }
