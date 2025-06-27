@@ -20,8 +20,9 @@ impl XrplIncluder {
         redis_pool: r2d2::Pool<redis::Client>,
         payload_cache: PayloadCache<DB>,
         construct_proof_queue: Arc<Queue>,
+        db: DB,
     ) -> error_stack::Result<
-        Includer<XRPLBroadcaster, Arc<XRPLClient>, XRPLRefundManager, DB>,
+        Includer<XRPLBroadcaster<DB>, Arc<XRPLClient>, XRPLRefundManager, DB>,
         BroadcasterError,
     > {
         let client =
@@ -29,7 +30,7 @@ impl XrplIncluder {
                 error_stack::report!(BroadcasterError::GenericError(e.to_string()))
             })?);
 
-        let broadcaster = XRPLBroadcaster::new(Arc::clone(&client))
+        let broadcaster = XRPLBroadcaster::new(Arc::clone(&client), db)
             .map_err(|e| e.attach_printable("Failed to create XRPLBroadcaster"))?;
 
         let refund_manager =
