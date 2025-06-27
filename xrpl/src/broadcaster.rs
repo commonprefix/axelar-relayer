@@ -6,6 +6,7 @@ use xrpl_api::{
 };
 
 use relayer_base::{
+    database::Database,
     error::BroadcasterError,
     includer::{BroadcastResult, Broadcaster},
     utils::extract_hex_xrpl_memo,
@@ -13,13 +14,14 @@ use relayer_base::{
 
 use super::client::XRPLClient;
 
-pub struct XRPLBroadcaster {
+pub struct XRPLBroadcaster<DB: Database> {
     client: Arc<XRPLClient>,
+    db: DB,
 }
 
-impl XRPLBroadcaster {
-    pub fn new(client: Arc<XRPLClient>) -> error_stack::Result<Self, BroadcasterError> {
-        Ok(XRPLBroadcaster { client })
+impl<DB: Database> XRPLBroadcaster<DB> {
+    pub fn new(client: Arc<XRPLClient>, db: DB) -> error_stack::Result<Self, BroadcasterError> {
+        Ok(XRPLBroadcaster { client, db })
     }
 }
 
@@ -48,7 +50,7 @@ fn log_and_return_error(
     })
 }
 
-impl Broadcaster for XRPLBroadcaster {
+impl<DB: Database> Broadcaster for XRPLBroadcaster<DB> {
     type Transaction = Transaction;
 
     async fn broadcast_prover_message(
@@ -122,8 +124,23 @@ impl Broadcaster for XRPLBroadcaster {
             }
         } else if response.engine_result == TransactionResult::terQUEUED {
             debug!("Transaction {} is queued (terQUEUED)", tx_hash);
-            // The transaction is queued, but will probably make it into the ledger soon
-            // TODO: What if it never makes it into the ledger?
+
+            let maybe_stored_transaction = self
+                .db
+                .store_queued_transaction(
+                    &tx_hash,
+                    &tx.common().account.to_string(),
+                    tx.common().sequence as i64,
+                )
+                .await;
+
+            if maybe_stored_transaction.is_err() {
+                error!(
+                    "Failed to store queued transaction: {:?}",
+                    maybe_stored_transaction
+                );
+            }
+
             return Ok(BroadcastResult {
                 transaction: tx.clone(),
                 tx_hash,
