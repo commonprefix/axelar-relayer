@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 anyhow = { workspace = true }
+async-trait = { workspace = true }
 lapin = { workspace = true }
 async-stream = { workspace = true }
 futures = { workspace = true }

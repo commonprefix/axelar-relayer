@@ -5,6 +5,7 @@ use redis::Commands;
 use router_api::CrossChainId;
 use std::{future::Future, sync::Arc};
 use tracing::{debug, error, info, warn};
+use xrpl_types::AccountId;
 
 use crate::{
     database::Database,
@@ -36,6 +37,13 @@ pub trait RefundManager {
     fn release_wallet_lock(&self, wallet: Self::Wallet) -> Result<(), RefundManagerError>;
 }
 
+use async_trait::async_trait;
+
+#[async_trait]
+pub trait SequenceAllocator<DB: Database> {
+    async fn get_next_sequence(&self, account: &AccountId) -> Result<u32, IncluderError>;
+}
+
 pub struct BroadcastResult<T> {
     pub transaction: T,
     pub tx_hash: String,
@@ -58,11 +66,12 @@ pub trait Broadcaster {
     ) -> impl Future<Output = Result<String, BroadcasterError>>;
 }
 
-pub struct Includer<B, C, R, DB>
+pub struct Includer<B, C, R, DB, S>
 where
     B: Broadcaster,
     R: RefundManager,
     DB: Database,
+    S: SequenceAllocator<DB>,
 {
     pub chain_client: C,
     pub broadcaster: B,
@@ -71,13 +80,15 @@ where
     pub payload_cache: PayloadCache<DB>,
     pub construct_proof_queue: Arc<Queue>,
     pub redis_pool: r2d2::Pool<redis::Client>,
+    pub sequence_allocator: S,
 }
 
-impl<B, C, R, DB> Includer<B, C, R, DB>
+impl<B, C, R, DB, S> Includer<B, C, R, DB, S>
 where
     B: Broadcaster,
     R: RefundManager,
     DB: Database,
+    S: SequenceAllocator<DB>,
 {
     async fn work(&self, consumer: &mut Consumer, queue: Arc<Queue>) {
         match consumer.next().await {

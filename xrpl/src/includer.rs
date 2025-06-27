@@ -5,6 +5,8 @@ use relayer_base::{
     includer::Includer, payload_cache::PayloadCache, queue::Queue,
 };
 
+use crate::sequence_allocator::XRPLSequenceAllocator;
+
 use super::{broadcaster::XRPLBroadcaster, client::XRPLClient, refund_manager::XRPLRefundManager};
 
 use error_stack;
@@ -14,7 +16,7 @@ pub struct XrplIncluder {}
 
 impl XrplIncluder {
     #[allow(clippy::new_ret_no_self)]
-    pub async fn new<DB: Database>(
+    pub async fn new<DB: Database + Clone + Send + Sync>(
         config: Config,
         gmp_api: Arc<GmpApi>,
         redis_pool: r2d2::Pool<redis::Client>,
@@ -22,7 +24,13 @@ impl XrplIncluder {
         construct_proof_queue: Arc<Queue>,
         db: DB,
     ) -> error_stack::Result<
-        Includer<XRPLBroadcaster<DB>, Arc<XRPLClient>, XRPLRefundManager, DB>,
+        Includer<
+            XRPLBroadcaster<DB>,
+            Arc<XRPLClient>,
+            XRPLRefundManager,
+            DB,
+            XRPLSequenceAllocator<DB>,
+        >,
         BroadcasterError,
     > {
         let client =
@@ -30,12 +38,14 @@ impl XrplIncluder {
                 error_stack::report!(BroadcasterError::GenericError(e.to_string()))
             })?);
 
-        let broadcaster = XRPLBroadcaster::new(Arc::clone(&client), db)
+        let broadcaster = XRPLBroadcaster::new(Arc::clone(&client), db.clone())
             .map_err(|e| e.attach_printable("Failed to create XRPLBroadcaster"))?;
 
         let refund_manager =
             XRPLRefundManager::new(Arc::clone(&client), config, redis_pool.clone())
                 .map_err(|e| error_stack::report!(BroadcasterError::GenericError(e.to_string())))?;
+
+        let sequence_allocator = XRPLSequenceAllocator::new(db.clone(), Arc::clone(&client));
 
         let includer = Includer {
             chain_client: client,
@@ -45,6 +55,7 @@ impl XrplIncluder {
             payload_cache,
             construct_proof_queue,
             redis_pool: redis_pool.clone(),
+            sequence_allocator,
         };
 
         Ok(includer)

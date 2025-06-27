@@ -60,6 +60,12 @@ pub trait Database {
         account: &str,
         sequence: i64,
     ) -> impl Future<Output = Result<()>>;
+
+    // Sequence allocator functions
+    fn get_max_pending_sequence_for_account(
+        &self,
+        account: &str,
+    ) -> impl Future<Output = Result<Option<i64>>>;
 }
 
 #[derive(Clone, Debug)]
@@ -234,5 +240,20 @@ impl Database for PostgresDB {
             .execute(&self.pool)
             .await?;
         Ok(())
+    }
+
+    async fn get_max_pending_sequence_for_account(&self, account: &str) -> Result<Option<i64>> {
+        let query = "SELECT MAX(sequence) as max_sequence FROM xrpl_queued_transactions WHERE account = $1 AND status = 'queued' FOR UPDATE";
+        let row = sqlx::query(query)
+            .bind(account)
+            .fetch_optional(&self.pool)
+            .await?;
+
+        if let Some(row) = row {
+            let max_sequence: Option<i64> = row.try_get("max_sequence")?;
+            Ok(max_sequence)
+        } else {
+            Ok(None)
+        }
     }
 }

@@ -6,6 +6,7 @@ pub mod ingestor;
 pub mod models;
 pub mod queued_tx_monitor;
 pub mod refund_manager;
+pub mod sequence_allocator;
 pub mod subscriber;
 pub mod ticket_creator;
 pub mod voting_retrier;
