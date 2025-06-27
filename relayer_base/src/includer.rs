@@ -145,6 +145,7 @@ where
                         "Broadcasting transaction with hash: {:?}",
                         broadcast_result.tx_hash
                     );
+
                     if broadcast_result.message_id.is_some()
                         && broadcast_result.source_chain.is_some()
                     {
