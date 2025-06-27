@@ -1,0 +1,47 @@
+use dotenv::dotenv;
+
+use tonlib_client::client::{TonClient, TonClientInterface, TonConnectionParams};
+use tonlib_client::client::TonClientBuilder;
+use tonlib_client::config::TESTNET_CONFIG;
+use tonlib_core::TonAddress;
+
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    dotenv().ok();
+
+    TonClient::set_log_verbosity_level(2);
+
+    let client = TonClientBuilder::new().with_connection_params(&TonConnectionParams {
+        config: TESTNET_CONFIG.to_string(), blockchain_name: None, use_callbacks_for_network: false, ignore_cache: false, keystore_dir: None, ..Default::default()
+    }).with_pool_size(2).build().await?;
+
+    println!("Here");
+    let address = TonAddress::from_base64_url("kQCd5sQG0Swz5pyNMZfh1a_J7GUykPQDr0oFMUq4oEfes9VM")?;
+    let state = client.get_account_state(&address).await?;
+
+    println!("MasterchainInfo: {:?}", &state);
+    // let network = std::env::var("NETWORK").expect("NETWORK must be set");
+    // let config = Config::from_yaml(&format!("config.{}.yaml", network)).unwrap();
+    //
+    // let _guard = setup_logging(&config);
+    //
+    // let events_queue = Queue::new(&config.queue_address, "events").await;
+    // let postgres_db = PostgresDB::new(&config.postgres_url).await.unwrap();
+    //
+    // let gateway_address = &config.ton_gateway;
+    //
+    // let ton_subscriber = TONSubscriber::new(&config.ton_rpc, postgres_db).await?;
+    // let mut subscriber = Subscriber::new(xrpl_subscriber);
+    // let mut sigint = signal(SignalKind::interrupt())?;
+    // let mut sigterm = signal(SignalKind::terminate())?;
+    //
+    // tokio::select! {
+    //     _ = sigint.recv()  => {},
+    //     _ = sigterm.recv() => {},
+    //     _ = subscriber.run(account.to_address(), events_queue.clone()) => {},
+    // }
+    //
+    // events_queue.close().await;
+
+    Ok(())
+}

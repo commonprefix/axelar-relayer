@@ -40,6 +40,10 @@ pub enum BroadcasterError {
 pub enum ClientError {
     #[error("Connection failed: {0}")]
     ConnectionFailed(String),
+    #[error("Bad request: {0}")]
+    BadRequest(String),
+    #[error("Bad response: {0}")]
+    BadResponse(String),
 }
 
 #[derive(Error, Debug, Clone)]

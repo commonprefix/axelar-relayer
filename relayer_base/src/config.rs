@@ -18,6 +18,15 @@ pub struct PriceFeedConfig {
 }
 
 #[derive(Debug, Clone, Deserialize, Default)]
+pub struct WalletConfig {
+    pub public_key: String,
+    pub secret_key: String,
+    pub subwallet_id: u32,
+    pub timeout: u64,
+    pub address: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Default)]
 pub struct Config {
     pub refund_manager_addresses: String,
     pub includer_secrets: String,
@@ -38,6 +47,12 @@ pub struct Config {
     pub heartbeats: HashMap<String, String>,
     pub price_feed: PriceFeedConfig,
     pub refunds_enabled: bool,
+
+    // TODO: Refactor these into a separate config (so we have separate config structs per-chain)
+    pub wallets: Vec<WalletConfig>,
+    pub ton_gateway: String,
+    pub ton_rpc: String,
+    pub ton_api_key: String,
 }
 
 impl Config {

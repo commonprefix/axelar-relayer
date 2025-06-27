@@ -3,6 +3,9 @@ config.yaml
 config.devnet.yaml
 config.testnet.yaml
 config.mainnet.yaml
+config.*devnet.yaml
+config.*testnet.yaml
+config.*mainnet.yaml
 
 # Added by cargo
 
@@ -10,3 +13,5 @@ config.mainnet.yaml
 
 node_modules
 certs
+
+.idea

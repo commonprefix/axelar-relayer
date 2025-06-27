@@ -1,0 +1,216 @@
+/*!
+Approve Message decoder
+
+# Usage Example
+
+```rust
+let approve_messages = ApproveMessages::new_from_boc_b64(str);
+```
+
+*/
+
+use crate::approve_message::ApproveMessagesError::{BocParsingError, InvalidOpCode};
+use crate::op_codes::OP_APPROVE_MESSAGES;
+use num_bigint::BigUint;
+use std::sync::Arc;
+use thiserror::Error;
+use tonlib_core::cell::dict::predefined_readers::{key_reader_u8, val_reader_ref_cell};
+use tonlib_core::cell::{ArcCell, Cell, CellParser};
+use tonlib_core::tlb_types::tlb::TLB;
+
+#[derive(Error, Debug)]
+pub enum ApproveMessagesError {
+    #[error("BocParsingError: {0}")]
+    BocParsingError(String),
+    #[error("Invalid Op Code: {0}")]
+    InvalidOpCode(String),
+}
+
+const BYTES_PER_CELL: usize = 96;
+
+#[derive(Debug, PartialEq)]
+pub struct ApproveMessage {
+    pub(crate) message_id: String,
+    pub(crate) source_chain: String,
+    source_address: String,
+    destination_chain: String,
+    destination_address: Vec<u8>,
+    payload_hash: BigUint,
+}
+
+#[derive(Debug)]
+pub struct ApproveMessages {
+    pub approve_messages: Vec<ApproveMessage>,
+    _proof: ArcCell,
+}
+
+trait CellTo {
+    fn cell_to_string(self) -> anyhow::Result<String, ApproveMessagesError>;
+
+    fn cell_to_buffer(self) -> anyhow::Result<Vec<u8>, ApproveMessagesError>;
+}
+
+impl CellTo for Arc<Cell> {
+    fn cell_to_string(self) -> Result<String, ApproveMessagesError> {
+        let bytes = self.cell_to_buffer()?;
+        String::from_utf8(bytes).map_err(|e| BocParsingError(e.to_string()))
+    }
+
+    fn cell_to_buffer(self) -> Result<Vec<u8>, ApproveMessagesError> {
+        let mut current_cell = Some(self);
+        let mut u8_vec = Vec::new();
+
+        while let Some(cell) = current_cell {
+            let mut parser = cell.parser();
+            for _ in 0..BYTES_PER_CELL {
+                match parser.load_uint(8) {
+                    Ok(val) => u8_vec.push(val.to_bytes_be()[0]),
+                    Err(_) => break, // no more bytes
+                }
+            }
+            current_cell = parser.next_reference().ok();
+        }
+
+        Ok(u8_vec)
+    }
+}
+
+impl ApproveMessages {
+    pub fn from_boc_b64(boc: &str) -> Result<Self, ApproveMessagesError> {
+        let cell = Cell::from_boc_b64(boc).map_err(|err| BocParsingError(err.to_string()))?;
+
+        let mut parser: CellParser = cell.parser();
+        let op_code = parser
+            .load_bits(32)
+            .map_err(|err| BocParsingError(err.to_string()))?;
+        if hex::encode(&op_code) != OP_APPROVE_MESSAGES {
+            return Err(InvalidOpCode(format!(
+                "Expected {:?}, got {:?}",
+                OP_APPROVE_MESSAGES,
+                hex::encode(op_code)
+            )));
+        }
+
+        let proof = parser
+            .next_reference()
+            .map_err(|err| BocParsingError(err.to_string()))?;
+        let messages = parser
+            .next_reference()
+            .map_err(|err| BocParsingError(err.to_string()))?;
+        let mut messages_parser = messages.parser();
+        let data = messages_parser
+            .load_dict(16, key_reader_u8, val_reader_ref_cell)
+            .map_err(|err| BocParsingError(err.to_string()))?;
+        let approve_messages: Vec<ApproveMessage> = data
+            .iter()
+            .map(|(_key, cell)| {
+                let arc_cell =
+                    Arc::from_cell(cell).map_err(|err| BocParsingError(err.to_string()))?;
+                Self::parse_approve_messages(arc_cell)
+            })
+            .collect::<Result<_, _>>()?;
+
+        Ok(ApproveMessages {
+            approve_messages,
+            _proof: proof,
+        })
+    }
+
+    fn parse_approve_messages(cell: ArcCell) -> Result<ApproveMessage, ApproveMessagesError> {
+        let mut parser = cell.parser();
+
+        let payload_hash = parser
+            .load_uint(256)
+            .map_err(|err| BocParsingError(err.to_string()))?;
+        let message_id = parser
+            .next_reference()
+            .map_err(|err| BocParsingError(err.to_string()))?
+            .cell_to_string()?;
+        let source_chain = parser
+            .next_reference()
+            .map_err(|err| BocParsingError(err.to_string()))?
+            .cell_to_string()?;
+        let source_address = parser
+            .next_reference()
+            .map_err(|err| BocParsingError(err.to_string()))?
+            .cell_to_string()?;
+        let inner_cell = parser
+            .next_reference()
+            .map_err(|err| BocParsingError(err.to_string()))?;
+        let mut inner_parser: CellParser = inner_cell.parser();
+        let destination_address = inner_parser
+            .next_reference()
+            .map_err(|err| BocParsingError(err.to_string()))?
+            .cell_to_buffer()?;
+        let destination_chain = inner_parser
+            .next_reference()
+            .map_err(|err| BocParsingError(err.to_string()))?
+            .cell_to_string()?;
+
+        Ok(ApproveMessage {
+            message_id,
+            source_chain,
+            destination_chain,
+            source_address,
+            destination_address,
+            payload_hash,
+        })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_decode_approve_message() {
+        let approve_message = "te6cckECDAEAAYsAAggAAAAoAQIBYYAAAAAAAAAAAAAAAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADf5gkADAQHABADi0LAAUYmshNOh1nWEdwB3eJHd51H6EH1kg3v2M30y32eQAAAAAAAAAAAAAAAAAAAAAQ+j+g0KWjWTaPqB9qQHuWZQn7IPz7x3xzwbprT1a85sjh0UlPlFU84LDdRcD4GZ6n6GJlEKKTlRW5QtlzKGrAsBAtAFBECeAcQjykQMXsK+7MnQoVK1T8jnpBbJMbcInq8iFgWvFwYHCAkAiDB4MTdmZDdkYTNkODE5Y2ZiYzQ2ZmYyOGYzZDgwOTgwNzcwZWMxYjgwZmQ3ZDFiMjI5Y2VjMzI1MTkzOWI5YjIzZi0xABxhdmFsYW5jaGUtZnVqaQBUMHhkNzA2N0FlM0MzNTllODM3ODkwYjI4QjdCRDBkMjA4NENmRGY0OWI1AgAKCwBAuHpKD2RLehhu5xoUVGNPcMIqYqyhprpna1F1wh1/2TAACHRvbjJLddsV";
+        let approve_messages = ApproveMessages::from_boc_b64(approve_message);
+        assert!(approve_messages.is_ok());
+
+        let expected_approve_message = ApproveMessage {
+            message_id: "0x17fd7da3d819cfbc46ff28f3d80980770ec1b80fd7d1b229cec3251939b9b23f-1"
+                .to_string(),
+            source_chain: "avalanche-fuji".to_string(),
+            source_address: "0xd7067Ae3C359e837890b28B7BD0d2084CfDf49b5".to_string(),
+            destination_chain: "ton2".to_string(),
+            destination_address: vec![
+                184, 122, 74, 15, 100, 75, 122, 24, 110, 231, 26, 20, 84, 99, 79, 112, 194, 42, 98,
+                172, 161, 166, 186, 103, 107, 81, 117, 194, 29, 127, 217, 48,
+            ],
+            payload_hash: Default::default(),
+        };
+
+        let res = approve_messages.unwrap();
+        println!("{:?}", res.approve_messages[0].destination_address.clone());
+        assert_eq!(res.approve_messages.len(), 1);
+        assert_eq!(
+            res.approve_messages[0].message_id,
+            expected_approve_message.message_id
+        );
+        assert_eq!(
+            res.approve_messages[0].source_chain,
+            expected_approve_message.source_chain
+        );
+        assert_eq!(
+            res.approve_messages[0].source_address,
+            expected_approve_message.source_address
+        );
+        assert_eq!(
+            res.approve_messages[0].destination_chain,
+            expected_approve_message.destination_chain
+        );
+        assert_eq!(
+            res.approve_messages[0].destination_address,
+            expected_approve_message.destination_address
+        );
+    }
+
+    #[test]
+    fn test_decode_malformed_message() {
+        let approve_message = "abccckECDAEAAYsAAggAAAAoAQIBYYAAAAAAAAAAAAAAAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADf5gkADAQHABADi0LAAUYmshNOh1nWEdwB3eJHd51H6EH1kg3v2M30y32eQAAAAAAAAAAAAAAAAAAAAAQ+j+g0KWjWTaPqB9qQHuWZQn7IPz7x3xzwbprT1a85sjh0UlPlFU84LDdRcD4GZ6n6GJlEKKTlRW5QtlzKGrAsBAtAFBECeAcQjykQMXsK+7MnQoVK1T8jnpBbJMbcInq8iFgWvFwYHCAkAiDB4MTdmZDdkYTNkODE5Y2ZiYzQ2ZmYyOGYzZDgwOTgwNzcwZWMxYjgwZmQ3ZDFiMjI5Y2VjMzI1MTkzOWI5YjIzZi0xABxhdmFsYW5jaGUtZnVqaQBUMHhkNzA2N0FlM0MzNTllODM3ODkwYjI4QjdCRDBkMjA4NENmRGY0OWI1AgAKCwBAuHpKD2RLehhu5xoUVGNPcMIqYqyhprpna1F1wh1/2TAACHRvbjJLddsV";
+        let approve_messages = ApproveMessages::from_boc_b64(approve_message);
+        assert!(approve_messages.is_err());
+        approve_messages.expect_err("Bag of cells deserialization error (BoC deserialization error: Unsupported cell magic number: 1773608050)");
+    }
+}

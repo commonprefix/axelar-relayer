@@ -44,6 +44,9 @@ pub trait Database {
     // Price view functions
     fn get_price(&self, pair: &str) -> impl Future<Output = Result<Option<Decimal>>>;
     fn store_price(&self, pair: &str, price: Decimal) -> impl Future<Output = Result<()>>;
+    fn get_query_id(&self, address: &str) -> impl Future<Output = Result<(i32, i32)>>;
+    fn update_query_id(&self, address: &str, shift: i32, bitnumber: i32) -> impl Future<Output = Result<()>>;
+    fn upsert_query_id(&self, address: &str, shift: i32, bitnumber: i32, timeout: i32) -> impl Future<Output = Result<()>>;
 }
 
 #[derive(Clone, Debug)]
@@ -154,5 +157,53 @@ impl Database for PostgresDB {
         } else {
             Ok(None)
         }
+    }
+
+    async fn get_query_id(&self, address: &str) -> Result<(i32, i32)>  {
+        let query = "SELECT shift, bitnumber FROM ton_wallet_query_id WHERE address = $1 AND expires_at >= CURRENT_TIMESTAMP";
+        let maybe_row = sqlx::query(query)
+            .bind(address)
+            .fetch_optional(&self.pool)
+            .await?;
+
+        if let Some(row) = maybe_row {
+            let shift: i32 = row.get("shift");
+            let bitnumber: i32 = row.get("bitnumber");
+            Ok((shift, bitnumber))
+        } else {
+            Ok((-1, -1))
+        }
+    }
+
+    async fn update_query_id(&self, address: &str, shift: i32, bitnumber: i32) -> Result<()>  {
+        let query = "UPDATE ton_wallet_query_id SET shift = $1, bitnumber = $2, updated_at = CURRENT_TIMESTAMP WHERE address = $3";
+        sqlx::query(query)
+            .bind(shift)
+            .bind(bitnumber)
+            .bind(address)
+            .execute(&self.pool)
+            .await?;
+
+        Ok(())
+    }
+
+    async fn upsert_query_id(&self, address: &str, shift: i32, bitnumber: i32, timeout: i32) -> Result<()>  {
+        let query = "
+            INSERT INTO ton_wallet_query_id (address, shift, bitnumber, expires_at)
+            VALUES ($1, $2, $3, CURRENT_TIMESTAMP + ($4 * INTERVAL '1 second'))
+            ON CONFLICT (address) DO UPDATE
+            SET shift = EXCLUDED.shift,
+                bitnumber = EXCLUDED.bitnumber,
+                expires_at = EXCLUDED.expires_at";
+
+        sqlx::query(query)
+            .bind(address)
+            .bind(shift)
+            .bind(bitnumber)
+            .bind(timeout)
+            .execute(&self.pool)
+            .await?;
+
+        Ok(())
     }
 }
