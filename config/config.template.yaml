@@ -8,9 +8,9 @@ xrpl_rpc: ""
 xrpl_multisig: ""
 xrpl_faucet_url: ""
 axelar_contracts:
-  xrpl_gateway: ""
-  xrpl_multisig_prover: ""
-  xrpl_voting_verifier: ""
+  chain_gateway: ""
+  chain_multisig_prover: ""
+  chain_voting_verifier: ""
   multisig: ""
 deployed_tokens: {}
 xrpl_relayer_sentry_dsn: ""

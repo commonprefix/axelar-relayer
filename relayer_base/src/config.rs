@@ -1,13 +1,50 @@
+/*!
+
+Configuration parser.
+
+# Example Usage
+
+```rust,no_run
+// In your chain module, create a config.rs with your configuration that includes common configuration parameters:
+use serde::Deserialize;
+use relayer_base::config::{config_from_yaml, Config};
+
+#[derive(Debug, Clone, Deserialize, Default)]
+pub struct MyConfig {
+    #[serde(flatten)]
+    pub common_config: Config,
+
+    pub your_chain_specific_setting_1: String,
+    pub your_chain_specific_setting_2: String,
+    pub your_chain_specific_setting_3: String,
+}
+
+// When you need to load the configuration, use config_from_yaml:
+let network = std::env::var("NETWORK").expect("NETWORK must be set");
+let config: MyConfig = config_from_yaml(&format!("config.{}.yaml", network)).unwrap();
+```
+
+# Notes
+
+common_config (Config) should be used for configuration options that are common to all chains and
+should be safe to pass to any relayer_base function.
+
+# TODO
+
+- Move reading network environment variable directly to config_from_yaml.
+*/
+
 use anyhow::{Context, Result};
 use serde::Deserialize;
 use std::{collections::HashMap, env, fs, path::PathBuf};
+use tracing::info;
 
 #[derive(Debug, Clone, Deserialize, Default)]
 pub struct AxelarContracts {
-    pub xrpl_gateway: String,
-    pub xrpl_multisig_prover: String,
-    pub xrpl_voting_verifier: String,
-    pub multisig: String,
+    pub chain_gateway: String,
+    pub chain_multisig_prover: String,
+    pub chain_voting_verifier: String,
+    pub multisig: String, // This parameter can probably go to common Config
 }
 
 #[derive(Debug, Clone, Deserialize, Default)]
@@ -19,43 +56,116 @@ pub struct PriceFeedConfig {
 
 #[derive(Debug, Clone, Deserialize, Default)]
 pub struct Config {
-    pub refund_manager_addresses: String,
-    pub includer_secrets: String,
     pub queue_address: String,
     pub gmp_api_url: String,
-    pub xrpl_rpc: String,
-    pub xrpl_faucet_url: String,
-    pub xrpl_multisig: String,
-    pub axelar_contracts: AxelarContracts,
     pub deployed_tokens: HashMap<String, String>,
-    pub demo_tokens_rate: HashMap<String, f64>,
     pub redis_server: String,
     pub postgres_url: String,
-    pub xrpl_relayer_sentry_dsn: String,
     pub chain_name: String,
     pub client_cert_path: String,
     pub client_key_path: String,
     pub heartbeats: HashMap<String, String>,
     pub price_feed: PriceFeedConfig,
     pub refunds_enabled: bool,
+    pub demo_tokens_rate: HashMap<String, f64>,
+    pub xrpl_relayer_sentry_dsn: String, // Should probably be renamed
+    pub axelar_contracts: AxelarContracts,
 }
 
-impl Config {
-    pub fn from_yaml(path: &str) -> Result<Self> {
-        let base_path = std::env::var("BASE_PATH").ok();
+pub fn config_from_yaml<T> (path: &str) -> Result<T> where
+    T: for<'de> Deserialize<'de>,
+{
+    let base_path = env::var("BASE_PATH").ok();
 
-        let project_root = if let Some(path) = base_path {
-            PathBuf::from(path)
-        } else {
-            PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        };
+    let project_root = if let Some(path) = base_path {
+        PathBuf::from(path)
+    } else {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+    };
 
-        let config_path = project_root.join("./config/").join(path);
+    let config_path = project_root.join("./config/").join(path);
 
-        let content = fs::read_to_string(config_path.clone())
-            .with_context(|| format!("Failed to read config file: {:?}", config_path))?;
+    info!("Loading configuration from {:?}", config_path);
 
-        serde_yaml::from_str(&content)
-            .with_context(|| format!("Failed to parse YAML config from {:?}", config_path))
+    let content = fs::read_to_string(config_path.clone())
+        .with_context(|| format!("Failed to read config file: {:?}", config_path))?;
+
+    let parsed = serde_yaml::from_str(&content)
+        .with_context(|| format!("Failed to parse YAML config from {:?}", config_path))?;
+
+    Ok(parsed)
+}
+
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+    use std::fs::File;
+    use std::io::Write;
+    use std::path::Path;
+
+    #[derive(Debug, Clone, Deserialize, Default)]
+    struct XRPLConfig {
+
+        #[serde(flatten)]
+        pub common_config: Config,
+
+        pub refund_manager_addresses: String,
+        pub includer_secrets: String,
+        pub xrpl_rpc: String,
+        pub xrpl_faucet_url: String,
+        pub xrpl_multisig: String,
+    }
+
+    #[test]
+    fn test_from_yaml() {
+        let config_dir = Path::new("/tmp/config");
+        fs::create_dir_all(config_dir).expect("Failed to create /tmp/config");
+
+        let file_path = config_dir.join("test_config.yaml");
+
+        let yaml_content = r#"
+refund_manager_addresses: "manager"
+includer_secrets: "secret"
+queue_address: "queue"
+gmp_api_url: "http://api.url"
+xrpl_rpc: "http://xrpl.rpc"
+xrpl_faucet_url: "http://faucet.url"
+xrpl_multisig: "multisig"
+redis_server: "redis"
+postgres_url: "postgres"
+xrpl_relayer_sentry_dsn: "dsn"
+chain_name: "mainnet"
+client_cert_path: "/cert.pem"
+client_key_path: "/key.pem"
+refunds_enabled: true
+
+axelar_contracts:
+  chain_gateway: "gateway"
+  chain_multisig_prover: "prover"
+  chain_voting_verifier: "verifier"
+  multisig: "multisig"
+
+deployed_tokens: {}
+demo_tokens_rate: {}
+heartbeats: {}
+price_feed:
+  pairs: []
+  coin_ids: {}
+  auth: {}
+"#;
+
+        let mut file = File::create(&file_path).expect("Failed to create YAML config file");
+        file.write_all(yaml_content.as_bytes()).expect("Failed to write config");
+
+        env::set_var("BASE_PATH", "/tmp");
+
+        let config: XRPLConfig = config_from_yaml("test_config.yaml").expect("Failed to load config");
+        fs::remove_file(file_path).ok();
+
+        assert_eq!(config.refund_manager_addresses, "manager");
+        assert_eq!(config.xrpl_rpc, "http://xrpl.rpc");
+        assert_eq!(config.common_config.chain_name, "mainnet");
+        assert!(config.common_config.price_feed.pairs.is_empty());
     }
 }

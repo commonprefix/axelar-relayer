@@ -7,19 +7,19 @@ use lapin::{
     BasicProperties, Channel, Connection, ConnectionProperties,
 };
 use relayer_base::{
-    config::Config,
     gmp_api::gmp_types::TaskKind,
     queue::{Queue, QueueItem},
     utils::setup_logging,
 };
 use std::env;
 use tracing::{error, info, warn};
+use relayer_base::config::config_from_yaml;
 
 #[tokio::main]
 async fn main() -> Result<()> {
     dotenv().ok();
     let network = env::var("NETWORK").expect("NETWORK must be set");
-    let config = Config::from_yaml(&format!("config.{}.yaml", network))?;
+    let config = config_from_yaml(&format!("config.{}.yaml", network))?;
     let _guard = setup_logging(&config);
 
     //let conn = Connection::connect(&config.queue_address, ConnectionProperties::default()).await?;
