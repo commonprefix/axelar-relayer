@@ -345,6 +345,7 @@ mod tests {
     use std::collections::HashMap;
 
     use xrpl_amplifier_types::types::{XRPLAccountId, XRPLCurrency};
+    use xrpl_api::IssuedAmount;
 
     use crate::{database::MockDatabase, price_view::MockPriceView};
 
@@ -834,5 +835,149 @@ mod tests {
             err.is_err(),
             "Expected error parsing invalid issued gas fee amount"
         );
+    }
+
+    #[test]
+    fn test_extract_and_decode_memo() {
+        let memos = vec![Memo {
+            memo_type: Some(hex::encode("test_type")),
+            memo_data: Some(hex::encode("test_data")),
+            memo_format: Some("hex".to_string()),
+        }];
+        let memo_data = extract_and_decode_memo(&Some(memos), "test_type");
+        assert!(memo_data.is_ok());
+        let memo_data = memo_data.unwrap();
+        assert_eq!(memo_data, "test_data");
+    }
+
+    #[test]
+    fn test_extract_and_decode_memo_not_hex_format() {
+        let memos = vec![Memo {
+            memo_type: Some(hex::encode("test_type")),
+            memo_data: Some("test_data".to_string()),
+            memo_format: None,
+        }];
+        let memo_data = extract_and_decode_memo(&Some(memos), "test_type");
+        assert!(memo_data.is_err());
+    }
+
+    #[test]
+    fn test_extract_and_decode_memo_not_found() {
+        let memos = vec![];
+        let memo_data = extract_and_decode_memo(&Some(memos), "test_type");
+        assert!(memo_data.is_err());
+    }
+
+    #[test]
+    fn test_extract_and_decode_memo_invalid_utf8() {
+        let memos = vec![Memo {
+            memo_type: Some(hex::encode("test_type")),
+            memo_data: Some("fffe".to_string()),
+            memo_format: Some("hex".to_string()),
+        }];
+        let memo_data = extract_and_decode_memo(&Some(memos), "test_type");
+        assert!(memo_data
+            .err()
+            .unwrap()
+            .to_string()
+            .contains("Invalid UTF-8"));
+    }
+
+    #[test]
+    fn test_parse_payment_amount_drops() {
+        let payment = PaymentTransaction {
+            amount: xrpl_api::Amount::Drops("100".to_string()),
+            ..Default::default()
+        };
+        let payment_amount = parse_payment_amount(&payment);
+        assert!(payment_amount.is_ok());
+        if let XRPLPaymentAmount::Drops(amount) = payment_amount.unwrap() {
+            assert_eq!(amount, 100);
+        } else {
+            panic!("Expected XRPLPaymentAmount::Drops variant");
+        }
+    }
+
+    #[test]
+    fn test_parse_payment_amount_drops_invalid_amount() {
+        let payment = PaymentTransaction {
+            amount: xrpl_api::Amount::Drops("invalid".to_string()),
+            ..Default::default()
+        };
+        let payment_amount = parse_payment_amount(&payment);
+        assert!(payment_amount.is_err());
+
+        let payment = PaymentTransaction {
+            amount: xrpl_api::Amount::Drops("-100".to_string()),
+            ..Default::default()
+        };
+        let payment_amount = parse_payment_amount(&payment);
+        assert!(payment_amount.is_err());
+    }
+
+    #[test]
+    fn test_parse_payment_amount_issued() {
+        let payment = PaymentTransaction {
+            amount: xrpl_api::Amount::Issued(IssuedAmount {
+                value: "100.0".to_string(),
+                currency: "USD".to_string(),
+                issuer: "rPT1Sjq2YGrBMTttX4GZHjKu9dyfzbpAYe".to_string(),
+            }),
+            ..Default::default()
+        };
+        let payment_amount = parse_payment_amount(&payment);
+        assert!(payment_amount.is_ok());
+        if let XRPLPaymentAmount::Issued(token, amount) = payment_amount.unwrap() {
+            assert_eq!(
+                token.issuer,
+                XRPLAccountId::from_str("rPT1Sjq2YGrBMTttX4GZHjKu9dyfzbpAYe").unwrap()
+            );
+            assert_eq!(token.currency, XRPLCurrency::new("USD").unwrap());
+            assert_eq!(amount, XRPLTokenAmount::from_str("100.0").unwrap());
+        } else {
+            panic!("Expected XRPLPaymentAmount::Issued variant");
+        }
+    }
+
+    #[test]
+    fn test_parse_payment_amount_issued_invalid_amount() {
+        let payment = PaymentTransaction {
+            amount: xrpl_api::Amount::Issued(IssuedAmount {
+                value: "invalid".to_string(),
+                currency: "USD".to_string(),
+                issuer: "rPT1Sjq2YGrBMTttX4GZHjKu9dyfzbpAYe".to_string(),
+            }),
+            ..Default::default()
+        };
+        let payment_amount = parse_payment_amount(&payment);
+        assert!(payment_amount.is_err());
+    }
+
+    #[test]
+    fn test_parse_payment_amount_issued_invalid_issuer() {
+        let payment = PaymentTransaction {
+            amount: xrpl_api::Amount::Issued(IssuedAmount {
+                value: "100".to_string(),
+                currency: "USD".to_string(),
+                issuer: "random".to_string(),
+            }),
+            ..Default::default()
+        };
+        let payment_amount = parse_payment_amount(&payment);
+        assert!(payment_amount.is_err());
+    }
+
+    #[test]
+    fn test_parse_payment_amount_issued_invalid_currency() {
+        let payment = PaymentTransaction {
+            amount: xrpl_api::Amount::Issued(IssuedAmount {
+                value: "100".to_string(),
+                currency: "NONEXISTENT".to_string(),
+                issuer: "rPT1Sjq2YGrBMTttX4GZHjKu9dyfzbpAYe".to_string(),
+            }),
+            ..Default::default()
+        };
+        let payment_amount = parse_payment_amount(&payment);
+        assert!(payment_amount.is_err());
     }
 }
