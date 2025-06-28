@@ -3,17 +3,23 @@ Lock Manager with Redis implementation.
 
 # Usage example
 
-```rust
-let pool = Pool::builder().build(client).unwrap();
-let manager = RedisLockManager::new(pool);
+```rust,no_run
+#[tokio::main]
+async fn main() {
+    use ton::lock_manager::{LockManager, RedisLockManager};
 
-let lock = manager.lock("key").await;
-if lock {
-    // We acquired the lock
-} else {
-    // We failed to acquire the lock
+    let client = redis::Client::open("redis://127.0.0.1/").unwrap();
+    let pool = r2d2::Pool::builder().build(client).unwrap();
+    let manager = RedisLockManager::new(pool);
+
+    let lock = manager.lock("key").await;
+    if lock {
+        // We acquired the lock
+    } else {
+        // We failed to acquire the lock
+    }
+    manager.unlock("key").await;
 }
-manager.unlock("key").await;
 ```
 
 # Notes
@@ -99,9 +105,8 @@ mod tests {
     use redis::Client;
     use testcontainers::{core::{IntoContainerPort, WaitFor}, runners::AsyncRunner, GenericImage};
     use crate::lock_manager::{LockManager, RedisLockManager};
-    
-    #[tokio::test]
-    async fn test_lock() {
+
+    async fn create_redis_lock_manager() -> (testcontainers::ContainerAsync<GenericImage>, RedisLockManager) {
         let container = GenericImage::new("redis", "7.2.4")
             .with_exposed_port(9991.tcp())
             .with_wait_for(WaitFor::message_on_stdout("Ready to accept connections"))
@@ -115,8 +120,20 @@ mod tests {
         let url = format!("redis://{host}:{host_port}");
         let client = Client::open(url.as_ref()).unwrap();
 
-        let pool = Pool::builder().build(client).unwrap();
+        let pool = Pool::builder()
+            .connection_timeout(Duration::from_millis(1000)) // Tiny timeout
+            .build(client)
+            .unwrap();
+
         let manager = RedisLockManager::new(pool);
+
+        (container, manager)
+    }
+
+    /// Both positive and negative tests are crammed in here so we save time on container creation
+    #[tokio::test]
+    async fn test_lock() {
+        let (container, manager) = create_redis_lock_manager().await;
 
         let first = manager.lock("wallet1").await;
         assert!(first, "Should be able to acquire lock");
@@ -134,35 +151,13 @@ mod tests {
 
         let third = manager.lock("wallet1").await;
         assert!(third, "Should be able to reacquire lock");
-    }
 
-    #[tokio::test]
-    async fn test_lock_no_redis() {
-        let container = GenericImage::new("redis", "7.2.4")
-            .with_exposed_port(9991.tcp())
-            .with_wait_for(WaitFor::message_on_stdout("Ready to accept connections"))
-            .start()
-            .await
-            .unwrap();
+        container.stop_with_timeout(Some(1)).await.unwrap();
 
-        let host = container.get_host().await.unwrap();
-        let host_port = container.get_host_port_ipv4(6379).await.unwrap();
-
-        let url = format!("redis://{host}:{host_port}");
-        let client = Client::open(url.as_ref()).unwrap();
-
-        let pool = Pool::builder()
-            .connection_timeout(Duration::from_millis(10)) // Tiny timeout
-            .build(client)
-            .unwrap();
-        
-        let manager = RedisLockManager::new(pool);
-        
-        container.stop().await.unwrap();
-        
         let locked = manager.lock("test_key").await;
         assert!(!locked, "Lock should fail when Redis is not reachable");
 
+        // We shouldn't fail when unlocking
         manager.unlock("test_key").await;
     }
 }

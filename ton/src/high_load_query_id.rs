@@ -5,8 +5,13 @@ Query Id manager for high load wallet manager.
 # Usage Example
 
 ```rust
-let query_id = HighLoadQueryId::new_from_shift_and_bitnumber(0, 0).await.unwrap();
-let next_query_id = query_id.next().await.unwrap();
+use ton::high_load_query_id::HighLoadQueryId;
+
+#[tokio::main]
+async fn main() {
+    let query_id = HighLoadQueryId::from_shift_and_bitnumber(0, 0).await.unwrap();
+    let next_query_id = query_id.next().await.unwrap();
+}
 ```
 
 # See also
@@ -77,6 +82,7 @@ impl HighLoadQueryId {
     }
 }
 
+#[cfg(test)]
 mod tests {
     use super::{HighLoadQueryId, HighLoadQueryIdError};
 

@@ -11,7 +11,13 @@ It ensures safe and exclusive access to wallets using a pluggable locking mechan
 
 # Usage Example
 
-```rust
+```rust,no_run
+use relayer_base::config::WalletConfig;
+use std::sync::Arc;
+use ton::lock_manager::RedisLockManager;
+use ton::wallet_manager::WalletManager;
+use tracing::error;
+
 #[tokio::main]
 async fn main() {
     let config = vec![
@@ -23,8 +29,11 @@ async fn main() {
             timeout: 30,
         },
     ];
+    
+    let client = redis::Client::open("redis://127.0.0.1/").unwrap();
+    let pool = r2d2::Pool::builder().build(client).unwrap();
 
-    let lock_manager = Arc::new(RedisLockManager::new(redis_pool));
+    let lock_manager = Arc::new(RedisLockManager::new(pool));
     let wallet_manager = WalletManager::new(config, lock_manager).await;
 
     match wallet_manager.acquire().await {
@@ -46,6 +55,9 @@ async fn main() {
 This would have been a much better implementation using RAII instead of the `release` method.
 However, RAII requires a `Drop` trait, which cannot be asynchronous, so it would be hard to
 ensure timely unlocking in case when LockManager is network-bound, like RedisLockManager.
+
+There is an example of async drop in testcontainers: https://github.com/testcontainers/testcontainers-rs/blob/main/testcontainers/src/core/async_drop.rs#L16
+However, it seems a little bit unfair to spawn a thread every time we want ot release a lock.
 
 # Potential for reuse
 
@@ -75,7 +87,7 @@ pub struct WalletManager {
 }
 
 impl WalletManager {
-    pub(crate) async fn new(config: Vec<WalletConfig>, lock_manager: Arc<dyn LockManager>) -> Self {
+    pub async fn new(config: Vec<WalletConfig>, lock_manager: Arc<dyn LockManager>) -> Self {
         let mut wallets = HashMap::new();
 
         for c in config {

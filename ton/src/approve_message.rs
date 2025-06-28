@@ -3,8 +3,11 @@ Approve Message decoder
 
 # Usage Example
 
-```rust
-let approve_messages = ApproveMessages::new_from_boc_b64(str);
+```rust,no_run
+use ton::approve_message::ApproveMessages;
+
+let boc = "1234abcd";
+let approve_messages = ApproveMessages::from_boc_b64(boc);
 ```
 
 */

@@ -4,8 +4,22 @@ Highload v3 wallet for TON implementation.
 
 # Usage Example
 
-```rust
+```rust,no_run
+use tonlib_core::tlb_types::block::out_action::{OutAction};
+use ton::ton_wallet_high_load_v3::{TonWalletHighLoadV3};
+use tonlib_core::wallet::mnemonic::KeyPair;
+use tonlib_core::TonAddress;
+use num_bigint::BigUint;
+
 let actions: Vec<OutAction> = vec![/* fill with OutAction instances */];
+let address = TonAddress::from_hex_str("0:0000000000000000000000000000000000000000000000000000000000000000").unwrap();
+let key_pair = KeyPair {
+    public_key: vec![0; 32],
+    secret_key: vec![1; 64],
+};
+
+let wallet = TonWalletHighLoadV3::new(address, key_pair, 698983, 60 * 60);
+
 let boc = wallet.outgoing_message(actions, 12345, BigUint::from(100u32));
 // send using reqwest ...
 ```

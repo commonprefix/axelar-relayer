@@ -4,9 +4,13 @@ TON RPC Client.
 
 # Example Usage
 
-```rust
-let client = TONRpcClient::new(server.base_url(), 1, "test".to_string()).await.unwrap();
-let response = client.post_v3_message("test").await.unwrap();
+```rust,no_run
+#[tokio::main]
+async fn main() {
+    use ton::client::{RestClient, TONRpcClient};
+    let client = TONRpcClient::new("https://testnet.toncenter.com".to_string(), 1, "test".to_string()).await.unwrap();
+    let response = client.post_v3_message("test".to_string()).await.unwrap();
+}
 ```
 
 # TODO
@@ -52,7 +56,7 @@ pub trait RestClient: Send + Sync {
 }
 
 impl TONRpcClient {
-    pub(crate) async fn new(
+    pub async fn new(
         url: String,
         _max_retries: usize,
         api_key: String,

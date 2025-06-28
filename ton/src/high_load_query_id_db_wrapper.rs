@@ -7,18 +7,44 @@ This code *must be used* in conjuction with the `WalletManager`.
 
 # Usage Example
 
-```rust
-let wallet_manager = WalletManager::new(config, lock_manager).await;
-let postgres_db = PostgresDB::new(&connection_string).await.unwrap();
-let wrapper = HighLoadQueryIdDbWrapper::new(postgres_db.clone(), 60).await;
+```rust,no_run
+use relayer_base::config::WalletConfig;
+use std::sync::Arc;
+use ton::lock_manager::RedisLockManager;
+use ton::wallet_manager::WalletManager;
+use relayer_base::database::PostgresDB;
+use ton::high_load_query_id_db_wrapper::HighLoadQueryIdDbWrapper;
+use ton::high_load_query_id_db_wrapper::HighLoadQueryIdWrapper;
 
-match wallet_manager.acquire().await {
-    Ok(wallet) => {
-        let query_id = wrapper.next("wallet1").await.unwrap();
-        // use query_id to send a message to the blockchain
-        wallet_manager.release(wallet).await;
+#[tokio::main]
+async fn main() {
+    let config = vec![
+        WalletConfig {
+            public_key: "abcd1234".into(),
+            secret_key: "1234abcd".into(),
+            address: "EQ...".into(),
+            subwallet_id: 1,
+            timeout: 30,
+        },
+    ];
+    
+    let client = redis::Client::open("redis://127.0.0.1/").unwrap();
+    let pool = r2d2::Pool::builder().build(client).unwrap();
+
+    let lock_manager = Arc::new(RedisLockManager::new(pool));
+    let wallet_manager = WalletManager::new(config, lock_manager).await;
+    let postgres_db = PostgresDB::new("psql://foo?bar").await.unwrap();
+    let wrapper = HighLoadQueryIdDbWrapper::new(postgres_db.clone()).await;
+
+    match wallet_manager.acquire().await {
+        Ok(wallet) => {
+            let timeout = 60 * 60;
+            let query_id = wrapper.next("wallet1", timeout).await.unwrap();
+
+            wallet_manager.release(wallet).await;
+        }
+        Err(e) => println!("Error acquiring wallet: {:?}", e),
     }
-    Err(e) => error!("Error acquiring wallet: {:?}", e),
 }
 ```
 
