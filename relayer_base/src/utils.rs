@@ -496,7 +496,7 @@ mod tests {
         let client = Client::open(url.as_ref()).unwrap();
 
         let pool = r2d2::Pool::builder()
-            .connection_timeout(Duration::from_millis(1000)) // Tiny timeout
+            .connection_timeout(Duration::from_millis(1000))
             .build(client)
             .unwrap();
         let mut conn = pool.get().unwrap();
