@@ -36,6 +36,9 @@ rust_decimal = { workspace = true }
 xrpl_amplifier_types = { workspace = true }
 regex = { workspace = true }
 
+[dev-dependencies]
+relayer-base = { workspace = true, features = ["mocks"] }
+
 [[bin]]
 name = "xrpl_ingestor"
 path = "src/bin/xrpl_ingestor.rs"
