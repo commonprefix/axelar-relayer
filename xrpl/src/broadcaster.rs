@@ -141,13 +141,8 @@ impl<DB: Database> Broadcaster for XRPLBroadcaster<DB> {
         } else if response.engine_result == TransactionResult::terQUEUED {
             debug!("Transaction {} is queued (terQUEUED)", tx_hash);
 
-            let maybe_stored_transaction = self.handle_queued_tx(&tx, &tx_hash).await;
-
-            if maybe_stored_transaction.is_err() {
-                error!(
-                    "Failed to store queued transaction: {:?}",
-                    maybe_stored_transaction
-                );
+            if let Err(e) = self.handle_queued_tx(&tx, &tx_hash).await {
+                error!("Failed to store queued transaction: {:?}", e);
             } else {
                 debug!("Successfully stored queued transaction");
             }
