@@ -83,6 +83,7 @@ impl<DB: Database> Broadcaster for XRPLBroadcaster<DB> {
             BroadcasterError::RPCCallFailed("Transaction hash not found".to_string())
         })?;
         let response_category = response.engine_result.category();
+        debug!("Response category: {:?}", response_category);
         if response_category == ResultCategory::Tec || response_category == ResultCategory::Tes {
             Ok(BroadcastResult {
                 transaction: tx.clone(),
