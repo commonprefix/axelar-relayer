@@ -14,6 +14,7 @@ pub use funder::XRPLFunder;
 pub use includer::XrplIncluder;
 pub use ingestor::XrplIngestor;
 pub use models::xrpl_transaction;
+pub use queued_tx_monitor::XrplQueuedTxMonitor;
 pub use subscriber::XrplSubscriber;
 pub use ticket_creator::XrplTicketCreator;
 pub use voting_retrier::VotingRetrier;
