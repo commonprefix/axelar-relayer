@@ -23,6 +23,21 @@ impl<DB: Database> XRPLBroadcaster<DB> {
     pub fn new(client: Arc<XRPLClient>, db: DB) -> error_stack::Result<Self, BroadcasterError> {
         Ok(XRPLBroadcaster { client, db })
     }
+
+    pub async fn handle_queued_tx(
+        &self,
+        tx: &Transaction,
+        tx_hash: &str,
+    ) -> Result<(), BroadcasterError> {
+        self.db
+            .store_queued_transaction(
+                &tx_hash,
+                &tx.common().account.to_string(),
+                tx.common().sequence as i64,
+            )
+            .await
+            .map_err(|e| BroadcasterError::GenericError(e.to_string()))
+    }
 }
 
 fn log_and_return_error(
@@ -126,20 +141,15 @@ impl<DB: Database> Broadcaster for XRPLBroadcaster<DB> {
         } else if response.engine_result == TransactionResult::terQUEUED {
             debug!("Transaction {} is queued (terQUEUED)", tx_hash);
 
-            let maybe_stored_transaction = self
-                .db
-                .store_queued_transaction(
-                    &tx_hash,
-                    &tx.common().account.to_string(),
-                    tx.common().sequence as i64,
-                )
-                .await;
+            let maybe_stored_transaction = self.handle_queued_tx(&tx, &tx_hash).await;
 
             if maybe_stored_transaction.is_err() {
                 error!(
                     "Failed to store queued transaction: {:?}",
                     maybe_stored_transaction
                 );
+            } else {
+                debug!("Successfully stored queued transaction");
             }
 
             return Ok(BroadcastResult {
@@ -174,5 +184,50 @@ impl<DB: Database> Broadcaster for XRPLBroadcaster<DB> {
                 response.engine_result, response.engine_result_message
             )))
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use relayer_base::database::MockDatabase;
+    use std::sync::Arc;
+    use xrpl_api::Transaction;
+
+    #[tokio::test]
+    async fn test_handle_queued_tx() {
+        let mut mock_db = MockDatabase::new();
+        let tx_hash = "DUMMY_HASH";
+        let account = "rDummyAccount";
+        let sequence = 123;
+
+        mock_db
+            .expect_store_queued_transaction()
+            .withf(move |h, a, s| h == tx_hash && a == account && *s == sequence)
+            .times(1)
+            .returning(|_, _, _| Box::pin(async { Ok(()) }));
+
+        let broadcaster = XRPLBroadcaster {
+            client: Arc::new(XRPLClient::new("http://dummy.url", 0).unwrap()),
+            db: mock_db,
+        };
+
+        let tx_json = format!(
+            r#"{{
+                "TransactionType": "Payment",
+                "Account": "{}",
+                "Destination": "{}",
+                "Amount": "1000",
+                "Sequence": {},
+                "Fee": "12",
+                "Flags": 2147483648
+            }}"#,
+            account, account, sequence
+        );
+        let tx: Transaction = serde_json::from_str(&tx_json).unwrap();
+
+        let result = broadcaster.handle_queued_tx(&tx, tx_hash).await;
+
+        assert!(result.is_ok());
     }
 }
