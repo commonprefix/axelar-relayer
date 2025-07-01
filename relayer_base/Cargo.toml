@@ -41,6 +41,7 @@ reqwest-middleware = { workspace = true }
 sqlx = { workspace = true }
 dotenv = { workspace = true }
 r2d2 = { workspace = true }
+mockall = { workspace = true, optional = true }
 
 [dev-dependencies]
 mockall = { workspace = true }
@@ -49,3 +50,6 @@ mockito = { workspace = true }
 [[bin]]
 name = "price_feed"
 path = "src/bin/price_feed.rs"
+
+[features]
+mocks = ["dep:mockall"]

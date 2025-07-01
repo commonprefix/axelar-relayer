@@ -27,6 +27,10 @@ testcontainers-modules = { version = "0.12.1", features = ["postgres"] }
 reqwest = "0.12.20"
 httpmock = "0.7.0"
 
+[dev-dependencies]
+relayer-base = { workspace = true, features = ["mocks"] }
+mockall = { workspace = true }
+
 [[bin]]
 name = "ton_includer"
 path = "src/bin/ton_includer.rs"
@@ -38,3 +42,4 @@ path = "src/bin/ton_distributor.rs"
 [[bin]]
 name = "ton_subscriber"
 path = "src/bin/ton_subscriber.rs"
+

@@ -7089,6 +7089,7 @@ dependencies = [
  "error-stack 0.5.0",
  "hex",
  "httpmock",
+ "mockall",
  "nacl",
  "num-bigint",
  "r2d2",

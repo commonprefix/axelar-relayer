@@ -27,7 +27,7 @@ async fn main() {
             timeout: 30,
         },
     ];
-    
+
     let client = redis::Client::open("redis://127.0.0.1/").unwrap();
     let pool = r2d2::Pool::builder().build(client).unwrap();
 

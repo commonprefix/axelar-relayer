@@ -4,22 +4,22 @@ use tonlib_client::client::{TonClient, TonClientInterface, TonConnectionParams};
 use tonlib_client::client::TonClientBuilder;
 use tonlib_client::config::TESTNET_CONFIG;
 use tonlib_core::TonAddress;
+use relayer_base::config::Config;
+use relayer_base::database::PostgresDB;
+use relayer_base::queue::Queue;
+use relayer_base::utils::setup_logging;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     dotenv().ok();
+    let network = std::env::var("NETWORK").expect("NETWORK must be set");
+    let config = Config::from_yaml(&format!("config.{}.yaml", network)).unwrap();
 
-    TonClient::set_log_verbosity_level(2);
+    let _guard = setup_logging(&config);
 
-    let client = TonClientBuilder::new().with_connection_params(&TonConnectionParams {
-        config: TESTNET_CONFIG.to_string(), blockchain_name: None, use_callbacks_for_network: false, ignore_cache: false, keystore_dir: None, ..Default::default()
-    }).with_pool_size(2).build().await?;
+    let events_queue = Queue::new(&config.queue_address, "events").await;
+    let postgres_db = PostgresDB::new(&config.postgres_url).await.unwrap();
 
-    println!("Here");
-    let address = TonAddress::from_base64_url("kQCd5sQG0Swz5pyNMZfh1a_J7GUykPQDr0oFMUq4oEfes9VM")?;
-    let state = client.get_account_state(&address).await?;
-
-    println!("MasterchainInfo: {:?}", &state);
     // let network = std::env::var("NETWORK").expect("NETWORK must be set");
     // let config = Config::from_yaml(&format!("config.{}.yaml", network)).unwrap();
     //

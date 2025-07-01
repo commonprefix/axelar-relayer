@@ -5,8 +5,8 @@ use futures::Stream;
 use serde::{Deserialize, Serialize};
 use std::{future::Future, pin::Pin, sync::Arc};
 use tracing::{debug, error, info};
-use xrpl_api::Transaction;
 use xrpl_types::AccountId;
+use crate::ton_types::TONLogEvent;
 
 pub trait TransactionListener {
     type Transaction;
@@ -45,7 +45,8 @@ pub struct Subscriber<TP: TransactionPoller> {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum ChainTransaction {
-    Xrpl(Transaction),
+    Xrpl(xrpl_api::Transaction),
+    //TON(TONLogEvent)
 }
 
 impl<TP: TransactionPoller> Subscriber<TP> {

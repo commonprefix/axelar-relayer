@@ -9,6 +9,9 @@ and broadcaster should potentially be returning a vector of BroadcastResults.
 
 # TODO
 
+- Ensure that even if we fail when sending we properly release the wallet. E.g. if POST fails, we
+should release the wallet.
+- Actually calculate approve_message_value
 - Implement refunds
 - Implement Transaction Types for TON
 - Handle multiple messages per transaction.
@@ -69,13 +72,16 @@ impl Broadcaster for TONBroadcaster {
         &self,
         tx_blob: String,
     ) -> Result<BroadcastResult<Self::Transaction>, BroadcasterError> {
-        let approve_messages = ApproveMessages::from_boc_b64(tx_blob.as_str())
+        let approve_messages = ApproveMessages::from_boc_hex(&tx_blob)
             .map_err(|e| BroadcasterError::GenericError(e.to_string()))?;
+
         let message = &approve_messages.approve_messages[0];
         let internal_message_value: BigUint = BigUint::from(self.internal_message_value);
+        let approve_message_value: BigUint = BigUint::from(2_000_000_000u32); // We will need to calculate this
+
         let actions: Vec<OutAction> = vec![out_action(
             tx_blob.as_str(),
-            internal_message_value.clone(),
+            approve_message_value.clone(),
             self.gateway_address.clone(),
         )];
         let wallet = self.wallet_manager.acquire().await.map_err(|e| {
@@ -92,6 +98,7 @@ impl Broadcaster for TONBroadcaster {
             })?;
         let outgoing_message =
             wallet.outgoing_message(actions, query_id.query_id().await, internal_message_value);
+
         let tx = outgoing_message.serialize(true).unwrap();
         let boc = general_purpose::STANDARD.encode(&tx);
         let response = self
@@ -128,6 +135,8 @@ mod tests {
     use relayer_base::includer::{BroadcastResult, Broadcaster};
     use std::str::FromStr;
     use std::sync::Arc;
+    use base64::Engine;
+    use base64::prelude::BASE64_STANDARD;
     use tonlib_core::TonAddress;
 
     struct MockTONClient;
@@ -178,7 +187,7 @@ mod tests {
             gateway_address,
             internal_message_value,
         };
-        let approve_message = "te6cckECDAEAAYsAAggAAAAoAQIBYYAAAAAAAAAAAAAAAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADf5gkADAQHABADi0LAAUYmshNOh1nWEdwB3eJHd51H6EH1kg3v2M30y32eQAAAAAAAAAAAAAAAAAAAAAQ+j+g0KWjWTaPqB9qQHuWZQn7IPz7x3xzwbprT1a85sjh0UlPlFU84LDdRcD4GZ6n6GJlEKKTlRW5QtlzKGrAsBAtAFBECeAcQjykQMXsK+7MnQoVK1T8jnpBbJMbcInq8iFgWvFwYHCAkAiDB4MTdmZDdkYTNkODE5Y2ZiYzQ2ZmYyOGYzZDgwOTgwNzcwZWMxYjgwZmQ3ZDFiMjI5Y2VjMzI1MTkzOWI5YjIzZi0xABxhdmFsYW5jaGUtZnVqaQBUMHhkNzA2N0FlM0MzNTllODM3ODkwYjI4QjdCRDBkMjA4NENmRGY0OWI1AgAKCwBAuHpKD2RLehhu5xoUVGNPcMIqYqyhprpna1F1wh1/2TAACHRvbjJLddsV";
+        let approve_message = hex::encode(BASE64_STANDARD.decode("te6cckECDAEAAYsAAggAAAAoAQIBYYAAAAAAAAAAAAAAAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADf5gkADAQHABADi0LAAUYmshNOh1nWEdwB3eJHd51H6EH1kg3v2M30y32eQAAAAAAAAAAAAAAAAAAAAAQ+j+g0KWjWTaPqB9qQHuWZQn7IPz7x3xzwbprT1a85sjh0UlPlFU84LDdRcD4GZ6n6GJlEKKTlRW5QtlzKGrAsBAtAFBECeAcQjykQMXsK+7MnQoVK1T8jnpBbJMbcInq8iFgWvFwYHCAkAiDB4MTdmZDdkYTNkODE5Y2ZiYzQ2ZmYyOGYzZDgwOTgwNzcwZWMxYjgwZmQ3ZDFiMjI5Y2VjMzI1MTkzOWI5YjIzZi0xABxhdmFsYW5jaGUtZnVqaQBUMHhkNzA2N0FlM0MzNTllODM3ODkwYjI4QjdCRDBkMjA4NENmRGY0OWI1AgAKCwBAuHpKD2RLehhu5xoUVGNPcMIqYqyhprpna1F1wh1/2TAACHRvbjJLddsV").unwrap());
 
         let res = broadcaster
             .broadcast_prover_message(approve_message.to_string())
