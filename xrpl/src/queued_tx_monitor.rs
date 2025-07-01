@@ -7,6 +7,13 @@ use xrpl_api::TxRequest;
 use xrpl_http_client;
 
 const MAX_RETRIES: i32 = 20;
+
+pub enum TxStatus {
+    Confirmed,
+    Queued,
+    Dropped,
+}
+
 pub struct XrplQueuedTxMonitor<DB: Database> {
     client: Arc<XRPLClient>,
     db: DB,
@@ -121,10 +128,4 @@ impl<DB: Database> XrplQueuedTxMonitor<DB> {
             },
         }
     }
-}
-
-pub enum TxStatus {
-    Confirmed,
-    Queued,
-    Dropped,
 }
