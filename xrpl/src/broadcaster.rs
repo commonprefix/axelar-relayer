@@ -186,16 +186,74 @@ impl<DB: Database, X: XRPLClientTrait> Broadcaster for XRPLBroadcaster<DB, X> {
 mod tests {
     use super::super::{broadcaster::XRPLBroadcaster, client::MockXRPLClientTrait};
     use relayer_base::database::MockDatabase;
+    use relayer_base::includer::Broadcaster;
+    use serde_json;
     use std::sync::Arc;
     use xrpl_api::{SubmitRequest, Transaction};
+    use xrpl_api::{SubmitResponse, TransactionResult};
+
+    // Helper function to return responses because xrpl_api does not support default.
+    // Modify accordingly for each call
+
+    fn setup_broadcast_prover_tests(
+        blob: &str,
+        result: TransactionResult,
+        account: &str,
+        sequence: i64,
+        tx_hash: &str,
+        transaction_type: &str,
+    ) -> (
+        MockDatabase,
+        MockXRPLClientTrait,
+        SubmitResponse,
+        Transaction,
+    ) {
+        let tx_json = format!(
+            r#"{{"TransactionType":"{}","Account":"{}","Destination":"{}","Amount":"1000","Sequence":{},"Fee":"12","Flags":2147483648,"Memos":[{{"Memo":{{"MemoType":"6d6573736167655f6964","MemoData":"6d6573736167655f6964","MemoFormat":"hex"}}}},{{"Memo":{{"MemoType":"736f757263655f636861696e","MemoData":"737263","MemoFormat":"hex"}}}}],"hash":"{}"}}"#,
+            transaction_type, account, account, sequence, tx_hash
+        );
+        let tx: Transaction = serde_json::from_str(&tx_json).unwrap();
+        let mock_db = MockDatabase::new();
+        let mock_client = MockXRPLClientTrait::default();
+        let fake_response = client_response(&tx, blob, result);
+        (mock_db, mock_client, fake_response, tx)
+    }
+
+    fn client_response(tx: &Transaction, blob: &str, result: TransactionResult) -> SubmitResponse {
+        SubmitResponse {
+            engine_result: result,
+            engine_result_code: 0,
+            engine_result_message: String::new(),
+            tx_blob: blob.to_string(),
+            tx_json: tx.clone(),
+            accepted: false,
+            account_sequence_available: 0,
+            account_sequence_next: 0,
+            applied: false,
+            broadcast: false,
+            kept: false,
+            queued: result == TransactionResult::terQUEUED,
+            open_ledger_cost: String::new(),
+            validated_ledger_index: 0,
+        }
+    }
 
     #[tokio::test]
     async fn test_handle_queued_tx() {
-        let mut mock_db = MockDatabase::new();
-        let mut mock_client = MockXRPLClientTrait::default();
         let tx_hash = "DUMMY_HASH";
         let account = "rDummyAccount";
-        let sequence = 123;
+        let sequence: i64 = 123;
+        let blob = "blob";
+        let transaction_type = "Payment";
+
+        let (mut mock_db, mut mock_client, _fake_response, tx) = setup_broadcast_prover_tests(
+            blob,
+            TransactionResult::terQUEUED,
+            account,
+            sequence,
+            tx_hash,
+            transaction_type,
+        );
 
         mock_db
             .expect_store_queued_transaction()
@@ -210,22 +268,190 @@ mod tests {
             db: mock_db,
         };
 
-        let tx_json = format!(
-            r#"{{
-                "TransactionType": "Payment",
-                "Account": "{}",
-                "Destination": "{}",
-                "Amount": "1000",
-                "Sequence": {},
-                "Fee": "12",
-                "Flags": 2147483648
-            }}"#,
-            account, account, sequence
-        );
-        let tx: Transaction = serde_json::from_str(&tx_json).unwrap();
-
         let result = broadcaster.handle_queued_tx(&tx, tx_hash).await;
 
         assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_broadcast_prover_message_ter_queued() {
+        let tx_hash = "DUMMY_HASH";
+        let account = "rDummyAccount";
+        let sequence: i64 = 123;
+        let blob = "blob";
+        let transaction_type = "Payment";
+        let (mut mock_db, mut mock_client, fake_response, tx) = setup_broadcast_prover_tests(
+            blob,
+            TransactionResult::terQUEUED,
+            account,
+            sequence,
+            tx_hash,
+            transaction_type,
+        );
+
+        mock_client
+            .expect_call::<SubmitRequest>()
+            .times(1)
+            .returning(move |_| Ok(fake_response.clone()));
+
+        mock_db
+            .expect_store_queued_transaction()
+            .withf(move |h, a, s| h == tx_hash && a == account && *s == sequence as i64)
+            .times(1)
+            .returning(|_, _, _| Box::pin(async move { Ok(()) }));
+
+        let broadcaster = XRPLBroadcaster {
+            client: Arc::new(mock_client),
+            db: mock_db,
+        };
+
+        let broadcast_result = broadcaster
+            .broadcast_prover_message(blob.to_string())
+            .await
+            .unwrap();
+
+        assert!(broadcast_result.status.is_ok());
+        assert_eq!(broadcast_result.tx_hash, tx_hash.to_string());
+        assert_eq!(broadcast_result.transaction, tx);
+    }
+
+    #[tokio::test]
+    async fn test_broadcast_prover_message_ticket_create_tef_past_seq() {
+        let tx_hash = "DUMMY_HASH";
+        let account = "rDummyAccount";
+        let sequence: i64 = 123;
+        let blob = "blob";
+        let transaction_type = "TicketCreate";
+        let (mock_db, mut mock_client, fake_response, tx) = setup_broadcast_prover_tests(
+            blob,
+            TransactionResult::tefPAST_SEQ,
+            account,
+            sequence,
+            tx_hash,
+            transaction_type,
+        );
+
+        mock_client
+            .expect_call::<SubmitRequest>()
+            .times(1)
+            .returning(move |_| Ok(fake_response.clone()));
+
+        let broadcaster = XRPLBroadcaster {
+            client: Arc::new(mock_client),
+            db: mock_db,
+        };
+
+        let broadcast_result = broadcaster
+            .broadcast_prover_message(blob.to_string())
+            .await
+            .unwrap();
+
+        assert!(broadcast_result.status.is_ok());
+        assert_eq!(broadcast_result.tx_hash, tx_hash.to_string());
+        assert_eq!(broadcast_result.transaction, tx);
+    }
+
+    // all tes should return OK
+    #[tokio::test]
+    async fn test_broadcast_prover_message_tes_success() {
+        let tx_hash = "DUMMY_HASH";
+        let account = "rDummyAccount";
+        let sequence: i64 = 123;
+        let blob = "blob";
+        let transaction_type = "Payment";
+        let (mock_db, mut mock_client, fake_response, _tx) = setup_broadcast_prover_tests(
+            blob,
+            TransactionResult::tesSUCCESS,
+            account,
+            sequence,
+            tx_hash,
+            transaction_type,
+        );
+
+        mock_client
+            .expect_call::<SubmitRequest>()
+            .times(1)
+            .returning(move |_| Ok(fake_response.clone()));
+
+        let broadcaster = XRPLBroadcaster {
+            client: Arc::new(mock_client),
+            db: mock_db,
+        };
+
+        let broadcast_result: relayer_base::includer::BroadcastResult<Transaction> = broadcaster
+            .broadcast_prover_message(blob.to_string())
+            .await
+            .unwrap();
+
+        assert!(broadcast_result.status.is_ok());
+    }
+
+    // all tec should return OK
+    #[tokio::test]
+    async fn test_broadcast_prover_message_tec_internal() {
+        let tx_hash = "DUMMY_HASH";
+        let account = "rDummyAccount";
+        let sequence: i64 = 123;
+        let blob = "blob";
+        let transaction_type = "Payment";
+        let (mock_db, mut mock_client, fake_response, _tx) = setup_broadcast_prover_tests(
+            blob,
+            TransactionResult::tecINTERNAL,
+            account,
+            sequence,
+            tx_hash,
+            transaction_type,
+        );
+
+        mock_client
+            .expect_call::<SubmitRequest>()
+            .times(1)
+            .returning(move |_| Ok(fake_response.clone()));
+
+        let broadcaster = XRPLBroadcaster {
+            client: Arc::new(mock_client),
+            db: mock_db,
+        };
+
+        let broadcast_result = broadcaster
+            .broadcast_prover_message(blob.to_string())
+            .await
+            .unwrap();
+
+        assert!(broadcast_result.status.is_ok());
+    }
+
+    // other ter cases (other than terQUEUED) should return error
+    #[tokio::test]
+    async fn test_broadcast_prover_message_ter_no_auth() {
+        let tx_hash = "DUMMY_HASH";
+        let account = "rDummyAccount";
+        let sequence: i64 = 123;
+        let blob = "blob";
+        let transaction_type = "Payment";
+        let (mock_db, mut mock_client, fake_response, _tx) = setup_broadcast_prover_tests(
+            blob,
+            TransactionResult::terNO_AUTH,
+            account,
+            sequence,
+            tx_hash,
+            transaction_type,
+        );
+
+        mock_client
+            .expect_call::<SubmitRequest>()
+            .times(1)
+            .returning(move |_| Ok(fake_response.clone()));
+
+        let broadcaster = XRPLBroadcaster {
+            client: Arc::new(mock_client),
+            db: mock_db,
+        };
+
+        let result = broadcaster.broadcast_prover_message(blob.to_string()).await;
+        assert!(result.is_ok());
+
+        let broadcast_result = result.unwrap();
+        assert!(broadcast_result.status.is_err());
     }
 }
