@@ -38,6 +38,7 @@ regex = { workspace = true }
 
 [dev-dependencies]
 relayer-base = { workspace = true, features = ["mocks"] }
+mockall = { workspace = true }
 
 [[bin]]
 name = "xrpl_ingestor"

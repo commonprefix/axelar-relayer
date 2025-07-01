@@ -5,7 +5,9 @@ use relayer_base::{
     includer::Includer, payload_cache::PayloadCache, queue::Queue,
 };
 
-use super::{broadcaster::XRPLBroadcaster, client::XRPLClient, refund_manager::XRPLRefundManager};
+use crate::client::XRPLClientTrait;
+
+use super::{broadcaster::XRPLBroadcaster, refund_manager::XRPLRefundManager};
 
 use error_stack;
 use r2d2;
@@ -14,7 +16,7 @@ pub struct XrplIncluder {}
 
 impl XrplIncluder {
     #[allow(clippy::new_ret_no_self)]
-    pub async fn new<DB: Database>(
+    pub async fn new<X: XRPLClientTrait, DB: Database>(
         config: Config,
         gmp_api: Arc<GmpApi>,
         redis_pool: r2d2::Pool<redis::Client>,
@@ -22,11 +24,11 @@ impl XrplIncluder {
         construct_proof_queue: Arc<Queue>,
         db: DB,
     ) -> error_stack::Result<
-        Includer<XRPLBroadcaster<DB>, Arc<XRPLClient>, XRPLRefundManager, DB>,
+        Includer<XRPLBroadcaster<DB, X>, Arc<X>, XRPLRefundManager<X>, DB>,
         BroadcasterError,
     > {
         let client =
-            Arc::new(XRPLClient::new(config.xrpl_rpc.as_str(), 3).map_err(|e| {
+            Arc::new(X::new(config.xrpl_rpc.as_str(), 3).map_err(|e| {
                 error_stack::report!(BroadcasterError::GenericError(e.to_string()))
             })?);
 

@@ -12,15 +12,15 @@ use relayer_base::{
     utils::extract_hex_xrpl_memo,
 };
 
-use super::client::XRPLClient;
+use super::client::XRPLClientTrait;
 
-pub struct XRPLBroadcaster<DB: Database> {
-    client: Arc<XRPLClient>,
+pub struct XRPLBroadcaster<DB: Database, X: XRPLClientTrait> {
+    client: Arc<X>,
     db: DB,
 }
 
-impl<DB: Database> XRPLBroadcaster<DB> {
-    pub fn new(client: Arc<XRPLClient>, db: DB) -> error_stack::Result<Self, BroadcasterError> {
+impl<DB: Database, X: XRPLClientTrait> XRPLBroadcaster<DB, X> {
+    pub fn new(client: Arc<X>, db: DB) -> error_stack::Result<Self, BroadcasterError> {
         Ok(XRPLBroadcaster { client, db })
     }
 
@@ -65,7 +65,7 @@ fn log_and_return_error(
     })
 }
 
-impl<DB: Database> Broadcaster for XRPLBroadcaster<DB> {
+impl<DB: Database, X: XRPLClientTrait> Broadcaster for XRPLBroadcaster<DB, X> {
     type Transaction = Transaction;
 
     async fn broadcast_prover_message(
@@ -184,7 +184,10 @@ impl<DB: Database> Broadcaster for XRPLBroadcaster<DB> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::super::{
+        broadcaster::XRPLBroadcaster,
+        client::{XRPLClient, XRPLClientTrait},
+    };
     use relayer_base::database::MockDatabase;
     use std::sync::Arc;
     use xrpl_api::Transaction;

@@ -5,7 +5,7 @@ use relayer_base::{
     utils::{setup_heartbeat, setup_logging},
 };
 use tracing::{debug, error};
-use xrpl::client::XRPLClient;
+use xrpl::client::{XRPLClient, XRPLClientTrait};
 use xrpl_api::Ticket;
 use xrpl_types::AccountId;
 

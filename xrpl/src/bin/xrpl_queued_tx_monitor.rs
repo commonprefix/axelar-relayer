@@ -7,7 +7,10 @@ use relayer_base::{
     database::PostgresDB,
     utils::{setup_heartbeat, setup_logging},
 };
-use xrpl::{client::XRPLClient, queued_tx_monitor::XrplQueuedTxMonitor};
+use xrpl::{
+    client::{XRPLClient, XRPLClientTrait},
+    queued_tx_monitor::XrplQueuedTxMonitor,
+};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {

@@ -4,21 +4,21 @@ use xrpl_api::{AccountInfoRequest, Amount};
 
 use relayer_base::config::Config;
 
-use super::client::XRPLClient;
+use crate::client::XRPLClientTrait;
 
 const XRP_TOPUP_AMOUNT: u64 = 1000;
 const BALANCE_THRESHOLD: f64 = 500_000_000.0; // = 500 XRP
 
-pub struct XRPLFunder {
+pub struct XRPLFunder<X: XRPLClientTrait> {
     request_client: Client,
-    xrpl_client: XRPLClient,
+    xrpl_client: X,
     config: Config,
 }
 
-impl XRPLFunder {
+impl<X: XRPLClientTrait> XRPLFunder<X> {
     pub fn new(config: Config) -> Self {
         let request_client = Client::new();
-        let xrpl_client = XRPLClient::new(&config.xrpl_rpc, 3).unwrap();
+        let xrpl_client = X::new(&config.xrpl_rpc, 3).unwrap();
         Self {
             request_client,
             xrpl_client,

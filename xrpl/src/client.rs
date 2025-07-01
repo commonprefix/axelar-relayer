@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::{future::Future, time::Duration};
 
 use anyhow::anyhow;
 use serde::{de::DeserializeOwned, Serialize};
@@ -13,20 +13,63 @@ use relayer_base::error::ClientError;
 use xrpl_http_client;
 
 const DEFAULT_RPC_TIMEOUT: Duration = Duration::from_secs(3);
+
+//#[cfg_attr(any(test, feature = "mocks"), mockall::automock)]
+
+pub trait XRPLClientTrait {
+    fn inner(&self) -> &xrpl_http_client::Client;
+    fn new(url: &str, max_retries: usize) -> Result<Self, ClientError>
+    where
+        Self: Sized;
+    fn call<Req>(
+        &self,
+        request: Req,
+    ) -> impl Future<Output = Result<Req::Response, xrpl_http_client::error::Error>>
+    where
+        Req: Request + Serialize + std::fmt::Debug + std::clone::Clone,
+        Req::Response: DeserializeOwned;
+    fn get_transaction_by_id(
+        &self,
+        tx_id: String,
+    ) -> impl Future<Output = Result<Transaction, anyhow::Error>>;
+    fn get_transactions_for_account(
+        &self,
+        account: &AccountId,
+        ledger_index_min: u32,
+    ) -> impl Future<Output = Result<Vec<Transaction>, anyhow::Error>>;
+    fn get_available_tickets_for_account(
+        &self,
+        account: &AccountId,
+    ) -> impl Future<Output = Result<Vec<Ticket>, anyhow::Error>>;
+}
+
 pub struct XRPLClient {
     client: xrpl_http_client::Client,
     max_retries: usize,
 }
 
-impl XRPLClient {
-    pub fn inner(&self) -> &xrpl_http_client::Client {
+impl XRPLClientTrait for XRPLClient {
+    fn inner(&self) -> &xrpl_http_client::Client {
         &self.client
     }
 
-    pub async fn call<Req>(
-        &self,
-        request: Req,
-    ) -> Result<Req::Response, xrpl_http_client::error::Error>
+    fn new(url: &str, max_retries: usize) -> Result<Self, ClientError> {
+        let http_client = reqwest::ClientBuilder::new()
+            .connect_timeout(DEFAULT_RPC_TIMEOUT)
+            .timeout(DEFAULT_RPC_TIMEOUT)
+            .build()
+            .map_err(|e| ClientError::ConnectionFailed(e.to_string()))?;
+
+        Ok(Self {
+            client: xrpl_http_client::Client::builder()
+                .base_url(url)
+                .http_client(http_client)
+                .build(),
+            max_retries,
+        })
+    }
+
+    async fn call<Req>(&self, request: Req) -> Result<Req::Response, xrpl_http_client::error::Error>
     where
         Req: Request + Serialize + std::fmt::Debug + std::clone::Clone,
         Req::Response: DeserializeOwned,
@@ -59,30 +102,14 @@ impl XRPLClient {
         }
     }
 
-    pub fn new(url: &str, max_retries: usize) -> Result<Self, ClientError> {
-        let http_client = reqwest::ClientBuilder::new()
-            .connect_timeout(DEFAULT_RPC_TIMEOUT)
-            .timeout(DEFAULT_RPC_TIMEOUT)
-            .build()
-            .map_err(|e| ClientError::ConnectionFailed(e.to_string()))?;
-
-        Ok(Self {
-            client: xrpl_http_client::Client::builder()
-                .base_url(url)
-                .http_client(http_client)
-                .build(),
-            max_retries,
-        })
-    }
-
-    pub async fn get_transaction_by_id(&self, tx_id: String) -> Result<Transaction, anyhow::Error> {
+    async fn get_transaction_by_id(&self, tx_id: String) -> Result<Transaction, anyhow::Error> {
         let request = xrpl_api::TxRequest::new(&tx_id);
         let res = self.call(request).await;
         let response = res.map_err(|e| anyhow!("Error getting txs: {:?}", e.to_string()))?;
         Ok(response.tx.clone())
     }
 
-    pub async fn get_transactions_for_account(
+    async fn get_transactions_for_account(
         &self,
         account: &AccountId,
         ledger_index_min: u32,
@@ -121,7 +148,7 @@ impl XRPLClient {
         Ok(all_transactions)
     }
 
-    pub async fn get_available_tickets_for_account(
+    async fn get_available_tickets_for_account(
         &self,
         account: &AccountId,
     ) -> Result<Vec<Ticket>, anyhow::Error> {

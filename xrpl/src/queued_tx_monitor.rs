@@ -1,4 +1,5 @@
-use super::client::XRPLClient;
+use crate::client::XRPLClientTrait;
+
 use relayer_base::{database::Database, error::QueuedTxMonitorError};
 use std::sync::Arc;
 use std::time::Duration;
@@ -14,13 +15,13 @@ pub enum TxStatus {
     Dropped,
 }
 
-pub struct XrplQueuedTxMonitor<DB: Database> {
-    client: Arc<XRPLClient>,
+pub struct XrplQueuedTxMonitor<DB: Database, X: XRPLClientTrait> {
+    client: Arc<X>,
     db: DB,
 }
 
-impl<DB: Database> XrplQueuedTxMonitor<DB> {
-    pub fn new(client: Arc<XRPLClient>, db: DB) -> Self {
+impl<DB: Database, X: XRPLClientTrait> XrplQueuedTxMonitor<DB, X> {
+    pub fn new(client: Arc<X>, db: DB) -> Self {
         Self { client, db }
     }
 

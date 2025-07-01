@@ -9,18 +9,18 @@ use relayer_base::{
     subscriber::{ChainTransaction, TransactionPoller},
 };
 
-use super::client::XRPLClient;
+use crate::client::XRPLClientTrait;
 
-pub struct XrplSubscriber<DB: Database> {
-    client: XRPLClient,
+pub struct XrplSubscriber<DB: Database, X: XRPLClientTrait> {
+    client: X,
     latest_ledger: i64,
     db: DB,
     context: String,
 }
 
-impl<DB: Database> XrplSubscriber<DB> {
+impl<DB: Database, X: XRPLClientTrait> XrplSubscriber<DB, X> {
     pub async fn new(url: &str, db: DB, context: String) -> Result<Self, SubscriberError> {
-        let client = XRPLClient::new(url, 3).unwrap();
+        let client = X::new(url, 3).unwrap();
 
         let latest_ledger = db
             .get_latest_height("xrpl", &context)
@@ -50,7 +50,7 @@ impl<DB: Database> XrplSubscriber<DB> {
     }
 }
 
-impl<DB: Database> TransactionPoller for XrplSubscriber<DB> {
+impl<DB: Database, X: XRPLClientTrait> TransactionPoller for XrplSubscriber<DB, X> {
     type Transaction = Transaction;
 
     fn make_queue_item(&mut self, tx: Self::Transaction) -> ChainTransaction {
