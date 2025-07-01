@@ -1119,6 +1119,11 @@ impl<DB: Database> IngestorTrait for XrplIngestor<DB> {
         match tx.clone() {
             Transaction::Payment(payment) => {
                 if payment.destination == self.config.xrpl_multisig {
+                    if payment.common.memos.is_none() {
+                        debug!("Skipping payment without memos: {:?}", payment);
+                        return Ok(vec![]);
+                    }
+
                     self.handle_payment(payment).await
                 } else if payment.common.account == self.config.xrpl_multisig {
                     // prover message
