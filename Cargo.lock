@@ -6752,6 +6752,7 @@ dependencies = [
  "hex",
  "interchain-token-service 1.1.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl)",
  "libsecp256k1",
+ "mockall",
  "r2d2",
  "rand 0.9.1",
  "redis",
