@@ -178,7 +178,6 @@ impl Database for PostgresDB {
         }
     }
 
-    // TODO: Logic of this query requires some testing
     async fn get_queued_transactions_ready_for_check(&self) -> Result<Vec<QueuedTransaction>> {
         let query = "SELECT tx_hash, retries FROM xrpl_queued_transactions 
                      WHERE status = 'queued'
