@@ -63,7 +63,7 @@ impl<DB: Database> TransactionPoller for XrplSubscriber<DB> {
     ) -> Result<Vec<Self::Transaction>, anyhow::Error> {
         let transactions = self
             .client
-            .get_transactions_for_account(&account_id, self.latest_ledger as u32 + 1)
+            .get_transactions_for_account(&account_id, (self.latest_ledger + 1) as u32)
             .await?;
 
         let max_response_ledger = transactions
