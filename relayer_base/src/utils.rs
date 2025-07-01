@@ -980,4 +980,37 @@ mod tests {
         let payment_amount = parse_payment_amount(&payment);
         assert!(payment_amount.is_err());
     }
+
+    #[test]
+    fn test_parse_payment_amount_default() {
+        // Default amount is 0 drops
+        let payment = PaymentTransaction {
+            ..Default::default()
+        };
+        let payment_amount = parse_payment_amount(&payment);
+        assert!(payment_amount.is_ok());
+        let unwrapped_payment_amount = payment_amount.unwrap();
+        if let XRPLPaymentAmount::Drops(amount) = unwrapped_payment_amount {
+            assert_eq!(amount, 0);
+        } else {
+            panic!("Expected XRPLPaymentAmount::Drops variant");
+        }
+    }
+
+    // #[tokio::test]
+    // async fn test_xrpl_tx_from_hash() {
+    //     let client = xrpl_http_client::Client::new();
+    //     //let tx_hash = HexTxHash::new([0; 32]); // some real hash
+    //     let tx_hash = HexTxHash::from_str(
+    //         "0x17b62f3c5e71ed438bbb95b79673bde4479966a2f491ed1f060c5fcdecf8a915",
+    //     )
+    //     .unwrap();
+    //     let tx = xrpl_tx_from_hash(tx_hash.clone(), &client).await;
+    //     assert!(tx.is_ok());
+    //     let tx = tx.unwrap();
+    //     assert_eq!(
+    //         tx.common().hash,
+    //         Some(tx_hash.tx_hash_as_hex_no_prefix().to_string())
+    //     );
+    // }
 }
