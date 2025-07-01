@@ -1386,9 +1386,16 @@ impl<DB: Database> IngestorTrait for XrplIngestor<DB> {
     }
 
     async fn handle_retriable_task(&self, task: RetryTask) -> Result<(), IngestorError> {
-        let message_id = message_id_from_retry_task(task.clone()).map_err(|e| {
+        let message_id = match message_id_from_retry_task(task.clone()).map_err(|e| {
             IngestorError::GenericError(format!("Failed to get message id from retry task: {}", e))
-        })?;
+        })? {
+            Some(message_id) => message_id,
+            None => {
+                debug!("Skipping retry task without message id: {:?}", task);
+                return Ok(());
+            }
+        };
+
         let request_payload = task.request_payload();
         let invoked_contract_address = task.invoked_contract_address();
 

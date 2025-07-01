@@ -1,13 +1,13 @@
 use relayer_base::gmp_api::gmp_types::RetryTask;
 
-pub fn message_id_from_retry_task(task: RetryTask) -> Result<String, anyhow::Error> {
+pub fn message_id_from_retry_task(task: RetryTask) -> Result<Option<String>, anyhow::Error> {
     match task {
         RetryTask::ReactToRetriablePoll(task) => {
             let message: xrpl_gateway::msg::ExecuteMsg =
                 serde_json::from_str(&task.task.request_payload)?;
             if let xrpl_gateway::msg::ExecuteMsg::VerifyMessages(messages) = message {
                 let tx_id = messages[0].tx_id().tx_hash_as_hex_no_prefix();
-                Ok(tx_id.to_string())
+                Ok(Some(tx_id.to_string()))
             } else {
                 Err(anyhow::anyhow!("Unknown payload: {:?}", message))
             }
@@ -16,7 +16,9 @@ pub fn message_id_from_retry_task(task: RetryTask) -> Result<String, anyhow::Err
             let message: xrpl_multisig_prover::msg::ExecuteMsg =
                 serde_json::from_str(&task.task.request_payload)?;
             if let xrpl_multisig_prover::msg::ExecuteMsg::ConstructProof { cc_id, .. } = message {
-                Ok(cc_id.to_string())
+                Ok(Some(cc_id.to_string()))
+            } else if let xrpl_multisig_prover::msg::ExecuteMsg::TicketCreate = message {
+                Ok(None)
             } else {
                 Err(anyhow::anyhow!("Unknown payload: {:?}", message))
             }
@@ -66,8 +68,32 @@ mod test {
         .unwrap();
         assert_eq!(
             message_id,
-            "axelar_0xb8ecb910c92c4937c548b7b1fe63c512d8f68743d41bfb539ca181999736d597-98806061"
+            Some("axelar_0xb8ecb910c92c4937c548b7b1fe63c512d8f68743d41bfb539ca181999736d597-98806061".to_string())
         );
+    }
+
+    #[test]
+    fn message_id_from_expired_ticket_create_task() {
+        let task_str = r#"{
+            "id": "0197159e-a704-7cce-b89b-e7eba3e9d7d7",
+            "chain": "xrpl",
+            "timestamp": "2025-05-28T06:40:08.453075Z",
+            "type": "REACT_TO_EXPIRED_SIGNING_SESSION",
+            "meta": null,
+            "task": {
+                "sessionID": 874302,
+                "broadcastID": "01971594-4e05-7ef5-869f-716616729956",
+                "invokedContractAddress": "axelar1k82qfzu3l6rvc7twlp9lpwsnav507czl6xyrk0xv287t4439ymvsl6n470",
+                "requestPayload": "\"ticket_create\""
+            }
+        }"#;
+
+        let task: ReactToExpiredSigningSessionTask = serde_json::from_str(task_str).unwrap();
+        let message_id = message_id_from_retry_task(
+            gmp_api::gmp_types::RetryTask::ReactToExpiredSigningSession(task.clone()),
+        )
+        .unwrap();
+        assert_eq!(message_id, None);
     }
 
     #[test]
@@ -108,7 +134,7 @@ mod test {
         .unwrap();
         assert_eq!(
             message_id,
-            "5fa140ff4b90c83df9fdfdc81595bd134f41d929694eedb15cf7fd1c511e8025"
+            Some("5fa140ff4b90c83df9fdfdc81595bd134f41d929694eedb15cf7fd1c511e8025".to_string())
         );
     }
 }
