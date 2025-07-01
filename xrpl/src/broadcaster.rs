@@ -31,7 +31,7 @@ impl<DB: Database, X: XRPLClientTrait> XRPLBroadcaster<DB, X> {
     ) -> Result<(), BroadcasterError> {
         self.db
             .store_queued_transaction(
-                &tx_hash,
+                tx_hash,
                 &tx.common().account.to_string(),
                 tx.common().sequence as i64,
             )
@@ -184,17 +184,15 @@ impl<DB: Database, X: XRPLClientTrait> Broadcaster for XRPLBroadcaster<DB, X> {
 
 #[cfg(test)]
 mod tests {
-    use super::super::{
-        broadcaster::XRPLBroadcaster,
-        client::{XRPLClient, XRPLClientTrait},
-    };
+    use super::super::{broadcaster::XRPLBroadcaster, client::MockXRPLClientTrait};
     use relayer_base::database::MockDatabase;
     use std::sync::Arc;
-    use xrpl_api::Transaction;
+    use xrpl_api::{SubmitRequest, Transaction};
 
     #[tokio::test]
     async fn test_handle_queued_tx() {
         let mut mock_db = MockDatabase::new();
+        let mut mock_client = MockXRPLClientTrait::default();
         let tx_hash = "DUMMY_HASH";
         let account = "rDummyAccount";
         let sequence = 123;
@@ -205,8 +203,10 @@ mod tests {
             .times(1)
             .returning(|_, _, _| Box::pin(async { Ok(()) }));
 
+        mock_client.expect_call::<SubmitRequest>().never();
+
         let broadcaster = XRPLBroadcaster {
-            client: Arc::new(XRPLClient::new("http://dummy.url", 0).unwrap()),
+            client: Arc::new(mock_client),
             db: mock_db,
         };
 
