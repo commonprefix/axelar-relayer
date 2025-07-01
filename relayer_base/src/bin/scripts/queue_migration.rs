@@ -1,11 +1,7 @@
 use anyhow::Result;
 use dotenv::dotenv;
 use futures::StreamExt;
-use lapin::{
-    options::{BasicAckOptions, BasicConsumeOptions, BasicPublishOptions},
-    types::FieldTable,
-    BasicProperties, Channel, Connection, ConnectionProperties,
-};
+use lapin::options::BasicAckOptions;
 use relayer_base::{
     config::Config,
     gmp_api::gmp_types::TaskKind,

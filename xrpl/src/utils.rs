@@ -21,7 +21,6 @@ pub fn message_id_from_retry_task(task: RetryTask) -> Result<String, anyhow::Err
                 Err(anyhow::anyhow!("Unknown payload: {:?}", message))
             }
         }
-        _ => Err(anyhow::anyhow!("Irrelevant task")),
     }
 }
 
