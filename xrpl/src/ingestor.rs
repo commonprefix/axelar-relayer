@@ -48,7 +48,7 @@ use xrpl_gateway::msg::{CallContract, InterchainTransfer, MessageWithPayload};
 use crate::utils::message_id_from_retry_task;
 use crate::xrpl_transaction::{PgXrplTransactionModel, XrplTransaction, XrplTransactionStatus};
 
-const MAX_TASK_RETRIES: i64 = 5;
+const MAX_TASK_RETRIES: i32 = 5;
 
 pub struct XrplIngestorModels {
     pub xrpl_transaction_model: PgXrplTransactionModel,
