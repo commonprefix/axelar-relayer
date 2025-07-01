@@ -6,7 +6,7 @@ use sqlx::PgPool;
 #[derive(Debug, Serialize, Deserialize, Clone, sqlx::FromRow)]
 pub struct TaskRetries {
     pub message_id: String,
-    pub retries: i64,
+    pub retries: i32,
     pub updated_at: chrono::DateTime<chrono::Utc>,
 }
 
