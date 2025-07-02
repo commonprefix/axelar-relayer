@@ -97,10 +97,11 @@ impl XrplTransaction {
 
         // Get message type from memos
         let memos = common.memos.clone();
-        let message_type_str =
-            extract_and_decode_memo(&memos, "type").map_err(|e| anyhow::anyhow!(e.to_string()))?;
-        let message_type: Option<XRPLMessageType> =
-            serde_json::from_str(&format!("\"{}\"", message_type_str)).ok();
+        let message_type: Option<XRPLMessageType> = extract_and_decode_memo(&memos, "type")
+            .ok()
+            .and_then(|message_type_str| {
+                serde_json::from_str(&format!("\"{}\"", message_type_str)).ok()
+            });
 
         Ok(XrplTransaction {
             tx_hash: tx_hash.clone(),

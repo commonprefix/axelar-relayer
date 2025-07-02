@@ -5,17 +5,18 @@ use futures::Stream;
 use serde::{Deserialize, Serialize};
 use std::{future::Future, pin::Pin, sync::Arc};
 use tracing::{debug, error, info};
-use xrpl_types::AccountId;
 use crate::ton_types::TONLogEvent;
+use xrpl_api::Transaction;
 
 pub trait TransactionListener {
     type Transaction;
+    type Account;
 
-    fn subscribe(&mut self, account: AccountId) -> impl Future<Output = Result<(), anyhow::Error>>;
+    fn subscribe(&mut self, account: Self::Account) -> impl Future<Output = Result<(), anyhow::Error>>;
 
     fn unsubscribe(
         &mut self,
-        accounts: AccountId,
+        accounts: Self::Account,
     ) -> impl Future<Output = Result<(), anyhow::Error>>;
 
     fn transaction_stream(
@@ -25,12 +26,13 @@ pub trait TransactionListener {
 
 pub trait TransactionPoller {
     type Transaction;
+    type Account;
 
     fn make_queue_item(&mut self, tx: Self::Transaction) -> ChainTransaction;
 
     fn poll_account(
         &mut self,
-        account: AccountId,
+        account: Self::Account,
     ) -> impl Future<Output = Result<Vec<Self::Transaction>, anyhow::Error>>;
 
     fn poll_tx(
@@ -49,16 +51,18 @@ pub enum ChainTransaction {
     //TON(TONLogEvent)
 }
 
-impl<TP: TransactionPoller> Subscriber<TP> {
+impl<TP: TransactionPoller> Subscriber<TP>
+where TP::Account: Clone
+{
     pub fn new(transaction_poller: TP) -> Self {
         Self { transaction_poller }
     }
 
-    async fn work(&mut self, account: String, queue: Arc<Queue>) {
+    async fn work(&mut self, account: TP::Account, queue: Arc<Queue>) {
         // no match, just call poll_account
         let res = self
             .transaction_poller
-            .poll_account(AccountId::from_address(&account).unwrap())
+            .poll_account(account)
             .await;
         match res {
             Ok(txs) => {
@@ -78,7 +82,7 @@ impl<TP: TransactionPoller> Subscriber<TP> {
         tokio::time::sleep(tokio::time::Duration::from_secs(2)).await
     }
 
-    pub async fn run(&mut self, account: String, queue: Arc<Queue>) {
+    pub async fn run(&mut self, account: TP::Account, queue: Arc<Queue>) {
         loop {
             self.work(account.clone(), queue.clone()).await;
         }

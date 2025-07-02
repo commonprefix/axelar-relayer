@@ -51,5 +51,9 @@ mockito = { workspace = true }
 name = "price_feed"
 path = "src/bin/price_feed.rs"
 
+[[bin]]
+name = "queue_migration"
+path = "src/bin/scripts/queue_migration.rs"
+
 [features]
 mocks = ["dep:mockall"]

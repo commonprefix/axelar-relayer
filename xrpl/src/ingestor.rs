@@ -48,7 +48,7 @@ use xrpl_gateway::msg::{CallContract, InterchainTransfer, MessageWithPayload};
 use crate::utils::message_id_from_retry_task;
 use crate::xrpl_transaction::{PgXrplTransactionModel, XrplTransaction, XrplTransactionStatus};
 
-const MAX_TASK_RETRIES: i64 = 5;
+const MAX_TASK_RETRIES: i32 = 5;
 
 pub struct XrplIngestorModels {
     pub xrpl_transaction_model: PgXrplTransactionModel,
@@ -1119,6 +1119,11 @@ impl<DB: Database> IngestorTrait for XrplIngestor<DB> {
         match tx.clone() {
             Transaction::Payment(payment) => {
                 if payment.destination == self.config.xrpl_multisig {
+                    if payment.common.memos.is_none() {
+                        debug!("Skipping payment without memos: {:?}", payment);
+                        return Ok(vec![]);
+                    }
+
                     self.handle_payment(payment).await
                 } else if payment.common.account == self.config.xrpl_multisig {
                     // prover message
@@ -1381,9 +1386,16 @@ impl<DB: Database> IngestorTrait for XrplIngestor<DB> {
     }
 
     async fn handle_retriable_task(&self, task: RetryTask) -> Result<(), IngestorError> {
-        let message_id = message_id_from_retry_task(task.clone()).map_err(|e| {
+        let message_id = match message_id_from_retry_task(task.clone()).map_err(|e| {
             IngestorError::GenericError(format!("Failed to get message id from retry task: {}", e))
-        })?;
+        })? {
+            Some(message_id) => message_id,
+            None => {
+                debug!("Skipping retry task without message id: {:?}", task);
+                return Ok(());
+            }
+        };
+
         let request_payload = task.request_payload();
         let invoked_contract_address = task.invoked_contract_address();
 

@@ -39,7 +39,7 @@ async fn main() -> anyhow::Result<()> {
     tokio::select! {
         _ = sigint.recv()  => {},
         _ = sigterm.recv() => {},
-        _ = subscriber.run(account.to_address(), events_queue.clone()) => {},
+        _ = subscriber.run(account, events_queue.clone()) => {},
     }
 
     events_queue.close().await;
