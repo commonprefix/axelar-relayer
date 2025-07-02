@@ -252,7 +252,7 @@ pub struct CommonEventFields<T> {
     pub meta: Option<T>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[derive(Default, Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct TaskMetadata {
     #[serde(rename = "txID")]
     pub tx_id: Option<String>,
