@@ -68,7 +68,7 @@ pub struct Config {
     pub price_feed: PriceFeedConfig,
     pub refunds_enabled: bool,
     pub demo_tokens_rate: HashMap<String, f64>,
-    pub xrpl_relayer_sentry_dsn: String, // Should probably be renamed
+    pub sentry_dsn: String,
     pub axelar_contracts: AxelarContracts,
 }
 
@@ -105,16 +105,14 @@ mod tests {
     use std::path::Path;
 
     #[derive(Debug, Clone, Deserialize, Default)]
-    struct XRPLConfig {
+    struct ChainConfig {
 
         #[serde(flatten)]
         pub common_config: Config,
 
-        pub refund_manager_addresses: String,
-        pub includer_secrets: String,
-        pub xrpl_rpc: String,
-        pub xrpl_faucet_url: String,
-        pub xrpl_multisig: String,
+        pub chain_foo: String,
+        pub chain_bar: String,
+        pub chain_baz: bool,
     }
 
     #[test]
@@ -126,15 +124,14 @@ mod tests {
 
         let yaml_content = r#"
 refund_manager_addresses: "manager"
-includer_secrets: "secret"
+chain_foo: "foo"
 queue_address: "queue"
 gmp_api_url: "http://api.url"
-xrpl_rpc: "http://xrpl.rpc"
-xrpl_faucet_url: "http://faucet.url"
-xrpl_multisig: "multisig"
+chain_bar: "bar"
+chain_baz: true
 redis_server: "redis"
 postgres_url: "postgres"
-xrpl_relayer_sentry_dsn: "dsn"
+sentry_dsn: "dsn"
 chain_name: "mainnet"
 client_cert_path: "/cert.pem"
 client_key_path: "/key.pem"
@@ -160,11 +157,12 @@ price_feed:
 
         env::set_var("BASE_PATH", "/tmp");
 
-        let config: XRPLConfig = config_from_yaml("test_config.yaml").expect("Failed to load config");
+        let config: ChainConfig = config_from_yaml("test_config.yaml").expect("Failed to load config");
         fs::remove_file(file_path).ok();
 
-        assert_eq!(config.refund_manager_addresses, "manager");
-        assert_eq!(config.xrpl_rpc, "http://xrpl.rpc");
+        assert_eq!(config.chain_foo, "foo");
+        assert_eq!(config.chain_bar, "bar");
+        assert_eq!(config.chain_baz, true);
         assert_eq!(config.common_config.chain_name, "mainnet");
         assert!(config.common_config.price_feed.pairs.is_empty());
     }
