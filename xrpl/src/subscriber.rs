@@ -19,9 +19,7 @@ pub struct XrplSubscriber<DB: Database, X: XRPLClientTrait> {
 }
 
 impl<DB: Database, X: XRPLClientTrait> XrplSubscriber<DB, X> {
-    pub async fn new(url: &str, db: DB, context: String) -> Result<Self, SubscriberError> {
-        let client = X::new(url, 3).unwrap();
-
+    pub async fn new(client: X, db: DB, context: String) -> Result<Self, SubscriberError> {
         let latest_ledger = db
             .get_latest_height("xrpl", &context)
             .await

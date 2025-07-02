@@ -28,6 +28,7 @@ async fn main() -> anyhow::Result<()> {
     let redis_pool = r2d2::Pool::builder().build(redis_client).unwrap();
     let postgres_db = PostgresDB::new(&config.postgres_url).await.unwrap();
     let payload_cache = PayloadCache::new(postgres_db.clone());
+    let xrpl_client = XRPLClient::new(&config.xrpl_rpc, 3).unwrap();
     let xrpl_includer = XrplIncluder::new::<XRPLClient, PostgresDB>(
         config.clone(),
         gmp_api,
@@ -35,6 +36,7 @@ async fn main() -> anyhow::Result<()> {
         payload_cache,
         construct_proof_queue.clone(),
         postgres_db.clone(),
+        Arc::new(xrpl_client),
     )
     .await
     .unwrap();

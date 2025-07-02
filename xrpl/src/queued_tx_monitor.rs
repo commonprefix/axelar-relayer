@@ -130,3 +130,18 @@ impl<DB: Database, X: XRPLClientTrait> XrplQueuedTxMonitor<DB, X> {
         }
     }
 }
+
+// #[cfg(test)]
+// mod tests {
+//     use std::sync::Arc;
+
+//     use crate::{client::MockXRPLClientTrait, XrplQueuedTxMonitor};
+//     use relayer_base::database::MockDatabase;
+
+//     #[tokio::test]
+//     async fn test_check_transaction_status() {
+//         let mock_client = MockXRPLClientTrait::new();
+//         let mock_db = MockDatabase::new();
+//         let monitor = XrplQueuedTxMonitor::new(Arc::new(mock_client), mock_db);
+//     }
+// }

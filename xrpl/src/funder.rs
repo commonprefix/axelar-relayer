@@ -16,9 +16,8 @@ pub struct XRPLFunder<X: XRPLClientTrait> {
 }
 
 impl<X: XRPLClientTrait> XRPLFunder<X> {
-    pub fn new(config: Config) -> Self {
+    pub fn new(config: Config, xrpl_client: X) -> Self {
         let request_client = Client::new();
-        let xrpl_client = X::new(&config.xrpl_rpc, 3).unwrap();
         Self {
             request_client,
             xrpl_client,

@@ -23,24 +23,20 @@ impl XrplIncluder {
         payload_cache: PayloadCache<DB>,
         construct_proof_queue: Arc<Queue>,
         db: DB,
+        chain_client: Arc<X>,
     ) -> error_stack::Result<
         Includer<XRPLBroadcaster<DB, X>, Arc<X>, XRPLRefundManager<X>, DB>,
         BroadcasterError,
     > {
-        let client =
-            Arc::new(X::new(config.xrpl_rpc.as_str(), 3).map_err(|e| {
-                error_stack::report!(BroadcasterError::GenericError(e.to_string()))
-            })?);
-
-        let broadcaster = XRPLBroadcaster::new(Arc::clone(&client), db)
+        let broadcaster = XRPLBroadcaster::new(Arc::clone(&chain_client), db)
             .map_err(|e| e.attach_printable("Failed to create XRPLBroadcaster"))?;
 
         let refund_manager =
-            XRPLRefundManager::new(Arc::clone(&client), config, redis_pool.clone())
+            XRPLRefundManager::new(Arc::clone(&chain_client), config, redis_pool.clone())
                 .map_err(|e| error_stack::report!(BroadcasterError::GenericError(e.to_string())))?;
 
         let includer = Includer {
-            chain_client: client,
+            chain_client,
             broadcaster,
             refund_manager,
             gmp_api,

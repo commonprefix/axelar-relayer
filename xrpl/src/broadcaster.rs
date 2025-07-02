@@ -184,7 +184,7 @@ impl<DB: Database, X: XRPLClientTrait> Broadcaster for XRPLBroadcaster<DB, X> {
 
 #[cfg(test)]
 mod tests {
-    use super::super::{broadcaster::XRPLBroadcaster, client::MockXRPLClientTrait};
+    use crate::{broadcaster::XRPLBroadcaster, client::MockXRPLClientTrait};
     use relayer_base::database::MockDatabase;
     use relayer_base::includer::Broadcaster;
     use serde_json;
@@ -214,7 +214,7 @@ mod tests {
         );
         let tx: Transaction = serde_json::from_str(&tx_json).unwrap();
         let mock_db = MockDatabase::new();
-        let mock_client = MockXRPLClientTrait::default();
+        let mock_client = MockXRPLClientTrait::new();
         let fake_response = client_response(&tx, blob, result);
         (mock_db, mock_client, fake_response, tx)
     }

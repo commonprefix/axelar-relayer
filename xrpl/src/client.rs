@@ -19,9 +19,6 @@ const DEFAULT_RPC_TIMEOUT: Duration = Duration::from_secs(3);
 #[async_trait]
 pub trait XRPLClientTrait: Send + Sync {
     fn inner(&self) -> &xrpl_http_client::Client;
-    fn new(url: &str, max_retries: usize) -> Result<Self, ClientError>
-    where
-        Self: Sized;
 
     async fn call<Req>(
         &self,
@@ -50,13 +47,8 @@ pub struct XRPLClient {
     max_retries: usize,
 }
 
-#[async_trait]
-impl XRPLClientTrait for XRPLClient {
-    fn inner(&self) -> &xrpl_http_client::Client {
-        &self.client
-    }
-
-    fn new(url: &str, max_retries: usize) -> Result<Self, ClientError> {
+impl XRPLClient {
+    pub fn new(url: &str, max_retries: usize) -> Result<Self, ClientError> {
         let http_client = reqwest::ClientBuilder::new()
             .connect_timeout(DEFAULT_RPC_TIMEOUT)
             .timeout(DEFAULT_RPC_TIMEOUT)
@@ -70,6 +62,13 @@ impl XRPLClientTrait for XRPLClient {
                 .build(),
             max_retries,
         })
+    }
+}
+
+#[async_trait]
+impl XRPLClientTrait for XRPLClient {
+    fn inner(&self) -> &xrpl_http_client::Client {
+        &self.client
     }
 
     async fn call<Req>(&self, request: Req) -> Result<Req::Response, xrpl_http_client::error::Error>
