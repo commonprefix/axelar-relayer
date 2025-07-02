@@ -131,17 +131,122 @@ impl<DB: Database, X: XRPLClientTrait> XrplQueuedTxMonitor<DB, X> {
     }
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use std::sync::Arc;
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
 
-//     use crate::{client::MockXRPLClientTrait, XrplQueuedTxMonitor};
-//     use relayer_base::database::MockDatabase;
+    use crate::{client::MockXRPLClientTrait, queued_tx_monitor::TxStatus, XrplQueuedTxMonitor};
+    use relayer_base::database::MockDatabase;
+    use xrpl_api::{PaymentTransaction, Transaction, TransactionCommon, TxRequest, TxResponse};
 
-//     #[tokio::test]
-//     async fn test_check_transaction_status() {
-//         let mock_client = MockXRPLClientTrait::new();
-//         let mock_db = MockDatabase::new();
-//         let monitor = XrplQueuedTxMonitor::new(Arc::new(mock_client), mock_db);
-//     }
-// }
+    #[tokio::test]
+    async fn test_check_transaction_status_confirmed() {
+        let mut mock_client = MockXRPLClientTrait::new();
+        let mock_db = MockDatabase::new();
+
+        mock_client
+            .expect_call::<TxRequest>()
+            .times(1)
+            .returning(move |_| {
+                Ok(TxResponse {
+                    tx: Transaction::Payment(PaymentTransaction {
+                        common: TransactionCommon {
+                            validated: Some(true),
+                            ..Default::default()
+                        },
+                        ..Default::default()
+                    }),
+                })
+            });
+
+        let queued_tx_monitor = XrplQueuedTxMonitor::new(Arc::new(mock_client), mock_db);
+        let result = queued_tx_monitor
+            .check_transaction_status("DUMMY_HASH")
+            .await;
+        assert!(result.is_ok());
+        let tx_status = result.unwrap();
+        match tx_status {
+            TxStatus::Confirmed => {}
+            _ => panic!("Expected TxStatus::Confirmed"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_check_transaction_status_queued() {
+        let mut mock_client = MockXRPLClientTrait::new();
+        let mock_db = MockDatabase::new();
+
+        mock_client
+            .expect_call::<TxRequest>()
+            .times(1)
+            .returning(move |_| {
+                Ok(TxResponse {
+                    tx: Transaction::Payment(PaymentTransaction {
+                        common: TransactionCommon {
+                            validated: Some(false),
+                            ..Default::default()
+                        },
+                        ..Default::default()
+                    }),
+                })
+            });
+
+        let queued_tx_monitor = XrplQueuedTxMonitor::new(Arc::new(mock_client), mock_db);
+        let result = queued_tx_monitor
+            .check_transaction_status("DUMMY_HASH")
+            .await;
+        assert!(result.is_ok());
+        let tx_status = result.unwrap();
+        match tx_status {
+            TxStatus::Queued => {}
+            _ => panic!("Expected TxStatus::Queued"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_check_transaction_status_dropped() {
+        let mut mock_client = MockXRPLClientTrait::new();
+        let mock_db = MockDatabase::new();
+
+        mock_client
+            .expect_call::<TxRequest>()
+            .times(1)
+            .returning(move |_| {
+                Err(xrpl_http_client::error::Error::Api(
+                    "txnNotFound".to_string(),
+                ))
+            });
+
+        let queued_tx_monitor = XrplQueuedTxMonitor::new(Arc::new(mock_client), mock_db);
+        let result = queued_tx_monitor
+            .check_transaction_status("DUMMY_HASH")
+            .await;
+        assert!(result.is_ok());
+        let tx_status = result.unwrap();
+        match tx_status {
+            TxStatus::Dropped => {}
+            _ => panic!("Expected TxStatus::Dropped"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_check_transaction_status_error() {
+        let mut mock_client = MockXRPLClientTrait::new();
+        let mock_db = MockDatabase::new();
+
+        mock_client
+            .expect_call::<TxRequest>()
+            .times(1)
+            .returning(move |_| {
+                Err(xrpl_http_client::error::Error::Api(
+                    "test error".to_string(),
+                ))
+            });
+
+        let queued_tx_monitor = XrplQueuedTxMonitor::new(Arc::new(mock_client), mock_db);
+        let result = queued_tx_monitor
+            .check_transaction_status("DUMMY_HASH")
+            .await;
+        assert!(result.is_err());
+    }
+}
