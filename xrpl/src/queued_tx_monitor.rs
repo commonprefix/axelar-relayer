@@ -135,8 +135,12 @@ impl<DB: Database, X: XRPLClientTrait> XrplQueuedTxMonitor<DB, X> {
 mod tests {
     use std::sync::Arc;
 
-    use crate::{client::MockXRPLClientTrait, queued_tx_monitor::TxStatus, XrplQueuedTxMonitor};
-    use relayer_base::database::MockDatabase;
+    use crate::{
+        client::MockXRPLClientTrait,
+        queued_tx_monitor::{TxStatus, MAX_RETRIES},
+        XrplQueuedTxMonitor,
+    };
+    use relayer_base::database::{MockDatabase, QueuedTransaction};
     use xrpl_api::{PaymentTransaction, Transaction, TransactionCommon, TxRequest, TxResponse};
 
     #[tokio::test]
@@ -248,5 +252,105 @@ mod tests {
             .check_transaction_status("DUMMY_HASH")
             .await;
         assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_check_queued_transactions() {
+        let mut mock_client = MockXRPLClientTrait::default();
+        let mut mock_db = MockDatabase::new();
+
+        mock_db
+            .expect_get_queued_transactions_ready_for_check()
+            .times(1)
+            .returning(|| {
+                Box::pin(async {
+                    Ok(vec![
+                        QueuedTransaction {
+                            tx_hash: "DUMMY_HASH".to_string(),
+                            retries: 0,
+                        },
+                        QueuedTransaction {
+                            tx_hash: "DUMMY_HASH2".to_string(),
+                            retries: 0,
+                        },
+                        // Expired
+                        QueuedTransaction {
+                            tx_hash: "DUMMY_HASH3".to_string(),
+                            retries: MAX_RETRIES,
+                        },
+                        QueuedTransaction {
+                            tx_hash: "DUMMY_HASH4".to_string(),
+                            retries: 0,
+                        },
+                    ])
+                })
+            });
+
+        // Confirmed
+        mock_client
+            .expect_call::<TxRequest>()
+            .times(1)
+            .return_once(|_| {
+                Ok(TxResponse {
+                    tx: Transaction::Payment(PaymentTransaction {
+                        common: TransactionCommon {
+                            validated: Some(true),
+                            ..Default::default()
+                        },
+                        ..Default::default()
+                    }),
+                })
+            });
+
+        // Dropped
+        mock_client
+            .expect_call::<TxRequest>()
+            .times(1)
+            .return_once(|_| {
+                Err(xrpl_http_client::error::Error::Api(
+                    "txnNotFound".to_string(),
+                ))
+            });
+
+        // Queued
+        mock_client
+            .expect_call::<TxRequest>()
+            .times(1)
+            .return_once(|_| {
+                Ok(TxResponse {
+                    tx: Transaction::Payment(PaymentTransaction {
+                        common: TransactionCommon {
+                            validated: Some(false),
+                            ..Default::default()
+                        },
+                        ..Default::default()
+                    }),
+                })
+            });
+
+        mock_db
+            .expect_mark_queued_transaction_expired()
+            .times(1)
+            .returning(|_| Box::pin(async { Ok(()) }));
+
+        mock_db
+            .expect_mark_queued_transaction_confirmed()
+            .times(1)
+            .returning(|_| Box::pin(async { Ok(()) }));
+
+        mock_db
+            .expect_mark_queued_transaction_dropped()
+            .times(1)
+            .returning(|_| Box::pin(async { Ok(()) }));
+
+        mock_db
+            .expect_increment_queued_transaction_retry()
+            .times(1)
+            .returning(|_| Box::pin(async { Ok(()) }));
+
+        let queued_tx_monitor = XrplQueuedTxMonitor::new(Arc::new(mock_client), mock_db);
+
+        let result = queued_tx_monitor.check_queued_transactions().await;
+        assert!(result.is_ok());
     }
 }
