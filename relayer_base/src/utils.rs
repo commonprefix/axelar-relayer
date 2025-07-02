@@ -215,6 +215,7 @@ pub fn parse_payment_amount(
     }
 }
 
+// Should this be moved to the xrpl client?
 pub async fn xrpl_tx_from_hash(
     tx_hash: HexTxHash,
     client: &xrpl_http_client::Client,
@@ -342,7 +343,7 @@ pub fn message_id_from_retry_task(task: Task) -> Result<String, anyhow::Error> {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
+    use std::collections::{BTreeMap, HashMap};
 
     use xrpl_amplifier_types::types::{XRPLAccountId, XRPLCurrency};
     use xrpl_api::IssuedAmount;
@@ -997,20 +998,83 @@ mod tests {
         }
     }
 
-    // #[tokio::test]
-    // async fn test_xrpl_tx_from_hash() {
-    //     let client = xrpl_http_client::Client::new();
-    //     //let tx_hash = HexTxHash::new([0; 32]); // some real hash
-    //     let tx_hash = HexTxHash::from_str(
-    //         "0x17b62f3c5e71ed438bbb95b79673bde4479966a2f491ed1f060c5fcdecf8a915",
-    //     )
-    //     .unwrap();
-    //     let tx = xrpl_tx_from_hash(tx_hash.clone(), &client).await;
-    //     assert!(tx.is_ok());
-    //     let tx = tx.unwrap();
-    //     assert_eq!(
-    //         tx.common().hash,
-    //         Some(tx_hash.tx_hash_as_hex_no_prefix().to_string())
-    //     );
-    // }
+    #[test]
+    fn test_parse_message_from_context() {
+        let dummy_message : XRPLMessage = serde_json::from_str(r#"
+        {
+            "prover_message": {
+                "tx_id": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+                "unsigned_tx_hash": "fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210"
+            }
+        }"#).unwrap();
+        let metadata = TaskMetadata {
+            source_context: Some(BTreeMap::from([(
+                "xrpl_message".to_string(),
+                serde_json::to_string(&dummy_message).unwrap(),
+            )])),
+            ..Default::default()
+        };
+        let message_result = parse_message_from_context(&Some(metadata));
+        assert!(message_result.is_ok());
+        let message = message_result.unwrap();
+        assert_eq!(message, dummy_message);
+    }
+
+    #[test]
+    fn test_parse_message_from_context_missing_source_context() {
+        let metadata = TaskMetadata {
+            source_context: None,
+            ..Default::default()
+        };
+        let message_result = parse_message_from_context(&Some(metadata));
+        assert!(message_result.is_err());
+        assert!(message_result
+            .err()
+            .unwrap()
+            .to_string()
+            .contains("Verify task missing source_context field"));
+    }
+
+    #[test]
+    fn test_parse_message_from_context_missing_prover_message() {
+        let dummy_message : XRPLMessage = serde_json::from_str(r#"
+        {
+            "prover_message": {
+                "tx_id": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+                "unsigned_tx_hash": "fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210"
+            }
+        }"#).unwrap();
+        let metadata = TaskMetadata {
+            source_context: Some(BTreeMap::from([(
+                "prover_message".to_string(),
+                serde_json::to_string(&dummy_message).unwrap(),
+            )])),
+            ..Default::default()
+        };
+        let message_result = parse_message_from_context(&Some(metadata));
+        assert!(message_result.is_err());
+        assert!(message_result
+            .err()
+            .unwrap()
+            .to_string()
+            .contains("Verify task missing xrpl_message in source_context"));
+    }
+
+    #[test]
+    fn test_parse_message_from_context_failed_parsing() {
+        let metadata = TaskMetadata {
+            source_context: Some(BTreeMap::from([(
+                "xrpl_message".to_string(),
+                "invalid".to_string(),
+            )])),
+            ..Default::default()
+        };
+        let message_result = parse_message_from_context(&Some(metadata));
+        assert!(message_result.is_err());
+        assert!(message_result
+            .err()
+            .unwrap()
+            .to_string()
+            .contains("Failed to parse xrpl_message"));
+    }
 }
