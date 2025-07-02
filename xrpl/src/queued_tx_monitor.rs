@@ -140,7 +140,10 @@ mod tests {
         queued_tx_monitor::{TxStatus, MAX_RETRIES},
         XrplQueuedTxMonitor,
     };
-    use relayer_base::database::{MockDatabase, QueuedTransaction};
+    use relayer_base::{
+        database::{MockDatabase, QueuedTransaction},
+        error::QueuedTxMonitorError,
+    };
     use xrpl_api::{PaymentTransaction, Transaction, TransactionCommon, TxRequest, TxResponse};
 
     #[tokio::test]
@@ -255,6 +258,61 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_check_transaction_status_validated_none() {
+        let mut mock_client = MockXRPLClientTrait::default();
+        let mock_db = MockDatabase::new();
+
+        mock_client
+            .expect_call::<TxRequest>()
+            .times(1)
+            .returning(|_| {
+                Ok(TxResponse {
+                    tx: Transaction::Payment(PaymentTransaction {
+                        common: TransactionCommon {
+                            validated: None, // This is currently treated as queued (should it?)
+                            ..Default::default()
+                        },
+                        ..Default::default()
+                    }),
+                })
+            });
+
+        let queued_tx_monitor = XrplQueuedTxMonitor::new(Arc::new(mock_client), mock_db);
+        let result = queued_tx_monitor
+            .check_transaction_status("DUMMY_HASH")
+            .await;
+
+        assert!(result.is_ok());
+        assert!(matches!(result.unwrap(), TxStatus::Queued));
+    }
+
+    #[tokio::test]
+    async fn test_check_transaction_status_network_error() {
+        let mut mock_client = MockXRPLClientTrait::default();
+        let mock_db = MockDatabase::new();
+
+        mock_client
+            .expect_call::<TxRequest>()
+            .times(1)
+            .returning(|_| {
+                Err(xrpl_http_client::error::Error::Internal(
+                    "Connection timeout".to_string(),
+                ))
+            });
+
+        let queued_tx_monitor = XrplQueuedTxMonitor::new(Arc::new(mock_client), mock_db);
+        let result = queued_tx_monitor
+            .check_transaction_status("DUMMY_HASH")
+            .await;
+
+        assert!(result.is_err());
+        assert!(matches!(
+            result.err(),
+            Some(QueuedTxMonitorError::XRPLClientError(_))
+        ));
+    }
+
+    #[tokio::test]
     async fn test_check_queued_transactions() {
         let mut mock_client = MockXRPLClientTrait::default();
         let mut mock_db = MockDatabase::new();
@@ -351,6 +409,42 @@ mod tests {
         let queued_tx_monitor = XrplQueuedTxMonitor::new(Arc::new(mock_client), mock_db);
 
         let result = queued_tx_monitor.check_queued_transactions().await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_check_queued_transactions_db_get_error() {
+        let mock_client = MockXRPLClientTrait::default();
+        let mut mock_db = MockDatabase::new();
+
+        mock_db
+            .expect_get_queued_transactions_ready_for_check()
+            .times(1)
+            .returning(|| Box::pin(async { Err(anyhow::anyhow!("Database connection failed")) }));
+
+        let queued_tx_monitor = XrplQueuedTxMonitor::new(Arc::new(mock_client), mock_db);
+        let result = queued_tx_monitor.check_queued_transactions().await;
+
+        assert!(result.is_err());
+        assert!(matches!(
+            result.err(),
+            Some(QueuedTxMonitorError::DatabaseError(_))
+        ));
+    }
+
+    #[tokio::test]
+    async fn test_check_queued_transactions_empty_queue() {
+        let mock_client = MockXRPLClientTrait::default();
+        let mut mock_db = MockDatabase::new();
+
+        mock_db
+            .expect_get_queued_transactions_ready_for_check()
+            .times(1)
+            .returning(|| Box::pin(async { Ok(vec![]) }));
+
+        let queued_tx_monitor = XrplQueuedTxMonitor::new(Arc::new(mock_client), mock_db);
+        let result = queued_tx_monitor.check_queued_transactions().await;
+
         assert!(result.is_ok());
     }
 }
