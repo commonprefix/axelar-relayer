@@ -11,7 +11,7 @@ use relayer_base::{
     utils::{setup_heartbeat, setup_logging},
 };
 
-use xrpl::includer::XrplIncluder;
+use xrpl::{client::XRPLClient, includer::XrplIncluder};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -27,13 +27,16 @@ async fn main() -> anyhow::Result<()> {
     let redis_client = redis::Client::open(config.redis_server.clone()).unwrap();
     let redis_pool = r2d2::Pool::builder().build(redis_client).unwrap();
     let postgres_db = PostgresDB::new(&config.postgres_url).await.unwrap();
-    let payload_cache = PayloadCache::new(postgres_db);
-    let xrpl_includer = XrplIncluder::new(
+    let payload_cache = PayloadCache::new(postgres_db.clone());
+    let xrpl_client = XRPLClient::new(&config.xrpl_rpc, 3).unwrap();
+    let xrpl_includer = XrplIncluder::new::<XRPLClient, PostgresDB>(
         config.clone(),
         gmp_api,
         redis_pool.clone(),
         payload_cache,
         construct_proof_queue.clone(),
+        postgres_db.clone(),
+        Arc::new(xrpl_client),
     )
     .await
     .unwrap();

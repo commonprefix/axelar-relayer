@@ -10,7 +10,7 @@ use relayer_base::{
 use tokio::signal::unix::{signal, SignalKind};
 use xrpl_types::AccountId;
 
-use xrpl::subscriber::XrplSubscriber;
+use xrpl::{client::XRPLClient, subscriber::XrplSubscriber};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -25,8 +25,9 @@ async fn main() -> anyhow::Result<()> {
 
     let account = AccountId::from_address(&config.xrpl_multisig).unwrap();
 
+    let xrpl_client = XRPLClient::new(&config.xrpl_rpc, 3).unwrap();
     let xrpl_subscriber =
-        XrplSubscriber::new(&config.xrpl_rpc, postgres_db, "default".to_string()).await?;
+        XrplSubscriber::new(xrpl_client, postgres_db, "default".to_string()).await?;
     let mut subscriber = Subscriber::new(xrpl_subscriber);
     let mut sigint = signal(SignalKind::interrupt())?;
     let mut sigterm = signal(SignalKind::terminate())?;

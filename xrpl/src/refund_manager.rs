@@ -14,16 +14,17 @@ use tracing::debug;
 use xrpl_binary_codec::{serialize, sign::sign_transaction};
 use xrpl_types::{AccountId, Amount, Blob, Memo, PaymentTransaction};
 
-use super::client::XRPLClient;
-pub struct XRPLRefundManager {
-    client: Arc<XRPLClient>,
+use crate::client::XRPLClientTrait;
+
+pub struct XRPLRefundManager<X: XRPLClientTrait> {
+    client: Arc<X>,
     redis_pool: r2d2::Pool<redis::Client>,
     config: Config,
 }
 
-impl XRPLRefundManager {
+impl<X: XRPLClientTrait> XRPLRefundManager<X> {
     pub fn new(
-        client: Arc<XRPLClient>,
+        client: Arc<X>,
         config: Config,
         redis_pool: r2d2::Pool<redis::Client>,
     ) -> Result<Self, RefundManagerError> {
@@ -98,7 +99,7 @@ impl XRPLRefundManager {
     }
 }
 
-impl RefundManager for XRPLRefundManager {
+impl<X: XRPLClientTrait> RefundManager for XRPLRefundManager<X> {
     type Wallet = (SecretKey, PublicKey, AccountId);
 
     fn get_wallet_lock(&self) -> Result<Self::Wallet, RefundManagerError> {

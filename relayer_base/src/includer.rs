@@ -83,8 +83,14 @@ where
         match consumer.next().await {
             Some(Ok(delivery)) => {
                 let data = delivery.data.clone();
-                let task = serde_json::from_slice::<QueueItem>(&data).unwrap();
+                let maybe_task = serde_json::from_slice::<QueueItem>(&data);
+                if maybe_task.is_err() {
+                    error!("Failed to parse task: {:?}", maybe_task.unwrap_err());
+                    delivery.ack(BasicAckOptions::default()).await.expect("ack");
+                    return;
+                }
 
+                let task = maybe_task.unwrap(); // unwrap is safe because we checked for errors above
                 let consume_res = self.consume(task).await;
                 match consume_res {
                     Ok(_) => {
@@ -145,6 +151,7 @@ where
                         "Broadcasting transaction with hash: {:?}",
                         broadcast_result.tx_hash
                     );
+
                     if broadcast_result.message_id.is_some()
                         && broadcast_result.source_chain.is_some()
                     {

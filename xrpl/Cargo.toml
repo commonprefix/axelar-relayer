@@ -35,6 +35,15 @@ base64 = { workspace = true }
 rust_decimal = { workspace = true }
 xrpl_amplifier_types = { workspace = true }
 regex = { workspace = true }
+async-trait = "0.1"
+mockall = { workspace = true, optional = true }
+
+[dev-dependencies]
+relayer-base = { workspace = true, features = ["mocks"] }
+mockall = { workspace = true }
+
+[features]
+mocks = ["mockall"]
 
 [[bin]]
 name = "xrpl_ingestor"
@@ -75,3 +84,7 @@ path = "src/bin/recovery/xrpl_task_recovery.rs"
 [[bin]]
 name = "xrpl_heartbeat_monitor"
 path = "src/bin/xrpl_heartbeat_monitor.rs"
+
+[[bin]]
+name = "xrpl_queued_tx_monitor"
+path = "src/bin/xrpl_queued_tx_monitor.rs"
