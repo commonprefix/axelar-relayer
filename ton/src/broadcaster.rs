@@ -36,6 +36,7 @@ use std::sync::Arc;
 use tonlib_core::tlb_types::block::out_action::OutAction;
 use tonlib_core::TonAddress;
 use tracing::error;
+use relayer_base::gmp_api::gmp_types::ExecuteTaskFields;
 
 pub struct TONBroadcaster {
     wallet_manager: Arc<WalletManager>,
@@ -61,6 +62,7 @@ impl TONBroadcaster {
             internal_message_value,
         })
     }
+
 }
 
 pub struct TONTransaction;
@@ -118,14 +120,21 @@ impl Broadcaster for TONBroadcaster {
     }
 
     async fn broadcast_refund(&self, _tx_blob: String) -> Result<String, BroadcasterError> {
-        Ok(String::new())
+        todo!();
+    }
+
+    async fn broadcast_execute_message(
+        &self, 
+        _message: ExecuteTaskFields
+    ) -> Result<BroadcastResult<Self::Transaction>, BroadcasterError> {
+        todo!();
     }
 }
 
 #[cfg(test)]
 mod tests {
     use crate::broadcaster::{TONBroadcaster, TONTransaction};
-    use crate::client::{RestClient, V3MessageResponse};
+    use crate::client::{MockRestClient, RestClient, V3MessageResponse};
     use crate::high_load_query_id::HighLoadQueryId;
     use crate::high_load_query_id_db_wrapper::{
         HighLoadQueryIdWrapper, HighLoadQueryIdWrapperError,
@@ -138,21 +147,7 @@ mod tests {
     use base64::Engine;
     use base64::prelude::BASE64_STANDARD;
     use tonlib_core::TonAddress;
-
-    struct MockTONClient;
-
-    #[async_trait::async_trait]
-    impl RestClient for MockTONClient {
-        async fn post_v3_message(
-            &self,
-            _tx_blob: String,
-        ) -> Result<V3MessageResponse, ClientError> {
-            Ok(V3MessageResponse {
-                message_hash: "abc".to_string(),
-                message_hash_norm: "ABC".to_string(),
-            })
-        }
-    }
+    use relayer_base::gmp_api::gmp_types::{Amount, ExecuteTaskFields, GatewayV2Message};
 
     struct MockQueryIdWrapper;
 
@@ -171,7 +166,16 @@ mod tests {
 
     #[tokio::test]
     async fn test_broadcast_prover_message() {
-        let client = MockTONClient;
+        let mut client = MockRestClient::new();
+        client
+            .expect_post_v3_message()
+            .returning(|_| {
+                Ok(V3MessageResponse {
+                    message_hash: "abc".to_string(),
+                    message_hash_norm: "ABC".to_string(),
+                })
+            });
+
         let wallet_manager = load_wallets().await;
         let query_id_wrapper = MockQueryIdWrapper;
         let gateway_address = TonAddress::from_str(
@@ -213,7 +217,15 @@ mod tests {
 
     #[tokio::test]
     async fn test_broadcast_prover_message_invalid_input() {
-        let client = MockTONClient;
+        let mut client = MockRestClient::new();
+        client
+            .expect_post_v3_message()
+            .returning(|_| {
+                Ok(V3MessageResponse {
+                    message_hash: "abc".to_string(),
+                    message_hash_norm: "ABC".to_string(),
+                })
+            });
         let wallet_manager = load_wallets().await;
         let query_id_wrapper = MockQueryIdWrapper;
         let gateway_address = TonAddress::from_str(
@@ -249,5 +261,68 @@ mod tests {
             }
             _other => panic!("Expected GenericError with BoC parsing issue"),
         }
+    }
+
+    #[tokio::test]
+    async fn test_broadcast_execute_message() {
+        let mut client = MockRestClient::new();
+        client
+            .expect_post_v3_message()
+            .returning(|_| {
+                Ok(V3MessageResponse {
+                    message_hash: "abc".to_string(),
+                    message_hash_norm: "ABC".to_string(),
+                })
+            });
+
+        let wallet_manager = load_wallets().await;
+        let query_id_wrapper = MockQueryIdWrapper;
+        let gateway_address = TonAddress::from_str(
+            "0:0000000000000000000000000000000000000000000000000000000000000000",
+        )
+            .unwrap();
+        let internal_message_value = 1_000_000_000u32;
+
+        let broadcaster = TONBroadcaster {
+            wallet_manager: Arc::new(wallet_manager),
+            query_id_wrapper: Arc::new(query_id_wrapper),
+            client: Arc::new(client),
+            gateway_address,
+            internal_message_value,
+        };
+        
+        let execute_task = ExecuteTaskFields {
+            message: GatewayV2Message {
+                message_id: "0xf38d2a646e4b60e37bc16d54bb9163739372594dc96bab954a85b4a170f49e58-1".to_string(),
+                source_chain: "ton2".to_string(),
+                destination_address: "0:b87a4a0f644b7a186ee71a1454634f70c22a62aca1a6ba676b5175c21d7fd930".to_string(),
+                source_address: "ton2".to_string(),
+                payload_hash: "aea6524367000fb4a0aa20b1d4f63daad1ed9e9df70=".to_string()
+            },
+            payload: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAE0hlbGxvIGZyb20gcmVsYXllciEAAAAAAAAAAAAAAAAA".to_string(),
+            available_gas_balance: Amount { token_id: None, amount: "0".to_string() },
+        };
+        
+
+        let res = broadcaster
+            .broadcast_execute_message(execute_task)
+            .await;
+        assert!(res.is_ok());
+
+        let good = BroadcastResult {
+            transaction: TONTransaction,
+            tx_hash: "abc".to_string(),
+            message_id: Some(
+                "0x17fd7da3d819cfbc46ff28f3d80980770ec1b80fd7d1b229cec3251939b9b23f-1".to_string(),
+            ),
+            source_chain: Some("avalanche-fuji".to_string()),
+            status: Ok(()),
+        };
+
+        let unwrapped = res.unwrap();
+
+        assert_eq!(unwrapped.tx_hash, good.tx_hash);
+        assert_eq!(unwrapped.message_id, good.message_id);
+        assert_eq!(unwrapped.source_chain, good.source_chain);
     }
 }

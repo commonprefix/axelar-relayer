@@ -199,7 +199,7 @@ impl<T: TimeProvider> TonWalletHighLoadV3<T> {
 
     fn created_at(&self) -> u64 {
         // LiteServers have some delay in time
-        self.time_provider.now() - 60
+        self.time_provider.now() - (self.timeout / 60)
     }
 }
 

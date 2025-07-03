@@ -300,6 +300,15 @@ pub struct EventMetadata {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct MessageApprovedEventMetadata {
+    #[serde(flatten)]
+    pub common_meta: EventMetadata,
+    #[serde(rename = "commandID")]
+    pub command_id: Option<String>,
+}
+
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct MessageExecutedEventMetadata {
     #[serde(flatten)]
     pub common_meta: EventMetadata,
@@ -381,6 +390,12 @@ pub enum Event {
         #[serde(rename = "refundAddress")]
         refund_address: String,
         payment: Amount,
+    },
+    MessageApproved {
+        #[serde(flatten)]
+        common: CommonEventFields<MessageApprovedEventMetadata>,
+        message: GatewayV2Message,
+        cost: Amount,
     },
     MessageExecuted {
         #[serde(flatten)]

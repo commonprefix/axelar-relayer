@@ -1,3 +1,4 @@
+use std::future::Future;
 use std::sync::Arc;
 
 use tracing::{debug, error, warn};
@@ -10,7 +11,7 @@ use relayer_base::{
     includer::{BroadcastResult, Broadcaster},
     utils::extract_hex_xrpl_memo,
 };
-
+use relayer_base::gmp_api::gmp_types::ExecuteTaskFields;
 use super::client::XRPLClient;
 
 pub struct XRPLBroadcaster {
@@ -156,5 +157,12 @@ impl Broadcaster for XRPLBroadcaster {
                 response.engine_result, response.engine_result_message
             )))
         }
+    }
+
+    async fn broadcast_execute_message(
+        &self, 
+        _message: ExecuteTaskFields
+    ) -> Result<BroadcastResult<Self::Transaction>, BroadcasterError> {
+        unimplemented!()
     }
 }

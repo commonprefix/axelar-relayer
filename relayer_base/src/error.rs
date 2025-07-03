@@ -78,6 +78,8 @@ pub enum IngestorError {
     ParseError(String),
     #[error("Unsupported transaction: {0}")]
     UnsupportedTransaction(String),
+    #[error("Unsupported Chain Transaction Type: {0}")]
+    UnexpectedChainTransactionType(String),
     #[error("Generic error: {0}")]
     GenericError(String),
 }

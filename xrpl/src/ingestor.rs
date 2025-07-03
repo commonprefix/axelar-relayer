@@ -13,7 +13,7 @@ use relayer_base::{
     gmp_api::{
         gmp_types::{
             self, Amount, BroadcastRequest, CommonEventFields, ConstructProofTask, Event,
-            EventMetadata, GatewayV2Message, MessageExecutedEventMetadata, MessageExecutionStatus,
+            EventMetadata, ExecuteTaskFields, MessageExecutedEventMetadata, MessageExecutionStatus,
             QueryRequest, ReactToWasmEventTask, VerifyTask,
         },
         GmpApi,
@@ -434,7 +434,7 @@ impl<DB: Database> XrplIngestor<DB> {
                         .to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
                 }),
             },
-            message: GatewayV2Message {
+            message: ExecuteTaskFields {
                 message_id: message_with_payload.message.cc_id.message_id.to_lowercase(),
                 source_chain: message_with_payload.message.cc_id.source_chain.to_string(),
                 source_address: message_with_payload.message.source_address.to_string(),
@@ -1085,10 +1085,10 @@ impl<DB: Database> XrplIngestor<DB> {
 
 impl<DB: Database> IngestorTrait for XrplIngestor<DB> {
     async fn handle_transaction(&self, tx: ChainTransaction) -> Result<Vec<Event>, IngestorError> {
-        let tx = match tx {
-            ChainTransaction::Xrpl(tx) => tx,
+        let ChainTransaction::Xrpl(tx) = tx else {
+            return Err(IngestorError::UnexpectedChainTransactionType(format!("{:?}", tx)))
         };
-
+        
         let xrpl_transaction =
             XrplTransaction::from_native_transaction(&tx, &self.config.xrpl_multisig)
                 .map_err(|e| IngestorError::GenericError(e.to_string()))?;

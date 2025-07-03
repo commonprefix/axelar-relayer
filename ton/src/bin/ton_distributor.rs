@@ -10,6 +10,7 @@ use relayer_base::{
     queue::Queue,
     utils::{setup_heartbeat, setup_logging},
 };
+use relayer_base::gmp_api::gmp_types::TaskKind;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -21,7 +22,8 @@ async fn main() -> anyhow::Result<()> {
 
     let _guard = setup_logging(&config);
 
-    let tasks_queue = Queue::new(&config.queue_address, "tasks").await;
+    let includer_tasks_queue = Queue::new(&config.queue_address, "includer_tasks").await;
+    let ingestor_tasks_queue = Queue::new(&config.queue_address, "ingestor_tasks").await;
     let gmp_api = Arc::new(gmp_api::GmpApi::new(&config, true).unwrap());
     let postgres_db = PostgresDB::new(&config.postgres_url).await.unwrap();
 
@@ -32,7 +34,10 @@ async fn main() -> anyhow::Result<()> {
         config.refunds_enabled,
     )
     .await;
-
+    distributor.set_supported_includer_tasks(vec![TaskKind::Refund,
+                                                  TaskKind::Execute,
+                                                  TaskKind::GatewayTx]);
+    
     let redis_client = redis::Client::open(config.redis_server.clone()).unwrap();
     let redis_pool = r2d2::Pool::builder().build(redis_client).unwrap();
 
@@ -44,10 +49,14 @@ async fn main() -> anyhow::Result<()> {
     tokio::select! {
         _ = sigint.recv()  => {},
         _ = sigterm.recv() => {},
-        _ = distributor.run(tasks_queue.clone()) => {},
+        _ = distributor.run(
+            includer_tasks_queue.clone(),
+            ingestor_tasks_queue.clone(),
+        ) => {},
     }
 
-    tasks_queue.close().await;
+    ingestor_tasks_queue.close().await;
+    includer_tasks_queue.close().await;
 
     Ok(())
 }

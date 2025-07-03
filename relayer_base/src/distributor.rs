@@ -22,6 +22,8 @@ pub struct Distributor<DB: Database> {
     recovery_settings: Option<RecoverySettings>,
     gmp_api: Arc<GmpApi>,
     refunds_enabled: bool,
+    supported_includer_tasks: Vec<TaskKind>,
+    supported_ingestor_tasks: Vec<TaskKind>,
 }
 
 impl<DB: Database> Distributor<DB> {
@@ -46,6 +48,14 @@ impl<DB: Database> Distributor<DB> {
             recovery_settings: None,
             gmp_api,
             refunds_enabled,
+            // Sane default as it's the minimum required for the relayer to work
+            supported_includer_tasks: vec![TaskKind::Refund, 
+                                           TaskKind::GatewayTx],
+            supported_ingestor_tasks: vec![TaskKind::Verify, 
+                                           TaskKind::ConstructProof, 
+                                           TaskKind::ReactToWasmEvent, 
+                                           TaskKind::ReactToRetriablePoll, 
+                                           TaskKind::ReactToExpiredSigningSession]
         }
     }
 
@@ -114,17 +124,14 @@ impl<DB: Database> Distributor<DB> {
 
             let task_item = &QueueItem::Task(task.clone());
             info!("Publishing task: {:?}", task);
-            let queue = match task.kind() {
-                TaskKind::Refund | TaskKind::GatewayTx => includer_queue.clone(),
-                TaskKind::Verify
-                | TaskKind::ConstructProof
-                | TaskKind::ReactToWasmEvent
-                | TaskKind::ReactToRetriablePoll
-                | TaskKind::ReactToExpiredSigningSession => ingestor_queue.clone(),
-                TaskKind::Unknown | TaskKind::Execute => {
-                    warn!("Dropping unsupported task: {:?}", task);
-                    continue;
-                }
+
+            let queue = if self.supported_includer_tasks.contains(&task.kind()) {
+                includer_queue.clone()
+            } else if self.supported_ingestor_tasks.contains(&task.kind()) {
+                ingestor_queue.clone()
+            } else {
+                warn!("Dropping unsupported task: {:?}", task);
+                continue;
             };
             queue.publish(task_item.clone()).await;
         }
@@ -166,4 +173,13 @@ impl<DB: Database> Distributor<DB> {
             tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
         }
     }
+    
+    pub fn set_supported_includer_tasks(&mut self, tasks: Vec<TaskKind>) {
+        self.supported_includer_tasks = tasks;
+    }
+
+    pub fn set_supported_ingestor_tasks(&mut self, tasks: Vec<TaskKind>) {
+        self.supported_ingestor_tasks = tasks;
+    }
+
 }

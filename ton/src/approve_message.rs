@@ -8,7 +8,7 @@ use ton::approve_message::ApproveMessages;
 
 let boc = "1234abcd";
 let approve_messages = ApproveMessages::from_boc_hex(boc);
-* ```
+```
 
 */
 
