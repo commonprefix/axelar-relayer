@@ -111,3 +111,14 @@ impl RelayerExecuteMessage {
         outer
     }
 }
+
+#[cfg(test)]
+mod tests {
+    
+    #[test]
+    fn test_payload_hash() {
+        let payload = "Hello from ton!";
+        let hash = super::RelayerExecuteMessage::payload_hash(&payload.as_bytes().to_vec());
+        println!("Calculated payload hash as {:?}", hash);  
+    }
+}

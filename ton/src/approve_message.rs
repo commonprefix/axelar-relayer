@@ -156,6 +156,7 @@ mod tests {
         };
 
         let res = approve_messages.unwrap();
+
         assert_eq!(res.approve_messages.len(), 1);
         assert_eq!(
             res.approve_messages[0].message_id,

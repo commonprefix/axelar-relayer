@@ -2,7 +2,7 @@ use axelar_wasm_std::{msg_id::HexTxHash, nonempty};
 use base64::prelude::*;
 use interchain_token_service::TokenId;
 use regex::Regex;
-use relayer_base::gmp_api::gmp_types::{RetryTask, VerificationStatus};
+use relayer_base::gmp_api::gmp_types::{GatewayV2Message, RetryTask, VerificationStatus};
 use relayer_base::ingestor::IngestorTrait;
 use relayer_base::models::task_retries::{PgTaskRetriesModel, TaskRetries};
 use relayer_base::subscriber::ChainTransaction;
@@ -434,7 +434,7 @@ impl<DB: Database> XrplIngestor<DB> {
                         .to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
                 }),
             },
-            message: ExecuteTaskFields {
+            message: GatewayV2Message {
                 message_id: message_with_payload.message.cc_id.message_id.to_lowercase(),
                 source_chain: message_with_payload.message.cc_id.source_chain.to_string(),
                 source_address: message_with_payload.message.source_address.to_string(),
