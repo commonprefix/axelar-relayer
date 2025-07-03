@@ -6,22 +6,26 @@ use xrpl_api::{
 };
 
 use relayer_base::{
-    database::Database,
     error::BroadcasterError,
     includer::{BroadcastResult, Broadcaster},
     utils::extract_hex_xrpl_memo,
 };
 
+use crate::models::queued_transactions::QueuedTransactionsModel;
+
 use super::client::XRPLClientTrait;
 
-pub struct XRPLBroadcaster<DB: Database, X: XRPLClientTrait> {
+pub struct XRPLBroadcaster<QM: QueuedTransactionsModel, X: XRPLClientTrait> {
     client: Arc<X>,
-    db: DB,
+    queued_tx_model: QM,
 }
 
-impl<DB: Database, X: XRPLClientTrait> XRPLBroadcaster<DB, X> {
-    pub fn new(client: Arc<X>, db: DB) -> error_stack::Result<Self, BroadcasterError> {
-        Ok(XRPLBroadcaster { client, db })
+impl<QM: QueuedTransactionsModel, X: XRPLClientTrait> XRPLBroadcaster<QM, X> {
+    pub fn new(client: Arc<X>, queued_tx_model: QM) -> error_stack::Result<Self, BroadcasterError> {
+        Ok(XRPLBroadcaster {
+            client,
+            queued_tx_model,
+        })
     }
 
     pub async fn handle_queued_tx(
@@ -29,7 +33,7 @@ impl<DB: Database, X: XRPLClientTrait> XRPLBroadcaster<DB, X> {
         tx: &Transaction,
         tx_hash: &str,
     ) -> Result<(), BroadcasterError> {
-        self.db
+        self.queued_tx_model
             .store_queued_transaction(
                 tx_hash,
                 &tx.common().account.to_string(),
@@ -65,7 +69,7 @@ fn log_and_return_error(
     })
 }
 
-impl<DB: Database, X: XRPLClientTrait> Broadcaster for XRPLBroadcaster<DB, X> {
+impl<QM: QueuedTransactionsModel, X: XRPLClientTrait> Broadcaster for XRPLBroadcaster<QM, X> {
     type Transaction = Transaction;
 
     async fn broadcast_prover_message(
@@ -184,8 +188,8 @@ impl<DB: Database, X: XRPLClientTrait> Broadcaster for XRPLBroadcaster<DB, X> {
 
 #[cfg(test)]
 mod tests {
+    use crate::models::queued_transactions::MockQueuedTransactionsModel;
     use crate::{broadcaster::XRPLBroadcaster, client::MockXRPLClientTrait};
-    use relayer_base::database::MockDatabase;
     use relayer_base::includer::Broadcaster;
     use serde_json;
     use std::sync::Arc;
@@ -203,7 +207,7 @@ mod tests {
         tx_hash: &str,
         transaction_type: &str,
     ) -> (
-        MockDatabase,
+        MockQueuedTransactionsModel,
         MockXRPLClientTrait,
         SubmitResponse,
         Transaction,
@@ -213,10 +217,10 @@ mod tests {
             transaction_type, account, account, sequence, tx_hash
         );
         let tx: Transaction = serde_json::from_str(&tx_json).unwrap();
-        let mock_db = MockDatabase::new();
+        let mock_queued_tx_model = MockQueuedTransactionsModel::new();
         let mock_client = MockXRPLClientTrait::new();
         let fake_response = client_response(&tx, blob, result);
-        (mock_db, mock_client, fake_response, tx)
+        (mock_queued_tx_model, mock_client, fake_response, tx)
     }
 
     fn client_response(tx: &Transaction, blob: &str, result: TransactionResult) -> SubmitResponse {
@@ -246,26 +250,27 @@ mod tests {
         let blob = "blob";
         let transaction_type = "Payment";
 
-        let (mut mock_db, mut mock_client, _fake_response, tx) = setup_broadcast_prover_tests(
-            blob,
-            TransactionResult::terQUEUED,
-            account,
-            sequence,
-            tx_hash,
-            transaction_type,
-        );
+        let (mut mock_queued_tx_model, mut mock_client, _fake_response, tx) =
+            setup_broadcast_prover_tests(
+                blob,
+                TransactionResult::terQUEUED,
+                account,
+                sequence,
+                tx_hash,
+                transaction_type,
+            );
 
-        mock_db
+        mock_queued_tx_model
             .expect_store_queued_transaction()
             .withf(move |h, a, s| h == tx_hash && a == account && *s == sequence)
             .times(1)
-            .returning(|_, _, _| Box::pin(async { Ok(()) }));
+            .returning(|_, _, _| Ok(()));
 
         mock_client.expect_call::<SubmitRequest>().never();
 
         let broadcaster = XRPLBroadcaster {
             client: Arc::new(mock_client),
-            db: mock_db,
+            queued_tx_model: mock_queued_tx_model,
         };
 
         let result = broadcaster.handle_queued_tx(&tx, tx_hash).await;
@@ -280,29 +285,30 @@ mod tests {
         let sequence: i64 = 123;
         let blob = "blob";
         let transaction_type = "Payment";
-        let (mut mock_db, mut mock_client, fake_response, tx) = setup_broadcast_prover_tests(
-            blob,
-            TransactionResult::terQUEUED,
-            account,
-            sequence,
-            tx_hash,
-            transaction_type,
-        );
+        let (mut mock_queued_tx_model, mut mock_client, fake_response, tx) =
+            setup_broadcast_prover_tests(
+                blob,
+                TransactionResult::terQUEUED,
+                account,
+                sequence,
+                tx_hash,
+                transaction_type,
+            );
 
         mock_client
             .expect_call::<SubmitRequest>()
             .times(1)
             .returning(move |_| Ok(fake_response.clone()));
 
-        mock_db
+        mock_queued_tx_model
             .expect_store_queued_transaction()
             .withf(move |h, a, s| h == tx_hash && a == account && *s == sequence as i64)
             .times(1)
-            .returning(|_, _, _| Box::pin(async move { Ok(()) }));
+            .returning(|_, _, _| Ok(()));
 
         let broadcaster = XRPLBroadcaster {
             client: Arc::new(mock_client),
-            db: mock_db,
+            queued_tx_model: mock_queued_tx_model,
         };
 
         let broadcast_result = broadcaster
@@ -322,14 +328,15 @@ mod tests {
         let sequence: i64 = 123;
         let blob = "blob";
         let transaction_type = "TicketCreate";
-        let (mock_db, mut mock_client, fake_response, tx) = setup_broadcast_prover_tests(
-            blob,
-            TransactionResult::tefPAST_SEQ,
-            account,
-            sequence,
-            tx_hash,
-            transaction_type,
-        );
+        let (mock_queued_tx_model, mut mock_client, fake_response, tx) =
+            setup_broadcast_prover_tests(
+                blob,
+                TransactionResult::tefPAST_SEQ,
+                account,
+                sequence,
+                tx_hash,
+                transaction_type,
+            );
 
         mock_client
             .expect_call::<SubmitRequest>()
@@ -338,7 +345,7 @@ mod tests {
 
         let broadcaster = XRPLBroadcaster {
             client: Arc::new(mock_client),
-            db: mock_db,
+            queued_tx_model: mock_queued_tx_model,
         };
 
         let broadcast_result = broadcaster
@@ -359,14 +366,15 @@ mod tests {
         let sequence: i64 = 123;
         let blob = "blob";
         let transaction_type = "Payment";
-        let (mock_db, mut mock_client, fake_response, _tx) = setup_broadcast_prover_tests(
-            blob,
-            TransactionResult::tesSUCCESS,
-            account,
-            sequence,
-            tx_hash,
-            transaction_type,
-        );
+        let (mock_queued_tx_model, mut mock_client, fake_response, _tx) =
+            setup_broadcast_prover_tests(
+                blob,
+                TransactionResult::tesSUCCESS,
+                account,
+                sequence,
+                tx_hash,
+                transaction_type,
+            );
 
         mock_client
             .expect_call::<SubmitRequest>()
@@ -375,7 +383,7 @@ mod tests {
 
         let broadcaster = XRPLBroadcaster {
             client: Arc::new(mock_client),
-            db: mock_db,
+            queued_tx_model: mock_queued_tx_model,
         };
 
         let broadcast_result: relayer_base::includer::BroadcastResult<Transaction> = broadcaster
@@ -394,14 +402,15 @@ mod tests {
         let sequence: i64 = 123;
         let blob = "blob";
         let transaction_type = "Payment";
-        let (mock_db, mut mock_client, fake_response, _tx) = setup_broadcast_prover_tests(
-            blob,
-            TransactionResult::tecINTERNAL,
-            account,
-            sequence,
-            tx_hash,
-            transaction_type,
-        );
+        let (mock_queued_tx_model, mut mock_client, fake_response, _tx) =
+            setup_broadcast_prover_tests(
+                blob,
+                TransactionResult::tecINTERNAL,
+                account,
+                sequence,
+                tx_hash,
+                transaction_type,
+            );
 
         mock_client
             .expect_call::<SubmitRequest>()
@@ -410,7 +419,7 @@ mod tests {
 
         let broadcaster = XRPLBroadcaster {
             client: Arc::new(mock_client),
-            db: mock_db,
+            queued_tx_model: mock_queued_tx_model,
         };
 
         let broadcast_result = broadcaster
@@ -429,14 +438,15 @@ mod tests {
         let sequence: i64 = 123;
         let blob = "blob";
         let transaction_type = "Payment";
-        let (mock_db, mut mock_client, fake_response, _tx) = setup_broadcast_prover_tests(
-            blob,
-            TransactionResult::terNO_AUTH,
-            account,
-            sequence,
-            tx_hash,
-            transaction_type,
-        );
+        let (mock_queued_tx_model, mut mock_client, fake_response, _tx) =
+            setup_broadcast_prover_tests(
+                blob,
+                TransactionResult::terNO_AUTH,
+                account,
+                sequence,
+                tx_hash,
+                transaction_type,
+            );
 
         mock_client
             .expect_call::<SubmitRequest>()
@@ -445,7 +455,7 @@ mod tests {
 
         let broadcaster = XRPLBroadcaster {
             client: Arc::new(mock_client),
-            db: mock_db,
+            queued_tx_model: mock_queued_tx_model,
         };
 
         let result = broadcaster.broadcast_prover_message(blob.to_string()).await;
