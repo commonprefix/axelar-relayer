@@ -269,7 +269,6 @@ pub fn setup_heartbeat(service: String, redis_pool: r2d2::Pool<redis::Client>) {
             if let Err(e) = result {
                 tracing::error!("Failed to write heartbeat: {}", e);
             }
-
             tokio::time::sleep(tokio::time::Duration::from_secs(15)).await;
         }
     });
@@ -315,8 +314,14 @@ where
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
-
+    use std::time::Duration;
+    use redis::Client;
     use crate::{database::MockDatabase, price_view::MockPriceView};
+    use testcontainers::{
+        core::{IntoContainerPort, WaitFor},
+        runners::AsyncRunner,
+        GenericImage,
+    };
 
     use super::*;
 
@@ -473,5 +478,38 @@ mod tests {
         .await
         .unwrap();
         assert_eq!(result, "123456000");
+    }
+
+    #[tokio::test]
+    async fn test_setup_heartbeat() {
+        let container = GenericImage::new("redis", "7.2.4")
+            .with_exposed_port(6379.tcp())
+            .with_wait_for(WaitFor::message_on_stdout("Ready to accept connections"))
+            .start()
+            .await
+            .unwrap();
+
+        let host = container.get_host().await.unwrap();
+        let host_port = container.get_host_port_ipv4(6379).await.unwrap();
+
+        let url = format!("redis://{host}:{host_port}");
+        let client = Client::open(url.as_ref()).unwrap();
+
+        let pool = r2d2::Pool::builder()
+            .connection_timeout(Duration::from_millis(1000))
+            .build(client)
+            .unwrap();
+        let mut conn = pool.get().unwrap();
+        tokio::time::pause();
+        setup_heartbeat("test".to_string(), pool);
+        let mut val: Option<String> = conn.get("test").unwrap();
+        assert!(val.is_none());
+
+        // It may be misleading to think that moving the clock forwards by 15 seconds will complete
+        // the loop. In fact, advance will move the tokio loop forward and change the clock, so
+        // the loop needs to be run as many times as there are yield opportunities.
+        tokio::time::advance(Duration::from_secs(1)).await;
+        val = conn.get("test").unwrap();
+        assert_eq!(val, Some("1".to_string()));
     }
 }
