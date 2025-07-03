@@ -66,14 +66,14 @@ impl<QM: QueuedTransactionsModel, X: XRPLClientTrait> XrplQueuedTxMonitor<QM, X>
 
             match self.check_transaction_status(&tx.tx_hash).await {
                 Ok(TxStatus::Confirmed) => {
-                    info!("Transaction {} confirmed", tx.tx_hash);
+                    debug!("Transaction {} confirmed", tx.tx_hash);
                     self.queued_tx_model
                         .mark_queued_transaction_confirmed(&tx.tx_hash)
                         .await
                         .map_err(|e| QueuedTxMonitorError::DatabaseError(e.to_string()))?;
                 }
                 Ok(TxStatus::Queued) => {
-                    info!(
+                    debug!(
                         "Transaction {} still queued, incrementing retry count to {}",
                         tx.tx_hash,
                         tx.retries + 1
