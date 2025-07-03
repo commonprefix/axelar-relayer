@@ -39,11 +39,8 @@ async-trait = "0.1"
 mockall = { workspace = true, optional = true }
 
 [dev-dependencies]
-relayer-base = { workspace = true, features = ["mocks"] }
+relayer-base = { workspace = true }
 mockall = { workspace = true }
-
-[features]
-mocks = ["mockall"]
 
 [[bin]]
 name = "xrpl_ingestor"
