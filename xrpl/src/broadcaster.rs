@@ -213,7 +213,7 @@ mod tests {
         Transaction,
     ) {
         let tx_json = format!(
-            r#"{{"TransactionType":"{}","Account":"{}","Destination":"{}","Amount":"1000","Sequence":{},"Fee":"12","Flags":2147483648,"Memos":[{{"Memo":{{"MemoType":"6d6573736167655f6964","MemoData":"6d6573736167655f6964","MemoFormat":"hex"}}}},{{"Memo":{{"MemoType":"736f757263655f636861696e","MemoData":"737263","MemoFormat":"hex"}}}}],"hash":"{}"}}"#,
+            r#"{{"TransactionType":"{}","Account":"{}","Destination":"{}","Amount":"1000","Sequence":{},"Fee":"12","Flags":2147483648,"Memos":[{{"Memo":{{"MemoType":"6d6573736167655f6964","MemoData":"6d6573736167655f6964","MemoFormat":"hex"}}}},{{"Memo":{{"MemoType":"736f757263655f636861696e","MemoData":"736f757263655f636861696e","MemoFormat":"hex"}}}}],"hash":"{}"}}"#,
             transaction_type, account, account, sequence, tx_hash
         );
         let tx: Transaction = serde_json::from_str(&tx_json).unwrap();
@@ -301,6 +301,8 @@ mod tests {
             .withf(move |req| req.tx_blob == blob)
             .returning(move |_| Ok(fake_response.clone()));
 
+        // TODO : This is not really the check we want to make.
+        // We need to check that handle_queued_tx is called instead
         mock_queued_tx_model
             .expect_store_queued_transaction()
             .withf(move |h, a, s| h == tx_hash && a == account && *s == sequence as i64)
@@ -320,6 +322,11 @@ mod tests {
         assert!(broadcast_result.status.is_ok());
         assert_eq!(broadcast_result.tx_hash, tx_hash.to_string());
         assert_eq!(broadcast_result.transaction, tx);
+        assert_eq!(broadcast_result.message_id, Some("message_id".to_string()));
+        assert_eq!(
+            broadcast_result.source_chain,
+            Some("source_chain".to_string())
+        );
     }
 
     #[tokio::test]
@@ -387,12 +394,21 @@ mod tests {
             queued_tx_model: mock_queued_tx_model,
         };
 
-        let broadcast_result: relayer_base::includer::BroadcastResult<Transaction> = broadcaster
+        let broadcast_result = broadcaster
             .broadcast_prover_message(blob.to_string())
             .await
             .unwrap();
 
         assert!(broadcast_result.status.is_ok());
+        assert_eq!(broadcast_result.tx_hash, tx_hash.to_string());
+        assert_eq!(
+            broadcast_result.transaction.common().account,
+            account.to_string()
+        );
+        assert_eq!(
+            broadcast_result.transaction.common().sequence,
+            sequence as u32
+        );
     }
 
     // all tec should return OK
