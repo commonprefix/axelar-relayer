@@ -1,5 +1,6 @@
 pub mod broadcaster;
 pub mod client;
+pub mod error;
 pub mod funder;
 pub mod includer;
 pub mod ingestor;

@@ -1,6 +1,6 @@
 use crate::{client::XRPLClientTrait, models::queued_transactions::QueuedTransactionsModel};
 
-use relayer_base::error::QueuedTxMonitorError;
+use crate::error::QueuedTxMonitorError;
 use std::sync::Arc;
 use std::time::Duration;
 use tracing::{debug, error, info, warn};
@@ -138,6 +138,7 @@ impl<QM: QueuedTransactionsModel, X: XRPLClientTrait> XrplQueuedTxMonitor<QM, X>
 mod tests {
     use std::sync::Arc;
 
+    use crate::queued_tx_monitor::QueuedTxMonitorError;
     use crate::{
         client::MockXRPLClientTrait,
         models::queued_transactions::{MockQueuedTransactionsModel, QueuedTransaction},
@@ -145,7 +146,6 @@ mod tests {
         XrplQueuedTxMonitor,
     };
     use chrono::Utc;
-    use relayer_base::error::QueuedTxMonitorError;
     use xrpl_api::{PaymentTransaction, Transaction, TransactionCommon, TxRequest, TxResponse};
 
     #[tokio::test]
