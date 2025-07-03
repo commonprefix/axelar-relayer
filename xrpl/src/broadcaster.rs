@@ -376,7 +376,7 @@ mod tests {
         let sequence: i64 = 123;
         let blob = "blob";
         let transaction_type = "Payment";
-        let (mock_queued_tx_model, mut mock_client, fake_response, _tx) =
+        let (mock_queued_tx_model, mut mock_client, fake_response, tx) =
             setup_broadcast_prover_tests(
                 blob,
                 TransactionResult::tesSUCCESS,
@@ -402,6 +402,7 @@ mod tests {
             .unwrap();
 
         assert!(broadcast_result.status.is_ok());
+
         assert_eq!(broadcast_result.tx_hash, tx_hash.to_string());
         assert_eq!(
             broadcast_result.transaction.common().account,
@@ -411,6 +412,12 @@ mod tests {
             broadcast_result.transaction.common().sequence,
             sequence as u32
         );
+        assert_eq!(broadcast_result.message_id, Some("message_id".to_string()));
+        assert_eq!(
+            broadcast_result.source_chain,
+            Some("source_chain".to_string())
+        );
+        assert_eq!(broadcast_result.transaction, tx);
     }
 
     // all tec should return OK
@@ -421,7 +428,7 @@ mod tests {
         let sequence: i64 = 123;
         let blob = "blob";
         let transaction_type = "Payment";
-        let (mock_queued_tx_model, mut mock_client, fake_response, _tx) =
+        let (mock_queued_tx_model, mut mock_client, fake_response, tx) =
             setup_broadcast_prover_tests(
                 blob,
                 TransactionResult::tecINTERNAL,
@@ -447,6 +454,13 @@ mod tests {
             .unwrap();
 
         assert!(broadcast_result.status.is_ok());
+        assert_eq!(broadcast_result.tx_hash, tx_hash.to_string());
+        assert_eq!(broadcast_result.transaction, tx);
+        assert_eq!(broadcast_result.message_id, Some("message_id".to_string()));
+        assert_eq!(
+            broadcast_result.source_chain,
+            Some("source_chain".to_string())
+        );
     }
 
     // other ter cases (other than terQUEUED) should return error
@@ -457,7 +471,7 @@ mod tests {
         let sequence: i64 = 123;
         let blob = "blob";
         let transaction_type = "Payment";
-        let (mock_queued_tx_model, mut mock_client, fake_response, _tx) =
+        let (mock_queued_tx_model, mut mock_client, fake_response, tx) =
             setup_broadcast_prover_tests(
                 blob,
                 TransactionResult::terNO_AUTH,
@@ -482,5 +496,12 @@ mod tests {
 
         let broadcast_result = result.unwrap();
         assert!(broadcast_result.status.is_err());
+        assert_eq!(broadcast_result.tx_hash, tx_hash.to_string());
+        assert_eq!(broadcast_result.transaction, tx);
+        assert_eq!(broadcast_result.message_id, Some("message_id".to_string()));
+        assert_eq!(
+            broadcast_result.source_chain,
+            Some("source_chain".to_string())
+        );
     }
 }
