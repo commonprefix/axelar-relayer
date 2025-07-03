@@ -1,4 +1,5 @@
 use dotenv::dotenv;
+use sqlx::PgPool;
 use std::sync::Arc;
 use tokio::signal::unix::{signal, SignalKind};
 
@@ -11,7 +12,10 @@ use relayer_base::{
     utils::{setup_heartbeat, setup_logging},
 };
 
-use xrpl::{client::XRPLClient, includer::XrplIncluder};
+use xrpl::{
+    client::XRPLClient, includer::XrplIncluder,
+    models::queued_transactions::PgQueuedTransactionsModel,
+};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -29,13 +33,17 @@ async fn main() -> anyhow::Result<()> {
     let postgres_db = PostgresDB::new(&config.postgres_url).await.unwrap();
     let payload_cache = PayloadCache::new(postgres_db.clone());
     let xrpl_client = XRPLClient::new(&config.xrpl_rpc, 3).unwrap();
+    let pg_pool = PgPool::connect(&config.postgres_url).await.unwrap();
+    let queued_tx_model = PgQueuedTransactionsModel {
+        pool: pg_pool.clone(),
+    };
     let xrpl_includer = XrplIncluder::new::<XRPLClient, PostgresDB>(
         config.clone(),
         gmp_api,
         redis_pool.clone(),
         payload_cache,
         construct_proof_queue.clone(),
-        postgres_db.clone(),
+        queued_tx_model.clone(),
         Arc::new(xrpl_client),
     )
     .await
