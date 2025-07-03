@@ -15,7 +15,7 @@ use xrpl_http_client;
 
 const DEFAULT_RPC_TIMEOUT: Duration = Duration::from_secs(3);
 
-#[cfg_attr(any(test, feature = "mocks"), mockall::automock)]
+#[cfg_attr(any(test), mockall::automock)]
 #[async_trait]
 pub trait XRPLClientTrait: Send + Sync {
     fn inner(&self) -> &xrpl_http_client::Client;
