@@ -5,7 +5,7 @@ use relayer_base::{
     includer::Includer, payload_cache::PayloadCache, queue::Queue,
 };
 
-use crate::client::XRPLClientTrait;
+use crate::{client::XRPLClientTrait, models::queued_transactions::PgQueuedTransactionsModel};
 
 use super::{broadcaster::XRPLBroadcaster, refund_manager::XRPLRefundManager};
 
@@ -22,13 +22,13 @@ impl XrplIncluder {
         redis_pool: r2d2::Pool<redis::Client>,
         payload_cache: PayloadCache<DB>,
         construct_proof_queue: Arc<Queue>,
-        db: DB,
+        queued_tx_model: PgQueuedTransactionsModel,
         chain_client: Arc<X>,
     ) -> error_stack::Result<
-        Includer<XRPLBroadcaster<DB, X>, Arc<X>, XRPLRefundManager<X>, DB>,
+        Includer<XRPLBroadcaster<PgQueuedTransactionsModel, X>, Arc<X>, XRPLRefundManager<X>, DB>,
         BroadcasterError,
     > {
-        let broadcaster = XRPLBroadcaster::new(Arc::clone(&chain_client), db)
+        let broadcaster = XRPLBroadcaster::new(Arc::clone(&chain_client), queued_tx_model)
             .map_err(|e| e.attach_printable("Failed to create XRPLBroadcaster"))?;
 
         let refund_manager =
