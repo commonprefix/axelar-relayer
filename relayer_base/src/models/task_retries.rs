@@ -16,11 +16,8 @@ pub struct PgTaskRetriesModel {
     pub pool: PgPool,
 }
 
-impl Model for PgTaskRetriesModel {
-    type Entity = TaskRetries;
-    type PrimaryKey = String;
-
-    async fn find(&self, id: Self::PrimaryKey) -> Result<Option<Self::Entity>> {
+impl Model<TaskRetries, String> for PgTaskRetriesModel {
+    async fn find(&self, id: String) -> Result<Option<TaskRetries>> {
         let query = format!("SELECT * FROM {} WHERE message_id = $1", PG_TABLE_NAME);
         let entry = sqlx::query_as::<_, TaskRetries>(&query)
             .bind(id)
