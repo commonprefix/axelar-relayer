@@ -26,7 +26,8 @@ pub fn message_id_from_retry_task(task: RetryTask) -> Result<Option<String>, any
     }
 }
 
-mod test {
+#[cfg(test)]
+mod tests {
     use relayer_base::gmp_api::{
         self,
         gmp_types::{ReactToExpiredSigningSessionTask, ReactToRetriablePollTask},
