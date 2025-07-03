@@ -41,7 +41,6 @@ reqwest-middleware = { workspace = true }
 sqlx = { workspace = true }
 dotenv = { workspace = true }
 r2d2 = { workspace = true }
-mockall = { workspace = true, optional = true }
 
 [dev-dependencies]
 mockall = { workspace = true }
