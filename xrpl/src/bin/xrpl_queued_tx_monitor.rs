@@ -1,13 +1,16 @@
 use dotenv::dotenv;
+use sqlx::PgPool;
 use std::sync::Arc;
 use tokio::signal::unix::{signal, SignalKind};
 
 use relayer_base::{
     config::Config,
-    database::PostgresDB,
     utils::{setup_heartbeat, setup_logging},
 };
-use xrpl::{client::XRPLClient, queued_tx_monitor::XrplQueuedTxMonitor};
+use xrpl::{
+    client::XRPLClient, models::queued_transactions::PgQueuedTransactionsModel,
+    queued_tx_monitor::XrplQueuedTxMonitor,
+};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -17,10 +20,11 @@ async fn main() -> anyhow::Result<()> {
 
     let _guard = setup_logging(&config);
 
-    let postgres_db = PostgresDB::new(&config.postgres_url).await?;
+    let pg_pool = PgPool::connect(&config.postgres_url).await.unwrap();
     let xrpl_client = Arc::new(XRPLClient::new(&config.xrpl_rpc, 3)?);
+    let queued_tx_model = PgQueuedTransactionsModel { pool: pg_pool };
 
-    let xrpl_tx_monitor = XrplQueuedTxMonitor::new(xrpl_client, postgres_db);
+    let xrpl_tx_monitor = XrplQueuedTxMonitor::new(xrpl_client, queued_tx_model);
 
     let redis_client = redis::Client::open(config.redis_server.clone())?;
     let redis_pool = r2d2::Pool::builder().build(redis_client)?;
