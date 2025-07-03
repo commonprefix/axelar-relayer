@@ -264,7 +264,7 @@ mod tests {
             .expect_store_queued_transaction()
             .withf(move |h, a, s| h == tx_hash && a == account && *s == sequence)
             .times(1)
-            .returning(|_, _, _| Ok(()));
+            .returning(|_, _, _| Box::pin(async { Ok(()) }));
 
         mock_client.expect_call::<SubmitRequest>().never();
 
@@ -304,7 +304,7 @@ mod tests {
             .expect_store_queued_transaction()
             .withf(move |h, a, s| h == tx_hash && a == account && *s == sequence as i64)
             .times(1)
-            .returning(|_, _, _| Ok(()));
+            .returning(|_, _, _| Box::pin(async { Ok(()) }));
 
         let broadcaster = XRPLBroadcaster {
             client: Arc::new(mock_client),

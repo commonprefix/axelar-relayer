@@ -1,3 +1,5 @@
+use std::future::Future;
+
 use anyhow::Result;
 //use async_trait::async_trait;
 use chrono::{DateTime, Utc};
@@ -16,17 +18,20 @@ pub struct QueuedTransaction {
 //#[async_trait]
 #[cfg_attr(any(test), mockall::automock)]
 pub trait QueuedTransactionsModel {
-    async fn get_queued_transactions_ready_for_check(&self) -> Result<Vec<QueuedTransaction>>;
-    async fn mark_queued_transaction_confirmed(&self, tx_hash: &str) -> Result<()>;
-    async fn mark_queued_transaction_dropped(&self, tx_hash: &str) -> Result<()>;
-    async fn mark_queued_transaction_expired(&self, tx_hash: &str) -> Result<()>;
-    async fn increment_queued_transaction_retry(&self, tx_hash: &str) -> Result<()>;
-    async fn store_queued_transaction(
+    fn get_queued_transactions_ready_for_check(
+        &self,
+    ) -> impl Future<Output = Result<Vec<QueuedTransaction>>>;
+    fn mark_queued_transaction_confirmed(&self, tx_hash: &str) -> impl Future<Output = Result<()>>;
+    fn mark_queued_transaction_dropped(&self, tx_hash: &str) -> impl Future<Output = Result<()>>;
+    fn mark_queued_transaction_expired(&self, tx_hash: &str) -> impl Future<Output = Result<()>>;
+    fn increment_queued_transaction_retry(&self, tx_hash: &str)
+        -> impl Future<Output = Result<()>>;
+    fn store_queued_transaction(
         &self,
         tx_hash: &str,
         account: &str,
         sequence: i64,
-    ) -> Result<()>;
+    ) -> impl Future<Output = Result<()>>;
 }
 
 const PG_TABLE_NAME: &str = "xrpl_queued_transactions";
