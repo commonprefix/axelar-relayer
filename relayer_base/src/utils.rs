@@ -343,7 +343,10 @@ pub fn message_id_from_retry_task(task: Task) -> Result<String, anyhow::Error> {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::{BTreeMap, HashMap};
+    use std::{
+        collections::{BTreeMap, HashMap},
+        fs,
+    };
 
     use xrpl_amplifier_types::types::{XRPLAccountId, XRPLCurrency};
     use xrpl_api::IssuedAmount;
@@ -525,7 +528,6 @@ mod tests {
 
     #[test]
     fn test_parse_all_valid_tasks() {
-        use std::fs;
         let valid_tasks_dir = "../testdata/xrpl_tasks/valid_tasks";
         let entries = fs::read_dir(valid_tasks_dir).expect("Failed to read valid_tasks directory");
 
@@ -1078,5 +1080,61 @@ mod tests {
             .contains("Failed to parse xrpl_message"));
     }
 
-    // for convert_amount_to_token_drops wait for merge with terQueued which adds mockall and traits
+    #[test]
+    fn test_message_id_from_retry_task_react_to_retriable_poll() {
+        let valid_tasks_dir = "../testdata/xrpl_tasks/valid_tasks";
+        let json_str =
+            fs::read_to_string(format!("{}/ReactToRetriablePollTask.json", valid_tasks_dir))
+                .expect("Failed to read ReactToRetriablePollTask.json");
+        let tasks: Vec<ReactToRetriablePollTask> = serde_json::from_str(&json_str)
+            .expect("Failed to parse JSON into Vec<ReactToRetriablePollTask>");
+        // test a specific valid task
+        let task = tasks
+            .clone()
+            .into_iter()
+            .nth(1)
+            .expect("Missing second task");
+        let maybe_message_id = message_id_from_retry_task(Task::ReactToRetriablePoll(task));
+        assert!(maybe_message_id.is_ok());
+        assert_eq!(
+            maybe_message_id.unwrap(),
+            "5fa140ff4b90c83df9fdfdc81595bd134f41d929694eedb15cf7fd1c511e8025"
+        );
+
+        // test a specific valid task which does not have the fields we need
+        let task_err = tasks.into_iter().nth(0).unwrap();
+        let err = message_id_from_retry_task(Task::ReactToRetriablePoll(task_err));
+        assert!(err.is_err());
+    }
+
+    #[test]
+    fn test_message_id_from_retry_task_react_to_expired_signing_session() {
+        let valid_tasks_dir = "../testdata/xrpl_tasks/valid_tasks";
+        let json_str = fs::read_to_string(format!(
+            "{}/ReactToExpiredSigningSessionTask.json",
+            valid_tasks_dir
+        ))
+        .expect("Failed to read ReactToExpiredSigningSessionTask.json");
+        let tasks: Vec<ReactToExpiredSigningSessionTask> = serde_json::from_str(&json_str)
+            .expect("Failed to parse JSON into Vec<ReactToExpiredSigningSessionTask>");
+        // test a specific valid task
+        let task = tasks
+            .clone()
+            .into_iter()
+            .nth(1)
+            .expect("Missing second task");
+        let maybe_message_id = message_id_from_retry_task(Task::ReactToExpiredSigningSession(task));
+        assert!(maybe_message_id.is_ok());
+        let actual_source_chain = "axelar";
+        let actual_message_id =
+            "0x054e170d88e181b39f638cd5da6f3c76d1a5c4f0945a4540ffddc5e13965444b-150693962";
+        let actual_cc_id = CrossChainId::new(actual_source_chain, actual_message_id).unwrap();
+
+        assert_eq!(maybe_message_id.unwrap(), actual_cc_id.to_string());
+
+        // test a specific valid task which does not have the fields we need
+        let task_err = tasks.into_iter().nth(0).unwrap();
+        let err = message_id_from_retry_task(Task::ReactToExpiredSigningSession(task_err));
+        assert!(err.is_err());
+    }
 }
