@@ -298,6 +298,7 @@ mod tests {
         mock_client
             .expect_call::<SubmitRequest>()
             .times(1)
+            .withf(move |req| req.tx_blob == blob)
             .returning(move |_| Ok(fake_response.clone()));
 
         mock_queued_tx_model
