@@ -146,6 +146,7 @@ mod tests {
         XrplQueuedTxMonitor,
     };
     use chrono::Utc;
+    use mockall::predicate::eq;
     use xrpl_api::{PaymentTransaction, Transaction, TransactionCommon, TxRequest, TxResponse};
 
     #[tokio::test]
@@ -401,21 +402,25 @@ mod tests {
 
         mock_queued_tx_model
             .expect_mark_queued_transaction_expired()
+            .with(eq("DUMMY_HASH3"))
             .times(1)
             .returning(|_| Ok(()));
 
         mock_queued_tx_model
             .expect_mark_queued_transaction_confirmed()
+            .with(eq("DUMMY_HASH"))
             .times(1)
             .returning(|_| Ok(()));
 
         mock_queued_tx_model
             .expect_mark_queued_transaction_dropped()
+            .with(eq("DUMMY_HASH2"))
             .times(1)
             .returning(|_| Ok(()));
 
         mock_queued_tx_model
             .expect_increment_queued_transaction_retry()
+            .with(eq("DUMMY_HASH4"))
             .times(1)
             .returning(|_| Ok(()));
 
