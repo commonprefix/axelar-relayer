@@ -135,11 +135,8 @@ pub struct PgXrplTransactionModel {
     pub pool: PgPool,
 }
 
-impl Model for PgXrplTransactionModel {
-    type Entity = XrplTransaction;
-    type PrimaryKey = String;
-
-    async fn find(&self, id: Self::PrimaryKey) -> Result<Option<Self::Entity>> {
+impl Model<XrplTransaction, String> for PgXrplTransactionModel {
+    async fn find(&self, id: String) -> Result<Option<XrplTransaction>> {
         let query = format!("SELECT * FROM {} WHERE tx_hash = $1", PG_TABLE_NAME);
         let tx = sqlx::query_as::<_, XrplTransaction>(&query)
             .bind(id)
@@ -186,6 +183,10 @@ impl Model for PgXrplTransactionModel {
 }
 
 impl PgXrplTransactionModel {
+    pub fn new(pool: PgPool) -> Self {
+        Self { pool }
+    }
+
     pub async fn update_status(&self, tx_hash: &str, status: XrplTransactionStatus) -> Result<()> {
         let query = format!(
             "UPDATE {} SET status = $1 WHERE tx_hash = $2",
