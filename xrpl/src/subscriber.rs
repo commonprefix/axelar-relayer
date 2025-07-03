@@ -52,6 +52,7 @@ impl<DB: Database> XrplSubscriber<DB> {
 
 impl<DB: Database> TransactionPoller for XrplSubscriber<DB> {
     type Transaction = Transaction;
+    type Account = AccountId;
 
     fn make_queue_item(&mut self, tx: Self::Transaction) -> ChainTransaction {
         ChainTransaction::Xrpl(tx)
