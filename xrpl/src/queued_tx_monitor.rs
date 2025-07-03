@@ -175,10 +175,7 @@ mod tests {
             .await;
         assert!(result.is_ok());
         let tx_status = result.unwrap();
-        match tx_status {
-            TxStatus::Confirmed => {}
-            _ => panic!("Expected TxStatus::Confirmed"),
-        }
+        assert!(matches!(tx_status, TxStatus::Confirmed));
     }
 
     #[tokio::test]
@@ -208,10 +205,7 @@ mod tests {
             .await;
         assert!(result.is_ok());
         let tx_status = result.unwrap();
-        match tx_status {
-            TxStatus::Queued => {}
-            _ => panic!("Expected TxStatus::Queued"),
-        }
+        assert!(matches!(tx_status, TxStatus::Queued));
     }
 
     #[tokio::test]
@@ -235,10 +229,7 @@ mod tests {
             .await;
         assert!(result.is_ok());
         let tx_status = result.unwrap();
-        match tx_status {
-            TxStatus::Dropped => {}
-            _ => panic!("Expected TxStatus::Dropped"),
-        }
+        assert!(matches!(tx_status, TxStatus::Dropped));
     }
 
     #[tokio::test]
