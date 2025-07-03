@@ -112,7 +112,7 @@ pub fn setup_logging(config: &Config) -> ClientInitGuard {
     let environment = std::env::var("ENVIRONMENT").unwrap_or_else(|_| "development".to_string());
 
     let _guard = sentry::init((
-        config.xrpl_relayer_sentry_dsn.to_string(),
+        config.sentry_dsn.to_string(),
         sentry::ClientOptions {
             release: sentry::release_name!(),
             environment: Some(std::borrow::Cow::Owned(environment.clone())),
