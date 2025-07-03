@@ -364,6 +364,8 @@ mod tests {
         assert!(broadcast_result.status.is_ok());
         assert_eq!(broadcast_result.tx_hash, tx_hash.to_string());
         assert_eq!(broadcast_result.transaction, tx);
+        assert_eq!(broadcast_result.message_id, None);
+        assert_eq!(broadcast_result.source_chain, None);
     }
 
     // all tes should return OK
