@@ -23,8 +23,6 @@ match TonLog::from_boc_b64(boc_b64) {
 - Reuse error so it's BOC Parsing Error as type
 */
 
-use std::str::FromStr;
-use hex::FromHex;
 use tonlib_core::cell::{Cell, CellParser};
 use tonlib_core::tlb_types::tlb::TLB;
 use tonlib_core::{TonAddress, TonHash};

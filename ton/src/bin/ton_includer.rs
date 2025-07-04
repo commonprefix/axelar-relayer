@@ -17,7 +17,7 @@ async fn main() -> anyhow::Result<()> {
 
     let _guard = setup_logging(&config);
 
-    let tasks_queue = Queue::new(&config.queue_address, "tasks").await;
+    let tasks_queue = Queue::new(&config.queue_address, "includer_tasks").await;
     let construct_proof_queue = Queue::new(&config.queue_address, "construct_proof").await;
     let gmp_api = Arc::new(gmp_api::GmpApi::new(&config, true).unwrap());
     let redis_client = redis::Client::open(config.redis_server.clone()).unwrap();

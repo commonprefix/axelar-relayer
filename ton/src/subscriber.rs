@@ -92,7 +92,7 @@ impl<DB: Database> TransactionPoller for TONSubscriber<DB> {
         Ok(transactions)
     }
 
-    async fn poll_tx(&mut self, tx_hash: String) -> Result<Self::Transaction, anyhow::Error> {
+    async fn poll_tx(&mut self, _tx_hash: String) -> Result<Self::Transaction, anyhow::Error> {
         unimplemented!();
     }
 }

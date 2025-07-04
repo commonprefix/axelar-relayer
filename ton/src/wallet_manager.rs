@@ -74,6 +74,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tonlib_core::wallet::mnemonic::KeyPair;
 use tonlib_core::TonAddress;
+use tracing::debug;
 
 #[derive(Debug)]
 pub enum WalletManagerError {
@@ -121,6 +122,7 @@ impl WalletManager {
         for (address, wallet) in &self.wallets {
             let l = self.lock_manager.lock(&address.to_string()).await;
             if l {
+                debug!("Acquired wallet: {:?}", address);
                 return Ok(wallet);
             }
         }
@@ -129,6 +131,7 @@ impl WalletManager {
 
     pub async fn release(&self, wallet: &TonWalletHighLoadV3) {
         self.lock_manager.unlock(&wallet.address.to_string()).await;
+        debug!("Released wallet: {:?}", wallet.address);
     }
 }
 

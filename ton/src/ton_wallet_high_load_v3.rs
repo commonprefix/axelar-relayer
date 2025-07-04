@@ -51,6 +51,7 @@ use tonlib_core::tlb_types::tlb::TLB;
 use tonlib_core::wallet::mnemonic::KeyPair;
 use tonlib_core::TonAddress;
 
+#[derive(Debug)]
 pub struct SystemTimeProvider;
 
 pub trait TimeProvider: Send + Sync {
@@ -66,6 +67,7 @@ impl TimeProvider for SystemTimeProvider {
     }
 }
 
+#[derive(Debug)]
 pub struct TonWalletHighLoadV3<T: TimeProvider = SystemTimeProvider> {
     pub(crate) address: TonAddress,
     pub(crate) key_pair: KeyPair,
@@ -357,7 +359,7 @@ mod tests {
             mock_time,
         );
         let boc = wallet.outgoing_message(vec![mock_out_action()], 42, BigUint::from(999u32));
-        assert_eq!(boc.root(0).unwrap().to_boc_b64(true).unwrap(), "te6cckEBCQEA6wABxYgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAG7Up4wTXKqRtLg3cYwBnC7/mil7qtmVyegmS6U8wc4PxIw1yThhMNylU8eyxBGQT28E1oxr0/9GCu67AV4qIgBAEBJQAAAUEBAABUAAAAAAADDMgAD6QCASEgID5wAAAAAAAAAAAAAAAAAwMBGK5C5aQAAAAAAAAAKgQCCg7DyG0BBQYAAAFoMgB//////////////////////////////////////////6O5rKAAAAAAAAAAAAAAAAAAAQcBCAAAACgIAAIq4TRTtQ==");
+        assert_eq!(boc.root(0).unwrap().to_boc_b64(true).unwrap(), "te6cckEBCQEA6wABxYgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACXCFa6bM55U2zArv5G9cdeG77TKolB1hGNn/4Am2aaNiv4r7ZGkgBtIOl4vL8MhFFQdTIkMn/hdwNwGLhJ69wTAEBJQAAAUEBAABUAAAAAAADDTAAD6QCASEgID5wAAAAAAAAAAAAAAAAAwMBGK5C5aQAAAAAAAAAKgQCCg7DyG0BBQYAAAFoMgB//////////////////////////////////////////6O5rKAAAAAAAAAAAAAAAAAAAQcBCAAAACgIAAIq0VehOw==");
     }
 }
 

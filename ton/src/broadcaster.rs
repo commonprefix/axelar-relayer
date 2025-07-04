@@ -9,13 +9,14 @@ and broadcaster should potentially be returning a vector of BroadcastResults.
 
 # TODO
 
-- Ensure that even if we fail when sending we properly release the wallet. E.g. if POST fails, we
-should release the wallet.
 - Actually calculate approve_message_value
 - Implement refunds
-- Implement Transaction Types for TON
+- Implement Transaction Types for TON (?)
 - Handle multiple messages per transaction.
 - The inner logic will probably be refactored as soon as its reused
+- Move MockQueryIdWrapper to mockall
+- Check that rest api is getting a correct request
+- We are always releasing wallet twice it seems
 
 */
 
@@ -34,9 +35,11 @@ use relayer_base::{
 };
 use std::sync::Arc;
 use tonlib_core::tlb_types::block::out_action::OutAction;
+use tonlib_core::tlb_types::tlb::TLB;
 use tonlib_core::TonAddress;
-use tracing::error;
+use tracing::{error};
 use relayer_base::gmp_api::gmp_types::ExecuteTaskFields;
+use crate::relayer_execute_message::RelayerExecuteMessage;
 
 pub struct TONBroadcaster {
     wallet_manager: Arc<WalletManager>,
@@ -44,6 +47,7 @@ pub struct TONBroadcaster {
     client: Arc<dyn RestClient>,
     gateway_address: TonAddress,
     internal_message_value: u32,
+    chain_name: String,
 }
 
 impl TONBroadcaster {
@@ -53,6 +57,7 @@ impl TONBroadcaster {
         query_id_wrapper: Arc<dyn HighLoadQueryIdWrapper>,
         gateway_address: TonAddress,
         internal_message_value: u32,
+        chain_name: String,
     ) -> error_stack::Result<Self, BroadcasterError> {
         Ok(TONBroadcaster {
             wallet_manager,
@@ -60,9 +65,9 @@ impl TONBroadcaster {
             query_id_wrapper,
             gateway_address,
             internal_message_value,
+            chain_name,
         })
     }
-
 }
 
 pub struct TONTransaction;
@@ -87,36 +92,42 @@ impl Broadcaster for TONBroadcaster {
             self.gateway_address.clone(),
         )];
         let wallet = self.wallet_manager.acquire().await.map_err(|e| {
-            error!("Error acquiring wallet: {:?}", e);
             BroadcasterError::GenericError(format!("Wallet acquire failed: {:?}", e))
         })?;
-        let query_id = self
-            .query_id_wrapper
-            .next(wallet.address.to_string().as_str(), wallet.timeout)
-            .await
-            .map_err(|e| {
-                error!("Query Id acquiring failed: {:?}", e);
-                BroadcasterError::GenericError(format!("Query Id acquiring failed: {:?}", e))
-            })?;
-        let outgoing_message =
-            wallet.outgoing_message(actions, query_id.query_id().await, internal_message_value);
 
-        let tx = outgoing_message.serialize(true).unwrap();
-        let boc = general_purpose::STANDARD.encode(&tx);
-        let response = self
-            .client
-            .post_v3_message(boc)
-            .await
-            .map_err(|e| RPCCallFailed(e.to_string()))?;
+
+        let result = (|| async {
+            let query_id = self
+                .query_id_wrapper
+                .next(wallet.address.to_string().as_str(), wallet.timeout)
+                .await
+                .map_err(|e| {
+                    BroadcasterError::GenericError(format!("Query Id acquiring failed: {:?}", e))
+                })?;
+            let outgoing_message =
+                wallet.outgoing_message(actions, query_id.query_id().await, internal_message_value);
+
+            let tx = outgoing_message.serialize(true).unwrap();
+            let boc = general_purpose::STANDARD.encode(&tx);
+            let response = self
+                .client
+                .post_v3_message(boc)
+                .await
+                .map_err(|e| RPCCallFailed(e.to_string()))?;
+            self.wallet_manager.release(wallet).await;
+
+            Ok(BroadcastResult {
+                transaction: TONTransaction,
+                tx_hash: response.message_hash,
+                message_id: Some(message.message_id.clone()),
+                source_chain: Some(message.source_chain.clone()),
+                status: Ok(()),
+            })
+        })().await;
+
         self.wallet_manager.release(wallet).await;
 
-        Ok(BroadcastResult {
-            transaction: TONTransaction,
-            tx_hash: response.message_hash,
-            message_id: Some(message.message_id.clone()),
-            source_chain: Some(message.source_chain.clone()),
-            status: Ok(()),
-        })
+        result
     }
 
     async fn broadcast_refund(&self, _tx_blob: String) -> Result<String, BroadcasterError> {
@@ -125,22 +136,99 @@ impl Broadcaster for TONBroadcaster {
 
     async fn broadcast_execute_message(
         &self, 
-        _message: ExecuteTaskFields
+        message: ExecuteTaskFields
     ) -> Result<BroadcastResult<Self::Transaction>, BroadcasterError> {
-        todo!();
+        let destination_address: TonAddress =
+            message.message.destination_address
+                .parse()
+                .map_err(|e| {
+                    BroadcasterError::GenericError(format!("TonAddressParseError: {:?}", e))
+                })?;
+
+        let decoded_bytes = general_purpose::STANDARD
+            .decode(message.payload)
+            .map_err(|e| BroadcasterError::GenericError(format!("Failed decoding payload: {:?}", e)))?;
+
+        let hex_payload = hex::encode(decoded_bytes);
+
+        let message_id = message.message.message_id;
+        let source_chain = message.message.source_chain;
+
+        let wallet = self.wallet_manager.acquire().await.map_err(|e| {
+            error!("Error acquiring wallet: {:?}", e);
+            BroadcasterError::GenericError(format!("Wallet acquire failed: {:?}", e))
+        })?;
+
+        let result = (|| async {
+            let relayer_execute_msg = RelayerExecuteMessage::new(
+                message_id.clone(),
+                source_chain.clone(),
+                message.message.source_address,
+                self.chain_name.clone(),
+                destination_address,
+                hex_payload,
+                wallet.address.clone(),
+            );
+
+            let boc = relayer_execute_msg.to_cell().to_boc_hex(true).map_err(|e| {
+                BroadcasterError::GenericError(format!("Failed to serialize relayer execute message: {:?}", e))
+            })?;
+
+            let execute_message_value: BigUint = BigUint::from(2_000_000_000u32); // We will need to calculate this
+
+            let actions: Vec<OutAction> = vec![out_action(
+                &boc,
+                execute_message_value.clone(),
+                self.gateway_address.clone(),
+            )];
+
+            let query_id = self
+                .query_id_wrapper
+                .next(wallet.address.to_string().as_str(), wallet.timeout)
+                .await
+                .map_err(|e| {
+                    BroadcasterError::GenericError(format!("Query Id acquiring failed: {:?}", e))
+                })?;
+
+            let internal_message_value: BigUint = BigUint::from(self.internal_message_value);
+            let outgoing_message =
+                wallet.outgoing_message(actions, query_id.query_id().await, internal_message_value);
+
+            let tx = outgoing_message.serialize(true).unwrap();
+            let boc = general_purpose::STANDARD.encode(&tx);
+
+            let response = self
+                .client
+                .post_v3_message(boc)
+                .await
+                .map_err(|e| RPCCallFailed(e.to_string()))?;
+            self.wallet_manager.release(wallet).await;
+
+            Ok(BroadcastResult {
+                transaction: TONTransaction,
+                tx_hash: response.message_hash,
+                message_id: Some(message_id.clone()),
+                source_chain: Some(source_chain.clone()),
+                status: Ok(()),
+            })
+        })().await;
+
+        self.wallet_manager.release(wallet).await;
+
+        result
     }
 }
 
 #[cfg(test)]
 mod tests {
     use crate::broadcaster::{TONBroadcaster, TONTransaction};
-    use crate::client::{MockRestClient, RestClient, V3MessageResponse};
+    use crate::client::{MockRestClient, V3MessageResponse};
     use crate::high_load_query_id::HighLoadQueryId;
     use crate::high_load_query_id_db_wrapper::{
         HighLoadQueryIdWrapper, HighLoadQueryIdWrapperError,
     };
     use crate::wallet_manager::wallet_manager_tests::load_wallets;
-    use relayer_base::error::{BroadcasterError, ClientError};
+    use relayer_base::error::{BroadcasterError};
     use relayer_base::includer::{BroadcastResult, Broadcaster};
     use std::str::FromStr;
     use std::sync::Arc;
@@ -190,6 +278,7 @@ mod tests {
             client: Arc::new(client),
             gateway_address,
             internal_message_value,
+            chain_name: "ton2".to_string(),
         };
         let approve_message = hex::encode(BASE64_STANDARD.decode("te6cckECDAEAAYsAAggAAAAoAQIBYYAAAAAAAAAAAAAAAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADf5gkADAQHABADi0LAAUYmshNOh1nWEdwB3eJHd51H6EH1kg3v2M30y32eQAAAAAAAAAAAAAAAAAAAAAQ+j+g0KWjWTaPqB9qQHuWZQn7IPz7x3xzwbprT1a85sjh0UlPlFU84LDdRcD4GZ6n6GJlEKKTlRW5QtlzKGrAsBAtAFBECeAcQjykQMXsK+7MnQoVK1T8jnpBbJMbcInq8iFgWvFwYHCAkAiDB4MTdmZDdkYTNkODE5Y2ZiYzQ2ZmYyOGYzZDgwOTgwNzcwZWMxYjgwZmQ3ZDFiMjI5Y2VjMzI1MTkzOWI5YjIzZi0xABxhdmFsYW5jaGUtZnVqaQBUMHhkNzA2N0FlM0MzNTllODM3ODkwYjI4QjdCRDBkMjA4NENmRGY0OWI1AgAKCwBAuHpKD2RLehhu5xoUVGNPcMIqYqyhprpna1F1wh1/2TAACHRvbjJLddsV").unwrap());
 
@@ -240,6 +329,7 @@ mod tests {
             client: Arc::new(client),
             gateway_address,
             internal_message_value,
+            chain_name: "ton2".to_string(),
         };
 
         // Invalid base64 string for BOC (non-decodable)
@@ -289,12 +379,13 @@ mod tests {
             client: Arc::new(client),
             gateway_address,
             internal_message_value,
+            chain_name: "ton2".to_string(),
         };
         
         let execute_task = ExecuteTaskFields {
             message: GatewayV2Message {
                 message_id: "0xf38d2a646e4b60e37bc16d54bb9163739372594dc96bab954a85b4a170f49e58-1".to_string(),
-                source_chain: "ton2".to_string(),
+                source_chain: "avalanche-fuji".to_string(),
                 destination_address: "0:b87a4a0f644b7a186ee71a1454634f70c22a62aca1a6ba676b5175c21d7fd930".to_string(),
                 source_address: "ton2".to_string(),
                 payload_hash: "aea6524367000fb4a0aa20b1d4f63daad1ed9e9df70=".to_string()
@@ -313,7 +404,7 @@ mod tests {
             transaction: TONTransaction,
             tx_hash: "abc".to_string(),
             message_id: Some(
-                "0x17fd7da3d819cfbc46ff28f3d80980770ec1b80fd7d1b229cec3251939b9b23f-1".to_string(),
+                "0xf38d2a646e4b60e37bc16d54bb9163739372594dc96bab954a85b4a170f49e58-1".to_string(),
             ),
             source_chain: Some("avalanche-fuji".to_string()),
             status: Ok(()),

@@ -123,11 +123,12 @@ impl<DB: Database> Distributor<DB> {
             }
 
             let task_item = &QueueItem::Task(task.clone());
-            info!("Publishing task: {:?}", task);
 
             let queue = if self.supported_includer_tasks.contains(&task.kind()) {
+                info!("Publishing task to includer queue: {:?}", task);
                 includer_queue.clone()
             } else if self.supported_ingestor_tasks.contains(&task.kind()) {
+                info!("Publishing task to ingestor queue: {:?}", task);
                 ingestor_queue.clone()
             } else {
                 warn!("Dropping unsupported task: {:?}", task);

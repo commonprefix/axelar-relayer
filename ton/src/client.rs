@@ -235,7 +235,7 @@ mod tests {
                     "account",
                     "EQCqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqseb",
                 )
-                .query_param("start_lt", "1")
+                .query_param("start_lt", "2")
                 .query_param("limit", "100");
             then.status(200)
                 .header("Content-Type", "application/json")
@@ -256,10 +256,10 @@ mod tests {
             )
             .await;
 
-        assert!(result.is_ok(), "Expected successful result with start_lt");
+        assert!(result.is_ok(), "Expected successful result with start_lt, got: {result:?}");
 
         let txs = result.unwrap();
-        assert_eq!(txs.len(), 3);
+        assert_eq!(txs.len(), 4);
 
         let tx0 = &txs[0];
         assert_eq!(tx0.now, 1751291309);

@@ -49,6 +49,7 @@ impl TONIncluder {
             high_load_query_id_db_wrapper,
             gateway_address,
             internal_message_value,
+            config.chain_name,
         )
         .map_err(|e| e.attach_printable("Failed to create TONBroadcaster"))?;
 

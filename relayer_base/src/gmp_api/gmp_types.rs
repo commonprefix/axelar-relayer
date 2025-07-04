@@ -407,6 +407,13 @@ pub enum Event {
         status: MessageExecutionStatus,
         cost: Amount,
     },
+    MessageExecutedV2 {
+        #[serde(flatten)]
+        common: CommonEventFields<MessageExecutedEventMetadata>,
+        #[serde(rename = "crossChainID")]
+        cross_chain_id: CrossChainID,
+        cost: Amount,
+    },
     CannotExecuteMessageV2 {
         #[serde(flatten)]
         common: CommonEventFields<EventMetadata>,
@@ -467,6 +474,15 @@ pub enum QueryRequest {
 pub struct StorePayloadResult {
     pub keccak256: String,
 }
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct CrossChainID {
+    #[serde(rename = "sourceChain")]
+    pub source_chain: String,
+    #[serde(rename = "messageId")]
+    pub message_id: String,
+}
+
 
 #[cfg(test)]
 mod tests {
