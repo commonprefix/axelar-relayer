@@ -2,7 +2,7 @@ use anyhow::Result;
 pub mod task_retries;
 
 // E - entity, P - primary key
-#[cfg_attr(any(test), mockall::automock)]
+#[cfg_attr(test, mockall::automock)]
 pub trait Model<E, P> {
     fn upsert(&self, entity: E) -> impl std::future::Future<Output = Result<()>> + Send;
     fn find(&self, id: P) -> impl std::future::Future<Output = Result<Option<E>>> + Send;
