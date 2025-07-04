@@ -1,7 +1,6 @@
-use std::time::Duration;
+use std::{future::Future, time::Duration};
 
 use anyhow::anyhow;
-use async_trait::async_trait;
 use serde::{de::DeserializeOwned, Serialize};
 use tracing::{debug, info};
 use xrpl_api::{
@@ -15,31 +14,33 @@ use xrpl_http_client;
 
 const DEFAULT_RPC_TIMEOUT: Duration = Duration::from_secs(3);
 
-#[cfg_attr(any(test), mockall::automock)]
-#[async_trait]
+#[cfg_attr(test, mockall::automock)]
 pub trait XRPLClientTrait: Send + Sync {
     fn inner(&self) -> &xrpl_http_client::Client;
 
-    async fn call<Req>(
+    fn call<Req>(
         &self,
         request: Req,
-    ) -> Result<Req::Response, xrpl_http_client::error::Error>
+    ) -> impl Future<Output = Result<Req::Response, xrpl_http_client::error::Error>>
     where
         Req: Request + Serialize + std::fmt::Debug + std::clone::Clone + Send + 'static,
         Req::Response: DeserializeOwned + Send + 'static;
 
-    async fn get_transaction_by_id(&self, tx_id: String) -> Result<Transaction, anyhow::Error>;
+    fn get_transaction_by_id(
+        &self,
+        tx_id: String,
+    ) -> impl Future<Output = Result<Transaction, anyhow::Error>>;
 
-    async fn get_transactions_for_account(
+    fn get_transactions_for_account(
         &self,
         account: &AccountId,
         ledger_index_min: u32,
-    ) -> Result<Vec<Transaction>, anyhow::Error>;
+    ) -> impl Future<Output = Result<Vec<Transaction>, anyhow::Error>>;
 
-    async fn get_available_tickets_for_account(
+    fn get_available_tickets_for_account(
         &self,
         account: &AccountId,
-    ) -> Result<Vec<Ticket>, anyhow::Error>;
+    ) -> impl Future<Output = Result<Vec<Ticket>, anyhow::Error>>;
 }
 
 pub struct XRPLClient {
@@ -65,7 +66,6 @@ impl XRPLClient {
     }
 }
 
-#[async_trait]
 impl XRPLClientTrait for XRPLClient {
     fn inner(&self) -> &xrpl_http_client::Client {
         &self.client
