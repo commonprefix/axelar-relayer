@@ -34,9 +34,7 @@ async fn main() -> anyhow::Result<()> {
     let payload_cache = PayloadCache::new(postgres_db.clone());
     let xrpl_client = XRPLClient::new(&config.xrpl_rpc, 3).unwrap();
     let pg_pool = PgPool::connect(&config.postgres_url).await.unwrap();
-    let queued_tx_model = PgQueuedTransactionsModel {
-        pool: pg_pool.clone(),
-    };
+    let queued_tx_model = PgQueuedTransactionsModel::new(pg_pool.clone());
     let xrpl_includer = XrplIncluder::new::<XRPLClient, PostgresDB>(
         config.clone(),
         gmp_api,
