@@ -1,7 +1,6 @@
 use std::future::Future;
 
 use anyhow::Result;
-//use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
@@ -15,7 +14,7 @@ pub struct QueuedTransaction {
     pub status: Option<String>,
     pub last_checked: Option<DateTime<Utc>>,
 }
-//#[async_trait]
+
 #[cfg_attr(any(test), mockall::automock)]
 pub trait QueuedTransactionsModel {
     fn get_queued_transactions_ready_for_check(
