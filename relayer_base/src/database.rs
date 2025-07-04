@@ -7,7 +7,7 @@ use std::str::FromStr;
 use router_api::CrossChainId;
 
 // TODO: split to models
-#[cfg_attr(any(test), mockall::automock)]
+#[cfg_attr(test, mockall::automock)]
 pub trait Database {
     // Subscriber functions
     fn store_latest_height(
