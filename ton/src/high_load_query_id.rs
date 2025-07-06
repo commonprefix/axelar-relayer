@@ -28,7 +28,7 @@ pub enum HighLoadQueryIdError {
     ShiftOverflow,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct HighLoadQueryId {
     pub shift: u32,     // [0 .. 8191]
     pub bitnumber: u32, // [0 .. 1022]

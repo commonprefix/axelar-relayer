@@ -1,3 +1,9 @@
+/*!
+
+Reads from TON blockchain and adds transactions to a queue.
+
+*/
+
 use super::client::{RestClient, TONRpcClient};
 use relayer_base::database::Database;
 use relayer_base::error::SubscriberError;

@@ -11,21 +11,17 @@ and broadcaster should potentially be returning a vector of BroadcastResults.
 
 - Actually calculate approve_message_value
 - Implement refunds
-- Implement Transaction Types for TON (?)
 - Handle multiple messages per transaction.
 - The inner logic will probably be refactored as soon as its reused
 - Move MockQueryIdWrapper to mockall
-- Check that rest api is getting a correct request
-- We are always releasing wallet twice it seems
-- Cleanup any unwrap's
 
 */
 
 use super::client::{RestClient, V3MessageResponse};
-use crate::approve_message::ApproveMessages;
+use crate::boc_approve_message::ApproveMessages;
 use crate::high_load_query_id_db_wrapper::HighLoadQueryIdWrapper;
 use crate::out_action::out_action;
-use crate::relayer_execute_message::RelayerExecuteMessage;
+use crate::boc_relayer_execute_message::RelayerExecuteMessage;
 use crate::ton_wallet_high_load_v3::TonWalletHighLoadV3;
 use crate::wallet_manager::WalletManager;
 use base64::engine::general_purpose;
@@ -85,7 +81,7 @@ impl TONBroadcaster {
         let outgoing_message =
             wallet.outgoing_message(actions, query_id.query_id().await, internal_message_value);
 
-        let tx = outgoing_message.serialize(true).unwrap();
+        let tx = outgoing_message.serialize(true).map_err(|e| BroadcasterError::GenericError(e.to_string()))?;
         let boc = general_purpose::STANDARD.encode(&tx);
 
         self.client.post_v3_message(boc).await.map_err(|e| RPCCallFailed(e.to_string()))
@@ -126,7 +122,7 @@ impl Broadcaster for TONBroadcaster {
             tx_blob.as_str(),
             approve_message_value.clone(),
             self.gateway_address.clone(),
-        )];
+        ).map_err(|e| BroadcasterError::GenericError(e.to_string()))?];
         let wallet = self.wallet_manager.acquire().await.map_err(|e| {
             BroadcasterError::GenericError(format!("Wallet acquire failed: {:?}", e))
         })?;
@@ -195,7 +191,7 @@ impl Broadcaster for TONBroadcaster {
             );
 
             let boc = relayer_execute_msg
-                .to_cell()
+                .to_cell().map_err(|e| BroadcasterError::GenericError(e.to_string()))?
                 .to_boc_hex(true)
                 .map_err(|e| {
                     BroadcasterError::GenericError(format!(
@@ -210,7 +206,7 @@ impl Broadcaster for TONBroadcaster {
                 &boc,
                 execute_message_value.clone(),
                 self.gateway_address.clone(),
-            )];
+            ).map_err(|e| BroadcasterError::GenericError(e.to_string()))?];
 
             let res = self.send_to_chain(wallet, actions.clone()).await;
             let (tx_hash, status) = match res {
@@ -271,11 +267,13 @@ mod tests {
     #[tokio::test]
     async fn test_broadcast_prover_message() {
         let mut client = MockRestClient::new();
-        client.expect_post_v3_message().returning(|_| {
-            Ok(V3MessageResponse {
-                message_hash: "abc".to_string(),
-                message_hash_norm: "ABC".to_string(),
-            })
+
+        client.expect_post_v3_message()
+            .returning(move |_| {
+                Ok(V3MessageResponse {
+                    message_hash: "abc".to_string(),
+                    message_hash_norm: "ABC".to_string(),
+                })
         });
 
         let wallet_manager = load_wallets().await;

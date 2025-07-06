@@ -4,32 +4,23 @@ Approve Message decoder
 # Usage Example
 
 ```rust,no_run
-use ton::approve_message::ApproveMessages;
+use ton::boc_approve_message::ApproveMessages;
 
 let boc = "1234abcd";
 let approve_messages = ApproveMessages::from_boc_hex(boc);
 ```
-
 */
 
-use crate::approve_message::ApproveMessagesError::{BocParsingError, InvalidOpCode};
-use crate::cell_to::CellTo;
-use crate::op_codes::OP_APPROVE_MESSAGES;
+use crate::boc_cell_to::CellTo;
+use crate::ton_op_codes::OP_APPROVE_MESSAGES;
 use num_bigint::BigUint;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use thiserror::Error;
 use tonlib_core::cell::dict::predefined_readers::{key_reader_u8, val_reader_ref_cell};
 use tonlib_core::cell::{ArcCell, Cell, CellParser};
 use tonlib_core::tlb_types::tlb::TLB;
-
-#[derive(Error, Debug)]
-pub enum ApproveMessagesError {
-    #[error("BocParsingError: {0}")]
-    BocParsingError(String),
-    #[error("Invalid Op Code: {0}")]
-    InvalidOpCode(String),
-}
+use crate::errors::BocError;
+use crate::errors::BocError::{BocParsingError, InvalidOpCode};
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 pub struct ApproveMessage {
@@ -48,13 +39,13 @@ pub struct ApproveMessages {
 }
 
 impl ApproveMessages {
-    pub fn from_boc_hex(boc: &str) -> Result<Self, ApproveMessagesError> {
+    pub fn from_boc_hex(boc: &str) -> Result<Self, BocError> {
         let cell = Cell::from_boc_hex(boc).map_err(|err| BocParsingError(err.to_string()))?;
         let mut parser: CellParser = cell.parser();
         let op_code = parser
             .load_bits(32)
             .map_err(|err| BocParsingError(err.to_string()))?;
-        if hex::encode(&op_code) != OP_APPROVE_MESSAGES {
+        if hex::encode(&op_code) != format!("{:08X}", OP_APPROVE_MESSAGES) {
             return Err(InvalidOpCode(format!(
                 "Expected {:?}, got {:?}",
                 OP_APPROVE_MESSAGES,
@@ -85,7 +76,7 @@ impl ApproveMessages {
         })
     }
 
-    fn parse_approve_messages(cell: ArcCell) -> Result<ApproveMessage, ApproveMessagesError> {
+    fn parse_approve_messages(cell: ArcCell) -> Result<ApproveMessage, BocError> {
         let mut parser = cell.parser();
 
         let payload_hash = parser

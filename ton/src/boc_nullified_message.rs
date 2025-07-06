@@ -1,14 +1,33 @@
 /*!
-TODO: Move ApproveMessagesError to common errors.rs
+Parses and represents a `NullifiedSuccessfullyMessage`.
+
+
+# Usage Example
+
+```rust,no_run
+use ton::boc_nullified_message::NullifiedSuccessfullyMessage;
+
+fn main() {
+    let boc = "te6cck...";
+
+    match NullifiedSuccessfullyMessage::from_boc_b64(boc) {
+        Ok(msg) => {
+            // println!("Message ID: {}", msg.message_id);
+            // println!("Source Chain: {}", msg.source_chain);
+            // println!("Payload (hex): {}", msg.payload);
+        },
+        Err(e) => println!("Failed to parse message: {:?}", e),
+    }
+}
 */
 
-use crate::approve_message::ApproveMessagesError;
-use crate::approve_message::ApproveMessagesError::{BocParsingError, InvalidOpCode};
-use crate::cell_to::CellTo;
-use crate::op_codes::OP_NULLIFIED_SUCCESSFULLY;
+use crate::boc_cell_to::CellTo;
+use crate::ton_op_codes::OP_NULLIFIED_SUCCESSFULLY;
 use serde::{Deserialize, Serialize};
 use tonlib_core::cell::{Cell, CellParser};
 use tonlib_core::tlb_types::tlb::TLB;
+use crate::errors::BocError;
+use crate::errors::BocError::{BocParsingError, InvalidOpCode};
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 pub struct NullifiedSuccessfullyMessage {
@@ -21,14 +40,14 @@ pub struct NullifiedSuccessfullyMessage {
 }
 
 impl NullifiedSuccessfullyMessage {
-    pub fn from_boc_b64(boc: &str) -> Result<Self, ApproveMessagesError> {
+    pub fn from_boc_b64(boc: &str) -> Result<Self, BocError> {
         let cell = Cell::from_boc_b64(boc).map_err(|err| BocParsingError(err.to_string()))?;
         let mut parser: CellParser = cell.parser();
 
         let op_code = parser
             .load_bits(32)
             .map_err(|err| BocParsingError(err.to_string()))?;
-        if hex::encode(&op_code) != OP_NULLIFIED_SUCCESSFULLY {
+        if hex::encode(&op_code) != format!("{:08X}", OP_NULLIFIED_SUCCESSFULLY) {
             return Err(InvalidOpCode(format!(
                 "Expected {:?}, got {:?}",
                 OP_NULLIFIED_SUCCESSFULLY,
@@ -79,7 +98,7 @@ impl NullifiedSuccessfullyMessage {
 
 #[cfg(test)]
 mod tests {
-    use crate::nullified_message::NullifiedSuccessfullyMessage;
+    use crate::boc_nullified_message::NullifiedSuccessfullyMessage;
 
     #[test]
     fn test_from_boc_b64() {

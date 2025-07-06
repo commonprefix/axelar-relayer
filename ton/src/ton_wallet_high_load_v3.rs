@@ -25,7 +25,7 @@ let boc = wallet.outgoing_message(actions, 12345, BigUint::from(100u32));
 ```
 # TODO
 
-- [ ] Ability to repack more than 254 messages.
+- Ability to repack more than 254 messages.
 
 # Notes
 

@@ -49,6 +49,7 @@ async fn main() {
 
 - Add `acquire_skip(wallets_to_skip: &[&TonWalletHighLoadV3])` method, so that unusable wallets can be taken out of rotation.
 - Potentially add round robin selection, although it is questionable whether it would help us in practice.
+- Fix bug when query id fails
 
 # Notes
 

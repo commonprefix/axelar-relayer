@@ -48,9 +48,6 @@ async fn main() {
 }
 ```
 
-# TODO
-- [ ] Test how timeout (the time after which queries are moved to old_queries) works in practice.
-
 # See also
 - https://docs.ton.org/v3/guidelines/smart-contracts/howto/wallet#replay-protection
 
@@ -70,6 +67,7 @@ pub struct HighLoadQueryIdDbWrapper {
     db: PostgresDB,
 }
 
+#[cfg_attr(any(test), mockall::automock)]
 #[async_trait]
 pub trait HighLoadQueryIdWrapper {
     async fn next(
