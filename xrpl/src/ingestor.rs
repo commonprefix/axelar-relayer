@@ -43,6 +43,7 @@ use xrpl_amplifier_types::{
 use xrpl_api::Transaction;
 use xrpl_api::{Memo, PaymentTransaction};
 use xrpl_gateway::msg::{CallContract, InterchainTransfer, MessageWithPayload};
+use relayer_base::payload_cache::PayloadCacheTrait;
 use crate::config::XRPLConfig;
 use crate::utils::message_id_from_retry_task;
 use crate::xrpl_transaction::{PgXrplTransactionModel, XrplTransaction, XrplTransactionStatus};
@@ -1085,10 +1086,10 @@ impl<DB: Database> XrplIngestor<DB> {
 
 impl<DB: Database> IngestorTrait for XrplIngestor<DB> {
     async fn handle_transaction(&self, tx: ChainTransaction) -> Result<Vec<Event>, IngestorError> {
-        let tx = match tx {
-            ChainTransaction::Xrpl(tx) => tx,
+        let ChainTransaction::Xrpl(tx) = tx else {
+            return Err(IngestorError::UnexpectedChainTransactionType(format!("{:?}", tx)))
         };
-
+        
         let xrpl_transaction =
             XrplTransaction::from_native_transaction(&tx, &self.config.xrpl_multisig)
                 .map_err(|e| IngestorError::GenericError(e.to_string()))?;

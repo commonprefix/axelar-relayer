@@ -16,6 +16,8 @@ use crate::{
     payload_cache::PayloadCache,
     queue::{Queue, QueueItem},
 };
+use crate::gmp_api::gmp_types::ExecuteTaskFields;
+use crate::payload_cache::PayloadCacheTrait;
 
 pub trait RefundManager {
     type Wallet;
@@ -42,6 +44,8 @@ pub struct BroadcastResult<T> {
     pub status: Result<(), BroadcasterError>,
     pub message_id: Option<String>,
     pub source_chain: Option<String>,
+    // TODO: I'm not too hapy about this, maybe we should move the logic up to chain
+    pub clear_payload_cache_on_success: bool,
 }
 
 pub trait Broadcaster {
@@ -56,6 +60,10 @@ pub trait Broadcaster {
         &self,
         tx_blob: String,
     ) -> impl Future<Output = Result<String, BroadcasterError>>;
+    fn broadcast_execute_message(
+        &self,
+        message: ExecuteTaskFields
+    ) -> impl Future<Output = Result<BroadcastResult<Self::Transaction>, BroadcasterError>>;
 }
 
 pub struct Includer<B, C, R, DB>
@@ -129,6 +137,43 @@ where
     pub async fn consume(&self, task: QueueItem) -> Result<(), IncluderError> {
         match task {
             QueueItem::Task(task) => match task {
+                // TODO: We probably want to clean up this file, and maybe even move consume logic
+                // up to chain includer
+                Task::Execute(execute_task) => {
+                    info!("Consuming task: {:?}", execute_task);
+                    let broadcast_result = self
+                        .broadcaster
+                        .broadcast_execute_message(execute_task.task)
+                        .await
+                        .map_err(|e| IncluderError::ConsumerError(e.to_string()))?;
+
+
+                    if broadcast_result.message_id.is_some()
+                        && broadcast_result.source_chain.is_some() && broadcast_result.status.is_ok()
+                    {
+                        return Ok(());
+                    }
+
+                    let err = broadcast_result.status.unwrap_err();
+
+                    if broadcast_result.message_id.is_some()
+                        && broadcast_result.source_chain.is_some() {
+                        let message_id = broadcast_result.message_id.unwrap();
+                        let source_chain = broadcast_result.source_chain.unwrap();
+
+                        self.gmp_api
+                            .cannot_execute_message(
+                                execute_task.common.id,
+                                message_id,
+                                source_chain,
+                                err.to_string(),
+                            )
+                            .await
+                            .map_err(|e| IncluderError::ConsumerError(e.to_string()))?;
+                    }
+
+                    Err(IncluderError::ConsumerError(err.to_string()))
+                }
                 Task::GatewayTx(gateway_tx_task) => {
                     info!("Consuming task: {:?}", gateway_tx_task);
                     let broadcast_result = self
@@ -178,7 +223,7 @@ where
                                 )
                                 .await
                                 .map_err(|e| IncluderError::ConsumerError(e.to_string()))?;
-                        } else {
+                        } else if broadcast_result.clear_payload_cache_on_success {
                             // clear payload from cache, won't be needed anymore
                             self.payload_cache
                                 .clear(

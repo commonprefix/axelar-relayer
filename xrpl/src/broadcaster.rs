@@ -10,7 +10,7 @@ use relayer_base::{
     includer::{BroadcastResult, Broadcaster},
     utils::extract_hex_xrpl_memo,
 };
-
+use relayer_base::gmp_api::gmp_types::ExecuteTaskFields;
 use super::client::XRPLClient;
 
 pub struct XRPLBroadcaster {
@@ -45,6 +45,7 @@ fn log_and_return_error(
         ))),
         message_id,
         source_chain,
+        clear_payload_cache_on_success: true,
     })
 }
 
@@ -88,6 +89,7 @@ impl Broadcaster for XRPLBroadcaster {
                 status: Ok(()),
                 message_id,
                 source_chain,
+                clear_payload_cache_on_success: true
             })
         } else if response_category == ResultCategory::Tef {
             if matches!(tx, Transaction::TicketCreate(_))
@@ -101,6 +103,7 @@ impl Broadcaster for XRPLBroadcaster {
                     status: Ok(()),
                     message_id,
                     source_chain,
+                    clear_payload_cache_on_success: true
                 });
             }
             let req = TxRequest::new(&tx_hash);
@@ -114,6 +117,7 @@ impl Broadcaster for XRPLBroadcaster {
                             status: Ok(()),
                             message_id,
                             source_chain,
+                            clear_payload_cache_on_success: true
                         })
                     }
                     _ => log_and_return_error(&tx, &response, message_id, source_chain),
@@ -130,6 +134,7 @@ impl Broadcaster for XRPLBroadcaster {
                 status: Ok(()),
                 message_id,
                 source_chain,
+                clear_payload_cache_on_success: true,
             });
         } else {
             log_and_return_error(&tx, &response, message_id, source_chain)
@@ -156,5 +161,12 @@ impl Broadcaster for XRPLBroadcaster {
                 response.engine_result, response.engine_result_message
             )))
         }
+    }
+
+    async fn broadcast_execute_message(
+        &self, 
+        _message: ExecuteTaskFields
+    ) -> Result<BroadcastResult<Self::Transaction>, BroadcasterError> {
+        unimplemented!()
     }
 }

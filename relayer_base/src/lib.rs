@@ -12,4 +12,5 @@ pub mod price_view;
 pub mod proof_retrier;
 pub mod queue;
 pub mod subscriber;
+pub mod ton_types;
 pub mod utils;

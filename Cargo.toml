@@ -1,5 +1,5 @@
 [workspace]
-members = ["relayer_base", "recovery_tools", "xrpl"]
+members = ["relayer_base", "recovery_tools", "xrpl", "ton"]
 resolver = "2"
 
 [workspace.dependencies]
@@ -58,3 +58,4 @@ regex = "1.11.1"
 mockall = "0.13.1"
 mockito = "1.6.1"
 testcontainers = "0.24.0"
+async-trait = "0.1.88"
