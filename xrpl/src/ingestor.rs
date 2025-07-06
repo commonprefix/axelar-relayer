@@ -7,7 +7,6 @@ use relayer_base::ingestor::IngestorTrait;
 use relayer_base::models::task_retries::{PgTaskRetriesModel, TaskRetries};
 use relayer_base::subscriber::ChainTransaction;
 use relayer_base::{
-    config::Config,
     database::Database,
     error::{ITSTranslationError, IngestorError},
     gmp_api::{
@@ -44,7 +43,7 @@ use xrpl_amplifier_types::{
 use xrpl_api::Transaction;
 use xrpl_api::{Memo, PaymentTransaction};
 use xrpl_gateway::msg::{CallContract, InterchainTransfer, MessageWithPayload};
-
+use crate::config::XRPLConfig;
 use crate::utils::message_id_from_retry_task;
 use crate::xrpl_transaction::{PgXrplTransactionModel, XrplTransaction, XrplTransactionStatus};
 
@@ -58,7 +57,7 @@ pub struct XrplIngestorModels {
 pub struct XrplIngestor<DB: Database> {
     client: xrpl_http_client::Client,
     gmp_api: Arc<GmpApi>,
-    config: Config,
+    config: XRPLConfig,
     price_view: PriceView<DB>,
     payload_cache: PayloadCache<DB>,
     models: XrplIngestorModels,
@@ -67,7 +66,7 @@ pub struct XrplIngestor<DB: Database> {
 impl<DB: Database> XrplIngestor<DB> {
     pub fn new(
         gmp_api: Arc<GmpApi>,
-        config: Config,
+        config: XRPLConfig,
         price_view: PriceView<DB>,
         payload_cache: PayloadCache<DB>,
         models: XrplIngestorModels,
@@ -165,7 +164,7 @@ impl<DB: Database> XrplIngestor<DB> {
 
         let verify_tx_hash = self
             .gmp_api
-            .post_broadcast(self.config.axelar_contracts.xrpl_gateway.clone(), &request)
+            .post_broadcast(self.config.common_config.axelar_contracts.chain_gateway.clone(), &request)
             .await
             .map_err(|e| IngestorError::GenericError(e.to_string()))?;
 
@@ -274,7 +273,7 @@ impl<DB: Database> XrplIngestor<DB> {
 
                 let response_body = self
                     .gmp_api
-                    .post_query(self.config.axelar_contracts.xrpl_gateway.clone(), &request)
+                    .post_query(self.config.common_config.axelar_contracts.chain_gateway.clone(), &request)
                     .await
                     .map_err(|e| {
                         IngestorError::GenericError(format!("Failed to get token id: {}", e))
@@ -326,7 +325,7 @@ impl<DB: Database> XrplIngestor<DB> {
 
         let response_body = self
             .gmp_api
-            .post_query(self.config.axelar_contracts.xrpl_gateway.clone(), &request)
+            .post_query(self.config.common_config.axelar_contracts.chain_gateway.clone(), &request)
             .await
             .map_err(|e| ITSTranslationError::RequestError(e.to_string()))?;
 
@@ -457,6 +456,7 @@ impl<DB: Database> XrplIngestor<DB> {
                     XRPLPaymentAmount::Drops(amount) => {
                         let xrpl_token_id = self
                             .config
+                            .common_config
                             .deployed_tokens
                             .iter()
                             .find(|(_, token_symbol)| token_symbol == &"XRP")
@@ -477,7 +477,7 @@ impl<DB: Database> XrplIngestor<DB> {
                                 })?;
 
                             let amount = convert_token_amount_to_drops(
-                                &self.config,
+                                &self.config.common_config,
                                 amount,
                                 &token_id.to_string(),
                                 &self.price_view,
@@ -580,7 +580,7 @@ impl<DB: Database> XrplIngestor<DB> {
                     })?;
                     debug!("Token transfer: {:?}", msg_id);
                     convert_token_amount_to_drops(
-                        &self.config,
+                        &self.config.common_config,
                         amount,
                         &gas_token_id.to_string(),
                         &self.price_view,
@@ -630,7 +630,7 @@ impl<DB: Database> XrplIngestor<DB> {
                     e
                 ))
             })?);
-        Ok((self.config.axelar_contracts.xrpl_gateway.clone(), request))
+        Ok((self.config.common_config.axelar_contracts.chain_gateway.clone(), request))
     }
 
     pub async fn confirm_add_reserves_message_request(
@@ -648,7 +648,7 @@ impl<DB: Database> XrplIngestor<DB> {
                 ))
             })?);
         Ok((
-            self.config.axelar_contracts.xrpl_multisig_prover.clone(),
+            self.config.common_config.axelar_contracts.chain_multisig_prover.clone(),
             request,
         ))
     }
@@ -694,7 +694,7 @@ impl<DB: Database> XrplIngestor<DB> {
                 IngestorError::GenericError(format!("Failed to serialize ConfirmTxStatus: {}", e))
             })?);
         Ok((
-            self.config.axelar_contracts.xrpl_multisig_prover.clone(),
+            self.config.common_config.axelar_contracts.chain_multisig_prover.clone(),
             request,
         ))
     }
@@ -736,7 +736,7 @@ impl<DB: Database> XrplIngestor<DB> {
                     e
                 ))
             })?);
-        Ok((self.config.axelar_contracts.xrpl_gateway.clone(), request))
+        Ok((self.config.common_config.axelar_contracts.chain_gateway.clone(), request))
     }
 
     pub async fn handle_successful_routing(
@@ -1349,7 +1349,7 @@ impl<DB: Database> IngestorTrait for XrplIngestor<DB> {
         let maybe_construct_proof_tx_hash = self
             .gmp_api
             .post_broadcast(
-                self.config.axelar_contracts.xrpl_multisig_prover.clone(),
+                self.config.common_config.axelar_contracts.chain_multisig_prover.clone(),
                 &request,
             )
             .await

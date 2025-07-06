@@ -4797,6 +4797,7 @@ dependencies = [
  "serde_with",
  "serde_yaml",
  "sqlx",
+ "testcontainers",
  "thiserror 2.0.12",
  "tokio",
  "tokio-util",
