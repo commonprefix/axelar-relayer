@@ -27,13 +27,15 @@ async fn main() -> anyhow::Result<()> {
     let postgres_db = PostgresDB::new(&config.common_config.postgres_url)
         .await
         .unwrap();
-    let payload_cache = PayloadCache::new(postgres_db.clone());
+    let payload_cache_for_broadcaster = PayloadCache::new(postgres_db.clone());
+    let payload_cache_for_includer = PayloadCache::new(postgres_db.clone());
     let high_load_query_id_wrapper = HighLoadQueryIdDbWrapper::new(postgres_db).await;
     let ton_includer = TONIncluder::new(
         config,
         gmp_api,
         redis_pool.clone(),
-        payload_cache,
+        payload_cache_for_broadcaster,
+        payload_cache_for_includer,
         construct_proof_queue.clone(),
         Arc::new(high_load_query_id_wrapper),
     )

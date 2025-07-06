@@ -27,10 +27,11 @@ async fn main() -> anyhow::Result<()> {
     let postgres_db = PostgresDB::new(&config.common_config.postgres_url).await.unwrap();
     let _pg_pool = PgPool::connect(&config.common_config.postgres_url).await.unwrap();
     let _price_view = PriceView::new(postgres_db.clone());
-    let _payload_cache = PayloadCache::new(postgres_db.clone());
+    let payload_cache = PayloadCache::new(postgres_db.clone());
     
-    let ton_ingestor: TONIngestor = TONIngestor::new();
+    let ton_ingestor = TONIngestor::new(payload_cache);
     let ingestor = Ingestor::new(gmp_api, ton_ingestor);
+
     let redis_client = redis::Client::open(config.common_config.redis_server.clone())?;
     let redis_pool = r2d2::Pool::builder().build(redis_client)?;
 

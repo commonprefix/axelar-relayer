@@ -16,7 +16,7 @@ pub struct PayloadCache<DB: Database> {
     db: DB,
 }
 
-#[cfg_attr(test, mockall::automock)]
+#[cfg_attr(any(test, feature = "mocks"), mockall::automock)]
 pub trait PayloadCacheTrait {
     fn get(&self, cc_id: CrossChainId) -> impl Future<Output = Result<Option<PayloadCacheValue>, anyhow::Error>>;
     fn store(&self, cc_id: CrossChainId, value: PayloadCacheValue) -> impl Future<Output = Result<(), anyhow::Error>>;

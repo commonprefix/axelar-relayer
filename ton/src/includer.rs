@@ -19,11 +19,12 @@ impl TONIncluder {
         config: TONConfig,
         gmp_api: Arc<GmpApi>,
         redis_pool: r2d2::Pool<redis::Client>,
-        payload_cache: PayloadCache<DB>,
+        payload_cache_for_broadcaster: PayloadCache<DB>,
+        payload_cache_for_includer: PayloadCache<DB>,
         construct_proof_queue: Arc<Queue>,
         high_load_query_id_db_wrapper: Arc<HighLoadQueryIdDbWrapper>,
     ) -> error_stack::Result<
-        Includer<TONBroadcaster, Arc<dyn RestClient>, TONRefundManager, DB>,
+        Includer<TONBroadcaster<PayloadCache<DB>>, Arc<dyn RestClient>, TONRefundManager, DB>,
         BroadcasterError,
     > {
         let config_for_refund_manager = config.clone();
@@ -43,7 +44,7 @@ impl TONIncluder {
 
         let gateway_address = TonAddress::from_base64_url(ton_gateway.as_str()).unwrap();
         let internal_message_value = 1_000_000_000u32; // TODO: Do not hardcode this
-
+        
         let broadcaster = TONBroadcaster::new(
             Arc::clone(&wallet_manager),
             Arc::clone(&client),
@@ -51,6 +52,7 @@ impl TONIncluder {
             gateway_address,
             internal_message_value,
             config.common_config.chain_name,
+            payload_cache_for_broadcaster
         )
         .map_err(|e| e.attach_printable("Failed to create TONBroadcaster"))?;
 
@@ -66,7 +68,7 @@ impl TONIncluder {
             broadcaster,
             refund_manager,
             gmp_api,
-            payload_cache,
+            payload_cache: payload_cache_for_includer,
             construct_proof_queue,
             redis_pool: redis_pool.clone(),
         };

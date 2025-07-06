@@ -2,6 +2,10 @@
 
 Reads from TON blockchain and adds transactions to a queue.
 
+# TODO:
+
+- Also read failed executions/approvals and send them to the queue.
+
 */
 
 use super::client::{RestClient, TONRpcClient};

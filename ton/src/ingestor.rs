@@ -5,6 +5,7 @@
 
 */
 
+use router_api::CrossChainId;
 use crate::boc_cc_message::TonCCMessage;
 use crate::boc_nullified_message::NullifiedSuccessfullyMessage;
 use crate::ton_op_codes::{OP_GATEWAY_EXECUTE, OP_MESSAGE_APPROVED, OP_NULLIFIED_SUCCESSFULLY};
@@ -15,17 +16,22 @@ use relayer_base::gmp_api::gmp_types::{
     ReactToWasmEventTask, RetryTask, VerifyTask,
 };
 use relayer_base::ingestor::IngestorTrait;
+use relayer_base::payload_cache::{PayloadCacheTrait};
 use relayer_base::subscriber::ChainTransaction;
 use relayer_base::ton_types::Transaction;
 
-pub struct TONIngestor;
+pub struct TONIngestor<PC> {
+    payload_cache: PC
+}
 
-impl TONIngestor {
-    pub fn new() -> Self {
-        Self {}
+impl<PC: PayloadCacheTrait> TONIngestor<PC> {
+    pub fn new(payload_cache: PC) -> Self {
+        Self {
+            payload_cache,
+        }
     }
 
-    fn body_if_approved(tx: &Transaction) -> Option<String> {
+    fn body_if_approved(&self, tx: &Transaction) -> Option<String> {
         let has_out_empty_dest = tx
             .out_msgs
             .iter()
@@ -47,7 +53,7 @@ impl TONIngestor {
         }
     }
 
-    fn body_if_executed(tx: &Transaction) -> Option<String> {
+    fn body_if_executed(&self, tx: &Transaction) -> Option<String> {
         let has_out_empty_dest = tx
             .out_msgs
             .iter()
@@ -79,6 +85,7 @@ impl TONIngestor {
     ) -> Result<Vec<Event>, IngestorError> {
         let message = NullifiedSuccessfullyMessage::from_boc_b64(&body)
             .map_err(|e| IngestorError::GenericError(e.to_string()))?;
+
         let event = Event::MessageExecuted {
             common: CommonEventFields {
                 r#type: "MESSAGE_EXECUTED".to_owned(),
@@ -115,6 +122,19 @@ impl TONIngestor {
         body: &str,
     ) -> Result<Vec<Event>, IngestorError> {
         let log = TonCCMessage::from_boc_b64(&body).unwrap();
+
+        let cc_id = CrossChainId::new(
+            log.source_chain.clone(),
+            log.message_id.clone()
+        ).map_err(|e| IngestorError::GenericError(e.to_string()))?;
+
+        let cached = self.payload_cache.get(cc_id.clone()).await.map_err(|e| IngestorError::GenericError(e.to_string()));
+        let cached_result = cached?;
+        if cached_result.is_none() {
+            return Err(IngestorError::GenericError(format!("Payload not found for CC ID: {:?}", cc_id)));
+        }
+        let payload_hash = cached_result.unwrap().message.payload_hash;
+        
         let event = Event::MessageApproved {
             common: CommonEventFields {
                 r#type: "MESSAGE_APPROVED".to_owned(),
@@ -136,8 +156,7 @@ impl TONIngestor {
                 source_chain: log.source_chain,
                 source_address: log.source_address,
                 destination_address: log.destination_address,
-                payload_hash: "9e01c423ca440c5ec2beecc9d0a152b54fc8e7a416c931b7089eaf221605af17"
-                    .to_string(),
+                payload_hash
             },
             cost: Amount {
                 token_id: None,
@@ -145,11 +164,13 @@ impl TONIngestor {
             },
         };
 
+        self.payload_cache.clear(cc_id).await.unwrap_or(());
+        
         Ok(vec![event])
     }
 }
 
-impl IngestorTrait for TONIngestor {
+impl<PC: PayloadCacheTrait> IngestorTrait for TONIngestor<PC> {
     async fn handle_verify(&self, task: VerifyTask) -> Result<(), IngestorError> {
         println!("handle_verify: {:?}", task);
 
@@ -166,11 +187,11 @@ impl IngestorTrait for TONIngestor {
             )));
         };
 
-        if let Some(body) = Self::body_if_executed(&tx) {
+        if let Some(body) = self.body_if_executed(&tx) {
             return self.handle_executed(tx, &body).await;
         }
 
-        if let Some(body) = Self::body_if_approved(&tx) {
+        if let Some(body) = self.body_if_approved(&tx) {
             return self.handle_approved(tx, &body).await;
         }
 
@@ -205,9 +226,10 @@ impl IngestorTrait for TONIngestor {
 #[cfg(test)]
 mod tests {
     use crate::ingestor::TONIngestor;
-    use relayer_base::gmp_api::gmp_types::{Event, MessageExecutionStatus};
+    use relayer_base::gmp_api::gmp_types::{Event, GatewayV2Message, MessageExecutionStatus};
     use relayer_base::ton_types::{Transaction, TransactionsResponse};
     use std::fs;
+    use relayer_base::payload_cache::{MockPayloadCacheTrait, PayloadCacheValue};
 
     fn fixture_transactions() -> Vec<Transaction> {
         let file_path = "tests/data/v3_transactions.json";
@@ -222,8 +244,8 @@ mod tests {
     async fn test_is_approved_message() {
         let transactions = fixture_transactions();
         let tx = &transactions[0];
-
-        let approved_body = super::TONIngestor::body_if_approved(tx);
+        let ingestor = TONIngestor::new(MockPayloadCacheTrait::new());
+        let approved_body = ingestor.body_if_approved(tx);
 
         assert!(
             approved_body.is_some(),
@@ -235,8 +257,9 @@ mod tests {
     async fn test_is_not_approved_message() {
         let transactions = fixture_transactions();
         let tx = &transactions[3];
+        let ingestor = TONIngestor::new(MockPayloadCacheTrait::new());
 
-        let approved_body = super::TONIngestor::body_if_approved(tx);
+        let approved_body = ingestor.body_if_approved(tx);
 
         assert!(
             approved_body.is_none(),
@@ -248,8 +271,9 @@ mod tests {
     async fn test_is_executed_message() {
         let transactions = fixture_transactions();
         let tx = &transactions[3];
+        let ingestor = TONIngestor::new(MockPayloadCacheTrait::new());
 
-        let approved_body = super::TONIngestor::body_if_executed(tx);
+        let approved_body = ingestor.body_if_executed(tx);
 
         assert_eq!(approved_body.unwrap(), "te6cckECCAEAAV0ABIsAAAAFgBIHqwhg5lg4ES2+GWhwn4EVgGvmj7MoTr6OJXwhB8Byr9KMj8CFtEqwFmUtJVgVpEqk3ftJTCRWAx2zya/xlWvwAQIDBACIMHhmMmI3NDFmYjBiMmMyZmNmOTJhY2E4MjM5NWJjNjVkYWI0ZGQ4MjM5YTEyZjM2NmQ2MDQ1NzU1ZTBiMDJjMmEyLTEAHGF2YWxhbmNoZS1mdWppAFQweGQ3MDY3QWUzQzM1OWU4Mzc4OTBiMjhCN0JEMGQyMDg0Q2ZEZjQ5YjUDAAUGBwDAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD0hlbGxvIGZyb20gdG9uIQAAAAAAAAAAAAAAAAAAAAAAAEC4ekoPZEt6GG7nGhRUY09wwipirKGmumdrUXXCHX/ZMAAIdG9uMtlN//0=");
     }
@@ -258,8 +282,8 @@ mod tests {
     async fn test_is_not_executed_message() {
         let transactions = fixture_transactions();
         let tx = &transactions[0];
-
-        let approved_body = super::TONIngestor::body_if_executed(tx);
+        let ingestor = TONIngestor::new(MockPayloadCacheTrait::new());
+        let approved_body = ingestor.body_if_executed(tx);
 
         assert!(
             approved_body.is_none(),
@@ -271,9 +295,10 @@ mod tests {
     async fn test_handle_executed() {
         let transactions = fixture_transactions();
         let tx = &transactions[3];
-        let body = TONIngestor::body_if_executed(tx);
+        let payload_cache = MockPayloadCacheTrait::new();
+        let ingestor = TONIngestor::new(payload_cache);
+        let body = ingestor.body_if_executed(tx);
 
-        let ingestor = TONIngestor::new();
         let res = ingestor
             .handle_executed(tx.clone(), &body.unwrap())
             .await
@@ -313,9 +338,30 @@ mod tests {
     async fn test_handle_approved() {
         let transactions = fixture_transactions();
         let tx = &transactions[0];
-        let body = TONIngestor::body_if_approved(tx);
+        let mut payload_cache = MockPayloadCacheTrait::new();
+        payload_cache
+            .expect_get()
+            .returning(|_| Box::pin(async { Ok(Some(PayloadCacheValue {
+                message: GatewayV2Message {
+                    message_id: "aaa".to_string(),
+                    source_chain: "bbb".to_string(),
+                    source_address: "ccc".to_string(),
+                    destination_address: "ddd".to_string(),
+                    payload_hash: "eee".to_string(),
+                },
+                payload: "fff".to_string(),
+            })) }))
+            .times(1);
 
-        let ingestor = TONIngestor::new();
+        payload_cache
+            .expect_clear()
+            .returning(|_| Box::pin(async { Ok(()) }))
+            .times(1);
+
+        let ingestor = TONIngestor::new(payload_cache);
+
+        let body = ingestor.body_if_approved(tx);
+
         let res = ingestor
             .handle_approved(tx.clone(), &body.unwrap())
             .await
@@ -334,6 +380,7 @@ mod tests {
                     "0xf38d2a646e4b60e37bc16d54bb9163739372594dc96bab954a85b4a170f49e58-1"
                 );
                 assert_eq!(message.source_chain, "avalanche-fuji");
+                assert_eq!(message.payload_hash, "eee");
                 assert_eq!(cost.amount, "0");
                 assert_eq!(cost.token_id.as_deref(), None);
 

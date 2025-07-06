@@ -223,7 +223,7 @@ where
                                 )
                                 .await
                                 .map_err(|e| IncluderError::ConsumerError(e.to_string()))?;
-                        } else {
+                        } else if broadcast_result.clear_payload_cache_on_success {
                             // clear payload from cache, won't be needed anymore
                             self.payload_cache
                                 .clear(
