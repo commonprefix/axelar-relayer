@@ -21,11 +21,12 @@ and broadcaster should potentially be returning a vector of BroadcastResults.
 
 */
 
-use super::client::RestClient;
-use crate::approve_message::{ApproveMessages};
+use super::client::{RestClient, V3MessageResponse};
+use crate::approve_message::ApproveMessages;
 use crate::high_load_query_id_db_wrapper::HighLoadQueryIdWrapper;
 use crate::out_action::out_action;
 use crate::relayer_execute_message::RelayerExecuteMessage;
+use crate::ton_wallet_high_load_v3::TonWalletHighLoadV3;
 use crate::wallet_manager::WalletManager;
 use base64::engine::general_purpose;
 use base64::Engine;
@@ -70,6 +71,26 @@ impl TONBroadcaster {
         })
     }
 
+    async fn send_to_chain(&self, wallet: &TonWalletHighLoadV3, actions: Vec<OutAction>) -> Result<V3MessageResponse, BroadcasterError> {
+        let internal_message_value: BigUint = BigUint::from(self.internal_message_value);
+
+        let query_id = self
+            .query_id_wrapper
+            .next(wallet.address.to_string().as_str(), wallet.timeout)
+            .await
+            .map_err(|e| {
+                BroadcasterError::GenericError(format!("Query Id acquiring failed: {:?}", e))
+            })?;
+
+        let outgoing_message =
+            wallet.outgoing_message(actions, query_id.query_id().await, internal_message_value);
+
+        let tx = outgoing_message.serialize(true).unwrap();
+        let boc = general_purpose::STANDARD.encode(&tx);
+
+        self.client.post_v3_message(boc).await.map_err(|e| RPCCallFailed(e.to_string()))
+    }
+
     // async fn store_messages_to_cache(&self, approve_messages: Vec<ApproveMessage>) {
     //     for approve_message in approve_messages {
     //         let msg = approve_message.clone();
@@ -99,8 +120,7 @@ impl Broadcaster for TONBroadcaster {
             .map_err(|e| BroadcasterError::GenericError(e.to_string()))?;
 
         let message = &approve_messages.approve_messages[0];
-        let internal_message_value: BigUint = BigUint::from(self.internal_message_value);
-        let approve_message_value: BigUint = BigUint::from(2_000_000_000u32); // We will need to calculate this
+        let approve_message_value: BigUint = BigUint::from(2_000_000_000u32); // TODO: We will need to calculate this
 
         let actions: Vec<OutAction> = vec![out_action(
             tx_blob.as_str(),
@@ -112,31 +132,18 @@ impl Broadcaster for TONBroadcaster {
         })?;
 
         let result = (|| async {
-            let query_id = self
-                .query_id_wrapper
-                .next(wallet.address.to_string().as_str(), wallet.timeout)
-                .await
-                .map_err(|e| {
-                    BroadcasterError::GenericError(format!("Query Id acquiring failed: {:?}", e))
-                })?;
-            let outgoing_message =
-                wallet.outgoing_message(actions, query_id.query_id().await, internal_message_value);
-
-            let tx = outgoing_message.serialize(true).unwrap();
-            let boc = general_purpose::STANDARD.encode(&tx);
-            let response = self
-                .client
-                .post_v3_message(boc)
-                .await
-                .map_err(|e| RPCCallFailed(e.to_string()))?;
-            self.wallet_manager.release(wallet).await;
+            let res = self.send_to_chain(wallet, actions.clone()).await;
+            let (tx_hash, status) = match res {
+                Ok(response) => (response.message_hash, Ok(())),
+                Err(err) => (String::new(), Err(err)),
+            };
 
             Ok(BroadcastResult {
                 transaction: TONTransaction,
-                tx_hash: response.message_hash,
+                tx_hash,
                 message_id: Some(message.message_id.clone()),
                 source_chain: Some(message.source_chain.clone()),
-                status: Ok(()),
+                status,
                 clear_payload_cache_on_success: false,
             })
         })()
@@ -205,35 +212,19 @@ impl Broadcaster for TONBroadcaster {
                 self.gateway_address.clone(),
             )];
 
-            let query_id = self
-                .query_id_wrapper
-                .next(wallet.address.to_string().as_str(), wallet.timeout)
-                .await
-                .map_err(|e| {
-                    BroadcasterError::GenericError(format!("Query Id acquiring failed: {:?}", e))
-                })?;
-
-            let internal_message_value: BigUint = BigUint::from(self.internal_message_value);
-            let outgoing_message =
-                wallet.outgoing_message(actions, query_id.query_id().await, internal_message_value);
-
-            let tx = outgoing_message.serialize(true).unwrap();
-            let boc = general_purpose::STANDARD.encode(&tx);
-
-            let response = self
-                .client
-                .post_v3_message(boc)
-                .await
-                .map_err(|e| RPCCallFailed(e.to_string()))?;
-            self.wallet_manager.release(wallet).await;
+            let res = self.send_to_chain(wallet, actions.clone()).await;
+            let (tx_hash, status) = match res {
+                Ok(response) => (response.message_hash, Ok(())),
+                Err(err) => (String::new(), Err(err)),
+            };
 
             Ok(BroadcastResult {
                 transaction: TONTransaction,
-                tx_hash: response.message_hash,
+                tx_hash,
                 message_id: Some(message_id.clone()),
                 source_chain: Some(source_chain.clone()),
-                status: Ok(()),
-                clear_payload_cache_on_success: true,
+                status,
+                clear_payload_cache_on_success: false,
             })
         })()
         .await;
