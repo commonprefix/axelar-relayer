@@ -1,6 +1,7 @@
-use super::client::{RestClient};
+use super::client::RestClient;
+use crate::config::TONConfig;
 use relayer_base::{
-    config::Config, error::RefundManagerError, gmp_api::gmp_types::RefundTask,
+    error::RefundManagerError, gmp_api::gmp_types::RefundTask,
     includer::RefundManager,
 };
 use std::sync::Arc;
@@ -8,13 +9,13 @@ use std::sync::Arc;
 pub struct TONRefundManager {
     _client: Arc<dyn RestClient>,
     _redis_pool: r2d2::Pool<redis::Client>,
-    _config: Config,
+    _config: TONConfig,
 }
 
 impl TONRefundManager {
     pub fn new(
         client: Arc<dyn RestClient>,
-        config: Config,
+        config: TONConfig,
         redis_pool: r2d2::Pool<redis::Client>,
     ) -> Result<Self, RefundManagerError> {
         Ok(Self {

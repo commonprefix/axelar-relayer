@@ -29,9 +29,9 @@ functionality, maintaining our own will make it easier to customize the function
 
 */
 
+use async_trait::async_trait;
 use r2d2::{Pool, PooledConnection};
 use redis::{Client, Commands, ExistenceCheck, SetExpiry, SetOptions};
-use async_trait::async_trait;
 use tracing::error;
 
 #[async_trait]
@@ -60,7 +60,6 @@ impl RedisLockManager {
     }
 }
 
-
 #[async_trait::async_trait]
 impl LockManager for RedisLockManager {
     async fn lock(&self, key: &str) -> bool {
@@ -73,14 +72,12 @@ impl LockManager for RedisLockManager {
             .conditional_set(ExistenceCheck::NX)
             .with_expiration(SetExpiry::EX(60));
 
-        redis_conn.set_options(
-            format!("wallet_lock_{}", key),
-            true,
-            set_opts,
-        ).unwrap_or_else(|e| {
-            error!("Failed to set Redis lock: {}", e);
-            false
-        })
+        redis_conn
+            .set_options(format!("wallet_lock_{}", key), true, set_opts)
+            .unwrap_or_else(|e| {
+                error!("Failed to set Redis lock: {}", e);
+                false
+            })
     }
 
     async fn unlock(&self, key: &str) {
@@ -89,24 +86,31 @@ impl LockManager for RedisLockManager {
             None => return,
         };
 
-        redis_conn.del(
-            format!("wallet_lock_{}", key),
-        ).unwrap_or_else(|e| {
-            error!("Failed to set Redis lock: {}", e);
-            false
-        });
+        redis_conn
+            .del(format!("wallet_lock_{}", key))
+            .unwrap_or_else(|e| {
+                error!("Failed to set Redis lock: {}", e);
+                false
+            });
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::time::Duration;
+    use crate::lock_manager::{LockManager, RedisLockManager};
     use r2d2::Pool;
     use redis::Client;
-    use testcontainers::{core::{IntoContainerPort, WaitFor}, runners::AsyncRunner, GenericImage};
-    use crate::lock_manager::{LockManager, RedisLockManager};
+    use std::time::Duration;
+    use testcontainers::{
+        core::{IntoContainerPort, WaitFor},
+        runners::AsyncRunner,
+        GenericImage,
+    };
 
-    async fn create_redis_lock_manager() -> (testcontainers::ContainerAsync<GenericImage>, RedisLockManager) {
+    async fn create_redis_lock_manager() -> (
+        testcontainers::ContainerAsync<GenericImage>,
+        RedisLockManager,
+    ) {
         let container = GenericImage::new("redis", "7.2.4")
             .with_exposed_port(9991.tcp())
             .with_wait_for(WaitFor::message_on_stdout("Ready to accept connections"))

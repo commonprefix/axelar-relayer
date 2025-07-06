@@ -4,10 +4,10 @@ Dominik's code. We should move it to a common repo.
 
 */
 
-use std::sync::Arc;
-use tonlib_core::cell::Cell;
 use crate::approve_message::ApproveMessagesError;
 use crate::approve_message::ApproveMessagesError::BocParsingError;
+use std::sync::Arc;
+use tonlib_core::cell::Cell;
 
 const BYTES_PER_CELL: usize = 96;
 

@@ -96,9 +96,7 @@ impl RelayerExecuteMessage {
         let mut message = CellBuilder::new();
         message.store_reference(&Arc::new(message_id)).unwrap();
         message.store_reference(&Arc::new(source_chain)).unwrap();
-        message
-            .store_reference(&Arc::new(source_address))
-            .unwrap();
+        message.store_reference(&Arc::new(source_address)).unwrap();
         message.store_reference(&Arc::new(inner)).unwrap();
         let message = message.build().unwrap();
 

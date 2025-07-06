@@ -12,7 +12,7 @@ It ensures safe and exclusive access to wallets using a pluggable locking mechan
 # Usage Example
 
 ```rust,no_run
-use relayer_base::config::WalletConfig;
+use ton::config::WalletConfig;
 use std::sync::Arc;
 use ton::lock_manager::RedisLockManager;
 use ton::wallet_manager::WalletManager;
@@ -29,7 +29,7 @@ async fn main() {
             timeout: 30,
         },
     ];
-    
+
     let client = redis::Client::open("redis://127.0.0.1/").unwrap();
     let pool = r2d2::Pool::builder().build(client).unwrap();
 
@@ -66,10 +66,10 @@ an explicit way to specify key for each resource type.
 
 */
 
+use crate::config::WalletConfig;
 use crate::lock_manager::LockManager;
 use crate::ton_wallet_high_load_v3::TonWalletHighLoadV3;
 use hex::decode;
-use relayer_base::config::WalletConfig;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tonlib_core::wallet::mnemonic::KeyPair;
@@ -137,9 +137,9 @@ impl WalletManager {
 
 #[cfg(test)]
 pub(crate) mod wallet_manager_tests {
+    use crate::config::WalletConfig;
     use crate::lock_manager::LockManager;
     use crate::wallet_manager::{WalletManager, WalletManagerError};
-    use relayer_base::config::WalletConfig;
     use std::any::type_name;
     use std::collections::HashSet;
     use std::sync::{Arc, Mutex};

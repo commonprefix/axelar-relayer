@@ -8,7 +8,7 @@ This code *must be used* in conjuction with the `WalletManager`.
 # Usage Example
 
 ```rust,no_run
-use relayer_base::config::WalletConfig;
+use ton::config::WalletConfig;
 use std::sync::Arc;
 use ton::lock_manager::RedisLockManager;
 use ton::wallet_manager::WalletManager;
@@ -56,8 +56,8 @@ async fn main() {
 
 */
 
-use async_trait::async_trait;
 use crate::high_load_query_id::HighLoadQueryId;
+use async_trait::async_trait;
 use relayer_base::database::{Database, PostgresDB};
 
 #[derive(Debug)]
@@ -72,7 +72,11 @@ pub struct HighLoadQueryIdDbWrapper {
 
 #[async_trait]
 pub trait HighLoadQueryIdWrapper {
-    async fn next(&self, address: &str, timeout: u64) -> Result<HighLoadQueryId, HighLoadQueryIdWrapperError>;
+    async fn next(
+        &self,
+        address: &str,
+        timeout: u64,
+    ) -> Result<HighLoadQueryId, HighLoadQueryIdWrapperError>;
 }
 
 impl HighLoadQueryIdDbWrapper {
@@ -83,7 +87,11 @@ impl HighLoadQueryIdDbWrapper {
 
 #[async_trait]
 impl HighLoadQueryIdWrapper for HighLoadQueryIdDbWrapper {
-    async fn next(&self, address: &str, timeout: u64) -> Result<HighLoadQueryId, HighLoadQueryIdWrapperError> {
+    async fn next(
+        &self,
+        address: &str,
+        timeout: u64,
+    ) -> Result<HighLoadQueryId, HighLoadQueryIdWrapperError> {
         let (shift, bitnumber) = self.db.get_query_id(address).await.unwrap();
 
         let query_id = if shift < 0 || bitnumber < 0 {
@@ -164,7 +172,7 @@ mod tests {
 
         let query_id_d = wrapper.next("wallet3", 0).await.unwrap();
         assert_eq!(query_id_d.query_id().await, 0);
-                
+
         let query_id_e = wrapper.next("wallet3", 60).await.unwrap();
         assert_eq!(query_id_e.query_id().await, 0);
     }

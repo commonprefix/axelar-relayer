@@ -1,11 +1,12 @@
 use super::{broadcaster::TONBroadcaster, client::TONRpcClient, refund_manager::TONRefundManager};
 use crate::client::RestClient;
+use crate::config::TONConfig;
 use crate::high_load_query_id_db_wrapper::HighLoadQueryIdDbWrapper;
 use crate::lock_manager::RedisLockManager;
 use crate::wallet_manager::WalletManager;
 use relayer_base::{
-    config::Config, database::Database, error::BroadcasterError, gmp_api::GmpApi,
-    includer::Includer, payload_cache::PayloadCache, queue::Queue,
+    database::Database, error::BroadcasterError, gmp_api::GmpApi, includer::Includer,
+    payload_cache::PayloadCache, queue::Queue,
 };
 use std::sync::Arc;
 use tonlib_core::TonAddress;
@@ -15,7 +16,7 @@ pub struct TONIncluder {}
 impl TONIncluder {
     #[allow(clippy::new_ret_no_self)]
     pub async fn new<'a, DB: Database>(
-        config: Config,
+        config: TONConfig,
         gmp_api: Arc<GmpApi>,
         redis_pool: r2d2::Pool<redis::Client>,
         payload_cache: PayloadCache<DB>,
@@ -49,7 +50,7 @@ impl TONIncluder {
             high_load_query_id_db_wrapper,
             gateway_address,
             internal_message_value,
-            config.chain_name,
+            config.common_config.chain_name,
         )
         .map_err(|e| e.attach_printable("Failed to create TONBroadcaster"))?;
 

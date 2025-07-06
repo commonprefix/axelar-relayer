@@ -1,10 +1,10 @@
-use tonlib_core::TonAddress;
 use super::client::{RestClient, TONRpcClient};
 use relayer_base::database::Database;
 use relayer_base::error::SubscriberError;
-use tracing::{info, warn};
 use relayer_base::subscriber::{ChainTransaction, TransactionPoller};
 use relayer_base::ton_types::Transaction;
+use tonlib_core::TonAddress;
+use tracing::{info, warn};
 
 pub struct TONSubscriber<DB: Database> {
     client: TONRpcClient,
@@ -24,7 +24,8 @@ impl<DB: Database> TONSubscriber<DB> {
     ) -> Result<Self, SubscriberError> {
         let client = TONRpcClient::new(url, 3, ton_api_key)
             .await
-            .map_err(|e| error_stack::report!(SubscriberError::GenericError(e.to_string()))).unwrap();
+            .map_err(|e| error_stack::report!(SubscriberError::GenericError(e.to_string())))
+            .unwrap();
 
         let latest_lt = db
             .get_latest_height(&chain_name, &context)
@@ -33,17 +34,14 @@ impl<DB: Database> TONSubscriber<DB> {
             .unwrap_or(-1);
 
         if latest_lt != -1 {
-            info!(
-                "XRPL Subscriber: starting from ledger index: {}",
-                latest_lt
-            );
+            info!("XRPL Subscriber: starting from ledger index: {}", latest_lt);
         }
         Ok(TONSubscriber {
             client,
             latest_lt,
             db,
             context,
-            chain_name
+            chain_name,
         })
     }
 
@@ -78,10 +76,7 @@ impl<DB: Database> TransactionPoller for TONSubscriber<DB> {
             .get_transactions_for_account(account_id, start_lt)
             .await?;
 
-        let max_lt = transactions
-            .iter()
-            .map(|tx| tx.lt)
-            .max();
+        let max_lt = transactions.iter().map(|tx| tx.lt).max();
 
         if max_lt.is_some() {
             self.latest_lt = max_lt.unwrap_or(0);
@@ -99,12 +94,12 @@ impl<DB: Database> TransactionPoller for TONSubscriber<DB> {
 
 #[cfg(test)]
 mod tests {
-    use std::fs;
+    use super::*;
+    use crate::client::MockRestClient;
     use mockall::predicate::eq;
     use relayer_base::database::MockDatabase;
     use relayer_base::ton_types::TransactionsResponse;
-    use crate::client::MockRestClient;
-    use super::*;
+    use std::fs;
 
     #[tokio::test]
     async fn test_subscriber_no_init_height() {
@@ -121,8 +116,8 @@ mod tests {
             "test-context".to_string(),
             "test-chain".to_string(),
         )
-            .await
-            .expect("TONSubscriber should be created successfully");
+        .await
+        .expect("TONSubscriber should be created successfully");
 
         assert_eq!(subscriber.latest_lt, -1);
     }
@@ -142,8 +137,8 @@ mod tests {
             "test-context".to_string(),
             "test-chain".to_string(),
         )
-            .await
-            .expect("TONSubscriber should be created successfully");
+        .await
+        .expect("TONSubscriber should be created successfully");
 
         assert_eq!(subscriber.latest_lt, 12345);
     }
@@ -155,21 +150,20 @@ mod tests {
             .expect_get_latest_height()
             .with(eq("test-chain"), eq("test-context"))
             .returning(|_, _| Box::pin(async { Ok(Some(12345)) }));
-        
+
         let mut mock_client = MockRestClient::new();
-        
+
         let file_path = "tests/data/v3_transactions.json";
         let body = fs::read_to_string(file_path).expect("Failed to read JSON test file");
-        let transactions_response: TransactionsResponse = serde_json::from_str(&body)
-            .expect("Failed to deserialize test transaction data");
+        let transactions_response: TransactionsResponse =
+            serde_json::from_str(&body).expect("Failed to deserialize test transaction data");
 
         let expected_transactions = transactions_response.transactions;
 
         mock_client
             .expect_get_transactions_for_account()
             .withf(|account, start_lt| {
-                account.to_string()
-                    == "EQCqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqseb"
+                account.to_string() == "EQCqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqseb"
                     && *start_lt == Some(12345)
             })
             .returning(move |_, _| {

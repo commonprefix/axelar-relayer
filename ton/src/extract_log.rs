@@ -23,12 +23,12 @@ match TonLog::from_boc_b64(boc_b64) {
 - Reuse error so it's BOC Parsing Error as type
 */
 
+use crate::approve_message::ApproveMessagesError::BocParsingError;
+use crate::approve_message::ApproveMessagesError;
+use crate::cell_to::CellTo;
 use tonlib_core::cell::{Cell, CellParser};
 use tonlib_core::tlb_types::tlb::TLB;
 use tonlib_core::{TonAddress, TonHash};
-use crate::approve_message::{ApproveMessagesError};
-use crate::approve_message::ApproveMessagesError::BocParsingError;
-use crate::cell_to::CellTo;
 
 #[derive(Debug)]
 pub struct TonLog {
@@ -54,18 +54,18 @@ impl TonLog {
             .next_reference()
             .map_err(|err| BocParsingError(err.to_string()))?
             .cell_to_string()?;
-        
+
         let source_address = parser
             .next_reference()
             .map_err(|err| BocParsingError(err.to_string()))?
             .cell_to_string()?;
-        
+
         let inner_cell = parser
             .next_reference()
             .map_err(|err| BocParsingError(err.to_string()))?;
-        
+
         let mut inner_parser: CellParser = inner_cell.parser();
-        
+
         let destination_address = inner_parser
             .next_reference()
             .map_err(|err| BocParsingError(err.to_string()))?

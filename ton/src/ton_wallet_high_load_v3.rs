@@ -29,7 +29,7 @@ let boc = wallet.outgoing_message(actions, 12345, BigUint::from(100u32));
 
 # Notes
 
-Once this code has proven to be useful and all TODOs have been implemented we should try 
+Once this code has proven to be useful and all TODOs have been implemented we should try
 to rewrite it so it can become a part of the tonlib core library.
 
 # See also
@@ -362,4 +362,3 @@ mod tests {
         assert_eq!(boc.root(0).unwrap().to_boc_b64(true).unwrap(), "te6cckEBCQEA6wABxYgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACXCFa6bM55U2zArv5G9cdeG77TKolB1hGNn/4Am2aaNiv4r7ZGkgBtIOl4vL8MhFFQdTIkMn/hdwNwGLhJ69wTAEBJQAAAUEBAABUAAAAAAADDTAAD6QCASEgID5wAAAAAAAAAAAAAAAAAwMBGK5C5aQAAAAAAAAAKgQCCg7DyG0BBQYAAAFoMgB//////////////////////////////////////////6O5rKAAAAAAAAAAAAAAAAAAAQcBCAAAACgIAAIq0VehOw==");
     }
 }
-

@@ -53,7 +53,7 @@ pub struct V3ErrorResponse {
     pub error: String,
 }
 
-#[cfg_attr(any(test, feature = "mocks"), mockall::automock)]
+#[cfg_attr(any(test), mockall::automock)]
 #[async_trait]
 pub trait RestClient: Send + Sync {
     async fn post_v3_message(&self, boc: String) -> Result<V3MessageResponse, ClientError>;
@@ -128,7 +128,10 @@ impl RestClient for TONRpcClient {
             query_params.push(("start_lt", (lt_min_val + 1).to_string()));
         }
 
-        debug!("Fetching TON transactions from: {:?} {:?}", url, query_params);
+        debug!(
+            "Fetching TON transactions from: {:?} {:?}",
+            url, query_params
+        );
 
         let response = self
             .client
@@ -256,7 +259,10 @@ mod tests {
             )
             .await;
 
-        assert!(result.is_ok(), "Expected successful result with start_lt, got: {result:?}");
+        assert!(
+            result.is_ok(),
+            "Expected successful result with start_lt, got: {result:?}"
+        );
 
         let txs = result.unwrap();
         assert_eq!(txs.len(), 4);
@@ -285,7 +291,7 @@ mod tests {
                         let mut has_account = false;
                         let mut has_start_lt = false;
                         let mut has_offset = false;
-                        let mut has_limit= false;
+                        let mut has_limit = false;
 
                         for (key, _) in params {
                             match key.as_str() {
@@ -322,6 +328,9 @@ mod tests {
             )
             .await;
 
-        assert!(result.is_ok(), "Expected successful result without start_lt");
+        assert!(
+            result.is_ok(),
+            "Expected successful result without start_lt"
+        );
     }
 }

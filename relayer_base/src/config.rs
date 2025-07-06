@@ -55,15 +55,6 @@ pub struct PriceFeedConfig {
 }
 
 #[derive(Debug, Clone, Deserialize, Default)]
-pub struct WalletConfig {
-    pub public_key: String,
-    pub secret_key: String,
-    pub subwallet_id: u32,
-    pub timeout: u64,
-    pub address: String,
-}
-
-#[derive(Debug, Clone, Deserialize, Default)]
 pub struct Config {
     pub queue_address: String,
     pub gmp_api_url: String,

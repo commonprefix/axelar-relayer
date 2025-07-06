@@ -17,20 +17,21 @@ and broadcaster should potentially be returning a vector of BroadcastResults.
 - Move MockQueryIdWrapper to mockall
 - Check that rest api is getting a correct request
 - We are always releasing wallet twice it seems
-- Cleanup any unwrap's 
+- Cleanup any unwrap's
 
 */
 
-use relayer_base::gmp_api::gmp_types::{CrossChainID, GatewayV2Message};
 use super::client::RestClient;
-use crate::approve_message::{ApproveMessage, ApproveMessages};
+use crate::approve_message::{ApproveMessages};
 use crate::high_load_query_id_db_wrapper::HighLoadQueryIdWrapper;
 use crate::out_action::out_action;
+use crate::relayer_execute_message::RelayerExecuteMessage;
 use crate::wallet_manager::WalletManager;
 use base64::engine::general_purpose;
 use base64::Engine;
 use num_bigint::BigUint;
 use relayer_base::error::BroadcasterError::RPCCallFailed;
+use relayer_base::gmp_api::gmp_types::ExecuteTaskFields;
 use relayer_base::{
     error::BroadcasterError,
     includer::{BroadcastResult, Broadcaster},
@@ -39,11 +40,7 @@ use std::sync::Arc;
 use tonlib_core::tlb_types::block::out_action::OutAction;
 use tonlib_core::tlb_types::tlb::TLB;
 use tonlib_core::TonAddress;
-use tracing::{error};
-use relayer_base::database::PostgresDB;
-use relayer_base::gmp_api::gmp_types::{ExecuteTaskFields};
-use relayer_base::payload_cache::{PayloadCache, PayloadCacheValue};
-use crate::relayer_execute_message::RelayerExecuteMessage;
+use tracing::error;
 
 pub struct TONBroadcaster {
     wallet_manager: Arc<WalletManager>,
@@ -114,7 +111,6 @@ impl Broadcaster for TONBroadcaster {
             BroadcasterError::GenericError(format!("Wallet acquire failed: {:?}", e))
         })?;
 
-
         let result = (|| async {
             let query_id = self
                 .query_id_wrapper
@@ -141,9 +137,10 @@ impl Broadcaster for TONBroadcaster {
                 message_id: Some(message.message_id.clone()),
                 source_chain: Some(message.source_chain.clone()),
                 status: Ok(()),
-                clear_payload_cache_on_success: false
+                clear_payload_cache_on_success: false,
             })
-        })().await;
+        })()
+        .await;
 
         self.wallet_manager.release(wallet).await;
 
@@ -155,19 +152,19 @@ impl Broadcaster for TONBroadcaster {
     }
 
     async fn broadcast_execute_message(
-        &self, 
-        message: ExecuteTaskFields
+        &self,
+        message: ExecuteTaskFields,
     ) -> Result<BroadcastResult<Self::Transaction>, BroadcasterError> {
         let destination_address: TonAddress =
-            message.message.destination_address
-                .parse()
-                .map_err(|e| {
-                    BroadcasterError::GenericError(format!("TonAddressParseError: {:?}", e))
-                })?;
+            message.message.destination_address.parse().map_err(|e| {
+                BroadcasterError::GenericError(format!("TonAddressParseError: {:?}", e))
+            })?;
 
         let decoded_bytes = general_purpose::STANDARD
             .decode(message.payload)
-            .map_err(|e| BroadcasterError::GenericError(format!("Failed decoding payload: {:?}", e)))?;
+            .map_err(|e| {
+                BroadcasterError::GenericError(format!("Failed decoding payload: {:?}", e))
+            })?;
 
         let hex_payload = hex::encode(decoded_bytes);
 
@@ -190,9 +187,15 @@ impl Broadcaster for TONBroadcaster {
                 wallet.address.clone(),
             );
 
-            let boc = relayer_execute_msg.to_cell().to_boc_hex(true).map_err(|e| {
-                BroadcasterError::GenericError(format!("Failed to serialize relayer execute message: {:?}", e))
-            })?;
+            let boc = relayer_execute_msg
+                .to_cell()
+                .to_boc_hex(true)
+                .map_err(|e| {
+                    BroadcasterError::GenericError(format!(
+                        "Failed to serialize relayer execute message: {:?}",
+                        e
+                    ))
+                })?;
 
             let execute_message_value: BigUint = BigUint::from(2_000_000_000u32); // We will need to calculate this
 
@@ -230,9 +233,10 @@ impl Broadcaster for TONBroadcaster {
                 message_id: Some(message_id.clone()),
                 source_chain: Some(source_chain.clone()),
                 status: Ok(()),
-                clear_payload_cache_on_success: true
+                clear_payload_cache_on_success: true,
             })
-        })().await;
+        })()
+        .await;
 
         self.wallet_manager.release(wallet).await;
 
@@ -249,14 +253,14 @@ mod tests {
         HighLoadQueryIdWrapper, HighLoadQueryIdWrapperError,
     };
     use crate::wallet_manager::wallet_manager_tests::load_wallets;
-    use relayer_base::error::{BroadcasterError};
+    use base64::prelude::BASE64_STANDARD;
+    use base64::Engine;
+    use relayer_base::error::BroadcasterError;
+    use relayer_base::gmp_api::gmp_types::{Amount, ExecuteTaskFields, GatewayV2Message};
     use relayer_base::includer::{BroadcastResult, Broadcaster};
     use std::str::FromStr;
     use std::sync::Arc;
-    use base64::Engine;
-    use base64::prelude::BASE64_STANDARD;
     use tonlib_core::TonAddress;
-    use relayer_base::gmp_api::gmp_types::{Amount, ExecuteTaskFields, GatewayV2Message};
 
     struct MockQueryIdWrapper;
 
@@ -276,14 +280,12 @@ mod tests {
     #[tokio::test]
     async fn test_broadcast_prover_message() {
         let mut client = MockRestClient::new();
-        client
-            .expect_post_v3_message()
-            .returning(|_| {
-                Ok(V3MessageResponse {
-                    message_hash: "abc".to_string(),
-                    message_hash_norm: "ABC".to_string(),
-                })
-            });
+        client.expect_post_v3_message().returning(|_| {
+            Ok(V3MessageResponse {
+                message_hash: "abc".to_string(),
+                message_hash_norm: "ABC".to_string(),
+            })
+        });
 
         let wallet_manager = load_wallets().await;
         let query_id_wrapper = MockQueryIdWrapper;
@@ -316,7 +318,7 @@ mod tests {
             ),
             source_chain: Some("avalanche-fuji".to_string()),
             status: Ok(()),
-            clear_payload_cache_on_success: false
+            clear_payload_cache_on_success: false,
         };
 
         let unwrapped = res.unwrap();
@@ -329,14 +331,12 @@ mod tests {
     #[tokio::test]
     async fn test_broadcast_prover_message_invalid_input() {
         let mut client = MockRestClient::new();
-        client
-            .expect_post_v3_message()
-            .returning(|_| {
-                Ok(V3MessageResponse {
-                    message_hash: "abc".to_string(),
-                    message_hash_norm: "ABC".to_string(),
-                })
-            });
+        client.expect_post_v3_message().returning(|_| {
+            Ok(V3MessageResponse {
+                message_hash: "abc".to_string(),
+                message_hash_norm: "ABC".to_string(),
+            })
+        });
         let wallet_manager = load_wallets().await;
         let query_id_wrapper = MockQueryIdWrapper;
         let gateway_address = TonAddress::from_str(
@@ -378,21 +378,19 @@ mod tests {
     #[tokio::test]
     async fn test_broadcast_execute_message() {
         let mut client = MockRestClient::new();
-        client
-            .expect_post_v3_message()
-            .returning(|_| {
-                Ok(V3MessageResponse {
-                    message_hash: "abc".to_string(),
-                    message_hash_norm: "ABC".to_string(),
-                })
-            });
+        client.expect_post_v3_message().returning(|_| {
+            Ok(V3MessageResponse {
+                message_hash: "abc".to_string(),
+                message_hash_norm: "ABC".to_string(),
+            })
+        });
 
         let wallet_manager = load_wallets().await;
         let query_id_wrapper = MockQueryIdWrapper;
         let gateway_address = TonAddress::from_str(
             "0:0000000000000000000000000000000000000000000000000000000000000000",
         )
-            .unwrap();
+        .unwrap();
         let internal_message_value = 1_000_000_000u32;
 
         let broadcaster = TONBroadcaster {
@@ -403,7 +401,7 @@ mod tests {
             internal_message_value,
             chain_name: "ton2".to_string(),
         };
-        
+
         let execute_task = ExecuteTaskFields {
             message: GatewayV2Message {
                 message_id: "0xf38d2a646e4b60e37bc16d54bb9163739372594dc96bab954a85b4a170f49e58-1".to_string(),
@@ -415,11 +413,8 @@ mod tests {
             payload: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAE0hlbGxvIGZyb20gcmVsYXllciEAAAAAAAAAAAAAAAAA".to_string(),
             available_gas_balance: Amount { token_id: None, amount: "0".to_string() },
         };
-        
 
-        let res = broadcaster
-            .broadcast_execute_message(execute_task)
-            .await;
+        let res = broadcaster.broadcast_execute_message(execute_task).await;
         assert!(res.is_ok());
 
         let good = BroadcastResult {
@@ -430,7 +425,7 @@ mod tests {
             ),
             source_chain: Some("avalanche-fuji".to_string()),
             status: Ok(()),
-            clear_payload_cache_on_success: false
+            clear_payload_cache_on_success: false,
         };
 
         let unwrapped = res.unwrap();

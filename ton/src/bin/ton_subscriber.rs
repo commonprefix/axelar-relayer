@@ -1,23 +1,24 @@
 use dotenv::dotenv;
-use tokio::signal::unix::{signal, SignalKind};
-use relayer_base::config::Config;
+use relayer_base::config::config_from_yaml;
 use relayer_base::database::PostgresDB;
 use relayer_base::queue::Queue;
+use relayer_base::subscriber::Subscriber;
 use relayer_base::utils::{setup_heartbeat, setup_logging};
+use tokio::signal::unix::{signal, SignalKind};
+use ton::config::TONConfig;
 use ton::subscriber::TONSubscriber;
 use tonlib_core::TonAddress;
-use relayer_base::subscriber::Subscriber;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     dotenv().ok();
     let network = std::env::var("NETWORK").expect("NETWORK must be set");
-    let config = Config::from_yaml(&format!("config.{}.yaml", network))?;
+    let config: TONConfig = config_from_yaml(&format!("config.{}.yaml", network)).unwrap();
 
-    let _guard = setup_logging(&config);
+    let _guard = setup_logging(&config.common_config);
 
-    let events_queue = Queue::new(&config.queue_address, "events").await;
-    let postgres_db = PostgresDB::new(&config.postgres_url).await?;
+    let events_queue = Queue::new(&config.common_config.queue_address, "events").await;
+    let postgres_db = PostgresDB::new(&config.common_config.postgres_url).await?;
 
     let ton_gateway = config.ton_gateway;
     let account = TonAddress::from_base64_url(ton_gateway.as_str())?;
@@ -27,7 +28,7 @@ async fn main() -> anyhow::Result<()> {
         config.ton_api_key,
         postgres_db,
         "default".to_string(),
-        config.chain_name,
+        config.common_config.chain_name,
     )
     .await?;
 
@@ -35,7 +36,7 @@ async fn main() -> anyhow::Result<()> {
     let mut sigint = signal(SignalKind::interrupt())?;
     let mut sigterm = signal(SignalKind::terminate())?;
 
-    let redis_client = redis::Client::open(config.redis_server.clone())?;
+    let redis_client = redis::Client::open(config.common_config.redis_server.clone())?;
     let redis_pool = r2d2::Pool::builder().build(redis_client)?;
 
     setup_heartbeat("heartbeat:subscriber".to_owned(), redis_pool);

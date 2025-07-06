@@ -29,7 +29,10 @@ pub fn out_action(boc_hex: &str, value: BigUint, destination: TonAddress) -> Out
         created_at: 0,
     });
 
-    let tm = TransferMessage::new(common.clone(), body).build().unwrap().to_arc();
+    let tm = TransferMessage::new(common.clone(), body)
+        .build()
+        .unwrap()
+        .to_arc();
     OutAction::SendMsg(OutActionSendMsg {
         mode: 1,
         out_msg: tm,
@@ -38,9 +41,9 @@ pub fn out_action(boc_hex: &str, value: BigUint, destination: TonAddress) -> Out
 
 #[cfg(test)]
 mod tests {
-    use base64::Engine;
-    use base64::prelude::BASE64_STANDARD;
     use super::*;
+    use base64::prelude::BASE64_STANDARD;
+    use base64::Engine;
 
     #[test]
     fn test_out_action() {

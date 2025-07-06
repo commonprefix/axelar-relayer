@@ -13,15 +13,15 @@ let approve_messages = ApproveMessages::from_boc_hex(boc);
 */
 
 use crate::approve_message::ApproveMessagesError::{BocParsingError, InvalidOpCode};
+use crate::cell_to::CellTo;
 use crate::op_codes::OP_APPROVE_MESSAGES;
 use num_bigint::BigUint;
-use std::sync::Arc;
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 use thiserror::Error;
 use tonlib_core::cell::dict::predefined_readers::{key_reader_u8, val_reader_ref_cell};
 use tonlib_core::cell::{ArcCell, Cell, CellParser};
 use tonlib_core::tlb_types::tlb::TLB;
-use crate::cell_to::CellTo;
 
 #[derive(Error, Debug)]
 pub enum ApproveMessagesError {
@@ -30,7 +30,6 @@ pub enum ApproveMessagesError {
     #[error("Invalid Op Code: {0}")]
     InvalidOpCode(String),
 }
-
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 pub struct ApproveMessage {
@@ -47,8 +46,6 @@ pub struct ApproveMessages {
     pub approve_messages: Vec<ApproveMessage>,
     _proof: ArcCell,
 }
-
-
 
 impl ApproveMessages {
     pub fn from_boc_hex(boc: &str) -> Result<Self, ApproveMessagesError> {
@@ -132,10 +129,10 @@ impl ApproveMessages {
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
     use super::*;
     use base64::prelude::BASE64_STANDARD;
     use base64::Engine;
+    use std::str::FromStr;
 
     #[test]
     fn test_decode_approve_message() {
@@ -171,9 +168,11 @@ mod tests {
         );
         assert_eq!(
             res.approve_messages[0].payload_hash,
-            BigUint::from_str("71468550630404048420691790219403539000788302635511547374558478410759778184983").unwrap()
+            BigUint::from_str(
+                "71468550630404048420691790219403539000788302635511547374558478410759778184983"
+            )
+            .unwrap()
         );
-
     }
 
     #[test]
