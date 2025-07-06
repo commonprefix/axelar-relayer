@@ -1,3 +1,4 @@
+use crate::payload_cache::PayloadCacheTrait;
 use std::sync::Arc;
 
 use async_std::stream::StreamExt;
