@@ -39,7 +39,7 @@ pub struct ApproveMessage {
     source_address: String,
     destination_chain: String,
     destination_address: Vec<u8>,
-    payload_hash: BigUint,
+    pub(crate) payload_hash: BigUint,
 }
 
 #[derive(Debug)]
@@ -132,52 +132,48 @@ impl ApproveMessages {
 
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
     use super::*;
     use base64::prelude::BASE64_STANDARD;
     use base64::Engine;
 
     #[test]
     fn test_decode_approve_message() {
-        let approve_message = hex::encode(BASE64_STANDARD.decode("te6cckECDAEAAYsAAggAAAAoAQIBYYAAAAAAAAAAAAAAAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADf5gkADAQHABADi0LAAUYmshNOh1nWEdwB3eJHd51H6EH1kg3v2M30y32eQAAAAAAAAAAAAAAAAAAAAAQ+j+g0KWjWTaPqB9qQHuWZQn7IPz7x3xzwbprT1a85sjh0UlPlFU84LDdRcD4GZ6n6GJlEKKTlRW5QtlzKGrAsBAtAFBECeAcQjykQMXsK+7MnQoVK1T8jnpBbJMbcInq8iFgWvFwYHCAkAiDB4MTdmZDdkYTNkODE5Y2ZiYzQ2ZmYyOGYzZDgwOTgwNzcwZWMxYjgwZmQ3ZDFiMjI5Y2VjMzI1MTkzOWI5YjIzZi0xABxhdmFsYW5jaGUtZnVqaQBUMHhkNzA2N0FlM0MzNTllODM3ODkwYjI4QjdCRDBkMjA4NENmRGY0OWI1AgAKCwBAuHpKD2RLehhu5xoUVGNPcMIqYqyhprpna1F1wh1/2TAACHRvbjJLddsV").unwrap());
+        let approve_message = hex::encode(BASE64_STANDARD.decode("te6cckECDAEAAYsAAggAAAAoAQIBYYAAAAAAAAAAAAAAAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADf5gkADAQHABADi0LAAUYmshNOh1nWEdwB3eJHd51H6EH1kg3v2M30y32eQAAAAAAAAAAAAAAAAAAAAASGIs1u/0XOSucVrtdkUCyCdtFVEh1Lza1vipAJyhYbSywcY60rdBpjT3ZipVjftz2pHY0znhNP8+FqIdPGpWwsBAtAFBECeAcQjykQMXsK+7MnQoVK1T8jnpBbJMbcInq8iFgWvFwYHCAkAiDB4ZjA0MzFkYThhNzdiYmVhYWNiNTMzYWIxZmZkMmI5MzhlY2I1MWM1MzAyOTllNDU2ZTA5ZTczNzlkOTlhMmYxZS0xABxhdmFsYW5jaGUtZnVqaQBUMHhkNzA2N0FlM0MzNTllODM3ODkwYjI4QjdCRDBkMjA4NENmRGY0OWI1AgAKCwBAuHpKD2RLehhu5xoUVGNPcMIqYqyhprpna1F1wh1/2TAACHRvbjJujf/t").unwrap());
         let approve_messages = ApproveMessages::from_boc_hex(approve_message.as_str());
         assert!(approve_messages.is_ok());
-
-        let expected_approve_message = ApproveMessage {
-            message_id: "0x17fd7da3d819cfbc46ff28f3d80980770ec1b80fd7d1b229cec3251939b9b23f-1"
-                .to_string(),
-            source_chain: "avalanche-fuji".to_string(),
-            source_address: "0xd7067Ae3C359e837890b28B7BD0d2084CfDf49b5".to_string(),
-            destination_chain: "ton2".to_string(),
-            destination_address: vec![
-                184, 122, 74, 15, 100, 75, 122, 24, 110, 231, 26, 20, 84, 99, 79, 112, 194, 42, 98,
-                172, 161, 166, 186, 103, 107, 81, 117, 194, 29, 127, 217, 48,
-            ],
-            payload_hash: Default::default(),
-        };
 
         let res = approve_messages.unwrap();
 
         assert_eq!(res.approve_messages.len(), 1);
         assert_eq!(
             res.approve_messages[0].message_id,
-            expected_approve_message.message_id
+            "0xf0431da8a77bbeaacb533ab1ffd2b938ecb51c530299e456e09e7379d99a2f1e-1".to_string()
         );
         assert_eq!(
             res.approve_messages[0].source_chain,
-            expected_approve_message.source_chain
+            "avalanche-fuji".to_string(),
         );
         assert_eq!(
             res.approve_messages[0].source_address,
-            expected_approve_message.source_address
+            "0xd7067Ae3C359e837890b28B7BD0d2084CfDf49b5".to_string()
         );
         assert_eq!(
             res.approve_messages[0].destination_chain,
-            expected_approve_message.destination_chain
+            "ton2".to_string()
         );
         assert_eq!(
             res.approve_messages[0].destination_address,
-            expected_approve_message.destination_address
+            vec![
+                184, 122, 74, 15, 100, 75, 122, 24, 110, 231, 26, 20, 84, 99, 79, 112, 194, 42, 98,
+                172, 161, 166, 186, 103, 107, 81, 117, 194, 29, 127, 217, 48,
+            ],
         );
+        assert_eq!(
+            res.approve_messages[0].payload_hash,
+            BigUint::from_str("71468550630404048420691790219403539000788302635511547374558478410759778184983").unwrap()
+        );
+
     }
 
     #[test]

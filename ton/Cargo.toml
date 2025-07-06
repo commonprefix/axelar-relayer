@@ -19,6 +19,7 @@ thiserror = { workspace = true }
 base64 = { workspace = true }
 sqlx = { workspace = true }
 chrono = { workspace = true }
+router_api = { workspace = true }
 
 tonlib-core = "0.26.0"
 nacl = "0.5.3"

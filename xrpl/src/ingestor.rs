@@ -2,7 +2,7 @@ use axelar_wasm_std::{msg_id::HexTxHash, nonempty};
 use base64::prelude::*;
 use interchain_token_service::TokenId;
 use regex::Regex;
-use relayer_base::gmp_api::gmp_types::{GatewayV2Message, RetryTask, VerificationStatus};
+use relayer_base::gmp_api::gmp_types::{RetryTask, VerificationStatus};
 use relayer_base::ingestor::IngestorTrait;
 use relayer_base::models::task_retries::{PgTaskRetriesModel, TaskRetries};
 use relayer_base::subscriber::ChainTransaction;
@@ -13,7 +13,7 @@ use relayer_base::{
     gmp_api::{
         gmp_types::{
             self, Amount, BroadcastRequest, CommonEventFields, ConstructProofTask, Event,
-            EventMetadata, ExecuteTaskFields, MessageExecutedEventMetadata, MessageExecutionStatus,
+            EventMetadata, GatewayV2Message, MessageExecutedEventMetadata, MessageExecutionStatus,
             QueryRequest, ReactToWasmEventTask, VerifyTask,
         },
         GmpApi,

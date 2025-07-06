@@ -43,6 +43,8 @@ pub struct BroadcastResult<T> {
     pub status: Result<(), BroadcasterError>,
     pub message_id: Option<String>,
     pub source_chain: Option<String>,
+    // TODO: I'm not too hapy about this, maybe we should move the logic up to chain
+    pub clear_payload_cache_on_success: bool,
 }
 
 pub trait Broadcaster {
@@ -134,7 +136,7 @@ where
     pub async fn consume(&self, task: QueueItem) -> Result<(), IncluderError> {
         match task {
             QueueItem::Task(task) => match task {
-                // We probably want to clean up this file, and maybe even move consume logic
+                // TODO: We probably want to clean up this file, and maybe even move consume logic
                 // up to chain includer
                 Task::Execute(execute_task) => {
                     info!("Consuming task: {:?}", execute_task);
@@ -167,7 +169,6 @@ where
                             )
                             .await
                             .map_err(|e| IncluderError::ConsumerError(e.to_string()))?;
-
                     }
 
                     Err(IncluderError::ConsumerError(err.to_string()))

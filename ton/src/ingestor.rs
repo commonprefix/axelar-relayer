@@ -125,7 +125,7 @@ impl<DB: Database> IngestorTrait for TONIngestor<DB> {
                     source_chain: log.source_chain,
                     source_address: log.source_address,
                     destination_address: log.destination_address,
-                    payload_hash: "aea6524367000fb4a0aa20b1d4f63daad1ed9e9df7163f2309673610f2f37d4b".to_string(),
+                    payload_hash: "9e01c423ca440c5ec2beecc9d0a152b54fc8e7a416c931b7089eaf221605af17".to_string(),
                 },
                 cost: Amount { token_id: None, amount: "0".to_string() },
             };

@@ -6721,6 +6721,7 @@ dependencies = [
  "redis",
  "relayer-base",
  "reqwest",
+ "router-api",
  "serde",
  "serde_json",
  "sqlx",

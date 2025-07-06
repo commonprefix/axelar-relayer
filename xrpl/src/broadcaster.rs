@@ -1,4 +1,3 @@
-use std::future::Future;
 use std::sync::Arc;
 
 use tracing::{debug, error, warn};
@@ -46,6 +45,7 @@ fn log_and_return_error(
         ))),
         message_id,
         source_chain,
+        clear_payload_cache_on_success: true,
     })
 }
 
@@ -89,6 +89,7 @@ impl Broadcaster for XRPLBroadcaster {
                 status: Ok(()),
                 message_id,
                 source_chain,
+                clear_payload_cache_on_success: true
             })
         } else if response_category == ResultCategory::Tef {
             if matches!(tx, Transaction::TicketCreate(_))
@@ -102,6 +103,7 @@ impl Broadcaster for XRPLBroadcaster {
                     status: Ok(()),
                     message_id,
                     source_chain,
+                    clear_payload_cache_on_success: true
                 });
             }
             let req = TxRequest::new(&tx_hash);
@@ -115,6 +117,7 @@ impl Broadcaster for XRPLBroadcaster {
                             status: Ok(()),
                             message_id,
                             source_chain,
+                            clear_payload_cache_on_success: true
                         })
                     }
                     _ => log_and_return_error(&tx, &response, message_id, source_chain),
@@ -131,6 +134,7 @@ impl Broadcaster for XRPLBroadcaster {
                 status: Ok(()),
                 message_id,
                 source_chain,
+                clear_payload_cache_on_success: true,
             });
         } else {
             log_and_return_error(&tx, &response, message_id, source_chain)

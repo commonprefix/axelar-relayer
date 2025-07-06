@@ -17,11 +17,13 @@ and broadcaster should potentially be returning a vector of BroadcastResults.
 - Move MockQueryIdWrapper to mockall
 - Check that rest api is getting a correct request
 - We are always releasing wallet twice it seems
+- Cleanup any unwrap's 
 
 */
 
+use relayer_base::gmp_api::gmp_types::{CrossChainID, GatewayV2Message};
 use super::client::RestClient;
-use crate::approve_message::ApproveMessages;
+use crate::approve_message::{ApproveMessage, ApproveMessages};
 use crate::high_load_query_id_db_wrapper::HighLoadQueryIdWrapper;
 use crate::out_action::out_action;
 use crate::wallet_manager::WalletManager;
@@ -38,7 +40,9 @@ use tonlib_core::tlb_types::block::out_action::OutAction;
 use tonlib_core::tlb_types::tlb::TLB;
 use tonlib_core::TonAddress;
 use tracing::{error};
-use relayer_base::gmp_api::gmp_types::ExecuteTaskFields;
+use relayer_base::database::PostgresDB;
+use relayer_base::gmp_api::gmp_types::{ExecuteTaskFields};
+use relayer_base::payload_cache::{PayloadCache, PayloadCacheValue};
 use crate::relayer_execute_message::RelayerExecuteMessage;
 
 pub struct TONBroadcaster {
@@ -68,6 +72,21 @@ impl TONBroadcaster {
             chain_name,
         })
     }
+
+    // async fn store_messages_to_cache(&self, approve_messages: Vec<ApproveMessage>) {
+    //     for approve_message in approve_messages {
+    //         let msg = approve_message.clone();
+    //         let cc_id = router_api::CrossChainId::new(approve_message.source_chain, approve_message.message_id).unwrap();
+    //         let payload_value = PayloadCacheValue {
+    //             message: GatewayV2Message {
+    //                 message_id: msg.message_id,
+    //                 source_chain: msg.source_chain,
+    //             },
+    //             payload: "".to_string(),
+    //         };
+    //         self.payload_cache.store(cc_id, payload_value).await.unwrap()
+    //     }
+    // }
 }
 
 pub struct TONTransaction;
@@ -122,6 +141,7 @@ impl Broadcaster for TONBroadcaster {
                 message_id: Some(message.message_id.clone()),
                 source_chain: Some(message.source_chain.clone()),
                 status: Ok(()),
+                clear_payload_cache_on_success: false
             })
         })().await;
 
@@ -210,6 +230,7 @@ impl Broadcaster for TONBroadcaster {
                 message_id: Some(message_id.clone()),
                 source_chain: Some(source_chain.clone()),
                 status: Ok(()),
+                clear_payload_cache_on_success: true
             })
         })().await;
 
@@ -295,6 +316,7 @@ mod tests {
             ),
             source_chain: Some("avalanche-fuji".to_string()),
             status: Ok(()),
+            clear_payload_cache_on_success: false
         };
 
         let unwrapped = res.unwrap();
@@ -408,6 +430,7 @@ mod tests {
             ),
             source_chain: Some("avalanche-fuji".to_string()),
             status: Ok(()),
+            clear_payload_cache_on_success: false
         };
 
         let unwrapped = res.unwrap();
