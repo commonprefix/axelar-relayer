@@ -82,7 +82,7 @@ impl<QM: QueuedTransactionsModel, X: XRPLClientTrait> XrplQueuedTxMonitor<QM, X>
                         tx.retries + 1
                     );
                     self.queued_tx_model
-                        .update_transaction_status(&tx.tx_hash, QueuedTransactionStatus::Queued)
+                        .increment_retry(&tx.tx_hash)
                         .await
                         .map_err(|e| QueuedTxMonitorError::DatabaseError(e.to_string()))?;
                 }
@@ -96,7 +96,7 @@ impl<QM: QueuedTransactionsModel, X: XRPLClientTrait> XrplQueuedTxMonitor<QM, X>
                 Err(e) => {
                     error!("Error checking transaction {}: {}", tx.tx_hash, e);
                     self.queued_tx_model
-                        .update_transaction_status(&tx.tx_hash, QueuedTransactionStatus::Queued)
+                        .increment_retry(&tx.tx_hash)
                         .await
                         .map_err(|e| QueuedTxMonitorError::DatabaseError(e.to_string()))?;
                 }
@@ -443,10 +443,10 @@ mod tests {
             .returning(|_, _| Box::pin(async { Ok(()) }));
 
         mock_queued_tx_model
-            .expect_update_transaction_status()
-            .with(eq("DUMMY_HASH4"), eq(QueuedTransactionStatus::Queued))
+            .expect_increment_retry()
+            .with(eq("DUMMY_HASH4"))
             .times(1)
-            .returning(|_, _| Box::pin(async { Ok(()) }));
+            .returning(|_| Box::pin(async { Ok(()) }));
 
         let queued_tx_monitor =
             XrplQueuedTxMonitor::new(Arc::new(mock_client), mock_queued_tx_model);

@@ -40,6 +40,7 @@ pub trait QueuedTransactionsModel {
         account: &str,
         sequence: i64,
     ) -> impl Future<Output = Result<()>>;
+    fn increment_retry(&self, tx_hash: &str) -> impl Future<Output = Result<()>>;
 }
 
 const PG_TABLE_NAME: &str = "xrpl_queued_transactions";
@@ -58,10 +59,11 @@ impl PgQueuedTransactionsModel {
 impl QueuedTransactionsModel for PgQueuedTransactionsModel {
     async fn get_queued_transactions_ready_for_check(&self) -> Result<Vec<QueuedTransaction>> {
         let query = format!("SELECT tx_hash, retries, account, sequence, status, last_checked FROM {}
-                     WHERE status = 'queued'
+                     WHERE status = $1
                      AND (last_checked IS NULL OR last_checked < NOW() - INTERVAL '1 second' * POW(2, retries) * 10)", PG_TABLE_NAME);
         // 10 secs -> 20 secs -> 40 secs -> ...
         let transactions = sqlx::query_as::<_, QueuedTransaction>(&query)
+            .bind(QueuedTransactionStatus::Queued)
             .fetch_all(&self.pool)
             .await?;
         Ok(transactions)
@@ -90,11 +92,24 @@ impl QueuedTransactionsModel for PgQueuedTransactionsModel {
         account: &str,
         sequence: i64,
     ) -> Result<()> {
-        let query = format!("INSERT INTO {} (tx_hash, account, sequence, status) VALUES ($1, $2, $3, 'queued') ON CONFLICT (tx_hash) DO UPDATE SET account = $2, sequence = $3", PG_TABLE_NAME);
+        let query = format!("INSERT INTO {} (tx_hash, account, sequence, status) VALUES ($1, $2, $3, $4) ON CONFLICT (tx_hash) DO UPDATE SET account = $2, sequence = $3", PG_TABLE_NAME);
         sqlx::query(&query)
             .bind(tx_hash)
             .bind(account)
             .bind(sequence)
+            .bind(QueuedTransactionStatus::Queued)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
+    async fn increment_retry(&self, tx_hash: &str) -> Result<()> {
+        let query = format!(
+            "UPDATE {} SET retries = retries + 1, last_checked = now() WHERE tx_hash = $1",
+            PG_TABLE_NAME
+        );
+        sqlx::query(&query)
+            .bind(tx_hash)
             .execute(&self.pool)
             .await?;
         Ok(())
