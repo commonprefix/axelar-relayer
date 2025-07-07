@@ -57,3 +57,7 @@ reqwest-middleware = "0.4.2"
 regex = "1.11.1"
 mockall = "0.13.1"
 mockito = "1.6.1"
+testcontainers = "0.24.0"
+testcontainers-modules = { version = "0.12.1", features = ["postgres"] }
+
+
