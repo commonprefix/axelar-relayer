@@ -6,6 +6,6 @@ CREATE TABLE IF NOT EXISTS xrpl_queued_transactions (
     sequence BIGINT NOT NULL,
     status xrpl_queued_transaction_status NOT NULL,
     retries INTEGER DEFAULT 0,
-    submitted TIMESTAMP DEFAULT now() NOT NULL,
-    last_checked TIMESTAMP DEFAULT now()
+    submitted TIMESTAMPTZ DEFAULT now() NOT NULL,
+    last_checked TIMESTAMPTZ DEFAULT now()
 );
