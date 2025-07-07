@@ -5,7 +5,7 @@ use relayer_base::{
     includer::Includer, payload_cache::PayloadCache, queue::Queue,
 };
 
-use crate::{client::XRPLClientTrait, models::queued_transactions::PgQueuedTransactionsModel};
+use crate::{client::XRPLClientTrait, models::queued_transactions::QueuedTransactionsModel};
 
 use super::{broadcaster::XRPLBroadcaster, refund_manager::XRPLRefundManager};
 
@@ -16,16 +16,16 @@ pub struct XrplIncluder {}
 
 impl XrplIncluder {
     #[allow(clippy::new_ret_no_self)]
-    pub async fn new<X: XRPLClientTrait, DB: Database>(
+    pub async fn new<X: XRPLClientTrait, DB: Database, QM: QueuedTransactionsModel>(
         config: Config,
         gmp_api: Arc<GmpApi>,
         redis_pool: r2d2::Pool<redis::Client>,
         payload_cache: PayloadCache<DB>,
         construct_proof_queue: Arc<Queue>,
-        queued_tx_model: PgQueuedTransactionsModel,
+        queued_tx_model: QM,
         chain_client: Arc<X>,
     ) -> error_stack::Result<
-        Includer<XRPLBroadcaster<PgQueuedTransactionsModel, X>, Arc<X>, XRPLRefundManager<X>, DB>,
+        Includer<XRPLBroadcaster<QM, X>, Arc<X>, XRPLRefundManager<X>, DB>,
         BroadcasterError,
     > {
         let broadcaster = XRPLBroadcaster::new(Arc::clone(&chain_client), queued_tx_model)

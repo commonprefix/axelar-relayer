@@ -35,7 +35,7 @@ async fn main() -> anyhow::Result<()> {
     let xrpl_client = XRPLClient::new(&config.xrpl_rpc, 3).unwrap();
     let pg_pool = PgPool::connect(&config.postgres_url).await.unwrap();
     let queued_tx_model = PgQueuedTransactionsModel::new(pg_pool.clone());
-    let xrpl_includer = XrplIncluder::new::<XRPLClient, PostgresDB>(
+    let xrpl_includer = XrplIncluder::new::<XRPLClient, PostgresDB, PgQueuedTransactionsModel>(
         config.clone(),
         gmp_api,
         redis_pool.clone(),
