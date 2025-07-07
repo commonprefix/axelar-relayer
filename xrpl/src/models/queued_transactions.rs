@@ -18,9 +18,13 @@ pub struct QueuedTransaction {
 #[derive(Debug, Serialize, Deserialize, Clone, sqlx::Type, PartialEq)]
 #[sqlx(type_name = "xrpl_queued_transaction_status")]
 pub enum QueuedTransactionStatus {
+    #[sqlx(rename = "queued")]
     Queued,
+    #[sqlx(rename = "confirmed")]
     Confirmed,
+    #[sqlx(rename = "dropped")]
     Dropped,
+    #[sqlx(rename = "expired")]
     Expired,
 }
 
