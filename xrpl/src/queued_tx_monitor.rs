@@ -1,4 +1,7 @@
-use crate::{client::XRPLClientTrait, models::queued_transactions::QueuedTransactionsModel};
+use crate::{
+    client::XRPLClientTrait,
+    models::queued_transactions::{QueuedTransactionStatus, QueuedTransactionsModel},
+};
 
 use crate::error::QueuedTxMonitorError;
 use std::sync::Arc;
@@ -58,7 +61,7 @@ impl<QM: QueuedTransactionsModel, X: XRPLClientTrait> XrplQueuedTxMonitor<QM, X>
                     tx.tx_hash
                 );
                 self.queued_tx_model
-                    .mark_queued_transaction_expired(&tx.tx_hash)
+                    .update_transaction_status(&tx.tx_hash, QueuedTransactionStatus::Expired)
                     .await
                     .map_err(|e| QueuedTxMonitorError::DatabaseError(e.to_string()))?;
                 continue;
@@ -68,7 +71,7 @@ impl<QM: QueuedTransactionsModel, X: XRPLClientTrait> XrplQueuedTxMonitor<QM, X>
                 Ok(TxStatus::Confirmed) => {
                     debug!("Transaction {} confirmed", tx.tx_hash);
                     self.queued_tx_model
-                        .mark_queued_transaction_confirmed(&tx.tx_hash)
+                        .update_transaction_status(&tx.tx_hash, QueuedTransactionStatus::Confirmed)
                         .await
                         .map_err(|e| QueuedTxMonitorError::DatabaseError(e.to_string()))?;
                 }
@@ -79,21 +82,21 @@ impl<QM: QueuedTransactionsModel, X: XRPLClientTrait> XrplQueuedTxMonitor<QM, X>
                         tx.retries + 1
                     );
                     self.queued_tx_model
-                        .increment_queued_transaction_retry(&tx.tx_hash)
+                        .update_transaction_status(&tx.tx_hash, QueuedTransactionStatus::Queued)
                         .await
                         .map_err(|e| QueuedTxMonitorError::DatabaseError(e.to_string()))?;
                 }
                 Ok(TxStatus::Dropped) => {
                     warn!("Transaction {} dropped", tx.tx_hash);
                     self.queued_tx_model
-                        .mark_queued_transaction_dropped(&tx.tx_hash)
+                        .update_transaction_status(&tx.tx_hash, QueuedTransactionStatus::Dropped)
                         .await
                         .map_err(|e| QueuedTxMonitorError::DatabaseError(e.to_string()))?;
                 }
                 Err(e) => {
                     error!("Error checking transaction {}: {}", tx.tx_hash, e);
                     self.queued_tx_model
-                        .increment_queued_transaction_retry(&tx.tx_hash)
+                        .update_transaction_status(&tx.tx_hash, QueuedTransactionStatus::Queued)
                         .await
                         .map_err(|e| QueuedTxMonitorError::DatabaseError(e.to_string()))?;
                 }
@@ -422,28 +425,28 @@ mod tests {
             });
 
         mock_queued_tx_model
-            .expect_mark_queued_transaction_expired()
-            .with(eq("DUMMY_HASH3"))
+            .expect_update_transaction_status()
+            .with(eq("DUMMY_HASH3"), eq(QueuedTransactionStatus::Expired))
             .times(1)
-            .returning(|_| Box::pin(async { Ok(()) }));
+            .returning(|_, _| Box::pin(async { Ok(()) }));
 
         mock_queued_tx_model
-            .expect_mark_queued_transaction_confirmed()
-            .with(eq("DUMMY_HASH"))
+            .expect_update_transaction_status()
+            .with(eq("DUMMY_HASH"), eq(QueuedTransactionStatus::Confirmed))
             .times(1)
-            .returning(|_| Box::pin(async { Ok(()) }));
+            .returning(|_, _| Box::pin(async { Ok(()) }));
 
         mock_queued_tx_model
-            .expect_mark_queued_transaction_dropped()
-            .with(eq("DUMMY_HASH2"))
+            .expect_update_transaction_status()
+            .with(eq("DUMMY_HASH2"), eq(QueuedTransactionStatus::Dropped))
             .times(1)
-            .returning(|_| Box::pin(async { Ok(()) }));
+            .returning(|_, _| Box::pin(async { Ok(()) }));
 
         mock_queued_tx_model
-            .expect_increment_queued_transaction_retry()
-            .with(eq("DUMMY_HASH4"))
+            .expect_update_transaction_status()
+            .with(eq("DUMMY_HASH4"), eq(QueuedTransactionStatus::Queued))
             .times(1)
-            .returning(|_| Box::pin(async { Ok(()) }));
+            .returning(|_, _| Box::pin(async { Ok(()) }));
 
         let queued_tx_monitor =
             XrplQueuedTxMonitor::new(Arc::new(mock_client), mock_queued_tx_model);

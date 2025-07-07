@@ -15,7 +15,7 @@ pub struct QueuedTransaction {
     pub last_checked: Option<DateTime<Utc>>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, sqlx::Type)]
+#[derive(Debug, Serialize, Deserialize, Clone, sqlx::Type, PartialEq)]
 #[sqlx(type_name = "xrpl_queued_transaction_status")]
 pub enum QueuedTransactionStatus {
     Queued,
@@ -26,14 +26,14 @@ pub enum QueuedTransactionStatus {
 
 #[cfg_attr(any(test), mockall::automock)]
 pub trait QueuedTransactionsModel {
+    fn update_transaction_status(
+        &self,
+        tx_hash: &str,
+        status: QueuedTransactionStatus,
+    ) -> impl Future<Output = Result<()>>;
     fn get_queued_transactions_ready_for_check(
         &self,
     ) -> impl Future<Output = Result<Vec<QueuedTransaction>>>;
-    fn mark_queued_transaction_confirmed(&self, tx_hash: &str) -> impl Future<Output = Result<()>>;
-    fn mark_queued_transaction_dropped(&self, tx_hash: &str) -> impl Future<Output = Result<()>>;
-    fn mark_queued_transaction_expired(&self, tx_hash: &str) -> impl Future<Output = Result<()>>;
-    fn increment_queued_transaction_retry(&self, tx_hash: &str)
-        -> impl Future<Output = Result<()>>;
     fn store_queued_transaction(
         &self,
         tx_hash: &str,
@@ -67,48 +67,17 @@ impl QueuedTransactionsModel for PgQueuedTransactionsModel {
         Ok(transactions)
     }
 
-    async fn mark_queued_transaction_confirmed(&self, tx_hash: &str) -> Result<()> {
+    async fn update_transaction_status(
+        &self,
+        tx_hash: &str,
+        status: QueuedTransactionStatus,
+    ) -> Result<()> {
         let query = format!(
-            "UPDATE {} SET status = 'confirmed', last_checked = now() WHERE tx_hash = $1",
+            "UPDATE {} SET status = $1, last_checked = now() WHERE tx_hash = $2",
             PG_TABLE_NAME
         );
         sqlx::query(&query)
-            .bind(tx_hash)
-            .execute(&self.pool)
-            .await?;
-        Ok(())
-    }
-
-    async fn mark_queued_transaction_dropped(&self, tx_hash: &str) -> Result<()> {
-        let query = format!(
-            "UPDATE {} SET status = 'dropped', last_checked = now() WHERE tx_hash = $1",
-            PG_TABLE_NAME
-        );
-        sqlx::query(&query)
-            .bind(tx_hash)
-            .execute(&self.pool)
-            .await?;
-        Ok(())
-    }
-
-    async fn mark_queued_transaction_expired(&self, tx_hash: &str) -> Result<()> {
-        let query = format!(
-            "UPDATE {} SET status = 'expired', last_checked = now() WHERE tx_hash = $1",
-            PG_TABLE_NAME
-        );
-        sqlx::query(&query)
-            .bind(tx_hash)
-            .execute(&self.pool)
-            .await?;
-        Ok(())
-    }
-
-    async fn increment_queued_transaction_retry(&self, tx_hash: &str) -> Result<()> {
-        let query = format!(
-            "UPDATE {} SET retries = retries + 1, last_checked = now() WHERE tx_hash = $1",
-            PG_TABLE_NAME
-        );
-        sqlx::query(&query)
+            .bind(status)
             .bind(tx_hash)
             .execute(&self.pool)
             .await?;
