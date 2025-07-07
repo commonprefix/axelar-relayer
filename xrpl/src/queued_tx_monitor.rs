@@ -149,7 +149,6 @@ mod tests {
         queued_tx_monitor::{TxStatus, MAX_RETRIES},
         XrplQueuedTxMonitor,
     };
-    use chrono::Utc;
     use mockall::predicate::eq;
     use xrpl_api::{PaymentTransaction, Transaction, TransactionCommon, TxRequest, TxResponse};
 
@@ -345,7 +344,6 @@ mod tests {
                             account: Some("DUMMY_ACCOUNT".to_string()),
                             sequence: Some(1),
                             status: QueuedTransactionStatus::Queued,
-                            last_checked: Some(Utc::now()),
                         },
                         QueuedTransaction {
                             tx_hash: "DUMMY_HASH2".to_string(),
@@ -353,7 +351,6 @@ mod tests {
                             account: Some("DUMMY_ACCOUNT".to_string()),
                             sequence: Some(1),
                             status: QueuedTransactionStatus::Queued,
-                            last_checked: Some(Utc::now()),
                         },
                         // Expired
                         QueuedTransaction {
@@ -362,7 +359,6 @@ mod tests {
                             account: Some("DUMMY_ACCOUNT".to_string()),
                             sequence: Some(1),
                             status: QueuedTransactionStatus::Queued,
-                            last_checked: Some(Utc::now()),
                         },
                         QueuedTransaction {
                             tx_hash: "DUMMY_HASH4".to_string(),
@@ -370,7 +366,6 @@ mod tests {
                             account: Some("DUMMY_ACCOUNT".to_string()),
                             sequence: Some(1),
                             status: QueuedTransactionStatus::Queued,
-                            last_checked: Some(Utc::now()),
                         },
                     ])
                 })
