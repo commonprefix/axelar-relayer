@@ -60,7 +60,7 @@ impl PgQueuedTransactionsModel {
 
 impl QueuedTransactionsModel for PgQueuedTransactionsModel {
     async fn get_queued_transactions_ready_for_check(&self) -> Result<Vec<QueuedTransaction>> {
-        let query = format!("SELECT tx_hash, retries, account, sequence, status, last_checked FROM {}
+        let query = format!("SELECT tx_hash, retries, account, sequence, status FROM {}
                      WHERE status = $1
                      AND (last_checked IS NULL OR last_checked < NOW() - INTERVAL '1 second' * POW(2, retries) * 10)", PG_TABLE_NAME);
         // 10 secs -> 20 secs -> 40 secs -> ...
