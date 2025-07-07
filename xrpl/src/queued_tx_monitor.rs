@@ -138,6 +138,7 @@ impl<QM: QueuedTransactionsModel, X: XRPLClientTrait> XrplQueuedTxMonitor<QM, X>
 mod tests {
     use std::sync::Arc;
 
+    use crate::models::queued_transactions::QueuedTransactionStatus;
     use crate::queued_tx_monitor::QueuedTxMonitorError;
     use crate::{
         client::MockXRPLClientTrait,
@@ -340,7 +341,7 @@ mod tests {
                             retries: 0,
                             account: Some("DUMMY_ACCOUNT".to_string()),
                             sequence: Some(1),
-                            status: Some("queued".to_string()),
+                            status: QueuedTransactionStatus::Queued,
                             last_checked: Some(Utc::now()),
                         },
                         QueuedTransaction {
@@ -348,7 +349,7 @@ mod tests {
                             retries: 0,
                             account: Some("DUMMY_ACCOUNT".to_string()),
                             sequence: Some(1),
-                            status: Some("queued".to_string()),
+                            status: QueuedTransactionStatus::Queued,
                             last_checked: Some(Utc::now()),
                         },
                         // Expired
@@ -357,7 +358,7 @@ mod tests {
                             retries: MAX_RETRIES,
                             account: Some("DUMMY_ACCOUNT".to_string()),
                             sequence: Some(1),
-                            status: Some("queued".to_string()),
+                            status: QueuedTransactionStatus::Queued,
                             last_checked: Some(Utc::now()),
                         },
                         QueuedTransaction {
@@ -365,7 +366,7 @@ mod tests {
                             retries: 0,
                             account: Some("DUMMY_ACCOUNT".to_string()),
                             sequence: Some(1),
-                            status: Some("queued".to_string()),
+                            status: QueuedTransactionStatus::Queued,
                             last_checked: Some(Utc::now()),
                         },
                     ])

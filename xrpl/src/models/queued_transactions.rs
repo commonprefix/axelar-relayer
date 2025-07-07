@@ -11,8 +11,17 @@ pub struct QueuedTransaction {
     pub retries: i32,
     pub account: Option<String>,
     pub sequence: Option<i64>,
-    pub status: Option<String>,
+    pub status: QueuedTransactionStatus,
     pub last_checked: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, sqlx::Type)]
+#[sqlx(type_name = "xrpl_queued_transaction_status")]
+pub enum QueuedTransactionStatus {
+    Queued,
+    Confirmed,
+    Dropped,
+    Expired,
 }
 
 #[cfg_attr(any(test), mockall::automock)]
