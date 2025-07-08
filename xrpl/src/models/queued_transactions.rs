@@ -1,6 +1,5 @@
-use std::future::Future;
-
 use anyhow::Result;
+use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 
@@ -26,23 +25,22 @@ pub enum QueuedTransactionStatus {
     Expired,
 }
 
+#[async_trait]
 #[cfg_attr(any(test), mockall::automock)]
 pub trait QueuedTransactionsModel {
-    fn update_transaction_status(
+    async fn update_transaction_status(
         &self,
         tx_hash: &str,
         status: QueuedTransactionStatus,
-    ) -> impl Future<Output = Result<()>>;
-    fn get_queued_transactions_ready_for_check(
-        &self,
-    ) -> impl Future<Output = Result<Vec<QueuedTransaction>>>;
-    fn store_queued_transaction(
+    ) -> Result<()>;
+    async fn get_queued_transactions_ready_for_check(&self) -> Result<Vec<QueuedTransaction>>;
+    async fn store_queued_transaction(
         &self,
         tx_hash: &str,
         account: &str,
         sequence: i64,
-    ) -> impl Future<Output = Result<()>>;
-    fn increment_retry(&self, tx_hash: &str) -> impl Future<Output = Result<()>>;
+    ) -> Result<()>;
+    async fn increment_retry(&self, tx_hash: &str) -> Result<()>;
 }
 
 const PG_TABLE_NAME: &str = "xrpl_queued_transactions";
@@ -58,6 +56,7 @@ impl PgQueuedTransactionsModel {
     }
 }
 
+#[async_trait]
 impl QueuedTransactionsModel for PgQueuedTransactionsModel {
     async fn get_queued_transactions_ready_for_check(&self) -> Result<Vec<QueuedTransaction>> {
         let query = format!("SELECT tx_hash, retries, account, sequence, status FROM {}
