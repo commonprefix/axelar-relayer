@@ -33,6 +33,7 @@ RUN mkdir -p relayer_base/src/bin/scripts recovery_tools/src/bin xrpl/src/bin/re
     echo 'fn main() {}' > xrpl/src/bin/xrpl_funder.rs && \
     echo 'fn main() {}' > xrpl/src/bin/xrpl_ticket_creator.rs && \
     echo 'fn main() {}' > xrpl/src/bin/xrpl_ticket_monitor.rs && \
+    echo 'fn main() {}' > xrpl/src/bin/xrpl_queued_tx_monitor.rs && \
     echo 'fn main() {}' > xrpl/src/bin/recovery/xrpl_subscriber_recovery.rs && \
     echo 'fn main() {}' > xrpl/src/bin/recovery/xrpl_task_recovery.rs && \
     echo 'fn main() {}' > xrpl/src/bin/xrpl_heartbeat_monitor.rs
