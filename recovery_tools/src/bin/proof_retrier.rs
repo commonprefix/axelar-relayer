@@ -1,6 +1,7 @@
 use dotenv::dotenv;
 use tokio::signal::unix::{signal, SignalKind};
 
+use relayer_base::config::{config_from_yaml, Config};
 use relayer_base::{
     database::PostgresDB,
     payload_cache::PayloadCache,
@@ -8,7 +9,6 @@ use relayer_base::{
     queue::Queue,
     utils::{setup_heartbeat, setup_logging},
 };
-use relayer_base::config::{config_from_yaml, Config};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {

@@ -1,6 +1,4 @@
-use crate::{
-    queue::{Queue, QueueItem},
-};
+use crate::queue::{Queue, QueueItem};
 use futures::Stream;
 use serde::{Deserialize, Serialize};
 use std::{future::Future, pin::Pin, sync::Arc};
@@ -11,7 +9,10 @@ pub trait TransactionListener {
     type Transaction;
     type Account;
 
-    fn subscribe(&mut self, account: Self::Account) -> impl Future<Output = Result<(), anyhow::Error>>;
+    fn subscribe(
+        &mut self,
+        account: Self::Account,
+    ) -> impl Future<Output = Result<(), anyhow::Error>>;
 
     fn unsubscribe(
         &mut self,
@@ -50,7 +51,8 @@ pub enum ChainTransaction {
 }
 
 impl<TP: TransactionPoller> Subscriber<TP>
-where TP::Account: Clone
+where
+    TP::Account: Clone,
 {
     pub fn new(transaction_poller: TP) -> Self {
         Self { transaction_poller }
@@ -58,10 +60,7 @@ where TP::Account: Clone
 
     async fn work(&mut self, account: TP::Account, queue: Arc<Queue>) {
         // no match, just call poll_account
-        let res = self
-            .transaction_poller
-            .poll_account(account)
-            .await;
+        let res = self.transaction_poller.poll_account(account).await;
         match res {
             Ok(txs) => {
                 for tx in txs {

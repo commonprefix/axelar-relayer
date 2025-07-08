@@ -313,10 +313,10 @@ where
 
 #[cfg(test)]
 mod tests {
+    use crate::{database::MockDatabase, price_view::MockPriceView};
+    use redis::Client;
     use std::collections::HashMap;
     use std::time::Duration;
-    use redis::Client;
-    use crate::{database::MockDatabase, price_view::MockPriceView};
     use testcontainers::{
         core::{IntoContainerPort, WaitFor},
         runners::AsyncRunner,

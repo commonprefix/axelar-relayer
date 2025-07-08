@@ -1,9 +1,9 @@
 use dotenv::dotenv;
 
 use redis::Commands;
-use relayer_base::{utils::setup_logging};
+use relayer_base::config::config_from_yaml;
+use relayer_base::utils::setup_logging;
 use tracing::{debug, error};
-use relayer_base::config::{config_from_yaml};
 use xrpl::config::XRPLConfig;
 
 #[tokio::main]

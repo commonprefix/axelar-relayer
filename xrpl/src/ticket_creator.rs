@@ -2,11 +2,9 @@ use std::sync::Arc;
 
 use tracing::{debug, error, info};
 
-use relayer_base::{
-    gmp_api::{gmp_types::BroadcastRequest, GmpApi},
-};
-use xrpl_multisig_prover;
 use crate::config::XRPLConfig;
+use relayer_base::gmp_api::{gmp_types::BroadcastRequest, GmpApi};
+use xrpl_multisig_prover;
 
 pub struct XrplTicketCreator {
     gmp_api: Arc<GmpApi>,
@@ -26,7 +24,11 @@ impl XrplTicketCreator {
         let res = self
             .gmp_api
             .post_broadcast(
-                self.config.common_config.axelar_contracts.chain_multisig_prover.clone(),
+                self.config
+                    .common_config
+                    .axelar_contracts
+                    .chain_multisig_prover
+                    .clone(),
                 &request,
             )
             .await;
