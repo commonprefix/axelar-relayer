@@ -1,9 +1,10 @@
+use async_trait::async_trait;
 use base64::{prelude::BASE64_STANDARD, Engine};
 use futures::StreamExt;
 use lapin::{options::BasicAckOptions, Consumer};
 use redis::Commands;
 use router_api::CrossChainId;
-use std::{future::Future, sync::Arc};
+use std::sync::Arc;
 use tracing::{debug, error, info, warn};
 
 use crate::{
@@ -17,21 +18,22 @@ use crate::{
     queue::{Queue, QueueItem},
 };
 
+#[async_trait]
 pub trait RefundManager {
     type Wallet;
 
-    fn build_refund_tx(
+    async fn build_refund_tx(
         &self,
         recipient: String,
         amount: String,
         refund_id: &str,
         wallet: &Self::Wallet,
-    ) -> impl Future<Output = Result<Option<(String, String, String)>, RefundManagerError>>;
-    fn is_refund_processed(
+    ) -> Result<Option<(String, String, String)>, RefundManagerError>;
+    async fn is_refund_processed(
         &self,
         refund_task: &RefundTask,
         refund_id: &str,
-    ) -> impl Future<Output = Result<bool, RefundManagerError>>;
+    ) -> Result<bool, RefundManagerError>;
     fn get_wallet_lock(&self) -> Result<Self::Wallet, RefundManagerError>;
     fn release_wallet_lock(&self, wallet: Self::Wallet) -> Result<(), RefundManagerError>;
 }
@@ -45,18 +47,16 @@ pub struct BroadcastResult<T> {
     pub source_chain: Option<String>,
 }
 
+#[async_trait]
 pub trait Broadcaster {
     type Transaction;
 
-    fn broadcast_prover_message(
+    async fn broadcast_prover_message(
         &self,
         tx_blob: String,
-    ) -> impl Future<Output = Result<BroadcastResult<Self::Transaction>, BroadcasterError>>;
+    ) -> Result<BroadcastResult<Self::Transaction>, BroadcasterError>;
 
-    fn broadcast_refund(
-        &self,
-        tx_blob: String,
-    ) -> impl Future<Output = Result<String, BroadcasterError>>;
+    async fn broadcast_refund(&self, tx_blob: String) -> Result<String, BroadcasterError>;
 }
 
 pub struct Includer<B, C, R, DB>

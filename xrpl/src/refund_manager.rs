@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use async_trait::async_trait;
 use libsecp256k1::{PublicKey, SecretKey};
 use rand::seq::SliceRandom;
 use redis::{Commands, ExistenceCheck, SetExpiry, SetOptions};
@@ -99,6 +100,7 @@ impl<X: XRPLClientTrait> XRPLRefundManager<X> {
     }
 }
 
+#[async_trait]
 impl<X: XRPLClientTrait> RefundManager for XRPLRefundManager<X> {
     type Wallet = (SecretKey, PublicKey, AccountId);
 

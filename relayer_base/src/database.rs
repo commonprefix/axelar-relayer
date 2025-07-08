@@ -9,7 +9,7 @@ use router_api::CrossChainId;
 // TODO: split to models
 #[async_trait]
 #[cfg_attr(test, mockall::automock)]
-pub trait Database {
+pub trait Database: Send + Sync {
     // Subscriber functions
     async fn store_latest_height(&self, chain: &str, context: &str, height: i64) -> Result<()>;
     async fn get_latest_height(&self, chain: &str, context: &str) -> Result<Option<i64>>;

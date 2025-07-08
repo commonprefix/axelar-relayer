@@ -27,7 +27,7 @@ pub enum QueuedTransactionStatus {
 
 #[cfg_attr(any(test), mockall::automock)]
 #[async_trait]
-pub trait QueuedTransactionsModel {
+pub trait QueuedTransactionsModel: Send + Sync {
     async fn update_transaction_status(
         &self,
         tx_hash: &str,

@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use async_trait::async_trait;
 use tracing::{debug, error, warn};
 use xrpl_api::{
     ResultCategory, SubmitRequest, SubmitResponse, Transaction, TransactionResult, TxRequest,
@@ -69,7 +70,10 @@ fn log_and_return_error(
     })
 }
 
-impl<QM: QueuedTransactionsModel, X: XRPLClientTrait> Broadcaster for XRPLBroadcaster<QM, X> {
+#[async_trait]
+impl<QM: QueuedTransactionsModel + Sync, X: XRPLClientTrait + Sync> Broadcaster
+    for XRPLBroadcaster<QM, X>
+{
     type Transaction = Transaction;
 
     async fn broadcast_prover_message(

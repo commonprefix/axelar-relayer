@@ -1074,7 +1074,7 @@ impl<DB: Database> XrplIngestor<DB> {
 }
 
 #[async_trait]
-impl<DB: Database + Sync> IngestorTrait for XrplIngestor<DB> {
+impl<DB: Database> IngestorTrait for XrplIngestor<DB> {
     async fn handle_transaction(&self, tx: ChainTransaction) -> Result<Vec<Event>, IngestorError> {
         let tx = match tx {
             ChainTransaction::Xrpl(tx) => tx,
