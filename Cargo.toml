@@ -26,12 +26,12 @@ xrpl_ws_client = { git = "https://github.com/commonprefix/xrpl-sdk-rust", branch
 xrpl_types = { git = "https://github.com/commonprefix/xrpl-sdk-rust", branch = "main", package = "xrpl_types" }
 xrpl_http_client = { git = "https://github.com/commonprefix/xrpl-sdk-rust", branch = "main", package = "xrpl_http_client" }
 xrpl_binary_codec = { git = "https://github.com/commonprefix/xrpl-sdk-rust", branch = "main", package = "xrpl_binary_codec" }
-xrpl_amplifier_types = { git = "https://github.com/commonprefix/axelar-amplifier", branch = "feat/remove-xrpl-signing-started-event", package = "xrpl-types" }
-axelar-wasm-std = { git = "https://github.com/commonprefix/axelar-amplifier", branch = "feat/remove-xrpl-signing-started-event", package = "axelar-wasm-std" }
+xrpl_amplifier_types = { git = "https://github.com/commonprefix/axelar-amplifier", branch = "fix/non-unique-unsigned-tx-hash", package = "xrpl-types" }
+axelar-wasm-std = { git = "https://github.com/commonprefix/axelar-amplifier", branch = "fix/non-unique-unsigned-tx-hash", package = "axelar-wasm-std" }
 xrpl_gateway = { git = "https://github.com/commonprefix/axelar-amplifier", branch = "xrpl", package = "xrpl-gateway" }
 xrpl_multisig_prover = { git = "https://github.com/commonprefix/axelar-amplifier", branch = "xrpl", package = "xrpl-multisig-prover" }
-router_api = { git = "https://github.com/commonprefix/axelar-amplifier", branch = "feat/remove-xrpl-signing-started-event", package = "router-api" }
-multisig = { git = "https://github.com/commonprefix/axelar-amplifier", branch = "feat/remove-xrpl-signing-started-event", package = "multisig" }
+router_api = { git = "https://github.com/commonprefix/axelar-amplifier", branch = "fix/non-unique-unsigned-tx-hash", package = "router-api" }
+multisig = { git = "https://github.com/commonprefix/axelar-amplifier", branch = "fix/non-unique-unsigned-tx-hash", package = "multisig" }
 interchain-token-service = { git = "https://github.com/commonprefix/axelar-amplifier", branch = "xrpl", package = "interchain-token-service" }
 hex = "0.4.3"
 reqwest = { version = "0.12.9", features = ["native-tls"] }
@@ -58,3 +58,4 @@ regex = "1.11.1"
 mockall = "0.13.1"
 mockito = "1.6.1"
 testcontainers = "0.24.0"
+testcontainers-modules = { version = "0.12.1", features = ["postgres"] }

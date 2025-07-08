@@ -8,6 +8,7 @@ use xrpl::{
     xrpl_transaction::PgXrplTransactionModel,
 };
 
+use relayer_base::config::config_from_yaml;
 use relayer_base::{
     database::PostgresDB,
     gmp_api,
@@ -18,7 +19,6 @@ use relayer_base::{
     queue::Queue,
     utils::{setup_heartbeat, setup_logging},
 };
-use relayer_base::config::{config_from_yaml};
 use xrpl::config::XRPLConfig;
 
 #[tokio::main]
@@ -32,17 +32,17 @@ async fn main() -> anyhow::Result<()> {
     let tasks_queue = Queue::new(&config.common_config.queue_address, "ingestor_tasks").await;
     let events_queue = Queue::new(&config.common_config.queue_address, "events").await;
     let gmp_api = Arc::new(gmp_api::GmpApi::new(&config.common_config, true).unwrap());
-    let postgres_db = PostgresDB::new(&config.common_config.postgres_url).await.unwrap();
-    let pg_pool = PgPool::connect(&config.common_config.postgres_url).await.unwrap();
+    let postgres_db = PostgresDB::new(&config.common_config.postgres_url)
+        .await
+        .unwrap();
+    let pg_pool = PgPool::connect(&config.common_config.postgres_url)
+        .await
+        .unwrap();
     let price_view = PriceView::new(postgres_db.clone());
     let payload_cache = PayloadCache::new(postgres_db.clone());
     let models = XrplIngestorModels {
-        xrpl_transaction_model: PgXrplTransactionModel {
-            pool: pg_pool.clone(),
-        },
-        task_retries: PgTaskRetriesModel {
-            pool: pg_pool.clone(),
-        },
+        xrpl_transaction_model: PgXrplTransactionModel::new(pg_pool.clone()),
+        task_retries: PgTaskRetriesModel::new(pg_pool.clone()),
     };
     // make an xrpl ingestor
     let xrpl_ingestor = XrplIngestor::new(

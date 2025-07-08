@@ -23,6 +23,7 @@ rand = { workspace = true }
 xrpl_binary_codec = { workspace = true }
 xrpl_types = { workspace = true }
 xrpl_api = { workspace = true }
+thiserror = { workspace = true }
 reqwest = { workspace = true }
 xrpl_http_client = { workspace = true }
 axelar-wasm-std = { workspace = true }
@@ -35,6 +36,12 @@ base64 = { workspace = true }
 rust_decimal = { workspace = true }
 xrpl_amplifier_types = { workspace = true }
 regex = { workspace = true }
+
+[dev-dependencies]
+relayer-base = { workspace = true }
+mockall = { workspace = true }
+testcontainers = { workspace = true }
+testcontainers-modules = { workspace = true }
 
 [[bin]]
 name = "xrpl_ingestor"
@@ -75,3 +82,7 @@ path = "src/bin/recovery/xrpl_task_recovery.rs"
 [[bin]]
 name = "xrpl_heartbeat_monitor"
 path = "src/bin/xrpl_heartbeat_monitor.rs"
+
+[[bin]]
+name = "xrpl_queued_tx_monitor"
+path = "src/bin/xrpl_queued_tx_monitor.rs"

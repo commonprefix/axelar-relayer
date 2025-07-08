@@ -11,15 +11,36 @@ use relayer_base::{
     utils::extract_hex_xrpl_memo,
 };
 
-use super::client::XRPLClient;
+use crate::models::queued_transactions::QueuedTransactionsModel;
 
-pub struct XRPLBroadcaster {
-    client: Arc<XRPLClient>,
+use super::client::XRPLClientTrait;
+
+pub struct XRPLBroadcaster<QM: QueuedTransactionsModel, X: XRPLClientTrait> {
+    client: Arc<X>,
+    queued_tx_model: QM,
 }
 
-impl XRPLBroadcaster {
-    pub fn new(client: Arc<XRPLClient>) -> error_stack::Result<Self, BroadcasterError> {
-        Ok(XRPLBroadcaster { client })
+impl<QM: QueuedTransactionsModel, X: XRPLClientTrait> XRPLBroadcaster<QM, X> {
+    pub fn new(client: Arc<X>, queued_tx_model: QM) -> error_stack::Result<Self, BroadcasterError> {
+        Ok(XRPLBroadcaster {
+            client,
+            queued_tx_model,
+        })
+    }
+
+    pub async fn handle_queued_tx(
+        &self,
+        tx: &Transaction,
+        tx_hash: &str,
+    ) -> Result<(), BroadcasterError> {
+        self.queued_tx_model
+            .store_queued_transaction(
+                tx_hash,
+                &tx.common().account.to_string(),
+                tx.common().sequence as i64,
+            )
+            .await
+            .map_err(|e| BroadcasterError::GenericError(e.to_string()))
     }
 }
 
@@ -48,7 +69,7 @@ fn log_and_return_error(
     })
 }
 
-impl Broadcaster for XRPLBroadcaster {
+impl<QM: QueuedTransactionsModel, X: XRPLClientTrait> Broadcaster for XRPLBroadcaster<QM, X> {
     type Transaction = Transaction;
 
     async fn broadcast_prover_message(
@@ -81,6 +102,7 @@ impl Broadcaster for XRPLBroadcaster {
             BroadcasterError::RPCCallFailed("Transaction hash not found".to_string())
         })?;
         let response_category = response.engine_result.category();
+        debug!("Response category: {:?}", response_category);
         if response_category == ResultCategory::Tec || response_category == ResultCategory::Tes {
             Ok(BroadcastResult {
                 transaction: tx.clone(),
@@ -122,8 +144,13 @@ impl Broadcaster for XRPLBroadcaster {
             }
         } else if response.engine_result == TransactionResult::terQUEUED {
             debug!("Transaction {} is queued (terQUEUED)", tx_hash);
-            // The transaction is queued, but will probably make it into the ledger soon
-            // TODO: What if it never makes it into the ledger?
+
+            if let Err(e) = self.handle_queued_tx(&tx, &tx_hash).await {
+                error!("Failed to store queued transaction: {:?}", e);
+            } else {
+                debug!("Successfully stored queued transaction");
+            }
+
             return Ok(BroadcastResult {
                 transaction: tx.clone(),
                 tx_hash,
@@ -156,5 +183,332 @@ impl Broadcaster for XRPLBroadcaster {
                 response.engine_result, response.engine_result_message
             )))
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::models::queued_transactions::MockQueuedTransactionsModel;
+    use crate::{broadcaster::XRPLBroadcaster, client::MockXRPLClientTrait};
+    use relayer_base::error::BroadcasterError;
+    use relayer_base::includer::{BroadcastResult, Broadcaster};
+    use serde_json;
+    use std::future;
+    use std::sync::Arc;
+    use xrpl_api::{SubmitRequest, Transaction};
+    use xrpl_api::{SubmitResponse, TransactionResult};
+
+    // Helper function to return responses because xrpl_api does not support default.
+    // Modify accordingly for each call
+
+    fn setup_broadcast_prover_tests(
+        blob: &str,
+        result: TransactionResult,
+        account: &str,
+        sequence: i64,
+        tx_hash: &str,
+        transaction_type: &str,
+    ) -> (
+        MockQueuedTransactionsModel,
+        MockXRPLClientTrait,
+        SubmitResponse,
+        Transaction,
+    ) {
+        let tx_json = format!(
+            r#"{{"TransactionType":"{}","Account":"{}","Destination":"{}","Amount":"1000","Sequence":{},"Fee":"12","Flags":2147483648,"Memos":[{{"Memo":{{"MemoType":"6d6573736167655f6964","MemoData":"6d6573736167655f6964","MemoFormat":"hex"}}}},{{"Memo":{{"MemoType":"736f757263655f636861696e","MemoData":"736f757263655f636861696e","MemoFormat":"hex"}}}}],"hash":"{}"}}"#,
+            transaction_type, account, account, sequence, tx_hash
+        );
+        let tx: Transaction = serde_json::from_str(&tx_json).unwrap();
+        let mock_queued_tx_model = MockQueuedTransactionsModel::new();
+        let mock_client = MockXRPLClientTrait::new();
+        let fake_response = client_response(&tx, blob, result);
+        (mock_queued_tx_model, mock_client, fake_response, tx)
+    }
+
+    fn client_response(tx: &Transaction, blob: &str, result: TransactionResult) -> SubmitResponse {
+        let engine_result_message = match result {
+            TransactionResult::terNO_AUTH => "Transaction not authorized".to_string(),
+            _ => String::new(),
+        };
+
+        SubmitResponse {
+            engine_result: result,
+            engine_result_code: 0,
+            engine_result_message,
+            tx_blob: blob.to_string(),
+            tx_json: tx.clone(),
+            accepted: false,
+            account_sequence_available: 0,
+            account_sequence_next: 0,
+            applied: false,
+            broadcast: false,
+            kept: false,
+            queued: result == TransactionResult::terQUEUED,
+            open_ledger_cost: String::new(),
+            validated_ledger_index: 0,
+        }
+    }
+
+    #[tokio::test]
+    async fn test_handle_queued_tx() {
+        let tx_hash = "DUMMY_HASH";
+        let account = "rDummyAccount";
+        let sequence: i64 = 123;
+        let blob = "blob";
+        let transaction_type = "Payment";
+
+        let (mut mock_queued_tx_model, mock_client, _fake_response, tx) =
+            setup_broadcast_prover_tests(
+                blob,
+                TransactionResult::terQUEUED,
+                account,
+                sequence,
+                tx_hash,
+                transaction_type,
+            );
+
+        mock_queued_tx_model
+            .expect_store_queued_transaction()
+            .withf(move |h, a, s| h == tx_hash && a == account && *s == sequence)
+            .times(1)
+            .returning(|_, _, _| Box::pin(async { Ok(()) }));
+
+        let broadcaster = XRPLBroadcaster {
+            client: Arc::new(mock_client),
+            queued_tx_model: mock_queued_tx_model,
+        };
+
+        let result = broadcaster.handle_queued_tx(&tx, tx_hash).await;
+
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_broadcast_prover_message_ter_queued() {
+        let tx_hash = "DUMMY_HASH";
+        let account = "rDummyAccount";
+        let sequence: i64 = 123;
+        let blob = "blob";
+        let transaction_type = "Payment";
+        let (mut mock_queued_tx_model, mut mock_client, fake_response, tx) =
+            setup_broadcast_prover_tests(
+                blob,
+                TransactionResult::terQUEUED,
+                account,
+                sequence,
+                tx_hash,
+                transaction_type,
+            );
+
+        mock_client
+            .expect_call::<SubmitRequest>()
+            .times(1)
+            .returning(move |_| Box::pin(future::ready(Ok(fake_response.clone()))));
+
+        // TODO : This is not really the check we want to make.
+        // We need to check that handle_queued_tx is called instead
+        mock_queued_tx_model
+            .expect_store_queued_transaction()
+            .withf(move |h, a, s| h == tx_hash && a == account && *s == sequence as i64)
+            .times(1)
+            .returning(|_, _, _| Box::pin(async { Ok(()) }));
+
+        let broadcaster = XRPLBroadcaster {
+            client: Arc::new(mock_client),
+            queued_tx_model: mock_queued_tx_model,
+        };
+
+        let broadcast_result = broadcaster
+            .broadcast_prover_message(blob.to_string())
+            .await
+            .unwrap();
+
+        let expected_broadcast_result = BroadcastResult {
+            transaction: tx,
+            tx_hash: tx_hash.to_string(),
+            status: Ok(()),
+            message_id: Some("message_id".to_string()),
+            source_chain: Some("source_chain".to_string()),
+        };
+
+        assert_eq!(broadcast_result, expected_broadcast_result);
+    }
+
+    #[tokio::test]
+    async fn test_broadcast_prover_message_ticket_create_tef_past_seq() {
+        let tx_hash = "DUMMY_HASH";
+        let account = "rDummyAccount";
+        let sequence: i64 = 123;
+        let blob = "blob";
+        let transaction_type = "TicketCreate";
+        let (mock_queued_tx_model, mut mock_client, fake_response, tx) =
+            setup_broadcast_prover_tests(
+                blob,
+                TransactionResult::tefPAST_SEQ,
+                account,
+                sequence,
+                tx_hash,
+                transaction_type,
+            );
+
+        mock_client
+            .expect_call::<SubmitRequest>()
+            .times(1)
+            .returning(move |_| Box::pin(future::ready(Ok(fake_response.clone()))));
+
+        let broadcaster = XRPLBroadcaster {
+            client: Arc::new(mock_client),
+            queued_tx_model: mock_queued_tx_model,
+        };
+
+        let broadcast_result = broadcaster
+            .broadcast_prover_message(blob.to_string())
+            .await
+            .unwrap();
+
+        let expected_broadcast_result = BroadcastResult {
+            transaction: tx,
+            tx_hash: tx_hash.to_string(),
+            status: Ok(()),
+            message_id: None,
+            source_chain: None,
+        };
+
+        assert_eq!(broadcast_result, expected_broadcast_result);
+    }
+
+    // all tes should return OK
+    #[tokio::test]
+    async fn test_broadcast_prover_message_tes_success() {
+        let tx_hash = "DUMMY_HASH";
+        let account = "rDummyAccount";
+        let sequence: i64 = 123;
+        let blob = "blob";
+        let transaction_type = "Payment";
+        let (mock_queued_tx_model, mut mock_client, fake_response, tx) =
+            setup_broadcast_prover_tests(
+                blob,
+                TransactionResult::tesSUCCESS,
+                account,
+                sequence,
+                tx_hash,
+                transaction_type,
+            );
+
+        mock_client
+            .expect_call::<SubmitRequest>()
+            .times(1)
+            .returning(move |_| Box::pin(future::ready(Ok(fake_response.clone()))));
+
+        let broadcaster = XRPLBroadcaster {
+            client: Arc::new(mock_client),
+            queued_tx_model: mock_queued_tx_model,
+        };
+
+        let broadcast_result = broadcaster
+            .broadcast_prover_message(blob.to_string())
+            .await
+            .unwrap();
+
+        let expected_broadcast_result = BroadcastResult {
+            transaction: tx,
+            tx_hash: tx_hash.to_string(),
+            status: Ok(()),
+            message_id: Some("message_id".to_string()),
+            source_chain: Some("source_chain".to_string()),
+        };
+
+        assert_eq!(broadcast_result, expected_broadcast_result);
+    }
+
+    // all tec should return OK
+    #[tokio::test]
+    async fn test_broadcast_prover_message_tec_internal() {
+        let tx_hash = "DUMMY_HASH";
+        let account = "rDummyAccount";
+        let sequence: i64 = 123;
+        let blob = "blob";
+        let transaction_type = "Payment";
+        let (mock_queued_tx_model, mut mock_client, fake_response, tx) =
+            setup_broadcast_prover_tests(
+                blob,
+                TransactionResult::tecINTERNAL,
+                account,
+                sequence,
+                tx_hash,
+                transaction_type,
+            );
+
+        mock_client
+            .expect_call::<SubmitRequest>()
+            .times(1)
+            .returning(move |_| Box::pin(future::ready(Ok(fake_response.clone()))));
+
+        let broadcaster = XRPLBroadcaster {
+            client: Arc::new(mock_client),
+            queued_tx_model: mock_queued_tx_model,
+        };
+
+        let broadcast_result = broadcaster
+            .broadcast_prover_message(blob.to_string())
+            .await
+            .unwrap();
+
+        let expected_broadcast_result = BroadcastResult {
+            transaction: tx,
+            tx_hash: tx_hash.to_string(),
+            status: Ok(()),
+            message_id: Some("message_id".to_string()),
+            source_chain: Some("source_chain".to_string()),
+        };
+
+        assert_eq!(broadcast_result, expected_broadcast_result);
+    }
+
+    // other ter cases (other than terQUEUED) should return error
+    #[tokio::test]
+    async fn test_broadcast_prover_message_ter_no_auth() {
+        let tx_hash = "DUMMY_HASH";
+        let account = "rDummyAccount";
+        let sequence: i64 = 123;
+        let blob = "blob";
+        let transaction_type = "Payment";
+        let (mock_queued_tx_model, mut mock_client, fake_response, tx) =
+            setup_broadcast_prover_tests(
+                blob,
+                TransactionResult::terNO_AUTH,
+                account,
+                sequence,
+                tx_hash,
+                transaction_type,
+            );
+
+        mock_client
+            .expect_call::<SubmitRequest>()
+            .times(1)
+            .returning(move |_| Box::pin(future::ready(Ok(fake_response.clone()))));
+
+        let broadcaster = XRPLBroadcaster {
+            client: Arc::new(mock_client),
+            queued_tx_model: mock_queued_tx_model,
+        };
+
+        let result = broadcaster.broadcast_prover_message(blob.to_string()).await;
+        assert!(result.is_ok());
+
+        let broadcast_result = result.unwrap();
+        let expected_broadcast_result = BroadcastResult {
+            transaction: tx,
+            tx_hash: tx_hash.to_string(),
+            status: Err(BroadcasterError::RPCCallFailed(format!(
+                "Transaction failed: {:?}: {}",
+                TransactionResult::terNO_AUTH,
+                "Transaction not authorized"
+            ))),
+            message_id: Some("message_id".to_string()),
+            source_chain: Some("source_chain".to_string()),
+        };
+
+        assert_eq!(broadcast_result, expected_broadcast_result);
     }
 }

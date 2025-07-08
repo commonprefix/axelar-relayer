@@ -1,5 +1,6 @@
 use dotenv::dotenv;
 
+use relayer_base::config::config_from_yaml;
 use relayer_base::{
     database::PostgresDB,
     queue::Queue,
@@ -7,9 +8,7 @@ use relayer_base::{
     utils::{setup_heartbeat, setup_logging},
 };
 use tokio::signal::unix::{signal, SignalKind};
-use relayer_base::config::{config_from_yaml};
-use xrpl::config::XRPLConfig;
-use xrpl::subscriber::XrplSubscriber;
+use xrpl::{client::XRPLClient, config::XRPLConfig, subscriber::XrplSubscriber};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -20,10 +19,13 @@ async fn main() -> anyhow::Result<()> {
     let _guard = setup_logging(&config.common_config);
 
     let events_queue = Queue::new(&config.common_config.queue_address, "events").await;
-    let postgres_db = PostgresDB::new(&config.common_config.postgres_url).await.unwrap();
+    let postgres_db = PostgresDB::new(&config.common_config.postgres_url)
+        .await
+        .unwrap();
 
+    let xrpl_client = XRPLClient::new(&config.xrpl_rpc, 3).unwrap();
     let xrpl_subscriber =
-        XrplSubscriber::new(&config.xrpl_rpc, postgres_db, "recovery".to_string()).await?;
+        XrplSubscriber::new(xrpl_client, postgres_db, "recovery".to_string()).await?;
     let mut subscriber = Subscriber::new(xrpl_subscriber);
     let txs: Vec<&str> = vec![
         "80B60B79FF9402BDFAD32AD531E7679206E67C29B8F048162F0FFBEF59814D32",
