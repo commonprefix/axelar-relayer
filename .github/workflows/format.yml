@@ -1,0 +1,23 @@
+name: Rust Format
+on:
+  push:
+    branches: ['**']
+jobs:
+  fmt:
+    name: Check Code Formatting with rustfmt
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Install Rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+      - name: Build project
+        run: cargo build --all --release
+      - name: Deploy Application
+        if: success()
+        run: |
+          echo "Deploying the application..."
