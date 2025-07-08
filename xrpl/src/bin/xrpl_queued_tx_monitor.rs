@@ -4,11 +4,11 @@ use std::sync::Arc;
 use tokio::signal::unix::{signal, SignalKind};
 
 use relayer_base::{
-    config::Config,
+    config::config_from_yaml,
     utils::{setup_heartbeat, setup_logging},
 };
 use xrpl::{
-    client::XRPLClient, models::queued_transactions::PgQueuedTransactionsModel,
+    client::XRPLClient, config::XRPLConfig, models::queued_transactions::PgQueuedTransactionsModel,
     queued_tx_monitor::XrplQueuedTxMonitor,
 };
 
@@ -16,17 +16,19 @@ use xrpl::{
 async fn main() -> anyhow::Result<()> {
     dotenv().ok();
     let network = std::env::var("NETWORK").expect("NETWORK must be set");
-    let config = Config::from_yaml(&format!("config.{}.yaml", network))?;
+    let config: XRPLConfig = config_from_yaml(&format!("config.{}.yaml", network)).unwrap();
 
-    let _guard = setup_logging(&config);
+    let _guard = setup_logging(&config.common_config);
 
-    let pg_pool = PgPool::connect(&config.postgres_url).await.unwrap();
+    let pg_pool = PgPool::connect(&config.common_config.postgres_url)
+        .await
+        .unwrap();
     let xrpl_client = Arc::new(XRPLClient::new(&config.xrpl_rpc, 3)?);
     let queued_tx_model = PgQueuedTransactionsModel::new(pg_pool);
 
     let xrpl_tx_monitor = XrplQueuedTxMonitor::new(xrpl_client, queued_tx_model);
 
-    let redis_client = redis::Client::open(config.redis_server.clone())?;
+    let redis_client = redis::Client::open(config.common_config.redis_server.clone())?;
     let redis_pool = r2d2::Pool::builder().build(redis_client)?;
     setup_heartbeat("heartbeat:queued_tx_monitor".to_owned(), redis_pool);
 

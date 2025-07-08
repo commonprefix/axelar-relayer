@@ -1,22 +1,20 @@
+use super::config::XRPLConfig;
+use crate::client::XRPLClientTrait;
 use reqwest::Client;
 use tracing::{error, info};
 use xrpl_api::{AccountInfoRequest, Amount};
 
-use relayer_base::config::Config;
-
-use crate::client::XRPLClientTrait;
-
-const XRP_TOPUP_AMOUNT: u64 = 1000;
-const BALANCE_THRESHOLD: f64 = 500_000_000.0; // = 500 XRP
+const XRP_TOPUP_AMOUNT: u64 = 100;
+const BALANCE_THRESHOLD: f64 = 100_000_000.0; // = 100 XRP
 
 pub struct XRPLFunder<X: XRPLClientTrait> {
     request_client: Client,
     xrpl_client: X,
-    config: Config,
+    config: XRPLConfig,
 }
 
 impl<X: XRPLClientTrait> XRPLFunder<X> {
-    pub fn new(config: Config, xrpl_client: X) -> Self {
+    pub fn new(config: XRPLConfig, xrpl_client: X) -> Self {
         let request_client = Client::new();
         Self {
             request_client,

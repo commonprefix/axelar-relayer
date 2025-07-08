@@ -50,6 +50,7 @@ impl<DB: Database, X: XRPLClientTrait> XrplSubscriber<DB, X> {
 
 impl<DB: Database, X: XRPLClientTrait> TransactionPoller for XrplSubscriber<DB, X> {
     type Transaction = Transaction;
+    type Account = AccountId;
 
     fn make_queue_item(&mut self, tx: Self::Transaction) -> ChainTransaction {
         ChainTransaction::Xrpl(tx)
@@ -61,7 +62,7 @@ impl<DB: Database, X: XRPLClientTrait> TransactionPoller for XrplSubscriber<DB, 
     ) -> Result<Vec<Self::Transaction>, anyhow::Error> {
         let transactions = self
             .client
-            .get_transactions_for_account(&account_id, self.latest_ledger as u32 + 1)
+            .get_transactions_for_account(&account_id, (self.latest_ledger + 1) as u32)
             .await?;
 
         let max_response_ledger = transactions

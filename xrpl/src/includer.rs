@@ -1,14 +1,15 @@
 use std::sync::Arc;
 
 use relayer_base::{
-    config::Config, database::Database, error::BroadcasterError, gmp_api::GmpApi,
-    includer::Includer, payload_cache::PayloadCache, queue::Queue,
+    database::Database, error::BroadcasterError, gmp_api::GmpApi, includer::Includer,
+    payload_cache::PayloadCache, queue::Queue,
 };
 
 use crate::{client::XRPLClientTrait, models::queued_transactions::QueuedTransactionsModel};
 
 use super::{broadcaster::XRPLBroadcaster, refund_manager::XRPLRefundManager};
 
+use super::config::XRPLConfig;
 use error_stack;
 use r2d2;
 
@@ -17,7 +18,7 @@ pub struct XrplIncluder {}
 impl XrplIncluder {
     #[allow(clippy::new_ret_no_self)]
     pub async fn new<X: XRPLClientTrait, DB: Database, QM: QueuedTransactionsModel>(
-        config: Config,
+        config: XRPLConfig,
         gmp_api: Arc<GmpApi>,
         redis_pool: r2d2::Pool<redis::Client>,
         payload_cache: PayloadCache<DB>,

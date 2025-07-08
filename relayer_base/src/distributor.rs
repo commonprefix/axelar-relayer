@@ -108,11 +108,6 @@ impl<DB: Database> Distributor<DB> {
                 }
             }
 
-            if task.kind() == TaskKind::Unknown {
-                warn!("Dropping unknown task: {:?}", task);
-                continue;
-            }
-
             if task.kind() == TaskKind::Refund && !self.refunds_enabled {
                 continue;
             }
@@ -127,7 +122,7 @@ impl<DB: Database> Distributor<DB> {
                 | TaskKind::ReactToRetriablePoll
                 | TaskKind::ReactToExpiredSigningSession => ingestor_queue.clone(),
                 TaskKind::Unknown | TaskKind::Execute => {
-                    warn!("Dropping unknown task: {:?}", task);
+                    warn!("Dropping unsupported task: {:?}", task);
                     continue;
                 }
             };
