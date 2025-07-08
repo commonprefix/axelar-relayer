@@ -36,12 +36,12 @@ base64 = { workspace = true }
 rust_decimal = { workspace = true }
 xrpl_amplifier_types = { workspace = true }
 regex = { workspace = true }
-testcontainers = { workspace = true }
-testcontainers-modules = { workspace = true }
 
 [dev-dependencies]
 relayer-base = { workspace = true }
 mockall = { workspace = true }
+testcontainers = { workspace = true }
+testcontainers-modules = { workspace = true }
 
 [[bin]]
 name = "xrpl_ingestor"
