@@ -1,5 +1,6 @@
 use super::Model;
 use anyhow::Result;
+use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 
@@ -22,6 +23,7 @@ impl PgTaskRetriesModel {
     }
 }
 
+#[async_trait]
 impl Model<TaskRetries, String> for PgTaskRetriesModel {
     async fn find(&self, id: String) -> Result<Option<TaskRetries>> {
         let query = format!("SELECT * FROM {} WHERE message_id = $1", PG_TABLE_NAME);

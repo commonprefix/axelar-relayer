@@ -1,4 +1,5 @@
 use anyhow::Result;
+use async_trait::async_trait;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use sqlx::{PgPool, Type};
@@ -135,6 +136,7 @@ pub struct PgXrplTransactionModel {
     pool: PgPool,
 }
 
+#[async_trait]
 impl Model<XrplTransaction, String> for PgXrplTransactionModel {
     async fn find(&self, id: String) -> Result<Option<XrplTransaction>> {
         let query = format!("SELECT * FROM {} WHERE tx_hash = $1", PG_TABLE_NAME);
