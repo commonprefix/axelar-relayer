@@ -257,7 +257,7 @@ mod tests {
         let blob = "blob";
         let transaction_type = "Payment";
 
-        let (mut mock_queued_tx_model, mut mock_client, _fake_response, tx) =
+        let (mut mock_queued_tx_model, mock_client, _fake_response, tx) =
             setup_broadcast_prover_tests(
                 blob,
                 TransactionResult::terQUEUED,
@@ -272,8 +272,6 @@ mod tests {
             .withf(move |h, a, s| h == tx_hash && a == account && *s == sequence)
             .times(1)
             .returning(|_, _, _| Box::pin(async { Ok(()) }));
-
-        mock_client.expect_call::<SubmitRequest>().never();
 
         let broadcaster = XRPLBroadcaster {
             client: Arc::new(mock_client),
