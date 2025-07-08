@@ -71,6 +71,14 @@ services:
     env_file:
       - .env
 
+  xrpl_queued_tx_monitor:
+    build:
+      context: .
+      args:
+        BINARY_NAME: xrpl_queued_tx_monitor
+    env_file:
+      - .env
+
   # Testnet / Devnet Helper Services
 
   xrpl_funder:
