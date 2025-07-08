@@ -1,6 +1,7 @@
+use async_trait::async_trait;
 use futures::StreamExt;
 use lapin::{options::BasicAckOptions, Consumer};
-use std::{future::Future, sync::Arc};
+use std::sync::Arc;
 use tokio::select;
 use tracing::{debug, error, info, warn};
 
@@ -33,20 +34,15 @@ pub struct IngestorModels {
     pub task_retries: PgTaskRetriesModel,
 }
 
+#[async_trait]
 pub trait IngestorTrait {
-    fn handle_verify(&self, task: VerifyTask) -> impl Future<Output = Result<(), IngestorError>>;
-    fn handle_transaction(
+    async fn handle_verify(&self, task: VerifyTask) -> Result<(), IngestorError>;
+    async fn handle_transaction(
         &self,
         transaction: ChainTransaction,
-    ) -> impl Future<Output = Result<Vec<Event>, IngestorError>>;
-    fn handle_wasm_event(
-        &self,
-        task: ReactToWasmEventTask,
-    ) -> impl Future<Output = Result<(), IngestorError>>;
-    fn handle_construct_proof(
-        &self,
-        task: ConstructProofTask,
-    ) -> impl Future<Output = Result<(), IngestorError>>;
+    ) -> Result<Vec<Event>, IngestorError>;
+    async fn handle_wasm_event(&self, task: ReactToWasmEventTask) -> Result<(), IngestorError>;
+    async fn handle_construct_proof(&self, task: ConstructProofTask) -> Result<(), IngestorError>;
 }
 
 impl<I: IngestorTrait> Ingestor<I> {
