@@ -132,7 +132,7 @@ impl XrplTransaction {
 const PG_TABLE_NAME: &str = "xrpl_transactions";
 #[derive(Debug, Clone)]
 pub struct PgXrplTransactionModel {
-    pub pool: PgPool,
+    pool: PgPool,
 }
 
 impl Model<XrplTransaction, String> for PgXrplTransactionModel {

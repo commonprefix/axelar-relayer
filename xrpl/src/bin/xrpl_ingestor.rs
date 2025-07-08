@@ -32,9 +32,7 @@ async fn main() -> anyhow::Result<()> {
     let pg_pool = PgPool::connect(&config.postgres_url).await.unwrap();
     let price_view = PriceView::new(postgres_db.clone());
     let payload_cache = PayloadCache::new(postgres_db.clone());
-    let xrpl_transaction_model = PgXrplTransactionModel {
-        pool: pg_pool.clone(),
-    };
+    let xrpl_transaction_model = PgXrplTransactionModel::new(pg_pool.clone());
     // make an xrpl ingestor
     let xrpl_ingestor = XrplIngestor::new(
         gmp_api.clone(),

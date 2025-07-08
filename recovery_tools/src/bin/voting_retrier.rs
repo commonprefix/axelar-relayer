@@ -19,9 +19,7 @@ async fn main() -> anyhow::Result<()> {
     let pg_pool = PgPool::connect(&config.postgres_url).await.unwrap();
     let redis_client = redis::Client::open(config.redis_server.clone()).unwrap();
     let redis_pool = r2d2::Pool::builder().build(redis_client).unwrap();
-    let xrpl_transaction_model = PgXrplTransactionModel {
-        pool: pg_pool.clone(),
-    };
+    let xrpl_transaction_model = PgXrplTransactionModel::new(pg_pool.clone());
     let voting_retrier = VotingRetrier::new(
         events_queue,
         tasks_queue,
