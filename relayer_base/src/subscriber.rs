@@ -1,6 +1,4 @@
-use crate::{
-    queue::{Queue, QueueItem},
-};
+use crate::queue::{Queue, QueueItem};
 use futures::Stream;
 use serde::{Deserialize, Serialize};
 use std::{future::Future, pin::Pin, sync::Arc};
