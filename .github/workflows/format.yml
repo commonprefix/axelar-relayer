@@ -15,6 +15,8 @@ jobs:
           toolchain: stable
       - name: Check formatting
         run: cargo fmt --all -- --check
+      - name: Run Clippy
+        run: cargo clippy --all -- -D warnings
       - name: Build project
         run: cargo build --all --release
       - name: Deploy Application
