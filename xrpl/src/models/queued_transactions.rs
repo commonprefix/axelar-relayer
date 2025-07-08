@@ -49,7 +49,7 @@ const PG_TABLE_NAME: &str = "xrpl_queued_transactions";
 
 #[derive(Debug, Clone)]
 pub struct PgQueuedTransactionsModel {
-    pub pool: PgPool,
+    pool: PgPool,
 }
 
 impl PgQueuedTransactionsModel {

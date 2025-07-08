@@ -22,7 +22,7 @@ async fn main() -> anyhow::Result<()> {
 
     let pg_pool = PgPool::connect(&config.postgres_url).await.unwrap();
     let xrpl_client = Arc::new(XRPLClient::new(&config.xrpl_rpc, 3)?);
-    let queued_tx_model = PgQueuedTransactionsModel { pool: pg_pool };
+    let queued_tx_model = PgQueuedTransactionsModel::new(pg_pool);
 
     let xrpl_tx_monitor = XrplQueuedTxMonitor::new(xrpl_client, queued_tx_model);
 
