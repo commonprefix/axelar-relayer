@@ -13,7 +13,13 @@ pub struct TaskRetries {
 const PG_TABLE_NAME: &str = "task_retries";
 #[derive(Debug, Clone)]
 pub struct PgTaskRetriesModel {
-    pub pool: PgPool,
+    pool: PgPool,
+}
+
+impl PgTaskRetriesModel {
+    pub fn new(pool: PgPool) -> Self {
+        Self { pool }
+    }
 }
 
 impl Model<TaskRetries, String> for PgTaskRetriesModel {

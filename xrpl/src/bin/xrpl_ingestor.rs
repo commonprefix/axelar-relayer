@@ -42,9 +42,7 @@ async fn main() -> anyhow::Result<()> {
         xrpl_transaction_model,
     );
     let models = IngestorModels {
-        task_retries: PgTaskRetriesModel {
-            pool: pg_pool.clone(),
-        },
+        task_retries: PgTaskRetriesModel::new(pg_pool.clone()),
     };
     let ingestor = Ingestor::new(gmp_api, xrpl_ingestor, models);
 
