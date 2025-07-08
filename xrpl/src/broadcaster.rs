@@ -190,7 +190,8 @@ impl<QM: QueuedTransactionsModel, X: XRPLClientTrait> Broadcaster for XRPLBroadc
 mod tests {
     use crate::models::queued_transactions::MockQueuedTransactionsModel;
     use crate::{broadcaster::XRPLBroadcaster, client::MockXRPLClientTrait};
-    use relayer_base::includer::Broadcaster;
+    use relayer_base::error::BroadcasterError;
+    use relayer_base::includer::{BroadcastResult, Broadcaster};
     use serde_json;
     use std::future;
     use std::sync::Arc;
@@ -225,10 +226,15 @@ mod tests {
     }
 
     fn client_response(tx: &Transaction, blob: &str, result: TransactionResult) -> SubmitResponse {
+        let engine_result_message = match result {
+            TransactionResult::terNO_AUTH => "Transaction not authorized".to_string(),
+            _ => String::new(),
+        };
+
         SubmitResponse {
             engine_result: result,
             engine_result_code: 0,
-            engine_result_message: String::new(),
+            engine_result_message,
             tx_blob: blob.to_string(),
             tx_json: tx.clone(),
             accepted: false,
@@ -319,14 +325,15 @@ mod tests {
             .await
             .unwrap();
 
-        assert!(broadcast_result.status.is_ok());
-        assert_eq!(broadcast_result.tx_hash, tx_hash.to_string());
-        assert_eq!(broadcast_result.transaction, tx);
-        assert_eq!(broadcast_result.message_id, Some("message_id".to_string()));
-        assert_eq!(
-            broadcast_result.source_chain,
-            Some("source_chain".to_string())
-        );
+        let expected_broadcast_result = BroadcastResult {
+            transaction: tx,
+            tx_hash: tx_hash.to_string(),
+            status: Ok(()),
+            message_id: Some("message_id".to_string()),
+            source_chain: Some("source_chain".to_string()),
+        };
+
+        assert_eq!(broadcast_result, expected_broadcast_result);
     }
 
     #[tokio::test]
@@ -361,11 +368,15 @@ mod tests {
             .await
             .unwrap();
 
-        assert!(broadcast_result.status.is_ok());
-        assert_eq!(broadcast_result.tx_hash, tx_hash.to_string());
-        assert_eq!(broadcast_result.transaction, tx);
-        assert_eq!(broadcast_result.message_id, None);
-        assert_eq!(broadcast_result.source_chain, None);
+        let expected_broadcast_result = BroadcastResult {
+            transaction: tx,
+            tx_hash: tx_hash.to_string(),
+            status: Ok(()),
+            message_id: None,
+            source_chain: None,
+        };
+
+        assert_eq!(broadcast_result, expected_broadcast_result);
     }
 
     // all tes should return OK
@@ -401,23 +412,15 @@ mod tests {
             .await
             .unwrap();
 
-        assert!(broadcast_result.status.is_ok());
+        let expected_broadcast_result = BroadcastResult {
+            transaction: tx,
+            tx_hash: tx_hash.to_string(),
+            status: Ok(()),
+            message_id: Some("message_id".to_string()),
+            source_chain: Some("source_chain".to_string()),
+        };
 
-        assert_eq!(broadcast_result.tx_hash, tx_hash.to_string());
-        assert_eq!(
-            broadcast_result.transaction.common().account,
-            account.to_string()
-        );
-        assert_eq!(
-            broadcast_result.transaction.common().sequence,
-            sequence as u32
-        );
-        assert_eq!(broadcast_result.message_id, Some("message_id".to_string()));
-        assert_eq!(
-            broadcast_result.source_chain,
-            Some("source_chain".to_string())
-        );
-        assert_eq!(broadcast_result.transaction, tx);
+        assert_eq!(broadcast_result, expected_broadcast_result);
     }
 
     // all tec should return OK
@@ -453,14 +456,15 @@ mod tests {
             .await
             .unwrap();
 
-        assert!(broadcast_result.status.is_ok());
-        assert_eq!(broadcast_result.tx_hash, tx_hash.to_string());
-        assert_eq!(broadcast_result.transaction, tx);
-        assert_eq!(broadcast_result.message_id, Some("message_id".to_string()));
-        assert_eq!(
-            broadcast_result.source_chain,
-            Some("source_chain".to_string())
-        );
+        let expected_broadcast_result = BroadcastResult {
+            transaction: tx,
+            tx_hash: tx_hash.to_string(),
+            status: Ok(()),
+            message_id: Some("message_id".to_string()),
+            source_chain: Some("source_chain".to_string()),
+        };
+
+        assert_eq!(broadcast_result, expected_broadcast_result);
     }
 
     // other ter cases (other than terQUEUED) should return error
@@ -495,13 +499,18 @@ mod tests {
         assert!(result.is_ok());
 
         let broadcast_result = result.unwrap();
-        assert!(broadcast_result.status.is_err());
-        assert_eq!(broadcast_result.tx_hash, tx_hash.to_string());
-        assert_eq!(broadcast_result.transaction, tx);
-        assert_eq!(broadcast_result.message_id, Some("message_id".to_string()));
-        assert_eq!(
-            broadcast_result.source_chain,
-            Some("source_chain".to_string())
-        );
+        let expected_broadcast_result = BroadcastResult {
+            transaction: tx,
+            tx_hash: tx_hash.to_string(),
+            status: Err(BroadcasterError::RPCCallFailed(format!(
+                "Transaction failed: {:?}: {}",
+                TransactionResult::terNO_AUTH,
+                "Transaction not authorized"
+            ))),
+            message_id: Some("message_id".to_string()),
+            source_chain: Some("source_chain".to_string()),
+        };
+
+        assert_eq!(broadcast_result, expected_broadcast_result);
     }
 }

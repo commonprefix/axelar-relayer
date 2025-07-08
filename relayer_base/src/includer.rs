@@ -36,6 +36,8 @@ pub trait RefundManager {
     fn release_wallet_lock(&self, wallet: Self::Wallet) -> Result<(), RefundManagerError>;
 }
 
+#[derive(PartialEq, Debug)]
+
 pub struct BroadcastResult<T> {
     pub transaction: T,
     pub tx_hash: String,
