@@ -37,7 +37,6 @@ pub trait RefundManager {
 }
 
 #[derive(PartialEq, Debug)]
-
 pub struct BroadcastResult<T> {
     pub transaction: T,
     pub tx_hash: String,
