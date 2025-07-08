@@ -161,16 +161,14 @@ mod tests {
             .expect_call::<TxRequest>()
             .times(1)
             .returning(move |_| {
-                Box::pin(async {
-                    Ok(TxResponse {
-                        tx: Transaction::Payment(PaymentTransaction {
-                            common: TransactionCommon {
-                                validated: Some(true),
-                                ..Default::default()
-                            },
+                Ok(TxResponse {
+                    tx: Transaction::Payment(PaymentTransaction {
+                        common: TransactionCommon {
+                            validated: Some(true),
                             ..Default::default()
-                        }),
-                    })
+                        },
+                        ..Default::default()
+                    }),
                 })
             });
 
@@ -193,16 +191,14 @@ mod tests {
             .expect_call::<TxRequest>()
             .times(1)
             .returning(move |_| {
-                Box::pin(async {
-                    Ok(TxResponse {
-                        tx: Transaction::Payment(PaymentTransaction {
-                            common: TransactionCommon {
-                                validated: Some(false),
-                                ..Default::default()
-                            },
+                Ok(TxResponse {
+                    tx: Transaction::Payment(PaymentTransaction {
+                        common: TransactionCommon {
+                            validated: Some(false),
                             ..Default::default()
-                        }),
-                    })
+                        },
+                        ..Default::default()
+                    }),
                 })
             });
 
@@ -225,11 +221,9 @@ mod tests {
             .expect_call::<TxRequest>()
             .times(1)
             .returning(move |_| {
-                Box::pin(async {
-                    Err(xrpl_http_client::error::Error::Api(
-                        "txnNotFound".to_string(),
-                    ))
-                })
+                Err(xrpl_http_client::error::Error::Api(
+                    "txnNotFound".to_string(),
+                ))
             });
 
         let queued_tx_monitor =
@@ -251,11 +245,9 @@ mod tests {
             .expect_call::<TxRequest>()
             .times(1)
             .returning(move |_| {
-                Box::pin(async {
-                    Err(xrpl_http_client::error::Error::Api(
-                        "test error".to_string(),
-                    ))
-                })
+                Err(xrpl_http_client::error::Error::Api(
+                    "test error".to_string(),
+                ))
             });
 
         let queued_tx_monitor =
@@ -275,16 +267,14 @@ mod tests {
             .expect_call::<TxRequest>()
             .times(1)
             .returning(|_| {
-                Box::pin(async {
-                    Ok(TxResponse {
-                        tx: Transaction::Payment(PaymentTransaction {
-                            common: TransactionCommon {
-                                validated: None, // This is currently treated as queued (should it?)
-                                ..Default::default()
-                            },
+                Ok(TxResponse {
+                    tx: Transaction::Payment(PaymentTransaction {
+                        common: TransactionCommon {
+                            validated: None, // This is currently treated as queued (should it?)
                             ..Default::default()
-                        }),
-                    })
+                        },
+                        ..Default::default()
+                    }),
                 })
             });
 
@@ -307,11 +297,9 @@ mod tests {
             .expect_call::<TxRequest>()
             .times(1)
             .returning(|_| {
-                Box::pin(async {
-                    Err(xrpl_http_client::error::Error::Internal(
-                        "Connection timeout".to_string(),
-                    ))
-                })
+                Err(xrpl_http_client::error::Error::Internal(
+                    "Connection timeout".to_string(),
+                ))
             });
 
         let queued_tx_monitor =
@@ -374,16 +362,14 @@ mod tests {
             .expect_call::<TxRequest>()
             .times(1)
             .return_once(|_| {
-                Box::pin(async {
-                    Ok(TxResponse {
-                        tx: Transaction::Payment(PaymentTransaction {
-                            common: TransactionCommon {
-                                validated: Some(true),
-                                ..Default::default()
-                            },
+                Ok(TxResponse {
+                    tx: Transaction::Payment(PaymentTransaction {
+                        common: TransactionCommon {
+                            validated: Some(true),
                             ..Default::default()
-                        }),
-                    })
+                        },
+                        ..Default::default()
+                    }),
                 })
             });
 
@@ -392,11 +378,9 @@ mod tests {
             .expect_call::<TxRequest>()
             .times(1)
             .return_once(|_| {
-                Box::pin(async {
-                    Err(xrpl_http_client::error::Error::Api(
-                        "txnNotFound".to_string(),
-                    ))
-                })
+                Err(xrpl_http_client::error::Error::Api(
+                    "txnNotFound".to_string(),
+                ))
             });
 
         // Queued
@@ -404,16 +388,14 @@ mod tests {
             .expect_call::<TxRequest>()
             .times(1)
             .return_once(|_| {
-                Box::pin(async {
-                    Ok(TxResponse {
-                        tx: Transaction::Payment(PaymentTransaction {
-                            common: TransactionCommon {
-                                validated: Some(false),
-                                ..Default::default()
-                            },
+                Ok(TxResponse {
+                    tx: Transaction::Payment(PaymentTransaction {
+                        common: TransactionCommon {
+                            validated: Some(false),
                             ..Default::default()
-                        }),
-                    })
+                        },
+                        ..Default::default()
+                    }),
                 })
             });
 

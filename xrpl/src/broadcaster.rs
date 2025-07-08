@@ -193,7 +193,6 @@ mod tests {
     use relayer_base::error::BroadcasterError;
     use relayer_base::includer::{BroadcastResult, Broadcaster};
     use serde_json;
-    use std::future;
     use std::sync::Arc;
     use xrpl_api::{SubmitRequest, Transaction};
     use xrpl_api::{SubmitResponse, TransactionResult};
@@ -303,7 +302,7 @@ mod tests {
         mock_client
             .expect_call::<SubmitRequest>()
             .times(1)
-            .returning(move |_| Box::pin(future::ready(Ok(fake_response.clone()))));
+            .returning(move |_| Ok(fake_response.clone()));
 
         // TODO : This is not really the check we want to make.
         // We need to check that handle_queued_tx is called instead
@@ -354,7 +353,7 @@ mod tests {
         mock_client
             .expect_call::<SubmitRequest>()
             .times(1)
-            .returning(move |_| Box::pin(future::ready(Ok(fake_response.clone()))));
+            .returning(move |_| Ok(fake_response.clone()));
 
         let broadcaster = XRPLBroadcaster {
             client: Arc::new(mock_client),
@@ -398,7 +397,7 @@ mod tests {
         mock_client
             .expect_call::<SubmitRequest>()
             .times(1)
-            .returning(move |_| Box::pin(future::ready(Ok(fake_response.clone()))));
+            .returning(move |_| Ok(fake_response.clone()));
 
         let broadcaster = XRPLBroadcaster {
             client: Arc::new(mock_client),
@@ -442,7 +441,7 @@ mod tests {
         mock_client
             .expect_call::<SubmitRequest>()
             .times(1)
-            .returning(move |_| Box::pin(future::ready(Ok(fake_response.clone()))));
+            .returning(move |_| Ok(fake_response.clone()));
 
         let broadcaster = XRPLBroadcaster {
             client: Arc::new(mock_client),
@@ -486,7 +485,7 @@ mod tests {
         mock_client
             .expect_call::<SubmitRequest>()
             .times(1)
-            .returning(move |_| Box::pin(future::ready(Ok(fake_response.clone()))));
+            .returning(move |_| Ok(fake_response.clone()));
 
         let broadcaster = XRPLBroadcaster {
             client: Arc::new(mock_client),
