@@ -25,8 +25,8 @@ pub enum QueuedTransactionStatus {
     Expired,
 }
 
-#[async_trait]
 #[cfg_attr(any(test), mockall::automock)]
+#[async_trait]
 pub trait QueuedTransactionsModel {
     async fn update_transaction_status(
         &self,

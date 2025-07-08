@@ -336,39 +336,37 @@ mod tests {
             .expect_get_queued_transactions_ready_for_check()
             .times(1)
             .returning(|| {
-                Box::pin(async {
-                    Ok(vec![
-                        QueuedTransaction {
-                            tx_hash: "DUMMY_HASH".to_string(),
-                            retries: 0,
-                            account: Some("DUMMY_ACCOUNT".to_string()),
-                            sequence: Some(1),
-                            status: QueuedTransactionStatus::Queued,
-                        },
-                        QueuedTransaction {
-                            tx_hash: "DUMMY_HASH2".to_string(),
-                            retries: 0,
-                            account: Some("DUMMY_ACCOUNT".to_string()),
-                            sequence: Some(1),
-                            status: QueuedTransactionStatus::Queued,
-                        },
-                        // Expired
-                        QueuedTransaction {
-                            tx_hash: "DUMMY_HASH3".to_string(),
-                            retries: MAX_RETRIES,
-                            account: Some("DUMMY_ACCOUNT".to_string()),
-                            sequence: Some(1),
-                            status: QueuedTransactionStatus::Queued,
-                        },
-                        QueuedTransaction {
-                            tx_hash: "DUMMY_HASH4".to_string(),
-                            retries: 0,
-                            account: Some("DUMMY_ACCOUNT".to_string()),
-                            sequence: Some(1),
-                            status: QueuedTransactionStatus::Queued,
-                        },
-                    ])
-                })
+                Ok(vec![
+                    QueuedTransaction {
+                        tx_hash: "DUMMY_HASH".to_string(),
+                        retries: 0,
+                        account: Some("DUMMY_ACCOUNT".to_string()),
+                        sequence: Some(1),
+                        status: QueuedTransactionStatus::Queued,
+                    },
+                    QueuedTransaction {
+                        tx_hash: "DUMMY_HASH2".to_string(),
+                        retries: 0,
+                        account: Some("DUMMY_ACCOUNT".to_string()),
+                        sequence: Some(1),
+                        status: QueuedTransactionStatus::Queued,
+                    },
+                    // Expired
+                    QueuedTransaction {
+                        tx_hash: "DUMMY_HASH3".to_string(),
+                        retries: MAX_RETRIES,
+                        account: Some("DUMMY_ACCOUNT".to_string()),
+                        sequence: Some(1),
+                        status: QueuedTransactionStatus::Queued,
+                    },
+                    QueuedTransaction {
+                        tx_hash: "DUMMY_HASH4".to_string(),
+                        retries: 0,
+                        account: Some("DUMMY_ACCOUNT".to_string()),
+                        sequence: Some(1),
+                        status: QueuedTransactionStatus::Queued,
+                    },
+                ])
             });
 
         // Confirmed
@@ -423,25 +421,25 @@ mod tests {
             .expect_update_transaction_status()
             .with(eq("DUMMY_HASH3"), eq(QueuedTransactionStatus::Expired))
             .times(1)
-            .returning(|_, _| Box::pin(async { Ok(()) }));
+            .returning(|_, _| Ok(()));
 
         mock_queued_tx_model
             .expect_update_transaction_status()
             .with(eq("DUMMY_HASH"), eq(QueuedTransactionStatus::Confirmed))
             .times(1)
-            .returning(|_, _| Box::pin(async { Ok(()) }));
+            .returning(|_, _| Ok(()));
 
         mock_queued_tx_model
             .expect_update_transaction_status()
             .with(eq("DUMMY_HASH2"), eq(QueuedTransactionStatus::Dropped))
             .times(1)
-            .returning(|_, _| Box::pin(async { Ok(()) }));
+            .returning(|_, _| Ok(()));
 
         mock_queued_tx_model
             .expect_increment_retry()
             .with(eq("DUMMY_HASH4"))
             .times(1)
-            .returning(|_| Box::pin(async { Ok(()) }));
+            .returning(|_| Ok(()));
 
         let queued_tx_monitor =
             XrplQueuedTxMonitor::new(Arc::new(mock_client), mock_queued_tx_model);
@@ -458,7 +456,7 @@ mod tests {
         mock_queued_tx_model
             .expect_get_queued_transactions_ready_for_check()
             .times(1)
-            .returning(|| Box::pin(async { Err(anyhow::anyhow!("Database connection failed")) }));
+            .returning(|| Err(anyhow::anyhow!("Database connection failed")));
 
         let queued_tx_monitor =
             XrplQueuedTxMonitor::new(Arc::new(mock_client), mock_queued_tx_model);
@@ -479,7 +477,7 @@ mod tests {
         mock_queued_tx_model
             .expect_get_queued_transactions_ready_for_check()
             .times(1)
-            .returning(|| Box::pin(async { Ok(vec![]) }));
+            .returning(|| Ok(vec![]));
 
         let queued_tx_monitor =
             XrplQueuedTxMonitor::new(Arc::new(mock_client), mock_queued_tx_model);
