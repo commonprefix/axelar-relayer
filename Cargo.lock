@@ -4425,6 +4425,7 @@ dependencies = [
  "anyhow",
  "async-std",
  "async-stream",
+ "async-trait",
  "axelar-wasm-std",
  "base64 0.22.1",
  "chrono",
