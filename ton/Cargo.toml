@@ -30,6 +30,7 @@ testcontainers-modules = { version = "0.12.1", features = ["postgres"] }
 reqwest = "0.12.20"
 httpmock = "0.7.0"
 tiny-keccak = {version = "2.0.2", features = ["keccak"]}
+primitive-types = "0.13.1"
 
 [dev-dependencies]
 relayer-base = { workspace = true, features = ["mocks"] }

@@ -113,6 +113,7 @@ impl<DB: Database> XrplIngestor<DB> {
         &self,
         xrpl_message_with_payload: &WithPayload<XRPLMessage>,
     ) -> Result<Vec<Event>, IngestorError> {
+
         let mut events = vec![];
 
         events.push(

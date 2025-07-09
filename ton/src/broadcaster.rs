@@ -38,7 +38,7 @@ use std::sync::Arc;
 use tonlib_core::tlb_types::block::out_action::OutAction;
 use tonlib_core::tlb_types::tlb::TLB;
 use tonlib_core::TonAddress;
-use tracing::error;
+use tracing::{debug, error};
 
 pub struct TONBroadcaster<PC> {
     wallet_manager: Arc<WalletManager>,
@@ -83,11 +83,12 @@ impl<PC: PayloadCacheTrait> TONBroadcaster<PC> {
             })?;
 
         let outgoing_message =
-            wallet.outgoing_message(actions, query_id.query_id().await, internal_message_value);
+            wallet.outgoing_message(&actions, query_id.query_id().await, internal_message_value);
 
         let tx = outgoing_message.serialize(true).map_err(|e| BroadcasterError::GenericError(e.to_string()))?;
         let boc = general_purpose::STANDARD.encode(&tx);
 
+        debug!("Sending actions to chain: {:?}", actions);
         self.client.post_v3_message(boc).await.map_err(|e| RPCCallFailed(e.to_string()))
     }
 
@@ -132,6 +133,9 @@ impl<PC: PayloadCacheTrait> Broadcaster for TONBroadcaster<PC> {
             approve_message_value.clone(),
             self.gateway_address.clone(),
         ).map_err(|e| BroadcasterError::GenericError(e.to_string()))?];
+
+        debug!("broadcast_prover_message actions: {:?}", actions);
+
         let wallet = self.wallet_manager.acquire().await.map_err(|e| {
             BroadcasterError::GenericError(format!("Wallet acquire failed: {:?}", e))
         })?;

@@ -19,6 +19,12 @@ fn main() {
         Err(e) => println!("Failed to parse message: {:?}", e),
     }
 }
+```
+
+# TODO
+
+- Extract payload hash so we don't have to use payload_cache
+
 */
 
 use crate::boc_cell_to::CellTo;

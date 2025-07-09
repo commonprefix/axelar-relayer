@@ -18,3 +18,4 @@ pub mod boc_relayer_execute_message;
 pub mod subscriber;
 pub mod ton_wallet_high_load_v3;
 pub mod wallet_manager;
+pub mod boc_call_contract;

@@ -1,14 +1,20 @@
 /*!
 
 # TODO:
-- Do not hardcode hash
-
+- source_context has a limit of 1000 characters, make sure we never exceed it
+- Handle all errors, no unwraps() on reading from API
+- Move handlers to a decorator pattern (?)
 */
 
+use std::collections::HashMap;
+use base64::Engine;
+use base64::prelude::BASE64_STANDARD;
+use primitive_types::H256;
 use router_api::CrossChainId;
+use relayer_base::error::GmpApiError::GenericError;
 use crate::boc_cc_message::TonCCMessage;
 use crate::boc_nullified_message::NullifiedSuccessfullyMessage;
-use crate::ton_op_codes::{OP_GATEWAY_EXECUTE, OP_MESSAGE_APPROVED, OP_NULLIFIED_SUCCESSFULLY};
+use crate::ton_op_codes::{OP_CALL_CONTRACT, OP_GATEWAY_EXECUTE, OP_MESSAGE_APPROVED, OP_NULLIFIED_SUCCESSFULLY};
 use relayer_base::error::IngestorError;
 use relayer_base::gmp_api::gmp_types::{
     Amount, CommonEventFields, ConstructProofTask, Event, EventMetadata, GatewayV2Message,
@@ -19,6 +25,7 @@ use relayer_base::ingestor::IngestorTrait;
 use relayer_base::payload_cache::{PayloadCacheTrait};
 use relayer_base::subscriber::ChainTransaction;
 use relayer_base::ton_types::Transaction;
+use crate::boc_call_contract::CallContractMessage;
 
 pub struct TONIngestor<PC> {
     payload_cache: PC
@@ -30,6 +37,29 @@ impl<PC: PayloadCacheTrait> TONIngestor<PC> {
             payload_cache,
         }
     }
+
+    fn body_if_call_contract(&self, tx: &Transaction) -> Option<String> {
+        let has_out_empty_dest = tx
+            .out_msgs
+            .iter()
+            .any(|msg| msg.destination.as_deref().unwrap_or("").is_empty());
+
+        let op_code = format!("0x{:08x}", OP_CALL_CONTRACT);
+        let in_msg_opcode = tx.in_msg.as_ref().map_or(false, |msg| {
+            let deref = msg.opcode.as_deref();
+            deref.is_some() && msg.opcode.as_deref().unwrap() == op_code.clone()
+        });
+
+        if has_out_empty_dest && in_msg_opcode {
+            tx.out_msgs
+                .iter()
+                .find(|msg| msg.destination.as_deref().unwrap_or("").is_empty())
+                .map(|msg| msg.message_content.body.clone())
+        } else {
+            None
+        }
+    }
+
 
     fn body_if_approved(&self, tx: &Transaction) -> Option<String> {
         let has_out_empty_dest = tx
@@ -168,6 +198,50 @@ impl<PC: PayloadCacheTrait> TONIngestor<PC> {
         
         Ok(vec![event])
     }
+
+    async fn handle_call_contract(&self, tx: Transaction, body: &str) -> Result<Vec<Event>, IngestorError> {
+        let hash = BASE64_STANDARD.decode(&tx.hash).map_err(|e| GenericError(e.to_string())).unwrap();
+        let hash = hex::encode(hash);
+
+        let call_contract = CallContractMessage::from_boc_b64(&body).unwrap();
+        let source_context = HashMap::from([(
+            "ton_message".to_owned(),
+            serde_json::to_string(&call_contract).unwrap(),
+        )]);
+
+        let b64_payload = BASE64_STANDARD.encode(
+            hex::decode(call_contract.payload).map_err(|e| {
+                IngestorError::GenericError(format!("Failed to decode payload: {}", e))
+            })?,
+        );
+
+        let event = Event::Call {
+            common: CommonEventFields {
+                r#type: "CALL".to_owned(),
+                event_id: tx.hash.clone(),
+                meta: Some(EventMetadata {
+                    tx_id: Some(tx.hash),
+                    from_address: None,
+                    finalized: None,
+                    source_context: Some(source_context),
+                    timestamp: chrono::Utc::now()
+                        .to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
+                }),
+            },
+            message: GatewayV2Message {
+                message_id: format!("0x{}", hash.to_lowercase()),
+                source_chain: "ton2".to_string(), // TODO: Do not hardcode
+                source_address: call_contract.source_address.to_hex(),
+                destination_address: call_contract.destination_address.to_string(),
+                payload_hash: BASE64_STANDARD.encode(call_contract.payload_hash),
+            },
+            destination_chain: call_contract.destination_chain,
+            payload: b64_payload,
+        };
+
+        Ok(vec![event])
+
+    }
 }
 
 impl<PC: PayloadCacheTrait> IngestorTrait for TONIngestor<PC> {
@@ -194,6 +268,11 @@ impl<PC: PayloadCacheTrait> IngestorTrait for TONIngestor<PC> {
         if let Some(body) = self.body_if_approved(&tx) {
             return self.handle_approved(tx, &body).await;
         }
+
+        if let Some(body) = self.body_if_call_contract(&tx) {
+            return self.handle_call_contract(tx, &body).await;
+        }
+
 
         Ok(vec![])
     }
@@ -241,7 +320,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_is_approved_message() {
+    async fn test_body_if_approved_message() {
         let transactions = fixture_transactions();
         let tx = &transactions[0];
         let ingestor = TONIngestor::new(MockPayloadCacheTrait::new());
@@ -268,7 +347,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_is_executed_message() {
+    async fn test_body_if_executed_message() {
         let transactions = fixture_transactions();
         let tx = &transactions[3];
         let ingestor = TONIngestor::new(MockPayloadCacheTrait::new());
@@ -288,6 +367,30 @@ mod tests {
         assert!(
             approved_body.is_none(),
             "Expected transaction not to be execute message"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_body_if_call_contract_message() {
+        let transactions = fixture_transactions();
+        let tx = &transactions[4];
+        let ingestor = TONIngestor::new(MockPayloadCacheTrait::new());
+
+        let body = ingestor.body_if_call_contract(tx).unwrap();
+
+        assert_eq!(body, "te6cckEBBAEA5QADg4AcPMZ9bgNiMWiFLuLZ3ODT3Qj2rbcRiS/f1NA9opZaWPXUykhs4AH2lBVEFjqex7VaPbPTvuLH5GEs5sIeXm+pcAECAwAcYXZhbGFuY2hlLWZ1amkAVDB4ZDcwNjdBZTNDMzU5ZTgzNzg5MGIyOEI3QkQwZDIwODRDZkRmNDliNQDAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAE0hlbGxvIGZyb20gUmVsYXllciEAAAAAAAAAAAAAAAAAne0F4Q==");
+    }
+
+    #[tokio::test]
+    async fn test_is_not_call_contract_message() {
+        let transactions = fixture_transactions();
+        let tx = &transactions[0];
+        let ingestor = TONIngestor::new(MockPayloadCacheTrait::new());
+        let approved_body = ingestor.body_if_call_contract(tx);
+
+        assert!(
+            approved_body.is_none(),
+            "Expected transaction not to be call contract message"
         );
     }
 
@@ -393,4 +496,44 @@ mod tests {
             _ => panic!("Expected MessageApproved event"),
         }
     }
+
+    #[tokio::test]
+    async fn test_handle_call_contract() {
+        let transactions = fixture_transactions();
+        let tx = &transactions[4];
+        let payload_cache = MockPayloadCacheTrait::new();
+        let ingestor = TONIngestor::new(payload_cache);
+
+        let body = ingestor.body_if_call_contract(tx).unwrap();
+
+        let res = ingestor
+            .handle_call_contract(tx.clone(), &body)
+            .await
+            .unwrap();
+        assert_eq!(res.len(), 1);
+        let event = &res[0];
+
+        match event {
+            Event::Call {
+                common, message, destination_chain, payload
+            } => {
+                assert_eq!(destination_chain, "avalanche-fuji");
+                assert_eq!(payload, "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAE0hlbGxvIGZyb20gUmVsYXllciEAAAAAAAAAAAAAAAAA");
+                assert_eq!(
+                    message.message_id,
+                    "0x06835ed473a483ee64f17186b98e6245cbb3f0dc24739af14fb36e33fbc33ff1"
+                );
+                assert_eq!(message.source_chain, "ton2");
+                assert_eq!(message.payload_hash, "aea6524367000fb4a0aa20b1d4f63daad1ed9e9df7163f2309673610f2f37d4b");
+                assert_eq!(message.source_address, "0:e1e633eb701b118b44297716cee7069ee847b56db88c497efea681ed14b2d2c7");
+
+                let meta = &common.meta.as_ref().unwrap();
+                assert_eq!(
+                    meta.tx_id.as_deref(),
+                    Some("BoNe1HOkg+5k8XGGuY5iRcuz8Nwkc5rxT7NuM/vDP/E=")
+                );
+            }
+            _ => panic!("Expected MessageApproved event"),
+        }    }
+
 }

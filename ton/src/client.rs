@@ -265,7 +265,7 @@ mod tests {
         );
 
         let txs = result.unwrap();
-        assert_eq!(txs.len(), 4);
+        assert_eq!(txs.len(), 5);
 
         let tx0 = &txs[0];
         assert_eq!(tx0.now, 1751291309);
