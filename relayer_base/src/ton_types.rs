@@ -82,22 +82,22 @@ pub struct CreditPhase {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ComputePhase {
     pub skipped: bool,
-    pub success: bool,
-    pub msg_state_used: bool,
-    pub account_activated: bool,
-    pub gas_fees: String,
-    pub gas_used: String,
-    pub gas_limit: String,
-    pub mode: u32,
-    pub exit_code: i32,
-    pub vm_steps: u64,
-    pub vm_init_state_hash: String,
-    pub vm_final_state_hash: String,
+    pub success: Option<bool>,
+    pub msg_state_used: Option<bool>,
+    pub account_activated: Option<bool>,
+    pub gas_fees: Option<String>,
+    pub gas_used: Option<String>,
+    pub gas_limit: Option<String>,
+    pub mode: Option<u32>,
+    pub exit_code: Option<i32>,
+    pub vm_steps: Option<u64>,
+    pub vm_init_state_hash: Option<String>,
+    pub vm_final_state_hash: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Action {
-    pub success: bool,
+    pub success: Option<bool>,
     pub valid: bool,
     pub no_funds: bool,
     pub status_change: String,

@@ -40,6 +40,7 @@ pub struct TonCCMessage {
     pub source_address: String,
     pub source_chain: String,
     pub log_event: String,
+    pub payload_hash: [u8; 32],
 }
 
 impl TonCCMessage {
@@ -68,6 +69,12 @@ impl TonCCMessage {
 
         let mut inner_parser: CellParser = inner_cell.parser();
 
+        let payload_hash: [u8; 32] = inner_parser
+            .load_bits(256)
+            .map_err(|err| BocParsingError(err.to_string()))?
+            .try_into()
+            .map_err(|_| BocParsingError("Invalid payload hash length".to_string()))?;
+
         let destination_address = inner_parser
             .next_reference()
             .map_err(|err| BocParsingError(err.to_string()))?
@@ -85,6 +92,8 @@ impl TonCCMessage {
             .map_err(|err| BocParsingError(err.to_string()))?
             .cell_to_string()?;
 
+
+
         Ok(TonCCMessage {
             message_id,
             source_chain,
@@ -92,12 +101,14 @@ impl TonCCMessage {
             destination_chain,
             destination_address: ton_address.to_hex(),
             log_event: "".to_string(),
+            payload_hash
         })
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use primitive_types::H256;
     use crate::boc_cc_message::TonCCMessage;
 
     #[test]
@@ -124,6 +135,9 @@ mod tests {
             log.destination_address,
             "0:b87a4a0f644b7a186ee71a1454634f70c22a62aca1a6ba676b5175c21d7fd930"
         );
+
+        let payload_hash = format!("{:?}", H256::from(log.payload_hash));
+        assert_eq!(payload_hash, "0x9e01c423ca440c5ec2beecc9d0a152b54fc8e7a416c931b7089eaf221605af17");
     }
 
     #[test]

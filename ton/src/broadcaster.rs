@@ -14,7 +14,6 @@ and broadcaster should potentially be returning a vector of BroadcastResults.
 - Handle multiple messages per transaction.
 - The inner logic will probably be refactored as soon as its reused
 - Move MockQueryIdWrapper to mockall
-- Don't assume store_messages_to_cache will write without error
 */
 
 use super::client::{RestClient, V3MessageResponse};
@@ -91,24 +90,6 @@ impl<PC: PayloadCacheTrait> TONBroadcaster<PC> {
         debug!("Sending actions to chain: {:?}", actions);
         self.client.post_v3_message(boc).await.map_err(|e| RPCCallFailed(e.to_string()))
     }
-
-    async fn store_messages_to_cache(&self, approve_messages: Vec<ApproveMessage>) {
-        for approve_message in approve_messages {
-            let msg = approve_message.clone();
-            let cc_id = router_api::CrossChainId::new(approve_message.source_chain, approve_message.message_id).unwrap();
-            let payload_value = PayloadCacheValue {
-                message: GatewayV2Message {
-                    message_id: msg.message_id,
-                    source_chain: msg.source_chain,
-                    source_address: "".to_string(),
-                    destination_address: "".to_string(),
-                    payload_hash: hex::encode(approve_message.payload_hash.to_bytes_be()),
-                }.clone(),
-                payload: "".to_string(),
-            };
-            self.payload_cache.store(cc_id, payload_value).await.unwrap();
-        }
-    }
 }
 
 pub struct TONTransaction;
@@ -122,8 +103,6 @@ impl<PC: PayloadCacheTrait> Broadcaster for TONBroadcaster<PC> {
     ) -> Result<BroadcastResult<Self::Transaction>, BroadcasterError> {
         let approve_messages = ApproveMessages::from_boc_hex(&tx_blob)
             .map_err(|e| BroadcasterError::GenericError(e.to_string()))?;
-
-        self.store_messages_to_cache(approve_messages.approve_messages.clone()).await;
 
         let message = &approve_messages.approve_messages[0];
         let approve_message_value: BigUint = BigUint::from(2_000_000_000u32); // TODO: We will need to calculate this
@@ -298,18 +277,7 @@ mod tests {
         .unwrap();
         let internal_message_value = 1_000_000_000u32;
 
-        let mut payload_cache = MockPayloadCacheTrait::new();
-        payload_cache
-            .expect_store()
-            .withf(|cc_id, value| {
-                cc_id.source_chain == "avalanche-fuji" &&
-                    cc_id.message_id == "0x17fd7da3d819cfbc46ff28f3d80980770ec1b80fd7d1b229cec3251939b9b23f-1".parse().unwrap() &&
-                    value.message.message_id == "0x17fd7da3d819cfbc46ff28f3d80980770ec1b80fd7d1b229cec3251939b9b23f-1" &&
-                    value.message.source_chain == "avalanche-fuji"
-            })
-            .returning(|_, _| Box::pin(async { Ok(()) }))
-            .times(1);
-
+        let payload_cache = MockPayloadCacheTrait::new();
 
         let broadcaster = TONBroadcaster {
             wallet_manager: Arc::new(wallet_manager),

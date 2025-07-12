@@ -9,7 +9,6 @@
 use std::collections::HashMap;
 use base64::Engine;
 use base64::prelude::BASE64_STANDARD;
-use primitive_types::H256;
 use router_api::CrossChainId;
 use relayer_base::error::GmpApiError::GenericError;
 use crate::boc_cc_message::TonCCMessage;
@@ -27,15 +26,12 @@ use relayer_base::subscriber::ChainTransaction;
 use relayer_base::ton_types::Transaction;
 use crate::boc_call_contract::CallContractMessage;
 
-pub struct TONIngestor<PC> {
-    payload_cache: PC
+pub struct TONIngestor {
 }
 
-impl<PC: PayloadCacheTrait> TONIngestor<PC> {
-    pub fn new(payload_cache: PC) -> Self {
-        Self {
-            payload_cache,
-        }
+impl TONIngestor {
+    pub fn new() -> Self {
+        Self {}
     }
 
     fn body_if_call_contract(&self, tx: &Transaction) -> Option<String> {
@@ -158,13 +154,6 @@ impl<PC: PayloadCacheTrait> TONIngestor<PC> {
             log.message_id.clone()
         ).map_err(|e| IngestorError::GenericError(e.to_string()))?;
 
-        let cached = self.payload_cache.get(cc_id.clone()).await.map_err(|e| IngestorError::GenericError(e.to_string()));
-        let cached_result = cached?;
-        if cached_result.is_none() {
-            return Err(IngestorError::GenericError(format!("Payload not found for CC ID: {:?}", cc_id)));
-        }
-        let payload_hash = cached_result.unwrap().message.payload_hash;
-        
         let event = Event::MessageApproved {
             common: CommonEventFields {
                 r#type: "MESSAGE_APPROVED".to_owned(),
@@ -186,7 +175,7 @@ impl<PC: PayloadCacheTrait> TONIngestor<PC> {
                 source_chain: log.source_chain,
                 source_address: log.source_address,
                 destination_address: log.destination_address,
-                payload_hash
+                payload_hash: hex::encode(log.payload_hash)
             },
             cost: Amount {
                 token_id: None,
@@ -194,8 +183,6 @@ impl<PC: PayloadCacheTrait> TONIngestor<PC> {
             },
         };
 
-        self.payload_cache.clear(cc_id).await.unwrap_or(());
-        
         Ok(vec![event])
     }
 
@@ -244,7 +231,7 @@ impl<PC: PayloadCacheTrait> TONIngestor<PC> {
     }
 }
 
-impl<PC: PayloadCacheTrait> IngestorTrait for TONIngestor<PC> {
+impl IngestorTrait for TONIngestor {
     async fn handle_verify(&self, task: VerifyTask) -> Result<(), IngestorError> {
         println!("handle_verify: {:?}", task);
 
@@ -305,10 +292,9 @@ impl<PC: PayloadCacheTrait> IngestorTrait for TONIngestor<PC> {
 #[cfg(test)]
 mod tests {
     use crate::ingestor::TONIngestor;
-    use relayer_base::gmp_api::gmp_types::{Event, GatewayV2Message, MessageExecutionStatus};
+    use relayer_base::gmp_api::gmp_types::{Event, MessageExecutionStatus};
     use relayer_base::ton_types::{Transaction, TransactionsResponse};
     use std::fs;
-    use relayer_base::payload_cache::{MockPayloadCacheTrait, PayloadCacheValue};
 
     fn fixture_transactions() -> Vec<Transaction> {
         let file_path = "tests/data/v3_transactions.json";
@@ -323,7 +309,7 @@ mod tests {
     async fn test_body_if_approved_message() {
         let transactions = fixture_transactions();
         let tx = &transactions[0];
-        let ingestor = TONIngestor::new(MockPayloadCacheTrait::new());
+        let ingestor = TONIngestor::new();
         let approved_body = ingestor.body_if_approved(tx);
 
         assert!(
@@ -336,7 +322,7 @@ mod tests {
     async fn test_is_not_approved_message() {
         let transactions = fixture_transactions();
         let tx = &transactions[3];
-        let ingestor = TONIngestor::new(MockPayloadCacheTrait::new());
+        let ingestor = TONIngestor::new();
 
         let approved_body = ingestor.body_if_approved(tx);
 
@@ -350,7 +336,7 @@ mod tests {
     async fn test_body_if_executed_message() {
         let transactions = fixture_transactions();
         let tx = &transactions[3];
-        let ingestor = TONIngestor::new(MockPayloadCacheTrait::new());
+        let ingestor = TONIngestor::new();
 
         let approved_body = ingestor.body_if_executed(tx);
 
@@ -361,7 +347,7 @@ mod tests {
     async fn test_is_not_executed_message() {
         let transactions = fixture_transactions();
         let tx = &transactions[0];
-        let ingestor = TONIngestor::new(MockPayloadCacheTrait::new());
+        let ingestor = TONIngestor::new();
         let approved_body = ingestor.body_if_executed(tx);
 
         assert!(
@@ -374,7 +360,7 @@ mod tests {
     async fn test_body_if_call_contract_message() {
         let transactions = fixture_transactions();
         let tx = &transactions[4];
-        let ingestor = TONIngestor::new(MockPayloadCacheTrait::new());
+        let ingestor = TONIngestor::new();
 
         let body = ingestor.body_if_call_contract(tx).unwrap();
 
@@ -385,7 +371,7 @@ mod tests {
     async fn test_is_not_call_contract_message() {
         let transactions = fixture_transactions();
         let tx = &transactions[0];
-        let ingestor = TONIngestor::new(MockPayloadCacheTrait::new());
+        let ingestor = TONIngestor::new();
         let approved_body = ingestor.body_if_call_contract(tx);
 
         assert!(
@@ -398,8 +384,7 @@ mod tests {
     async fn test_handle_executed() {
         let transactions = fixture_transactions();
         let tx = &transactions[3];
-        let payload_cache = MockPayloadCacheTrait::new();
-        let ingestor = TONIngestor::new(payload_cache);
+        let ingestor = TONIngestor::new();
         let body = ingestor.body_if_executed(tx);
 
         let res = ingestor
@@ -441,27 +426,9 @@ mod tests {
     async fn test_handle_approved() {
         let transactions = fixture_transactions();
         let tx = &transactions[0];
-        let mut payload_cache = MockPayloadCacheTrait::new();
-        payload_cache
-            .expect_get()
-            .returning(|_| Box::pin(async { Ok(Some(PayloadCacheValue {
-                message: GatewayV2Message {
-                    message_id: "aaa".to_string(),
-                    source_chain: "bbb".to_string(),
-                    source_address: "ccc".to_string(),
-                    destination_address: "ddd".to_string(),
-                    payload_hash: "eee".to_string(),
-                },
-                payload: "fff".to_string(),
-            })) }))
-            .times(1);
 
-        payload_cache
-            .expect_clear()
-            .returning(|_| Box::pin(async { Ok(()) }))
-            .times(1);
 
-        let ingestor = TONIngestor::new(payload_cache);
+        let ingestor = TONIngestor::new();
 
         let body = ingestor.body_if_approved(tx);
 
@@ -483,7 +450,7 @@ mod tests {
                     "0xf38d2a646e4b60e37bc16d54bb9163739372594dc96bab954a85b4a170f49e58-1"
                 );
                 assert_eq!(message.source_chain, "avalanche-fuji");
-                assert_eq!(message.payload_hash, "eee");
+                assert_eq!(message.payload_hash, "9e01c423ca440c5ec2beecc9d0a152b54fc8e7a416c931b7089eaf221605af17");
                 assert_eq!(cost.amount, "0");
                 assert_eq!(cost.token_id.as_deref(), None);
 
@@ -501,8 +468,7 @@ mod tests {
     async fn test_handle_call_contract() {
         let transactions = fixture_transactions();
         let tx = &transactions[4];
-        let payload_cache = MockPayloadCacheTrait::new();
-        let ingestor = TONIngestor::new(payload_cache);
+        let ingestor = TONIngestor::new();
 
         let body = ingestor.body_if_call_contract(tx).unwrap();
 
@@ -525,7 +491,7 @@ mod tests {
                 );
                 assert_eq!(message.source_chain, "ton2");
                 assert_eq!(message.payload_hash, "rqZSQ2cAD7SgqiCx1PY9qtHtnp33Fj8jCWc2EPLzfUs=");
-                assert_eq!(message.source_address, "0:e1e633eb701b118b44297716cee7069ee847b56db88c497efea681ed14b2d2c7");
+                assert_eq!(message.source_address, "EQDh5jPrcBsRi0QpdxbO5wae6Ee1bbiMSX7-poHtFLLSxyuC");
 
                 let meta = &common.meta.as_ref().unwrap();
                 assert_eq!(
