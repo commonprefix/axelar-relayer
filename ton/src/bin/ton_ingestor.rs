@@ -3,6 +3,7 @@ use relayer_base::config::config_from_yaml;
 use relayer_base::database::PostgresDB;
 use relayer_base::gmp_api;
 use relayer_base::ingestor::Ingestor;
+use relayer_base::payload_cache::PayloadCache;
 use relayer_base::price_view::PriceView;
 use relayer_base::queue::Queue;
 use relayer_base::utils::{setup_heartbeat, setup_logging};
@@ -26,8 +27,9 @@ async fn main() -> anyhow::Result<()> {
     let postgres_db = PostgresDB::new(&config.common_config.postgres_url).await.unwrap();
     let _pg_pool = PgPool::connect(&config.common_config.postgres_url).await.unwrap();
     let _price_view = PriceView::new(postgres_db.clone());
+    let payload_cache = PayloadCache::new(postgres_db.clone());
     
-    let ton_ingestor = TONIngestor::new();
+    let ton_ingestor = TONIngestor::new(payload_cache);
     let ingestor = Ingestor::new(gmp_api, ton_ingestor);
 
     let redis_client = redis::Client::open(config.common_config.redis_server.clone())?;

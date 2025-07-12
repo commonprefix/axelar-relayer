@@ -17,7 +17,6 @@ pub struct TONConfig {
 
     pub wallets: Vec<WalletConfig>,
     pub ton_gateway: String,
-    pub ton_gas_service: String,
     pub ton_rpc: String,
     pub ton_api_key: String,
 }
