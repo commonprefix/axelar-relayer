@@ -11,19 +11,6 @@ pub struct TransactionsResponse {
 }
 
 #[serde_as]
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Trace {
-    pub is_incomplete: bool,
-    #[serde_as(as = "DisplayFromStr")]
-    pub start_lt: i64,
-    #[serde_as(as = "DisplayFromStr")]
-    pub end_lt: i64,
-    pub trace_id: String,
-    pub transactions: Vec<Transaction>,
-}
-
-
-#[serde_as]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Transaction {
     pub account: String,
