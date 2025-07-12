@@ -231,7 +231,7 @@ impl<PC: PayloadCacheTrait> TONIngestor<PC> {
             message: GatewayV2Message {
                 message_id: format!("0x{}", hash.to_lowercase()),
                 source_chain: "ton2".to_string(), // TODO: Do not hardcode
-                source_address: call_contract.source_address.to_hex(),
+                source_address: call_contract.source_address.to_base64_url(),
                 destination_address: call_contract.destination_address.to_string(),
                 payload_hash: BASE64_STANDARD.encode(call_contract.payload_hash),
             },
@@ -524,7 +524,7 @@ mod tests {
                     "0x06835ed473a483ee64f17186b98e6245cbb3f0dc24739af14fb36e33fbc33ff1"
                 );
                 assert_eq!(message.source_chain, "ton2");
-                assert_eq!(message.payload_hash, "aea6524367000fb4a0aa20b1d4f63daad1ed9e9df7163f2309673610f2f37d4b");
+                assert_eq!(message.payload_hash, "rqZSQ2cAD7SgqiCx1PY9qtHtnp33Fj8jCWc2EPLzfUs=");
                 assert_eq!(message.source_address, "0:e1e633eb701b118b44297716cee7069ee847b56db88c497efea681ed14b2d2c7");
 
                 let meta = &common.meta.as_ref().unwrap();
