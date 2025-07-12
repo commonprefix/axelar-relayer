@@ -24,7 +24,7 @@ pub enum RefundManagerError {
     GenericError(String),
 }
 
-#[derive(Error, Debug)]
+#[derive(Error, Debug, PartialEq)]
 pub enum BroadcasterError {
     #[error("Connection failed: {0}")]
     ConnectionFailed(String),

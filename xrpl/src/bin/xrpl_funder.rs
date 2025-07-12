@@ -1,6 +1,6 @@
 use dotenv::dotenv;
 
-use xrpl::funder::XRPLFunder;
+use xrpl::{funder::XRPLFunder, XRPLClient};
 
 use relayer_base::{
     utils::{setup_heartbeat, setup_logging},
@@ -21,6 +21,7 @@ async fn main() {
 
     setup_heartbeat("heartbeat:funder".to_owned(), redis_pool);
 
-    let funder = XRPLFunder::new(config);
+    let xrpl_client = XRPLClient::new(&config.xrpl_rpc, 3).unwrap();
+    let funder = XRPLFunder::new(config, xrpl_client);
     funder.run().await;
 }

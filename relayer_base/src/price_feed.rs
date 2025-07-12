@@ -1,6 +1,5 @@
 use std::{collections::HashMap, future::Future, pin::Pin};
 
-use chrono::{DateTime, Utc};
 use coingecko::CoinGeckoClient;
 use rust_decimal::prelude::FromPrimitive;
 use rust_decimal::Decimal;
@@ -93,22 +92,7 @@ impl PriceFeed for CoinGeckoPriceFeed {
                     self.get_coin_id(token_a).and_then(|coin_id| {
                         quotes
                             .get(&coin_id)
-                            .and_then(|p| {
-                                // check that the price is less than 10 minutes old
-                                let _ = p.last_updated_at
-                                    .and_then(|last_updated| {
-                                        DateTime::<Utc>::from_timestamp(last_updated as i64, 0)
-                                    })
-                                    .map(|last_updated| {
-                                        if last_updated + chrono::Duration::minutes(10) < Utc::now()
-                                        {
-                                            warn!("Last updated at for {coin_id} is older than 10 minutes");
-                                        }
-                                    });
-
-                                // `price` returns a struct that needs a detour through `serde_json::Value`
-                                serde_json::to_value(p).ok()
-                            })
+                            .and_then(|p| serde_json::to_value(p).ok()) // `price` returns a struct that needs a detour through `serde_json::Value`
                             .and_then(|v| v.get(token_b.to_lowercase()).cloned())
                             .and_then(|v| v.as_f64().and_then(Decimal::from_f64))
                     })

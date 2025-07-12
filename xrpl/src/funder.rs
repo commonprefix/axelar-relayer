@@ -1,22 +1,21 @@
+use super::config::XRPLConfig;
+use crate::client::XRPLClientTrait;
 use reqwest::Client;
 use tracing::{error, info};
 use xrpl_api::{AccountInfoRequest, Amount};
-use super::config::XRPLConfig;
-use super::client::XRPLClient;
 
 const XRP_TOPUP_AMOUNT: u64 = 100;
 const BALANCE_THRESHOLD: f64 = 100_000_000.0; // = 100 XRP
 
-pub struct XRPLFunder {
+pub struct XRPLFunder<X: XRPLClientTrait> {
     request_client: Client,
-    xrpl_client: XRPLClient,
+    xrpl_client: X,
     config: XRPLConfig,
 }
 
-impl XRPLFunder {
-    pub fn new(config: XRPLConfig) -> Self {
+impl<X: XRPLClientTrait> XRPLFunder<X> {
+    pub fn new(config: XRPLConfig, xrpl_client: X) -> Self {
         let request_client = Client::new();
-        let xrpl_client = XRPLClient::new(&config.xrpl_rpc, 3).unwrap();
         Self {
             request_client,
             xrpl_client,

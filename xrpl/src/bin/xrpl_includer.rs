@@ -1,7 +1,9 @@
 use dotenv::dotenv;
+use sqlx::PgPool;
 use std::sync::Arc;
 use tokio::signal::unix::{signal, SignalKind};
 
+use relayer_base::config::config_from_yaml;
 use relayer_base::{
     database::PostgresDB,
     gmp_api,
@@ -9,9 +11,10 @@ use relayer_base::{
     queue::Queue,
     utils::{setup_heartbeat, setup_logging},
 };
-use relayer_base::config::{config_from_yaml};
-use xrpl::config::XRPLConfig;
-use xrpl::includer::XrplIncluder;
+use xrpl::{
+    client::XRPLClient, config::XRPLConfig, includer::XrplIncluder,
+    models::queued_transactions::PgQueuedTransactionsModel,
+};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -22,18 +25,28 @@ async fn main() -> anyhow::Result<()> {
     let _guard = setup_logging(&config.common_config);
 
     let tasks_queue = Queue::new(&config.common_config.queue_address, "includer_tasks").await;
-    let construct_proof_queue = Queue::new(&config.common_config.queue_address, "construct_proof").await;
+    let construct_proof_queue =
+        Queue::new(&config.common_config.queue_address, "construct_proof").await;
     let gmp_api = Arc::new(gmp_api::GmpApi::new(&config.common_config, true).unwrap());
     let redis_client = redis::Client::open(config.common_config.redis_server.clone()).unwrap();
     let redis_pool = r2d2::Pool::builder().build(redis_client).unwrap();
-    let postgres_db = PostgresDB::new(&config.common_config.postgres_url).await.unwrap();
-    let payload_cache = PayloadCache::new(postgres_db);
-    let xrpl_includer = XrplIncluder::new(
+    let postgres_db = PostgresDB::new(&config.common_config.postgres_url)
+        .await
+        .unwrap();
+    let payload_cache = PayloadCache::new(postgres_db.clone());
+    let xrpl_client = XRPLClient::new(&config.xrpl_rpc, 3).unwrap();
+    let pg_pool = PgPool::connect(&config.common_config.postgres_url)
+        .await
+        .unwrap();
+    let queued_tx_model = PgQueuedTransactionsModel::new(pg_pool.clone());
+    let xrpl_includer = XrplIncluder::new::<XRPLClient, PostgresDB, PgQueuedTransactionsModel>(
         config.clone(),
         gmp_api,
         redis_pool.clone(),
         payload_cache,
         construct_proof_queue.clone(),
+        queued_tx_model.clone(),
+        Arc::new(xrpl_client),
     )
     .await
     .unwrap();

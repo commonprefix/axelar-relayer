@@ -132,7 +132,6 @@ impl<PC: PayloadCacheTrait> Broadcaster for TONBroadcaster<PC> {
                 message_id: Some(message.message_id.clone()),
                 source_chain: Some(message.source_chain.clone()),
                 status,
-                clear_payload_cache_on_success: false,
             })
         })()
         .await;
@@ -212,7 +211,6 @@ impl<PC: PayloadCacheTrait> Broadcaster for TONBroadcaster<PC> {
                 message_id: Some(message_id.clone()),
                 source_chain: Some(source_chain.clone()),
                 status,
-                clear_payload_cache_on_success: false,
             })
         })()
         .await;
@@ -303,7 +301,6 @@ mod tests {
             ),
             source_chain: Some("avalanche-fuji".to_string()),
             status: Ok(()),
-            clear_payload_cache_on_success: false,
         };
 
         let unwrapped = res.unwrap();
@@ -414,7 +411,6 @@ mod tests {
             ),
             source_chain: Some("avalanche-fuji".to_string()),
             status: Ok(()),
-            clear_payload_cache_on_success: false,
         };
 
         let unwrapped = res.unwrap();
