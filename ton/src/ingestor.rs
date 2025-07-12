@@ -207,7 +207,7 @@ impl TONIngestor {
                 r#type: "CALL".to_owned(),
                 event_id: tx.hash.clone(),
                 meta: Some(EventMetadata {
-                    tx_id: Some(tx.hash),
+                    tx_id: Some(tx.hash.clone()),
                     from_address: None,
                     finalized: None,
                     source_context: Some(source_context),
@@ -218,7 +218,7 @@ impl TONIngestor {
             message: GatewayV2Message {
                 message_id: format!("0x{}", hash.to_lowercase()),
                 source_chain: "ton2".to_string(), // TODO: Do not hardcode
-                source_address: call_contract.source_address.to_base64_url(),
+                source_address: call_contract.source_address.to_hex(),
                 destination_address: call_contract.destination_address.to_string(),
                 payload_hash: BASE64_STANDARD.encode(call_contract.payload_hash),
             },
@@ -226,7 +226,28 @@ impl TONIngestor {
             payload: b64_payload,
         };
 
-        Ok(vec![event])
+        let gas_credit = Event::GasCredit {
+            common: CommonEventFields {
+                r#type: "GAS_CREDIT".to_owned(),
+                event_id: format!("{}-gas", tx.hash.clone()),
+                meta: Some(EventMetadata {
+                    tx_id: Some(tx.hash.clone()),
+                    from_address: None,
+                    finalized: None,
+                    source_context: None,
+                    timestamp: chrono::Utc::now()
+                        .to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
+                }),
+            },
+            message_id: format!("0x{}", hash.to_lowercase()),
+            refund_address: call_contract.source_address.to_base64_url(),
+            payment: Amount {
+                token_id: None,
+                amount: "5000000000".to_string(),
+            },
+        };
+
+        Ok(vec![event, gas_credit])
 
     }
 }
@@ -476,7 +497,7 @@ mod tests {
             .handle_call_contract(tx.clone(), &body)
             .await
             .unwrap();
-        assert_eq!(res.len(), 1);
+        assert_eq!(res.len(), 2);
         let event = &res[0];
 
         match event {
@@ -491,7 +512,7 @@ mod tests {
                 );
                 assert_eq!(message.source_chain, "ton2");
                 assert_eq!(message.payload_hash, "rqZSQ2cAD7SgqiCx1PY9qtHtnp33Fj8jCWc2EPLzfUs=");
-                assert_eq!(message.source_address, "EQDh5jPrcBsRi0QpdxbO5wae6Ee1bbiMSX7-poHtFLLSxyuC");
+                assert_eq!(message.source_address, "0:e1e633eb701b118b44297716cee7069ee847b56db88c497efea681ed14b2d2c7");
 
                 let meta = &common.meta.as_ref().unwrap();
                 assert_eq!(
