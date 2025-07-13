@@ -49,7 +49,7 @@ async fn main() -> anyhow::Result<()> {
         .map_err(|e| error_stack::report!(SubscriberError::GenericError(e.to_string())))
         .unwrap();
 
-    for acct in vec![gateway_account, gas_service_account] {
+    for acct in [gateway_account, gas_service_account] {
         let ton_sub = TONSubscriber::new(
             client.clone(),
             postgres_db.clone(),

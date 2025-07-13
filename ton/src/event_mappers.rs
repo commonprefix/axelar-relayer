@@ -151,7 +151,7 @@ pub fn map_gas_credit(parsed_tx: &ParsedTransaction) -> Event {
             }),
         },
         message_id: parsed_tx.message_id.clone().unwrap(),
-        refund_address: msg.sender.to_base64_url(),
+        refund_address: msg.sender.to_hex(),
         payment: Amount {
             token_id: None,
             amount: msg.msg_value.to_string(),
@@ -169,16 +169,16 @@ mod tests {
         Event,
         MessageExecutionStatus,
     };
-    use relayer_base::ton_types::{Trace, TracesResponse};
+    use relayer_base::ton_types::{Trace, TracesResponse, TracesResponseRest};
     use std::fs;
 
     fn fixture_traces() -> Vec<Trace> {
         let file_path = "tests/data/v3_traces.json";
         let body = fs::read_to_string(file_path).expect("Failed to read JSON test file");
-        let res: TracesResponse =
+        let rest: TracesResponseRest =
             serde_json::from_str(&body).expect("Failed to deserialize test transaction data");
 
-        res.traces
+        TracesResponse::from(rest).traces
     }
 
     #[test]
@@ -305,11 +305,11 @@ mod tests {
             } => {
                 assert_eq!(
                     message_id,
-                    "0x3edbfe95d3a1f6c4d03afc31db79cf0fcb7a8869a6d91655814057064fe3cab5"
+                    "0xcaee5a2c0eac0e3dd666d440934871c74e21c2d56be38a9fcb8c7905c449172b"
                 );
                 assert_eq!(
                     refund_address,
-                    "EQDh5jPrcBsRi0QpdxbO5wae6Ee1bbiMSX7-poHtFLLSxyuC"
+                    "0:e1e633eb701b118b44297716cee7069ee847b56db88c497efea681ed14b2d2c7"
                 );
                 assert_eq!(payment.amount, "28846800");
 

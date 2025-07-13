@@ -8,19 +8,17 @@ use tonlib_core::cell::{CellBuilder};
 use std::sync::Arc;
 use ton::boc_cell_to::CellTo;
  
-fn main() {
-    let mut builder = CellBuilder::new();
-    for &byte in b"Hello" {
-        builder.store_byte(byte).unwrap();
-    }
-    let cell = Arc::new(builder.build().unwrap());
-
-    let string = cell.clone().cell_to_string().unwrap();
-    assert_eq!(string, "Hello");
-
-    let buffer = cell.cell_to_buffer().unwrap();
-    assert_eq!(buffer, b"Hello");
+let mut builder = CellBuilder::new();
+for &byte in b"Hello" {
+    builder.store_byte(byte).unwrap();
 }
+let cell = Arc::new(builder.build().unwrap());
+
+let string = cell.clone().cell_to_string().unwrap();
+assert_eq!(string, "Hello");
+
+let buffer = cell.cell_to_buffer().unwrap();
+assert_eq!(buffer, b"Hello");
 ```
 
 # TODO:

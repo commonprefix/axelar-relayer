@@ -24,7 +24,6 @@ use crate::boc_cell_to::CellTo;
 use crate::errors::BocError;
 use crate::errors::BocError::BocParsingError;
 use num_bigint::BigUint;
-use std::str::FromStr;
 use tonlib_core::cell::Cell;
 use tonlib_core::tlb_types::tlb::TLB;
 use tonlib_core::TonAddress;

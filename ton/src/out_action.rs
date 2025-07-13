@@ -29,7 +29,7 @@ pub fn out_action(
     value: BigUint,
     destination: TonAddress,
 ) -> Result<OutAction, TonMessageError> {
-    let body = Cell::from_boc_hex(&boc_hex)?.to_arc();
+    let body = Cell::from_boc_hex(boc_hex)?.to_arc();
     let common = tonlib_core::message::CommonMsgInfo::InternalMessage(InternalMessage {
         ihr_disabled: false,
         bounce: true,

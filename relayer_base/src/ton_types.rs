@@ -1,10 +1,9 @@
 // This is probably not the right place for ton types. However, these types are our own construct
 // and they don't make a lot of sense to belong in a separate, reusable project.
 
-use std::collections::HashMap;
-use std::str::FromStr;
-use serde::{de, Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, DisplayFromStr};
+use std::collections::HashMap;
 
 #[serde_as]
 #[derive(Debug, Serialize, Deserialize)]
@@ -14,39 +13,41 @@ pub struct TransactionsResponse {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct TracesResponse {
-    pub traces: Vec<Trace>
+    pub traces: Vec<Trace>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct TracesResponseRest {
-    pub traces: Vec<TraceRest>
+    pub traces: Vec<TraceRest>,
 }
 
 impl From<TracesResponseRest> for TracesResponse {
     fn from(rest: TracesResponseRest) -> Self {
-        let traces = rest.traces.into_iter().map(|trace_rest| {
-            let transactions = trace_rest
-                .transactions_order
-                .into_iter()
-                .map(|key| {
-                    trace_rest
-                        .transactions
-                        .get(&key)
-                        .cloned()
-                        .unwrap_or_else(|| {
-                            panic!("Transaction key '{}' not found in map", key)
-                        })
-                })
-                .collect();
+        let traces = rest
+            .traces
+            .into_iter()
+            .map(|trace_rest| {
+                let transactions = trace_rest
+                    .transactions_order
+                    .into_iter()
+                    .map(|key| {
+                        trace_rest
+                            .transactions
+                            .get(&key)
+                            .cloned()
+                            .unwrap_or_else(|| panic!("Transaction key '{}' not found in map", key))
+                    })
+                    .collect();
 
-            Trace {
-                is_incomplete: trace_rest.is_incomplete,
-                start_lt: trace_rest.start_lt,
-                end_lt: trace_rest.end_lt,
-                trace_id: trace_rest.trace_id,
-                transactions,
-            }
-        }).collect();
+                Trace {
+                    is_incomplete: trace_rest.is_incomplete,
+                    start_lt: trace_rest.start_lt,
+                    end_lt: trace_rest.end_lt,
+                    trace_id: trace_rest.trace_id,
+                    transactions,
+                }
+            })
+            .collect();
 
         TracesResponse { traces }
     }
@@ -218,4 +219,3 @@ pub struct AccountState {
     pub data_hash: Option<String>,
     pub code_hash: Option<String>,
 }
-

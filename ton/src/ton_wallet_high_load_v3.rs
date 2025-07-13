@@ -91,7 +91,7 @@ impl TonWalletHighLoadV3<SystemTimeProvider> {
 impl<T: TimeProvider> TonWalletHighLoadV3<T> {
     fn internal_transfer_body(
         &self,
-        actions: &Vec<OutAction>,
+        actions: &[OutAction],
         query_id: u64,
     ) -> anyhow::Result<Cell, TonCellError> {
         if actions.len() > 254 {
@@ -99,7 +99,7 @@ impl<T: TimeProvider> TonWalletHighLoadV3<T> {
         }
 
         let mut builder = CellBuilder::new();
-        let out_list = OutList::new(&actions).unwrap();
+        let out_list = OutList::new(actions)?;
         out_list.write(&mut builder).expect("TODO: panic message");
         let actions_cell = builder.build();
 
@@ -172,7 +172,7 @@ impl<T: TimeProvider> TonWalletHighLoadV3<T> {
 
     pub fn outgoing_message(
         &self,
-        actions: &Vec<OutAction>,
+        actions: &[OutAction],
         query_id: u64,
         internal_message_value: BigUint,
     ) -> BagOfCells {

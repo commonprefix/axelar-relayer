@@ -44,9 +44,9 @@ fn build_cell_chain(start_index: usize, buffer: &Vec<u8>) -> Result<Cell, BocErr
     let mut builder = CellBuilder::new();
     let end_index = std::cmp::min(start_index + BYTES_PER_CELL, buffer.len());
 
-    for i in start_index..end_index {
+    for byte in buffer.iter().skip(start_index).take(end_index - start_index) {
         builder
-            .store_uint(8, &BigUint::from(buffer[i]))
+            .store_uint(8, &BigUint::from(*byte))
             .map_err(|e| BocParsingError(e.to_string()))?;
     }
 
@@ -97,7 +97,7 @@ impl RelayerExecuteMessage {
         }
     }
 
-    fn payload_hash(payload: &Vec<u8>) -> BigUint {
+    fn payload_hash(payload: &[u8]) -> BigUint {
         let mut output = [0u8; 32];
         let mut hasher = Keccak::v256();
         hasher.update(payload);

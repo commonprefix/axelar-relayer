@@ -28,7 +28,6 @@ use base64::Engine;
 use num_bigint::BigUint;
 use relayer_base::error::BroadcasterError::RPCCallFailed;
 use relayer_base::gmp_api::gmp_types::{ExecuteTaskFields};
-use relayer_base::payload_cache::{PayloadCacheTrait};
 use relayer_base::{
     error::BroadcasterError,
     includer::{BroadcastResult, Broadcaster},
@@ -39,17 +38,16 @@ use tonlib_core::tlb_types::tlb::TLB;
 use tonlib_core::TonAddress;
 use tracing::{debug, error};
 
-pub struct TONBroadcaster<PC> {
+pub struct TONBroadcaster {
     wallet_manager: Arc<WalletManager>,
     query_id_wrapper: Arc<dyn HighLoadQueryIdWrapper>,
     client: Arc<dyn RestClient>,
     gateway_address: TonAddress,
     internal_message_value: u32,
     chain_name: String,
-    payload_cache: PC
 }
 
-impl<PC: PayloadCacheTrait> TONBroadcaster<PC> {
+impl TONBroadcaster {
     pub fn new(
         wallet_manager: Arc<WalletManager>,
         client: Arc<dyn RestClient>,
@@ -57,16 +55,14 @@ impl<PC: PayloadCacheTrait> TONBroadcaster<PC> {
         gateway_address: TonAddress,
         internal_message_value: u32,
         chain_name: String,
-        payload_cache: PC
     ) -> error_stack::Result<Self, BroadcasterError> {
-        Ok(TONBroadcaster::<PC> {
+        Ok(TONBroadcaster {
             wallet_manager,
             client,
             query_id_wrapper,
             gateway_address,
             internal_message_value,
             chain_name,
-            payload_cache,
         })
     }
 
@@ -94,7 +90,7 @@ impl<PC: PayloadCacheTrait> TONBroadcaster<PC> {
 
 pub struct TONTransaction;
 
-impl<PC: PayloadCacheTrait> Broadcaster for TONBroadcaster<PC> {
+impl Broadcaster for TONBroadcaster {
     type Transaction = TONTransaction;
 
     async fn broadcast_prover_message(
@@ -119,7 +115,7 @@ impl<PC: PayloadCacheTrait> Broadcaster for TONBroadcaster<PC> {
             BroadcasterError::GenericError(format!("Wallet acquire failed: {:?}", e))
         })?;
 
-        let result = (|| async {
+        let result = async {
             let res = self.send_to_chain(wallet, actions.clone()).await;
             let (tx_hash, status) = match res {
                 Ok(response) => (response.message_hash, Ok(())),
@@ -133,8 +129,7 @@ impl<PC: PayloadCacheTrait> Broadcaster for TONBroadcaster<PC> {
                 source_chain: Some(message.source_chain.clone()),
                 status,
             })
-        })()
-        .await;
+        }.await;
 
         self.wallet_manager.release(wallet).await;
 
@@ -170,7 +165,7 @@ impl<PC: PayloadCacheTrait> Broadcaster for TONBroadcaster<PC> {
             BroadcasterError::GenericError(format!("Wallet acquire failed: {:?}", e))
         })?;
 
-        let result = (|| async {
+        let result = async {
             let relayer_execute_msg = RelayerExecuteMessage::new(
                 message_id.clone(),
                 source_chain.clone(),
@@ -212,8 +207,7 @@ impl<PC: PayloadCacheTrait> Broadcaster for TONBroadcaster<PC> {
                 source_chain: Some(source_chain.clone()),
                 status,
             })
-        })()
-        .await;
+        }.await;
 
         self.wallet_manager.release(wallet).await;
 
@@ -235,7 +229,6 @@ mod tests {
     use relayer_base::error::BroadcasterError;
     use relayer_base::gmp_api::gmp_types::{Amount, ExecuteTaskFields, GatewayV2Message};
     use relayer_base::includer::{BroadcastResult, Broadcaster};
-    use relayer_base::payload_cache::MockPayloadCacheTrait;
     use std::str::FromStr;
     use std::sync::Arc;
     use tonlib_core::TonAddress;
@@ -275,8 +268,6 @@ mod tests {
         .unwrap();
         let internal_message_value = 1_000_000_000u32;
 
-        let payload_cache = MockPayloadCacheTrait::new();
-
         let broadcaster = TONBroadcaster {
             wallet_manager: Arc::new(wallet_manager),
             query_id_wrapper: Arc::new(query_id_wrapper),
@@ -284,7 +275,6 @@ mod tests {
             gateway_address,
             internal_message_value,
             chain_name: "ton2".to_string(),
-            payload_cache
         };
         let approve_message = hex::encode(BASE64_STANDARD.decode("te6cckECDAEAAYsAAggAAAAoAQIBYYAAAAAAAAAAAAAAAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADf5gkADAQHABADi0LAAUYmshNOh1nWEdwB3eJHd51H6EH1kg3v2M30y32eQAAAAAAAAAAAAAAAAAAAAAQ+j+g0KWjWTaPqB9qQHuWZQn7IPz7x3xzwbprT1a85sjh0UlPlFU84LDdRcD4GZ6n6GJlEKKTlRW5QtlzKGrAsBAtAFBECeAcQjykQMXsK+7MnQoVK1T8jnpBbJMbcInq8iFgWvFwYHCAkAiDB4MTdmZDdkYTNkODE5Y2ZiYzQ2ZmYyOGYzZDgwOTgwNzcwZWMxYjgwZmQ3ZDFiMjI5Y2VjMzI1MTkzOWI5YjIzZi0xABxhdmFsYW5jaGUtZnVqaQBUMHhkNzA2N0FlM0MzNTllODM3ODkwYjI4QjdCRDBkMjA4NENmRGY0OWI1AgAKCwBAuHpKD2RLehhu5xoUVGNPcMIqYqyhprpna1F1wh1/2TAACHRvbjJLddsV").unwrap());
 
@@ -326,7 +316,6 @@ mod tests {
         )
         .unwrap();
         let internal_message_value = 1_000_000_000u32;
-        let payload_cache = MockPayloadCacheTrait::new();
 
         let broadcaster = TONBroadcaster {
             wallet_manager: Arc::new(wallet_manager),
@@ -335,7 +324,6 @@ mod tests {
             gateway_address,
             internal_message_value,
             chain_name: "ton2".to_string(),
-            payload_cache
         };
 
         // Invalid base64 string for BOC (non-decodable)
@@ -376,7 +364,6 @@ mod tests {
         )
         .unwrap();
         let internal_message_value = 1_000_000_000u32;
-        let payload_cache = MockPayloadCacheTrait::new();
 
         let broadcaster = TONBroadcaster {
             wallet_manager: Arc::new(wallet_manager),
@@ -385,7 +372,6 @@ mod tests {
             gateway_address,
             internal_message_value,
             chain_name: "ton2".to_string(),
-            payload_cache
         };
 
         let execute_task = ExecuteTaskFields {

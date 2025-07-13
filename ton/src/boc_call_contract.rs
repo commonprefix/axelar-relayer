@@ -6,21 +6,20 @@ Parses and represents a `CallContractMessage`.
 ```rust,no_run
 use ton::boc_call_contract::CallContractMessage;
 
-fn main() {
-    let boc = "te6cck...";
+let boc = "te6cck...";
 
-    match CallContractMessage::from_boc_b64(boc) {
-        Ok(msg) => {
-            // ...
-        },
-        Err(e) => println!("Failed to parse message: {:?}", e),
-    }
+match CallContractMessage::from_boc_b64(boc) {
+    Ok(msg) => {
+        // ...
+    },
+    Err(e) => println!("Failed to parse message: {:?}", e),
 }
 ```
 
 # See also
 
-- https://github.com/commonprefix/axelar-gmp-sdk-ton/blob/b1053bf982f21d6d207d30338f5b264505966948/contracts/axelar_gateway.fc#L672:L678
+- https://github.com/commonprefix/axelar-gmp-sdk-ton/blob/main/contracts/axelar_gateway.fc#L672:L678
+
 */
 
 use crate::boc_cell_to::CellTo;

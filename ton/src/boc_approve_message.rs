@@ -63,8 +63,8 @@ impl ApproveMessages {
             .load_dict(16, key_reader_u8, val_reader_ref_cell)
             .map_err(|err| BocParsingError(err.to_string()))?;
         let approve_messages: Vec<ApproveMessage> = data
-            .iter()
-            .map(|(_key, cell)| {
+            .values()
+            .map(|cell| {
                 let arc_cell =
                     Arc::from_cell(cell).map_err(|err| BocParsingError(err.to_string()))?;
                 Self::parse_approve_messages(arc_cell)

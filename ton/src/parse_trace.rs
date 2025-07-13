@@ -97,7 +97,7 @@ fn is_log_emmitted(tx: &Transaction, op_code: &str, out_msg_log_index: usize) ->
     Some(tx)
         .and_then(|tx| tx.in_msg.as_ref())
         .and_then(|in_msg| in_msg.opcode.as_ref())
-        .filter(|opcode| *opcode == &op_code)
+        .filter(|opcode| opcode == &op_code)
         .and_then(|_| tx.out_msgs.get(out_msg_log_index))
         .map(|msg| msg.destination.is_none())
         .unwrap_or(false)
@@ -122,7 +122,7 @@ fn is_executed(tx: &Transaction) -> bool {
     let op_code = format!("0x{:08x}", OP_GATEWAY_EXECUTE);
 
     tx.out_msgs
-        .get(0)
+        .first()
         .and_then(|out_msg| out_msg.opcode.as_ref())
         .map(|op| op == &op_code)
         .unwrap_or(false)
@@ -134,7 +134,7 @@ fn is_gas_credit(tx: &Transaction) -> bool {
 }
 
 fn hash_to_message_id(hash: &str) -> Result<String, TONRpcError> {
-    let hash = BASE64_STANDARD.decode(&hash).map_err(|e| DataError(e.to_string()))?;
+    let hash = BASE64_STANDARD.decode(hash).map_err(|e| DataError(e.to_string()))?;
     Ok(format!("0x{}", hex::encode(hash).to_lowercase()))
 }
 
@@ -149,7 +149,7 @@ fn gas_credit_map_to_vec(call_contract: &Vec<ParsedTransaction>, mut map: HashMa
             };
 
             if let Some(mut gas_credit_tx) = map.remove(&key) {
-                let hash = gas_credit_tx.transaction.hash.clone();
+                let hash = cc_tx.transaction.hash.clone();
                 gas_credit_tx.message_id = hash_to_message_id(&hash).ok();
                 credit_vec.push(gas_credit_tx);
             }
@@ -169,13 +169,13 @@ impl ParseTrace for TraceTransactions {
         for tx in trace.transactions {
             if is_message_approved(&tx) {
                 message_approved.push(ParsedTransaction {
-                    log_message: Option::from(Approved(TonCCMessage::from_boc_b64(&*tx.out_msgs[0].message_content.body)?)),
+                    log_message: Option::from(Approved(TonCCMessage::from_boc_b64(&tx.out_msgs[0].message_content.body)?)),
                     transaction: tx,
                     message_id: None
                 });
             } else if is_call_contract(&tx) {
                 call_contract.push(ParsedTransaction {
-                    log_message: Option::from(CallContract(CallContractMessage::from_boc_b64(&*tx.out_msgs[0].message_content.body)?)),
+                    log_message: Option::from(CallContract(CallContractMessage::from_boc_b64(&tx.out_msgs[0].message_content.body)?)),
                     message_id: hash_to_message_id(&tx.hash).ok(),
                     transaction: tx,
                 });
@@ -190,7 +190,7 @@ impl ParseTrace for TraceTransactions {
                 });
             } else if is_gas_credit(&tx) {
                 let out_msg = &tx.out_msgs[0];
-                let msg = NativeGasPaidMessage::from_boc_b64(&*out_msg.message_content.body)?;
+                let msg = NativeGasPaidMessage::from_boc_b64(&out_msg.message_content.body)?;
                 let key = MessageMatchingKey {
                     destination_chain: msg.destination_chain.clone(),
                     destination_address: msg.destination_address.clone(),
@@ -222,16 +222,16 @@ mod tests {
     use std::fs;
     use num_bigint::BigUint;
     use tonlib_core::TonAddress;
-    use relayer_base::ton_types::{Trace, TracesResponse};
-    use crate::parse_trace::{LogMessage, ParseTrace, ParsedTransaction, TraceTransactions};
+    use relayer_base::ton_types::{Trace, TracesResponse, TracesResponseRest};
+    use crate::parse_trace::{LogMessage, ParseTrace, TraceTransactions};
 
     fn fixture_traces() -> Vec<Trace> {
         let file_path = "tests/data/v3_traces.json";
         let body = fs::read_to_string(file_path).expect("Failed to read JSON test file");
-        let res: TracesResponse =
+        let rest: TracesResponseRest =
             serde_json::from_str(&body).expect("Failed to deserialize test transaction data");
 
-        res.traces
+        TracesResponse::from(rest).traces
     }
 
     #[test]

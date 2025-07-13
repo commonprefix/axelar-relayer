@@ -7,17 +7,15 @@ Parses and represents a `NullifiedSuccessfullyMessage`.
 ```rust,no_run
 use ton::boc_nullified_message::NullifiedSuccessfullyMessage;
 
-fn main() {
-    let boc = "te6cck...";
+let boc = "te6cck...";
 
-    match NullifiedSuccessfullyMessage::from_boc_b64(boc) {
-        Ok(msg) => {
-            // println!("Message ID: {}", msg.message_id);
-            // println!("Source Chain: {}", msg.source_chain);
-            // println!("Payload (hex): {}", msg.payload);
-        },
-        Err(e) => println!("Failed to parse message: {:?}", e),
-    }
+match NullifiedSuccessfullyMessage::from_boc_b64(boc) {
+    Ok(msg) => {
+        // println!("Message ID: {}", msg.message_id);
+        // println!("Source Chain: {}", msg.source_chain);
+        // println!("Payload (hex): {}", msg.payload);
+    },
+    Err(e) => println!("Failed to parse message: {:?}", e),
 }
 ```
 

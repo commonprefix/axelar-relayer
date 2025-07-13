@@ -116,7 +116,7 @@ mod tests {
     use crate::client::MockRestClient;
     use mockall::predicate::eq;
     use relayer_base::database::MockDatabase;
-    use relayer_base::ton_types::{TracesResponse};
+    use relayer_base::ton_types::{TracesResponse, TracesResponseRest};
     use std::fs;
     use crate::ton_trace::MockAtomicUpsert;
 
@@ -174,10 +174,10 @@ mod tests {
 
         let file_path = "tests/data/v3_traces.json";
         let body = fs::read_to_string(file_path).expect("Failed to read JSON test file");
-        let res: TracesResponse =
+        let rest: TracesResponseRest =
             serde_json::from_str(&body).expect("Failed to deserialize test transaction data");
 
-        let expected_traces = res.traces;
+        let expected_traces = TracesResponse::from(rest).traces;
 
         mock_client
             .expect_get_traces_for_account()

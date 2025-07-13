@@ -15,16 +15,15 @@ pub struct TONIncluder {}
 
 impl TONIncluder {
     #[allow(clippy::new_ret_no_self)]
-    pub async fn new<'a, DB: Database>(
+    pub async fn new<DB: Database>(
         config: TONConfig,
         gmp_api: Arc<GmpApi>,
         redis_pool: r2d2::Pool<redis::Client>,
-        payload_cache_for_broadcaster: PayloadCache<DB>,
         payload_cache_for_includer: PayloadCache<DB>,
         construct_proof_queue: Arc<Queue>,
         high_load_query_id_db_wrapper: Arc<HighLoadQueryIdDbWrapper>,
     ) -> error_stack::Result<
-        Includer<TONBroadcaster<PayloadCache<DB>>, Arc<dyn RestClient>, TONRefundManager, DB>,
+        Includer<TONBroadcaster, Arc<dyn RestClient>, TONRefundManager, DB>,
         BroadcasterError,
     > {
         let config_for_refund_manager = config.clone();
@@ -52,7 +51,6 @@ impl TONIncluder {
             gateway_address,
             internal_message_value,
             config.common_config.chain_name,
-            payload_cache_for_broadcaster
         )
         .map_err(|e| e.attach_printable("Failed to create TONBroadcaster"))?;
 
