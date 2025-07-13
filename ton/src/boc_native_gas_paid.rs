@@ -57,7 +57,8 @@ impl NativeGasPaidMessage {
             .load_bits(256)
             .map_err(|err| BocParsingError(err.to_string()))?
             .try_into()
-            .map_err(|_| BocParsingError("Invalid payload hash length".to_string()))?;
+            .map_err(|_| BocParsingError("Invalid msg_value hash length".to_string()))?;
+        
         let msg_value = BigUint::from_bytes_be(&msg_value);
 
         let refund_address = parser.next_reference().unwrap();

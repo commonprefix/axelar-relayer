@@ -6,9 +6,7 @@
 - Move handlers to a decorator pattern (?)
 */
 
-use crate::event_mappers::{
-    map_call_contract, map_gas_credit, map_message_approved, map_message_executed,
-};
+use crate::event_mappers::{map_call_contract, map_gas_credit, map_message_approved, map_message_executed, map_native_gas_added};
 use crate::parse_trace::{ParseTrace, ParsedTransaction, TraceTransactions};
 use relayer_base::error::IngestorError;
 use relayer_base::gmp_api::gmp_types::{
@@ -61,6 +59,7 @@ impl IngestorTrait for TONIngestor {
             (&trace_transactions.executed, map_message_executed),
             (&trace_transactions.gas_credit, map_gas_credit),
             (&trace_transactions.call_contract, map_call_contract),
+            (&trace_transactions.gas_added, map_native_gas_added),
         ];
 
         for (txs, mapper) in mappings {

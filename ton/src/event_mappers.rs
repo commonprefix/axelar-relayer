@@ -159,11 +159,38 @@ pub fn map_gas_credit(parsed_tx: &ParsedTransaction) -> Event {
     }
 }
 
+pub fn map_native_gas_added(parsed_tx: &ParsedTransaction) -> Event {
+    let msg = match &parsed_tx.log_message {
+        Some(LogMessage::NativeGasAdded(m)) => m,
+        _ => panic!("Expected LogMessage::NativeGasPaid"),
+    };
+    let tx = &parsed_tx.transaction;
+
+    Event::GasCredit {
+        common: CommonEventFields {
+            r#type: "GAS_CREDIT".to_owned(),
+            event_id: format!("{}-gas-added", tx.hash.clone()),
+            meta: Some(EventMetadata {
+                tx_id: Some(tx.hash.clone()),
+                from_address: None,
+                finalized: None,
+                source_context: None,
+                timestamp: chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
+            }),
+        },
+        message_id: parsed_tx.message_id.clone().unwrap(),
+        refund_address: msg.refund_address.to_hex(),
+        payment: Amount {
+            token_id: None,
+            amount: msg.msg_value.to_string(),
+        },
+    }
+}
+
+
 #[cfg(test)]
 mod tests {
-    use crate::event_mappers::{
-        map_call_contract, map_gas_credit, map_message_approved, map_message_executed,
-    };
+    use crate::event_mappers::{map_call_contract, map_gas_credit, map_message_approved, map_message_executed, map_native_gas_added};
     use crate::parse_trace::ParseTrace;
     use relayer_base::gmp_api::gmp_types::{
         Event,
@@ -317,6 +344,41 @@ mod tests {
                 assert_eq!(
                     meta.tx_id.as_deref(),
                     Some("Ptv+ldOh9sTQOvwx23nPD8t6iGmm2RZVgUBXBk/jyrU=")
+                );
+            }
+            _ => panic!("Expected GasCredit event"),
+        }
+    }
+
+    #[test]
+    fn test_map_native_gas_added() {
+        let traces = fixture_traces();
+        let trace_transactions =
+            crate::parse_trace::TraceTransactions::from_trace(traces[5].clone()).unwrap();
+
+        let event = map_native_gas_added(&trace_transactions.gas_added[0]);
+
+        match event {
+            Event::GasCredit {
+                common,
+                message_id,
+                refund_address,
+                payment,
+            } => {
+                assert_eq!(
+                    message_id,
+                    "0x0e6f759f68edb972cc1c5ac28ae44a026567c39d0a67d71de90978a12106a6ba"
+                );
+                assert_eq!(
+                    refund_address,
+                    "0:e1e633eb701b118b44297716cee7069ee847b56db88c497efea681ed14b2d2c7"
+                );
+                assert_eq!(payment.amount, "299338000");
+
+                let meta = &common.meta.as_ref().unwrap();
+                assert_eq!(
+                    meta.tx_id.as_deref(),
+                    Some("hlbJSt6b0kkNh0We16gyIxE5WyDRDltaKIYOmfEZtAs=")
                 );
             }
             _ => panic!("Expected GasCredit event"),

@@ -23,5 +23,6 @@ mod models;
 pub mod parse_trace;
 pub mod boc_native_gas_paid;
 mod event_mappers;
+pub mod boc_native_gas_added;
 
 pub use models::ton_trace;
