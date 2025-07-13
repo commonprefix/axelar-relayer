@@ -28,13 +28,14 @@ it's not working reliably.
 use async_trait::async_trait;
 use relayer_base::error::ClientError;
 use relayer_base::error::ClientError::{BadRequest, BadResponse, ConnectionFailed};
-use relayer_base::ton_types::{Transaction, TransactionsResponse};
+use relayer_base::ton_types::{Trace, TracesResponse, TracesResponseRest};
 use reqwest::Client;
 use serde::Deserialize;
 use serde_json::json;
 use tonlib_core::TonAddress;
 use tracing::debug;
 
+#[derive(Clone)]
 pub struct TONRpcClient {
     url: String,
     client: Client,
@@ -57,11 +58,11 @@ pub struct V3ErrorResponse {
 #[async_trait]
 pub trait RestClient: Send + Sync {
     async fn post_v3_message(&self, boc: String) -> Result<V3MessageResponse, ClientError>;
-    async fn get_transactions_for_account(
+    async fn get_traces_for_account(
         &self,
         account: TonAddress,
         start_lt: Option<i64>,
-    ) -> Result<Vec<Transaction>, ClientError>;
+    ) -> Result<Vec<Trace>, ClientError>;
     fn handle_non_success_response(&self, status: reqwest::StatusCode, text: &str) -> ClientError;
 }
 
@@ -112,12 +113,12 @@ impl RestClient for TONRpcClient {
         }
     }
 
-    async fn get_transactions_for_account(
+    async fn get_traces_for_account(
         &self,
         account: TonAddress,
         start_lt: Option<i64>,
-    ) -> Result<Vec<Transaction>, ClientError> {
-        let url = format!("{}/api/v3/transactions", self.url.trim_end_matches('/'));
+    ) -> Result<Vec<Trace>, ClientError> {
+        let url = format!("{}/api/v3/traces", self.url.trim_end_matches('/'));
 
         let mut query_params = vec![
             ("account", account.to_string()),
@@ -129,7 +130,7 @@ impl RestClient for TONRpcClient {
         }
 
         debug!(
-            "Fetching TON transactions from: {:?} {:?}",
+            "Fetching TON traces from: {:?} {:?}",
             url, query_params
         );
 
@@ -147,11 +148,11 @@ impl RestClient for TONRpcClient {
             .text()
             .await
             .map_err(|err| BadResponse(err.to_string()))?;
-
         if status.is_success() {
-            serde_json::from_str::<TransactionsResponse>(&text)
-                .map(|res| res.transactions)
-                .map_err(|err| BadResponse(format!("Failed to parse transaction list: {err}")))
+            serde_json::from_str::<TracesResponseRest>(&text)
+                .map(TracesResponse::from)
+                .map(|res| res.traces)
+                .map_err(|err| BadResponse(format!("Failed to parse traces list: {err}")))
         } else {
             Err(self.handle_non_success_response(status, &text))
         }
@@ -225,15 +226,15 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_get_transactions_with_start_lt() {
+    async fn test_get_traces_with_start_lt() {
         let server = MockServer::start();
 
-        let file_path = "tests/data/v3_transactions.json";
+        let file_path = "tests/data/v3_traces.json";
         let body = std::fs::read_to_string(file_path).expect("Failed to read JSON test file");
 
         server.mock(|when, then| {
             when.method(GET)
-                .path("/api/v3/transactions")
+                .path("/api/v3/traces")
                 .query_param(
                     "account",
                     "EQCqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqseb",
@@ -250,7 +251,7 @@ mod tests {
             .unwrap();
 
         let result = client
-            .get_transactions_for_account(
+            .get_traces_for_account(
                 TonAddress::from_str(
                     "0:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
                 )
@@ -264,28 +265,35 @@ mod tests {
             "Expected successful result with start_lt, got: {result:?}"
         );
 
-        let txs = result.unwrap();
-        assert_eq!(txs.len(), 5);
+        let traces = result.unwrap();
+        assert_eq!(traces.len(), 5);
+
+        let txs = &traces[0].transactions;
+        assert_eq!(txs.len(), 6);
 
         let tx0 = &txs[0];
         assert_eq!(tx0.now, 1751291309);
         assert_eq!(tx0.lt, 36300947000011i64);
         assert!(tx0.in_msg.is_some());
 
-        let tx1 = &txs[1];
-        assert_eq!(tx1.hash.len(), 44);
+        // This really tests the deserializer
+        assert_eq!(&txs[0].hash, "aa1");
+        assert_eq!(&txs[1].hash, "aa2");
+        assert_eq!(&txs[2].hash, "aa3");
+        assert_eq!(&txs[3].hash, "aa4");
+        assert_eq!(&txs[4].hash, "aa5");
     }
 
     #[tokio::test]
     async fn test_get_transactions_without_start_lt() {
         let server = MockServer::start();
 
-        let file_path = "tests/data/v3_transactions.json";
+        let file_path = "tests/data/v3_traces.json";
         let body = std::fs::read_to_string(file_path).expect("Failed to read JSON test file");
 
         server.mock(|when, then| {
             when.method(GET)
-                .path("/api/v3/transactions")
+                .path("/api/v3/traces")
                 .matches(|req: &HttpMockRequest| {
                     if let Some(params) = &req.query_params {
                         let mut has_account = false;
@@ -319,7 +327,7 @@ mod tests {
             .unwrap();
 
         let result = client
-            .get_transactions_for_account(
+            .get_traces_for_account(
                 TonAddress::from_str(
                     "0:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
                 )
@@ -330,7 +338,8 @@ mod tests {
 
         assert!(
             result.is_ok(),
-            "Expected successful result without start_lt"
+            "Expected successful result without start_lt, but got error: {:?}",
+            result.unwrap_err()
         );
     }
 }

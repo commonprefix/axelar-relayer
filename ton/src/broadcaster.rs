@@ -17,7 +17,7 @@ and broadcaster should potentially be returning a vector of BroadcastResults.
 */
 
 use super::client::{RestClient, V3MessageResponse};
-use crate::boc_approve_message::{ApproveMessage, ApproveMessages};
+use crate::boc_approve_message::{ApproveMessages};
 use crate::boc_relayer_execute_message::RelayerExecuteMessage;
 use crate::high_load_query_id_db_wrapper::HighLoadQueryIdWrapper;
 use crate::out_action::out_action;
@@ -27,8 +27,8 @@ use base64::engine::general_purpose;
 use base64::Engine;
 use num_bigint::BigUint;
 use relayer_base::error::BroadcasterError::RPCCallFailed;
-use relayer_base::gmp_api::gmp_types::{ExecuteTaskFields, GatewayV2Message};
-use relayer_base::payload_cache::{PayloadCacheTrait, PayloadCacheValue};
+use relayer_base::gmp_api::gmp_types::{ExecuteTaskFields};
+use relayer_base::payload_cache::{PayloadCacheTrait};
 use relayer_base::{
     error::BroadcasterError,
     includer::{BroadcastResult, Broadcaster},

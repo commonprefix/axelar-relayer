@@ -46,8 +46,6 @@ async fn main() -> anyhow::Result<()> {
 
     tasks_queue.close().await;
     events_queue.close().await;
-
-
-
+    
     Ok(())
 }

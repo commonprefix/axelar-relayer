@@ -8,35 +8,32 @@ Reads from TON blockchain and adds transactions to a queue.
 
 */
 
-use super::client::{RestClient, TONRpcClient};
+use super::client::{RestClient};
 use relayer_base::database::Database;
 use relayer_base::error::SubscriberError;
 use relayer_base::subscriber::{ChainTransaction, TransactionPoller};
-use relayer_base::ton_types::Transaction;
+use relayer_base::ton_types::{Trace};
 use tonlib_core::TonAddress;
 use tracing::{info, warn};
+use crate::ton_trace::{AtomicUpsert, TONTrace};
 
-pub struct TONSubscriber<DB: Database> {
-    client: TONRpcClient,
+pub struct TONSubscriber<DB: Database, TM: AtomicUpsert, CL: RestClient> {
+    client: CL,
     latest_lt: i64,
     db: DB,
     context: String,
     chain_name: String,
+    ton_trace_model: TM
 }
 
-impl<DB: Database> TONSubscriber<DB> {
+impl<DB: Database, TM: AtomicUpsert, CL: RestClient> TONSubscriber<DB, TM, CL> {
     pub async fn new(
-        url: String,
-        ton_api_key: String,
+        client: CL,
         db: DB,
         context: String,
         chain_name: String,
+        ton_trace_model: TM
     ) -> Result<Self, SubscriberError> {
-        let client = TONRpcClient::new(url, 3, ton_api_key)
-            .await
-            .map_err(|e| error_stack::report!(SubscriberError::GenericError(e.to_string())))
-            .unwrap();
-
         let latest_lt = db
             .get_latest_height(&chain_name, &context)
             .await
@@ -44,7 +41,7 @@ impl<DB: Database> TONSubscriber<DB> {
             .unwrap_or(-1);
 
         if latest_lt != -1 {
-            info!("XRPL Subscriber: starting from ledger index: {}", latest_lt);
+            info!("TON Subscriber for {}: starting from ledger index: {}", context, latest_lt);
         }
         Ok(TONSubscriber {
             client,
@@ -52,6 +49,7 @@ impl<DB: Database> TONSubscriber<DB> {
             db,
             context,
             chain_name,
+            ton_trace_model
         })
     }
 
@@ -63,8 +61,8 @@ impl<DB: Database> TONSubscriber<DB> {
     }
 }
 
-impl<DB: Database> TransactionPoller for TONSubscriber<DB> {
-    type Transaction = Transaction;
+impl<DB: Database, TM: AtomicUpsert, CL: RestClient> TransactionPoller for TONSubscriber<DB, TM, CL> {
+    type Transaction = Trace;
     type Account = TonAddress;
 
     fn make_queue_item(&mut self, tx: Self::Transaction) -> ChainTransaction {
@@ -81,12 +79,12 @@ impl<DB: Database> TransactionPoller for TONSubscriber<DB> {
             Some(self.latest_lt)
         };
 
-        let transactions = self
+        let traces = self
             .client
-            .get_transactions_for_account(account_id, start_lt)
+            .get_traces_for_account(account_id, start_lt)
             .await?;
 
-        let max_lt = transactions.iter().map(|tx| tx.lt).max();
+        let max_lt = traces.iter().map(|trace| trace.end_lt).max();
 
         if max_lt.is_some() {
             self.latest_lt = max_lt.unwrap_or(0);
@@ -94,7 +92,17 @@ impl<DB: Database> TransactionPoller for TONSubscriber<DB> {
                 warn!("{:?}", err);
             }
         }
-        Ok(transactions)
+
+        let mut unseen_traces: Vec<Trace> = Vec::new();
+
+        for trace in traces {
+            let trace_model = TONTrace::from(&trace);
+            if self.ton_trace_model.upsert_and_return_if_changed(trace_model).await?.is_some() {
+                unseen_traces.push(trace);
+            }
+        }
+
+        Ok(unseen_traces)
     }
 
     async fn poll_tx(&mut self, _tx_hash: String) -> Result<Self::Transaction, anyhow::Error> {
@@ -108,8 +116,9 @@ mod tests {
     use crate::client::MockRestClient;
     use mockall::predicate::eq;
     use relayer_base::database::MockDatabase;
-    use relayer_base::ton_types::TransactionsResponse;
+    use relayer_base::ton_types::{TracesResponse};
     use std::fs;
+    use crate::ton_trace::MockAtomicUpsert;
 
     #[tokio::test]
     async fn test_subscriber_no_init_height() {
@@ -120,11 +129,11 @@ mod tests {
             .returning(|_, _| Box::pin(async { Ok(None) }));
 
         let subscriber = TONSubscriber::new(
-            "https://test-url".to_string(),
-            "dummy-api-key".to_string(),
+            MockRestClient::new(),
             mock_db,
             "test-context".to_string(),
             "test-chain".to_string(),
+            MockAtomicUpsert::new()
         )
         .await
         .expect("TONSubscriber should be created successfully");
@@ -141,11 +150,11 @@ mod tests {
             .returning(|_, _| Box::pin(async { Ok(Some(12345)) }));
 
         let subscriber = TONSubscriber::new(
-            "https://test-url".to_string(),
-            "dummy-api-key".to_string(),
+            MockRestClient::new(),
             mock_db,
             "test-context".to_string(),
             "test-chain".to_string(),
+            MockAtomicUpsert::new()
         )
         .await
         .expect("TONSubscriber should be created successfully");
@@ -163,22 +172,84 @@ mod tests {
 
         let mut mock_client = MockRestClient::new();
 
-        let file_path = "tests/data/v3_transactions.json";
+        let file_path = "tests/data/v3_traces.json";
         let body = fs::read_to_string(file_path).expect("Failed to read JSON test file");
-        let transactions_response: TransactionsResponse =
+        let res: TracesResponse =
             serde_json::from_str(&body).expect("Failed to deserialize test transaction data");
 
-        let expected_transactions = transactions_response.transactions;
+        let expected_traces = res.traces;
 
         mock_client
-            .expect_get_transactions_for_account()
+            .expect_get_traces_for_account()
             .withf(|account, start_lt| {
                 account.to_string() == "EQCqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqseb"
                     && *start_lt == Some(12345)
             })
             .returning(move |_, _| {
-                let txs = expected_transactions.clone();
+                let txs = expected_traces.clone();
                 Ok(txs)
             });
     }
+
+    fn sample_trace(id: &str, start_lt: i64, end_lt: i64) -> Trace {
+        Trace {
+            trace_id: id.to_string(),
+            is_incomplete: false,
+            start_lt,
+            end_lt,
+            transactions: vec![],
+        }
+    }
+
+    #[tokio::test]
+    async fn test_poll_account_trace_seen() {
+        let mut mock_db = MockDatabase::new();
+        mock_db
+            .expect_get_latest_height()
+            .returning(|_, _| Box::pin(async { Ok(Some(0)) }));
+
+        mock_db
+            .expect_store_latest_height()
+            .returning(|_, _, _| Box::pin(async { Ok(()) }));
+
+        let mut mock_client = MockRestClient::new();
+        let trace1 = sample_trace("trace_1", 1, 2);
+        let trace2 = sample_trace("trace_2", 3, 4);
+        let trace3 = sample_trace("trace_3", 3, 4);
+        let traces = vec![trace1, trace2, trace3];
+
+        mock_client
+            .expect_get_traces_for_account()
+            .returning(move |_, _| Ok(traces.clone()));
+
+        let mut mock_upsert = MockAtomicUpsert::new();
+        mock_upsert
+            .expect_upsert_and_return_if_changed()
+            .returning(|trace| Box::pin(async move {
+                if trace.trace_id == "trace_2" {
+                    return Ok(None);
+                }
+                Ok(Some(trace))
+            }));
+
+        let mut subscriber = TONSubscriber::new(
+            mock_client,
+            mock_db,
+            "test-context".to_string(),
+            "test-chain".to_string(),
+            mock_upsert
+        ).await.unwrap();
+
+        let address = TonAddress::from_base64_url("EQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM9c").unwrap();
+
+        let result = subscriber
+            .poll_account(address)
+            .await
+            .unwrap();
+
+        assert_eq!(result.len(), 2);
+        assert!(result.iter().any(|t| t.trace_id == "trace_1"));
+        assert!(result.iter().any(|t| t.trace_id == "trace_3"));
+    }
+
 }

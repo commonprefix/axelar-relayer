@@ -144,7 +144,7 @@ mod tests {
     async fn test_next() {
         let container = postgres::Postgres::default()
             .with_init_sql(
-                include_str!("../../migrations/0009_ton_wallet_query_id.sql")
+                include_str!("../../migrations/0010_ton_wallet_query_id.sql")
                     .to_string()
                     .into_bytes(),
             )

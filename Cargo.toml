@@ -48,6 +48,7 @@ sentry = "0.36.0"
 sentry-tracing = "0.36.0"
 base64 = "0.22.1"
 serde_yaml = "0.9.34"
+serde_with = "3.14.0"
 chrono = { version = "0.4.40", features = ["serde"] }
 rand = "0.9.1"
 coingecko = "1.1.3"

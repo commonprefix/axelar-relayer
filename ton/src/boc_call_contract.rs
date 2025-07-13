@@ -20,8 +20,7 @@ fn main() {
 
 # See also
 
-- https://github.com/commonprefix/axelar-gmp-sdk-ton/blob/main/contracts/axelar_gateway.fc#L672:L678
-
+- https://github.com/commonprefix/axelar-gmp-sdk-ton/blob/b1053bf982f21d6d207d30338f5b264505966948/contracts/axelar_gateway.fc#L672:L678
 */
 
 use crate::boc_cell_to::CellTo;

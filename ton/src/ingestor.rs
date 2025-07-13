@@ -9,8 +9,6 @@
 use std::collections::HashMap;
 use base64::Engine;
 use base64::prelude::BASE64_STANDARD;
-use router_api::CrossChainId;
-use relayer_base::error::GmpApiError::GenericError;
 use crate::boc_cc_message::TonCCMessage;
 use crate::boc_nullified_message::NullifiedSuccessfullyMessage;
 use crate::ton_op_codes::{OP_CALL_CONTRACT, OP_GATEWAY_EXECUTE, OP_MESSAGE_APPROVED, OP_NULLIFIED_SUCCESSFULLY};
@@ -21,10 +19,11 @@ use relayer_base::gmp_api::gmp_types::{
     ReactToWasmEventTask, RetryTask, VerifyTask,
 };
 use relayer_base::ingestor::IngestorTrait;
-use relayer_base::payload_cache::{PayloadCacheTrait};
 use relayer_base::subscriber::ChainTransaction;
 use relayer_base::ton_types::Transaction;
 use crate::boc_call_contract::CallContractMessage;
+use crate::event_mappers::{map_call_contract, map_gas_credit, map_message_approved, map_message_executed};
+use crate::parse_trace::{ParseTrace, ParsedTransaction, TraceTransactions};
 
 pub struct TONIngestor {
 }
@@ -149,11 +148,6 @@ impl TONIngestor {
     ) -> Result<Vec<Event>, IngestorError> {
         let log = TonCCMessage::from_boc_b64(&body).unwrap();
 
-        let cc_id = CrossChainId::new(
-            log.source_chain.clone(),
-            log.message_id.clone()
-        ).map_err(|e| IngestorError::GenericError(e.to_string()))?;
-
         let event = Event::MessageApproved {
             common: CommonEventFields {
                 r#type: "MESSAGE_APPROVED".to_owned(),
@@ -187,7 +181,7 @@ impl TONIngestor {
     }
 
     async fn handle_call_contract(&self, tx: Transaction, body: &str) -> Result<Vec<Event>, IngestorError> {
-        let hash = BASE64_STANDARD.decode(&tx.hash).map_err(|e| GenericError(e.to_string())).unwrap();
+        let hash = BASE64_STANDARD.decode(&tx.hash).map_err(|e| IngestorError::GenericError(e.to_string()))?;
         let hash = hex::encode(hash);
 
         let call_contract = CallContractMessage::from_boc_b64(&body).unwrap();
@@ -216,7 +210,7 @@ impl TONIngestor {
                 }),
             },
             message: GatewayV2Message {
-                message_id: format!("0x{}", hash.to_lowercase()),
+                message_id: format!("0x{}", hash.to_lowercase()), // TODO: Should this be lowercase?
                 source_chain: "ton2".to_string(), // TODO: Do not hardcode
                 source_address: call_contract.source_address.to_hex(),
                 destination_address: call_contract.destination_address.to_string(),
@@ -261,28 +255,30 @@ impl IngestorTrait for TONIngestor {
         ))
     }
 
-    async fn handle_transaction(&self, tx: ChainTransaction) -> Result<Vec<Event>, IngestorError> {
-        let ChainTransaction::TON(tx) = tx else {
+    async fn handle_transaction(&self, trace: ChainTransaction) -> Result<Vec<Event>, IngestorError> {
+        let ChainTransaction::TON(trace) = trace else {
             return Err(IngestorError::UnexpectedChainTransactionType(format!(
                 "{:?}",
-                tx
+                trace
             )));
         };
+        
+        let trace_transactions = TraceTransactions::from_trace(trace).map_err(|e| IngestorError::GenericError(e.to_string()))?;
 
-        if let Some(body) = self.body_if_executed(&tx) {
-            return self.handle_executed(tx, &body).await;
+        let mut events = vec![];
+
+        let mappings: Vec<(&[ParsedTransaction], fn(&ParsedTransaction) -> Event)> = vec![
+            (&trace_transactions.message_approved, map_message_approved),
+            (&trace_transactions.executed, map_message_executed),
+            (&trace_transactions.gas_credit, map_gas_credit),
+            (&trace_transactions.call_contract, map_call_contract),
+        ];
+
+        for (txs, mapper) in mappings {
+            events.extend(txs.iter().map(mapper));
         }
 
-        if let Some(body) = self.body_if_approved(&tx) {
-            return self.handle_approved(tx, &body).await;
-        }
-
-        if let Some(body) = self.body_if_call_contract(&tx) {
-            return self.handle_call_contract(tx, &body).await;
-        }
-
-
-        Ok(vec![])
+        Ok(events)
     }
 
     async fn handle_wasm_event(&self, task: ReactToWasmEventTask) -> Result<(), IngestorError> {
@@ -448,7 +444,6 @@ mod tests {
         let transactions = fixture_transactions();
         let tx = &transactions[0];
 
-
         let ingestor = TONIngestor::new();
 
         let body = ingestor.body_if_approved(tx);
@@ -521,6 +516,7 @@ mod tests {
                 );
             }
             _ => panic!("Expected MessageApproved event"),
-        }    }
+        }    
+    }
 
 }

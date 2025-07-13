@@ -1,7 +1,9 @@
 // This is probably not the right place for ton types. However, these types are our own construct
-// and they don't make a lot of sense to belong in a separate, reusable project. 
+// and they don't make a lot of sense to belong in a separate, reusable project.
 
-use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::str::FromStr;
+use serde::{de, Deserialize, Deserializer, Serialize};
 use serde_with::{serde_as, DisplayFromStr};
 
 #[serde_as]
@@ -10,8 +12,61 @@ pub struct TransactionsResponse {
     pub transactions: Vec<Transaction>,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct TracesResponse {
+    pub traces: Vec<Trace>
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct TracesResponseRest {
+    pub traces: Vec<TraceRest>
+}
+
+impl From<TracesResponseRest> for TracesResponse {
+    fn from(rest: TracesResponseRest) -> Self {
+        let traces = rest.traces.into_iter().map(|trace_rest| {
+            let transactions = trace_rest
+                .transactions_order
+                .into_iter()
+                .map(|key| {
+                    trace_rest
+                        .transactions
+                        .get(&key)
+                        .cloned()
+                        .unwrap_or_else(|| {
+                            panic!("Transaction key '{}' not found in map", key)
+                        })
+                })
+                .collect();
+
+            Trace {
+                is_incomplete: trace_rest.is_incomplete,
+                start_lt: trace_rest.start_lt,
+                end_lt: trace_rest.end_lt,
+                trace_id: trace_rest.trace_id,
+                transactions,
+            }
+        }).collect();
+
+        TracesResponse { traces }
+    }
+}
+
 #[serde_as]
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct TraceRest {
+    pub is_incomplete: bool,
+    #[serde_as(as = "DisplayFromStr")]
+    pub start_lt: i64,
+    #[serde_as(as = "DisplayFromStr")]
+    pub end_lt: i64,
+    pub trace_id: String,
+    pub transactions: HashMap<String, Transaction>,
+    pub transactions_order: Vec<String>,
+}
+
+#[serde_as]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Trace {
     pub is_incomplete: bool,
     #[serde_as(as = "DisplayFromStr")]
@@ -21,7 +76,6 @@ pub struct Trace {
     pub trace_id: String,
     pub transactions: Vec<Transaction>,
 }
-
 
 #[serde_as]
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -62,8 +116,8 @@ pub struct TransactionDescription {
     pub destroyed: bool,
     pub credit_first: bool,
     pub storage_ph: StoragePhase,
-    pub credit_ph: CreditPhase,
-    pub compute_ph: ComputePhase,
+    pub credit_ph: Option<CreditPhase>,
+    pub compute_ph: Option<ComputePhase>,
     #[serde(default)]
     pub action: Option<Action>,
 }
@@ -130,14 +184,14 @@ pub struct BlockRef {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct TransactionMessage {
     pub hash: String,
-    pub source: String,
+    pub source: Option<String>,
     pub destination: Option<String>,
     pub value: Option<String>,
     pub value_extra_currencies: Option<ExtraCurrencies>,
     pub fwd_fee: Option<String>,
     pub ihr_fee: Option<String>,
-    pub created_lt: String,
-    pub created_at: String,
+    pub created_lt: Option<String>,
+    pub created_at: Option<String>,
     pub opcode: Option<String>,
     pub ihr_disabled: Option<bool>,
     pub bounce: Option<bool>,

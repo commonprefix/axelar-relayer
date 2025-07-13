@@ -23,9 +23,8 @@ let ton_cell = message.to_cell().unwrap();
 ```
 
 # TODO:
-
 - Don't hardcode execute message gas
-- Move opcodes to separate file
+
 */
 
 use crate::errors::BocError;

@@ -21,10 +21,6 @@ fn main() {
 }
 ```
 
-# TODO
-
-- Extract payload hash so we don't have to use payload_cache
-
 */
 
 use crate::boc_cell_to::CellTo;
@@ -39,7 +35,7 @@ use crate::errors::BocError::{BocParsingError, InvalidOpCode};
 pub struct NullifiedSuccessfullyMessage {
     pub(crate) message_id: String,
     pub(crate) source_chain: String,
-    source_address: String,
+    pub(crate) source_address: String,
     destination_chain: String,
     destination_address: Vec<u8>,
     payload: String,

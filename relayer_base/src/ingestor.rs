@@ -1,6 +1,8 @@
 use futures::StreamExt;
 use lapin::{options::BasicAckOptions, Consumer};
 use std::{future::Future, sync::Arc};
+use std::fs::File;
+use std::io::Write;
 use tokio::select;
 use tracing::{debug, error, info, warn};
 

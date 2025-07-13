@@ -19,3 +19,9 @@ pub mod subscriber;
 pub mod ton_wallet_high_load_v3;
 pub mod wallet_manager;
 pub mod boc_call_contract;
+mod models;
+pub mod parse_trace;
+pub mod boc_native_gas_paid;
+mod event_mappers;
+
+pub use models::ton_trace;

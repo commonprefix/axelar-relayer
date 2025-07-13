@@ -1,0 +1,321 @@
+/*!
+
+Trace Parser for TON Transactions: load a trace from TON chain and return all possible transactions
+that a Relayer could be interested in.
+
+The `TraceTransactions` struct contains four categorized vectors:
+ - `call_contract`: Transactions invoking the call contract interface.
+ - `message_approved`: Approved cross-chain messages.
+ - `executed`: Executed transactions confirmed via the gateway.
+ - `gas_credit`: Transactions paying for native gas usage.
+
+# Adding a New Trace Type
+
+To support parsing of a new transaction type:
+ 1. **Define a struct** representing the new on-chain log message (if not already present).
+    Implement a `from_boc_b64` method for decoding BOC-encoded body content.
+
+ 2. **Extend the `LogMessage` enum** with a new variant for your message.
+
+ 3. **Add a new `is_<your_type>` helper** function to detect matching transactions
+    based on opcode and output message index.
+
+ 4. **Extend the `from_trace` method** in the `impl ParseTrace for TraceTransactions` block:
+    - Use your `is_<your_type>` check.
+    - Decode the message body using your parser.
+    - Push a new `ParsedTransaction` with the corresponding `LogMessage` variant.
+
+# A Word on Gas Credit
+
+Gas Credit transactions need to be mapped to corresponding Call Contract transactions. Here,
+we copied the logic from EVM relayers, where for each trace (what they would call a transaction)
+we extract all Call Contract transactions (what they would call log events), as well as all Gas
+Credit transactions.
+
+Then, these transactions are matched by their destination chain, destination address, and payload hash.
+If a match is found, the Gas Credit transaction is removed from the list of Call Contract transactions,
+and the `message_id` field is set to the hash of the Call Contract transaction.
+
+This means that a GasCredit can be lost. The reason is that, unlike in EVM, we cannot deduce
+a messageId from the trace itself - we can only deduce it if its matched to a ContractCall. However,
+this is similar to how EVM relayers work. Go and try to send multiple or mismatched Gas Credit
+events in a SenderReceiver, and you'll see that the relayer will only send what it can
+actually match.
+
+# Usage Example
+
+Look at test_parse_trace test for an example.
+
+*/
+
+use std::collections::HashMap;
+use base64::Engine;
+use base64::prelude::BASE64_STANDARD;
+use relayer_base::ton_types::{Trace, Transaction};
+use crate::boc_call_contract::CallContractMessage;
+use crate::boc_cc_message::TonCCMessage;
+use crate::boc_native_gas_paid::{NativeGasPaidMessage};
+use crate::boc_nullified_message::NullifiedSuccessfullyMessage;
+use crate::errors::{BocError, TONRpcError};
+use crate::errors::TONRpcError::DataError;
+use crate::parse_trace::LogMessage::{Approved, CallContract, Executed};
+use crate::ton_op_codes::{OP_CALL_CONTRACT, OP_GATEWAY_EXECUTE, OP_MESSAGE_APPROVED, OP_NULLIFIED_SUCCESSFULLY, OP_PAY_NATIVE_GAS_FOR_CONTRACT_CALL};
+
+#[derive(Eq, Hash, PartialEq)]
+struct MessageMatchingKey {
+    destination_chain: String,
+    destination_address: String,
+    payload_hash: [u8; 32]
+}
+
+pub struct TraceTransactions {
+    pub call_contract: Vec<ParsedTransaction>,
+    pub(crate) message_approved: Vec<ParsedTransaction>,
+    pub(crate) executed: Vec<ParsedTransaction>,
+    pub(crate) gas_credit: Vec<ParsedTransaction>,
+}
+
+#[derive(Clone)]
+pub enum LogMessage {
+    Approved(TonCCMessage),
+    Executed(NullifiedSuccessfullyMessage),
+    CallContract(CallContractMessage),
+    NativeGasPaid(NativeGasPaidMessage)
+}
+
+pub struct ParsedTransaction {
+    pub(crate) transaction: Transaction,
+    pub(crate) log_message: Option<LogMessage>,
+    pub(crate) message_id: Option<String>
+}
+
+pub trait ParseTrace {
+    fn from_trace(trace: Trace) -> Result<TraceTransactions, BocError>;
+}
+
+fn is_log_emmitted(tx: &Transaction, op_code: &str, out_msg_log_index: usize) -> bool {
+    Some(tx)
+        .and_then(|tx| tx.in_msg.as_ref())
+        .and_then(|in_msg| in_msg.opcode.as_ref())
+        .filter(|opcode| *opcode == &op_code)
+        .and_then(|_| tx.out_msgs.get(out_msg_log_index))
+        .map(|msg| msg.destination.is_none())
+        .unwrap_or(false)
+}
+
+fn is_message_approved(tx: &Transaction) -> bool {
+    let op_code = format!("0x{:08x}", OP_MESSAGE_APPROVED);
+    is_log_emmitted(tx, &op_code, 0)
+}
+
+fn is_call_contract(tx: &Transaction) -> bool {
+    let op_code = format!("0x{:08x}", OP_CALL_CONTRACT);
+    is_log_emmitted(tx, &op_code, 0)
+}
+
+fn is_executed(tx: &Transaction) -> bool {
+    let op_code = format!("0x{:08x}", OP_NULLIFIED_SUCCESSFULLY);
+    if !is_log_emmitted(tx, &op_code, 1) {
+        return false;
+    }
+
+    let op_code = format!("0x{:08x}", OP_GATEWAY_EXECUTE);
+
+    tx.out_msgs
+        .get(0)
+        .and_then(|out_msg| out_msg.opcode.as_ref())
+        .map(|op| op == &op_code)
+        .unwrap_or(false)
+}
+
+fn is_gas_credit(tx: &Transaction) -> bool {
+    let op_code = format!("0x{:08x}", OP_PAY_NATIVE_GAS_FOR_CONTRACT_CALL);
+    is_log_emmitted(tx, &op_code, 0)
+}
+
+fn hash_to_message_id(hash: &str) -> Result<String, TONRpcError> {
+    let hash = BASE64_STANDARD.decode(&hash).map_err(|e| DataError(e.to_string()))?;
+    Ok(format!("0x{}", hex::encode(hash).to_lowercase()))
+}
+
+fn gas_credit_map_to_vec(call_contract: &Vec<ParsedTransaction>, mut map: HashMap<MessageMatchingKey, ParsedTransaction>) -> Vec<ParsedTransaction> {
+    let mut credit_vec: Vec<ParsedTransaction> = Vec::new();
+    for cc_tx in call_contract {
+        if let Some(LogMessage::CallContract(call_contract_msg)) = &cc_tx.log_message {
+            let key = MessageMatchingKey {
+                destination_chain: call_contract_msg.destination_chain.clone(),
+                destination_address: call_contract_msg.destination_address.clone(),
+                payload_hash: call_contract_msg.payload_hash,
+            };
+
+            if let Some(mut gas_credit_tx) = map.remove(&key) {
+                let hash = gas_credit_tx.transaction.hash.clone();
+                gas_credit_tx.message_id = hash_to_message_id(&hash).ok();
+                credit_vec.push(gas_credit_tx);
+            }
+        }
+    }
+
+    credit_vec
+}
+
+impl ParseTrace for TraceTransactions {
+    fn from_trace(trace: Trace) -> Result<TraceTransactions, BocError> {
+        let mut call_contract: Vec<ParsedTransaction> = Vec::new();
+        let mut message_approved: Vec<ParsedTransaction> = Vec::new();
+        let mut executed: Vec<ParsedTransaction> = Vec::new();
+        let mut gas_credit_map: HashMap<MessageMatchingKey, ParsedTransaction> = HashMap::new();
+
+        for tx in trace.transactions {
+            if is_message_approved(&tx) {
+                message_approved.push(ParsedTransaction {
+                    log_message: Option::from(Approved(TonCCMessage::from_boc_b64(&*tx.out_msgs[0].message_content.body)?)),
+                    transaction: tx,
+                    message_id: None
+                });
+            } else if is_call_contract(&tx) {
+                call_contract.push(ParsedTransaction {
+                    log_message: Option::from(CallContract(CallContractMessage::from_boc_b64(&*tx.out_msgs[0].message_content.body)?)),
+                    message_id: hash_to_message_id(&tx.hash).ok(),
+                    transaction: tx,
+                });
+            } else if is_executed(&tx) {
+                let in_msg = tx.in_msg.as_ref().ok_or(BocError::BocParsingError("Missing in_msg for executed transaction".into()))?;
+                let message = &in_msg.message_content.body;
+
+                executed.push(ParsedTransaction {
+                    log_message: Option::from(Executed(NullifiedSuccessfullyMessage::from_boc_b64(message)?)),
+                    transaction: tx,
+                    message_id: None
+                });
+            } else if is_gas_credit(&tx) {
+                let out_msg = &tx.out_msgs[0];
+                let msg = NativeGasPaidMessage::from_boc_b64(&*out_msg.message_content.body)?;
+                let key = MessageMatchingKey {
+                    destination_chain: msg.destination_chain.clone(),
+                    destination_address: msg.destination_address.clone(),
+                    payload_hash: msg.payload_hash
+                };
+                gas_credit_map.insert(key, ParsedTransaction {
+                    log_message: Option::from(LogMessage::NativeGasPaid(msg)),
+                    transaction: tx,
+                    message_id: None
+                });
+            }
+        }
+
+        let gas_credit = gas_credit_map_to_vec(&call_contract, gas_credit_map);
+
+        Ok(TraceTransactions {
+            call_contract,
+            message_approved,
+            executed,
+            gas_credit
+        })
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashMap;
+    use std::fs;
+    use num_bigint::BigUint;
+    use tonlib_core::TonAddress;
+    use relayer_base::ton_types::{Trace, TracesResponse};
+    use crate::parse_trace::{LogMessage, ParseTrace, ParsedTransaction, TraceTransactions};
+
+    fn fixture_traces() -> Vec<Trace> {
+        let file_path = "tests/data/v3_traces.json";
+        let body = fs::read_to_string(file_path).expect("Failed to read JSON test file");
+        let res: TracesResponse =
+            serde_json::from_str(&body).expect("Failed to deserialize test transaction data");
+
+        res.traces
+    }
+
+    #[test]
+    fn test_parse_trace() {
+        let traces = fixture_traces();
+
+        let trace_transactions = TraceTransactions::from_trace(traces[0].clone()).unwrap();
+
+        assert_eq!(trace_transactions.executed.len(), 1);
+        let parsed_tx = &trace_transactions.executed[0];
+        assert_eq!(parsed_tx.transaction.hash, "aa4");
+        assert!(matches!(parsed_tx.log_message, Some(LogMessage::Executed(_))));
+
+        assert_eq!(trace_transactions.message_approved.len(), 1);
+        let parsed_tx = &trace_transactions.message_approved[0];
+        assert_eq!(parsed_tx.transaction.hash, "aa1");
+        assert!(matches!(parsed_tx.log_message, Some(LogMessage::Approved(_))));
+
+        assert_eq!(trace_transactions.call_contract.len(), 1);
+        let parsed_tx = &trace_transactions.call_contract[0];
+        assert_eq!(parsed_tx.transaction.hash, "aa5");
+        assert!(matches!(parsed_tx.log_message, Some(LogMessage::CallContract(_))));
+
+        assert_eq!(trace_transactions.gas_credit.len(), 1);
+        let parsed_tx = &trace_transactions.gas_credit[0];
+        assert_eq!(parsed_tx.transaction.hash, "aa6");
+        assert!(matches!(parsed_tx.log_message, Some(LogMessage::NativeGasPaid(_))));
+    }
+
+    #[test]
+    fn test_gas_credit_map_to_vec() {
+        use crate::boc_call_contract::CallContractMessage;
+        use crate::boc_native_gas_paid::NativeGasPaidMessage;
+        use crate::parse_trace::{gas_credit_map_to_vec, ParsedTransaction, LogMessage, MessageMatchingKey};
+
+        let traces = fixture_traces();
+
+        // Create a fake CallContractMessage
+        let call_contract_msg = CallContractMessage {
+            destination_chain: "chain-A".to_string(),
+            destination_address: "addr-123".to_string(),
+            payload_hash: [1u8; 32],
+            payload: "payload".to_string(),
+            source_address: TonAddress::from_hex_str("0:0000000000000000000000000000000000000000000000000000000000000000").unwrap()
+        };
+
+        let call_contract_tx = traces[1].transactions[0].clone();
+
+        let matching_key = MessageMatchingKey {
+            destination_chain: call_contract_msg.destination_chain.clone(),
+            destination_address: call_contract_msg.destination_address.clone(),
+            payload_hash: call_contract_msg.payload_hash,
+        };
+
+        let native_gas_msg = NativeGasPaidMessage {
+            destination_chain: call_contract_msg.destination_chain.clone(),
+            destination_address: call_contract_msg.destination_address.clone(),
+            payload_hash: call_contract_msg.payload_hash,
+            sender: TonAddress::from_hex_str("0:0000000000000000000000000000000000000000000000000000000000000000").unwrap(),
+            msg_value: BigUint::from(1u8),
+            _refund_address: TonAddress::from_hex_str("0:0000000000000000000000000000000000000000000000000000000000000000").unwrap(),
+        };
+
+        let gas_credit_tx = ParsedTransaction {
+            transaction: call_contract_tx.clone(),
+            log_message: Some(LogMessage::NativeGasPaid(native_gas_msg)),
+            message_id: None,
+        };
+
+        let call_contract = vec![ParsedTransaction {
+            transaction: call_contract_tx,
+            log_message: Some(LogMessage::CallContract(call_contract_msg)),
+            message_id: None,
+        }];
+
+        let mut gas_credit_map = HashMap::new();
+        gas_credit_map.insert(matching_key, gas_credit_tx);
+
+        let result = gas_credit_map_to_vec(&call_contract, gas_credit_map);
+
+        assert_eq!(result.len(), 1);
+        let matched = &result[0];
+        assert_eq!(matched.transaction.hash, "HgpDv8z9uKb4vgtsFVGjyClfNcWzVJofXVk4+7FZHU4=");
+        assert_eq!(matched.message_id.as_deref(), Some("0x1e0a43bfccfdb8a6f8be0b6c1551a3c8295f35c5b3549a1f5d5938fbb1591d4e"));
+    }
+
+}

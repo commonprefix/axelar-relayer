@@ -1,4 +1,5 @@
 use dotenv::dotenv;
+use sqlx::PgPool;
 use relayer_base::config::config_from_yaml;
 use relayer_base::database::PostgresDB;
 use relayer_base::queue::Queue;
@@ -9,6 +10,9 @@ use tokio::task::JoinHandle;
 use ton::config::TONConfig;
 use ton::subscriber::TONSubscriber;
 use tonlib_core::TonAddress;
+use relayer_base::error::SubscriberError;
+use ton::client::TONRpcClient;
+use ton::ton_trace::PgTONTraceModel;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -33,17 +37,25 @@ async fn main() -> anyhow::Result<()> {
     let redis_pool = r2d2::Pool::builder().build(redis_client)?;
 
     setup_heartbeat("heartbeat:subscriber".to_owned(), redis_pool);
+    
+    let pg_pool = PgPool::connect(&config.common_config.postgres_url).await?;
 
-
+    let ton_traces = PgTONTraceModel::new(pg_pool.clone());
+    
     let mut handles: Vec<JoinHandle<()>> = vec![];
+    
+    let client = TONRpcClient::new(config.ton_rpc.clone(), 3, config.ton_api_key.clone())
+        .await
+        .map_err(|e| error_stack::report!(SubscriberError::GenericError(e.to_string())))
+        .unwrap();
 
     for acct in vec![gateway_account, gas_service_account] {
         let ton_sub = TONSubscriber::new(
-            config.ton_rpc.clone(),
-            config.ton_api_key.clone(),
+            client.clone(),
             postgres_db.clone(),
             acct.to_string(),
             config.common_config.chain_name.clone(),
+            ton_traces.clone()
         )
             .await?;
         let mut sub = Subscriber::new(ton_sub);
@@ -52,9 +64,7 @@ async fn main() -> anyhow::Result<()> {
             sub.run(acct, queue_clone).await;
         });
         handles.push(handle);
-
     }
-
 
     tokio::select! {
         _ = sigint.recv()  => {},

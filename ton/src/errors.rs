@@ -7,3 +7,10 @@ pub enum BocError {
     #[error("Invalid Op Code: {0}")]
     InvalidOpCode(String),
 }
+
+
+#[derive(Error, Debug)]
+pub enum TONRpcError {
+    #[error("DataError: {0}")]
+    DataError(String)
+}

@@ -19,7 +19,7 @@ match TonCCMessage::from_boc_b64(boc_b64) {
 
 # See also:
 
-- https://github.com/commonprefix/axelar-gmp-sdk-ton/blob/main/contracts/axelar_gateway.fc#L528:L543
+- https://github.com/commonprefix/axelar-gmp-sdk-ton/blob/b1053bf982f21d6d207d30338f5b264505966948/contracts/axelar_gateway.fc#L528:L543
 
 # TODO:
 - Don't hardcode workchain
@@ -32,7 +32,7 @@ use tonlib_core::{TonAddress, TonHash};
 use crate::errors::BocError;
 use crate::errors::BocError::BocParsingError;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct TonCCMessage {
     pub message_id: String,
     pub destination_address: String,

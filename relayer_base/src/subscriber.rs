@@ -44,7 +44,7 @@ pub struct Subscriber<TP: TransactionPoller> {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum ChainTransaction {
     Xrpl(xrpl_api::Transaction),
-    TON(ton_types::Transaction)
+    TON(ton_types::Trace)
 }
 
 impl<TP: TransactionPoller> Subscriber<TP>

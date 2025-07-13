@@ -11,7 +11,6 @@ use relayer_base::{
     utils::extract_hex_xrpl_memo,
 };
 use relayer_base::gmp_api::gmp_types::ExecuteTaskFields;
-use super::client::XRPLClient;
 
 use crate::models::queued_transactions::QueuedTransactionsModel;
 
