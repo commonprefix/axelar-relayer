@@ -202,7 +202,6 @@ impl GmpApi {
             .header("Content-Type", "application/json")
             .body(serde_json::to_string(&map).unwrap());
 
-        println!("Posting: {:?}", serde_json::to_string(&map).unwrap());
         let response: PostEventResponse = GmpApi::request_json(request).await?;
         info!("Response from POST: {:?}", response);
         Ok(response.results)

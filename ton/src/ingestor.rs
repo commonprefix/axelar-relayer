@@ -6,6 +6,7 @@
 - Move handlers to a decorator pattern (?)
 */
 
+use tracing::warn;
 use crate::event_mappers::{map_call_contract, map_gas_credit, map_message_approved, map_message_executed, map_native_gas_added};
 use crate::parse_trace::{ParseTrace, ParsedTransaction, TraceTransactions};
 use relayer_base::error::IngestorError;
@@ -31,7 +32,7 @@ type Mapping<'a> = (&'a [ParsedTransaction], fn(&ParsedTransaction) -> Event);
 
 impl IngestorTrait for TONIngestor {
     async fn handle_verify(&self, task: VerifyTask) -> Result<(), IngestorError> {
-        println!("handle_verify: {:?}", task);
+        warn!("handle_verify: {:?}", task);
 
         Err(IngestorError::GenericError(
             "Still not implemented".to_string(),
@@ -70,7 +71,7 @@ impl IngestorTrait for TONIngestor {
     }
 
     async fn handle_wasm_event(&self, task: ReactToWasmEventTask) -> Result<(), IngestorError> {
-        println!("handle_wasm_event: {:?}", task);
+        warn!("handle_wasm_event: {:?}", task);
 
         Err(IngestorError::GenericError(
             "Still not implemented".to_string(),
@@ -78,7 +79,7 @@ impl IngestorTrait for TONIngestor {
     }
 
     async fn handle_construct_proof(&self, task: ConstructProofTask) -> Result<(), IngestorError> {
-        println!("handle_construct_proof: {:?}", task);
+        warn!("handle_construct_proof: {:?}", task);
 
         Err(IngestorError::GenericError(
             "Still not implemented".to_string(),
@@ -86,7 +87,7 @@ impl IngestorTrait for TONIngestor {
     }
 
     async fn handle_retriable_task(&self, task: RetryTask) -> Result<(), IngestorError> {
-        println!("handle_retriable_task: {:?}", task);
+        warn!("handle_retriable_task: {:?}", task);
 
         Err(IngestorError::GenericError(
             "Still not implemented".to_string(),
