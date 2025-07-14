@@ -4,7 +4,7 @@ Parses and represents a `AddNativeGasMessage`.
 # Usage Example
 
 ```rust,no_run
-use ton::boc_native_gas_added::NativeGasAddedMessage;
+use ton::boc::native_gas_added::NativeGasAddedMessage;
 
 let boc = "te6cck...";
 
@@ -71,10 +71,10 @@ impl NativeGasAddedMessage {
 
 #[cfg(test)]
 mod tests {
-    use crate::boc_native_gas_added::NativeGasAddedMessage;
     use num_bigint::BigUint;
     use std::str::FromStr;
     use tonlib_core::{TonAddress, TonHash};
+    use crate::boc::native_gas_added::NativeGasAddedMessage;
 
     #[test]
     fn test_from_boc_b64() {

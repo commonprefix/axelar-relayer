@@ -4,7 +4,7 @@ Parses and represents a `CallContractMessage`.
 # Usage Example
 
 ```rust,no_run
-use ton::boc_call_contract::CallContractMessage;
+use ton::boc::call_contract::CallContractMessage;
 
 let boc = "te6cck...";
 
@@ -22,11 +22,11 @@ match CallContractMessage::from_boc_b64(boc) {
 
 */
 
-use crate::boc_cell_to::CellTo;
 use serde::{Deserialize, Serialize};
 use tonlib_core::cell::{Cell, CellParser};
 use tonlib_core::tlb_types::tlb::TLB;
 use tonlib_core::TonAddress;
+use crate::boc::cell_to::CellTo;
 use crate::errors::BocError;
 use crate::errors::BocError::{BocParsingError};
 
@@ -84,7 +84,7 @@ mod tests {
     use std::str::FromStr;
     use primitive_types::H256;
     use tonlib_core::TonAddress;
-    use crate::boc_call_contract::CallContractMessage;
+    use crate::boc::call_contract::CallContractMessage;
 
     #[test]
     fn test_from_boc_b64() {

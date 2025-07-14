@@ -5,7 +5,7 @@ Parses and represents a `NullifiedSuccessfullyMessage`.
 # Usage Example
 
 ```rust,no_run
-use ton::boc_nullified_message::NullifiedSuccessfullyMessage;
+use ton::boc::nullified_message::NullifiedSuccessfullyMessage;
 
 let boc = "te6cck...";
 
@@ -21,7 +21,7 @@ match NullifiedSuccessfullyMessage::from_boc_b64(boc) {
 
 */
 
-use crate::boc_cell_to::CellTo;
+use crate::boc::cell_to::CellTo;
 use crate::ton_op_codes::OP_NULLIFIED_SUCCESSFULLY;
 use serde::{Deserialize, Serialize};
 use tonlib_core::cell::{Cell, CellParser};
@@ -98,7 +98,7 @@ impl NullifiedSuccessfullyMessage {
 
 #[cfg(test)]
 mod tests {
-    use crate::boc_nullified_message::NullifiedSuccessfullyMessage;
+    use crate::boc::nullified_message::NullifiedSuccessfullyMessage;
 
     #[test]
     fn test_from_boc_b64() {

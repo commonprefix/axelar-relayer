@@ -2,7 +2,7 @@
 
 # Usage Example
 ```rust,no_run
-use ton::boc_native_gas_paid::NativeGasPaidMessage;
+use ton::boc::native_gas_paid::NativeGasPaidMessage;
 
 let boc_b64 = "b64 boc";
 
@@ -20,7 +20,7 @@ match NativeGasPaidMessage::from_boc_b64(boc_b64) {
 
 */
 
-use crate::boc_cell_to::CellTo;
+use crate::boc::cell_to::CellTo;
 use crate::errors::BocError;
 use crate::errors::BocError::BocParsingError;
 use num_bigint::BigUint;
@@ -90,9 +90,9 @@ impl NativeGasPaidMessage {
 
 #[cfg(test)]
 mod tests {
-    use crate::boc_native_gas_paid::NativeGasPaidMessage;
     use primitive_types::H256;
     use tonlib_core::TonAddress;
+    use crate::boc::native_gas_paid::NativeGasPaidMessage;
 
     #[test]
     fn test_from_boc_b64() {

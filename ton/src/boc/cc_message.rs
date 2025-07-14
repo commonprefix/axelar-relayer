@@ -2,7 +2,7 @@
 
 # Usage Example
 ```rust,no_run
-use ton::boc_cc_message::TonCCMessage;
+use ton::boc::cc_message::TonCCMessage;
 
 let boc_b64 = "b64 boc";
 
@@ -25,7 +25,7 @@ match TonCCMessage::from_boc_b64(boc_b64) {
 - Don't hardcode workchain
 */
 
-use crate::boc_cell_to::CellTo;
+use crate::boc::cell_to::CellTo;
 use tonlib_core::cell::{Cell, CellParser};
 use tonlib_core::tlb_types::tlb::TLB;
 use tonlib_core::{TonAddress, TonHash};
@@ -109,7 +109,7 @@ impl TonCCMessage {
 #[cfg(test)]
 mod tests {
     use primitive_types::H256;
-    use crate::boc_cc_message::TonCCMessage;
+    use crate::boc::cc_message::TonCCMessage;
 
     #[test]
     fn test_ton_log() {

@@ -4,14 +4,13 @@ Approve Message decoder
 # Usage Example
 
 ```rust,no_run
-use ton::boc_approve_message::ApproveMessages;
+use crate::ton::boc::approve_message::ApproveMessages;
 
 let boc = "1234abcd";
 let approve_messages = ApproveMessages::from_boc_hex(boc);
 ```
 */
 
-use crate::boc_cell_to::CellTo;
 use crate::ton_op_codes::OP_APPROVE_MESSAGES;
 use num_bigint::BigUint;
 use serde::{Deserialize, Serialize};
@@ -19,6 +18,7 @@ use std::sync::Arc;
 use tonlib_core::cell::dict::predefined_readers::{key_reader_u8, val_reader_ref_cell};
 use tonlib_core::cell::{ArcCell, Cell, CellParser};
 use tonlib_core::tlb_types::tlb::TLB;
+use crate::boc::cell_to::CellTo;
 use crate::errors::BocError;
 use crate::errors::BocError::{BocParsingError, InvalidOpCode};
 

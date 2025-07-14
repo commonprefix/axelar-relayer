@@ -48,11 +48,6 @@ Look at test_parse_trace test for an example.
 
 */
 
-use crate::boc_call_contract::CallContractMessage;
-use crate::boc_cc_message::TonCCMessage;
-use crate::boc_native_gas_added::NativeGasAddedMessage;
-use crate::boc_native_gas_paid::NativeGasPaidMessage;
-use crate::boc_nullified_message::NullifiedSuccessfullyMessage;
 use crate::errors::TONRpcError::DataError;
 use crate::errors::{BocError, TONRpcError};
 use crate::parse_trace::LogMessage::{Approved, CallContract, Executed};
@@ -64,6 +59,11 @@ use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
 use relayer_base::ton_types::{Trace, Transaction};
 use std::collections::HashMap;
+use crate::boc::call_contract::CallContractMessage;
+use crate::boc::cc_message::TonCCMessage;
+use crate::boc::native_gas_added::NativeGasAddedMessage;
+use crate::boc::native_gas_paid::NativeGasPaidMessage;
+use crate::boc::nullified_message::NullifiedSuccessfullyMessage;
 
 #[derive(Eq, Hash, PartialEq)]
 struct MessageMatchingKey {
@@ -263,6 +263,8 @@ mod tests {
     use std::collections::HashMap;
     use std::fs;
     use tonlib_core::TonAddress;
+    use crate::boc::call_contract::CallContractMessage;
+    use crate::boc::native_gas_paid::NativeGasPaidMessage;
 
     fn fixture_traces() -> Vec<Trace> {
         let file_path = "tests/data/v3_traces.json";
@@ -335,8 +337,6 @@ mod tests {
 
     #[test]
     fn test_gas_credit_map_to_vec() {
-        use crate::boc_call_contract::CallContractMessage;
-        use crate::boc_native_gas_paid::NativeGasPaidMessage;
         use crate::parse_trace::{
             gas_credit_map_to_vec, LogMessage, MessageMatchingKey, ParsedTransaction,
         };

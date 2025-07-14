@@ -6,7 +6,7 @@ Utility for working with TON Cell structures. Dominik's code.
 ```rust
 use tonlib_core::cell::{CellBuilder};
 use std::sync::Arc;
-use ton::boc_cell_to::CellTo;
+use ton::boc::cell_to::CellTo;
  
 let mut builder = CellBuilder::new();
 for &byte in b"Hello" {

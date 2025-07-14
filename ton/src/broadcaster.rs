@@ -17,8 +17,6 @@ and broadcaster should potentially be returning a vector of BroadcastResults.
 */
 
 use super::client::{RestClient, V3MessageResponse};
-use crate::boc_approve_message::{ApproveMessages};
-use crate::boc_relayer_execute_message::RelayerExecuteMessage;
 use crate::high_load_query_id_db_wrapper::HighLoadQueryIdWrapper;
 use crate::out_action::out_action;
 use crate::ton_wallet_high_load_v3::TonWalletHighLoadV3;
@@ -37,6 +35,8 @@ use tonlib_core::tlb_types::block::out_action::OutAction;
 use tonlib_core::tlb_types::tlb::TLB;
 use tonlib_core::TonAddress;
 use tracing::{debug, error};
+use crate::boc::approve_message::ApproveMessages;
+use crate::relayer_execute_message::RelayerExecuteMessage;
 
 pub struct TONBroadcaster {
     wallet_manager: Arc<WalletManager>,

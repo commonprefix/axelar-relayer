@@ -1,28 +1,25 @@
-pub mod boc_approve_message;
 pub mod broadcaster;
-pub mod boc_cell_to;
 pub mod client;
 pub mod config;
 mod errors;
-pub mod boc_cc_message;
 pub mod high_load_query_id;
 pub mod high_load_query_id_db_wrapper;
 pub mod includer;
 pub mod ingestor;
 pub mod lock_manager;
-pub mod boc_nullified_message;
 pub mod ton_op_codes;
 pub mod out_action;
 pub mod refund_manager;
-pub mod boc_relayer_execute_message;
+
 pub mod subscriber;
 pub mod ton_wallet_high_load_v3;
 pub mod wallet_manager;
-pub mod boc_call_contract;
 mod models;
 pub mod parse_trace;
-pub mod boc_native_gas_paid;
 mod event_mappers;
-pub mod boc_native_gas_added;
 
 pub use models::ton_trace;
+
+pub mod boc;
+
+pub(crate) use boc::relayer_execute_message;

@@ -4,7 +4,7 @@
 
 ```rust
 use tonlib_core::TonAddress;
-use ton::boc_relayer_execute_message::RelayerExecuteMessage;
+use ton::boc::relayer_execute_message::RelayerExecuteMessage;
 
 let relayer_address: TonAddress = "0QCQPVhDBzLBwIlt8MtDhPwIrANfNH2ZQnX0cSvhCD4Dld4b".parse().unwrap();
 let address: TonAddress = "0:b87a4a0f644b7a186ee71a1454634f70c22a62aca1a6ba676b5175c21d7fd930".parse().unwrap();
