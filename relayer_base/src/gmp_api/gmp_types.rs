@@ -441,7 +441,7 @@ mod tests {
     #[test]
     fn test_react_to_expired_signing_session_task() {
         let path = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../testdata/xrpl_tasks/valid_tasks/ReactToExpiredSigningSessionTask.json");
+            .join("testdata/gmp_tasks/valid_tasks/ReactToExpiredSigningSessionTask.json");
         let json_content = fs::read_to_string(&path)
             .unwrap_or_else(|e| panic!("Failed to read {}: {}", path.display(), e));
         let tasks: Vec<serde_json::Value> = serde_json::from_str(&json_content)
@@ -473,7 +473,7 @@ mod tests {
     #[test]
     fn test_react_to_retriable_poll_task() {
         let path = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../testdata/xrpl_tasks/valid_tasks/ReactToRetriablePollTask.json");
+            .join("testdata/gmp_tasks/valid_tasks/ReactToRetriablePollTask.json");
         let json_content = fs::read_to_string(&path)
             .unwrap_or_else(|e| panic!("Failed to read {}: {}", path.display(), e));
         let tasks: Vec<serde_json::Value> = serde_json::from_str(&json_content)

@@ -528,7 +528,7 @@ mod tests {
 
     #[test]
     fn test_parse_all_valid_tasks() {
-        let valid_tasks_dir = "../testdata/xrpl_tasks/valid_tasks";
+        let valid_tasks_dir = "testdata/gmp_tasks/valid_tasks";
         let entries = fs::read_dir(valid_tasks_dir).expect("Failed to read valid_tasks directory");
 
         for entry in entries {
@@ -584,7 +584,7 @@ mod tests {
     #[test]
     fn test_parse_invalid_tasks() {
         let tasks_json =
-            std::fs::read_to_string("../testdata/xrpl_tasks/invalid_tasks/invalid_tasks.json")
+            std::fs::read_to_string("testdata/gmp_tasks/invalid_tasks/invalid_tasks.json")
                 .expect("Failed to load invalid tasks");
 
         let tasks: Vec<serde_json::Value> =
@@ -611,7 +611,7 @@ mod tests {
     #[test]
     fn test_parse_unknown_tasks() {
         let tasks_json =
-            std::fs::read_to_string("../testdata/xrpl_tasks/unknown_tasks/unknown_tasks.json")
+            std::fs::read_to_string("testdata/gmp_tasks/unknown_tasks/unknown_tasks.json")
                 .expect("Failed to load unknown tasks");
 
         let tasks: Vec<serde_json::Value> =
@@ -731,7 +731,7 @@ mod tests {
 
     #[test]
     fn test_event_attribute() {
-        let events_json = std::fs::read_to_string("../testdata/wasm_events/events.json")
+        let events_json = std::fs::read_to_string("testdata/wasm_events/events.json")
             .expect("Failed to load events.json");
 
         let events: Vec<serde_json::Value> =
@@ -768,7 +768,7 @@ mod tests {
 
     #[test]
     fn test_event_attribute_not_found() {
-        let events_json = std::fs::read_to_string("../testdata/wasm_events/events.json")
+        let events_json = std::fs::read_to_string("testdata/wasm_events/events.json")
             .expect("Failed to load events.json");
 
         let events: Vec<serde_json::Value> =
@@ -786,7 +786,7 @@ mod tests {
 
     #[test]
     fn test_event_attribute_invalid_event() {
-        let events_json = std::fs::read_to_string("../testdata/wasm_events/invalid_events.json")
+        let events_json = std::fs::read_to_string("testdata/wasm_events/invalid_events.json")
             .expect("Failed to load events.json");
 
         let events: Vec<serde_json::Value> =
@@ -1082,7 +1082,7 @@ mod tests {
 
     #[test]
     fn test_message_id_from_retry_task_react_to_retriable_poll() {
-        let valid_tasks_dir = "../testdata/xrpl_tasks/valid_tasks";
+        let valid_tasks_dir = "testdata/gmp_tasks/valid_tasks";
         let json_str =
             fs::read_to_string(format!("{}/ReactToRetriablePollTask.json", valid_tasks_dir))
                 .expect("Failed to read ReactToRetriablePollTask.json");
@@ -1109,7 +1109,7 @@ mod tests {
 
     #[test]
     fn test_message_id_from_retry_task_react_to_expired_signing_session() {
-        let valid_tasks_dir = "../testdata/xrpl_tasks/valid_tasks";
+        let valid_tasks_dir = "testdata/gmp_tasks/valid_tasks";
         let json_str = fs::read_to_string(format!(
             "{}/ReactToExpiredSigningSessionTask.json",
             valid_tasks_dir
