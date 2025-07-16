@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use tracing::{debug, error, warn};
+use tracing::{debug, error, info, warn};
 use xrpl_api::{
     ResultCategory, SubmitRequest, SubmitResponse, Transaction, TransactionResult, TxRequest,
 };
@@ -34,14 +34,20 @@ impl<QM: QueuedTransactionsModel, X: XRPLClientTrait> XRPLBroadcaster<QM, X> {
         tx: &Transaction,
         tx_hash: &str,
     ) -> Result<(), BroadcasterError> {
-        self.queued_tx_model
+        let _ = self
+            .queued_tx_model
             .store_queued_transaction(
                 tx_hash,
                 &tx.common().account.to_string(),
                 tx.common().sequence as i64,
             )
             .await
-            .map_err(|e| BroadcasterError::GenericError(e.to_string()))
+            .map_err(|e| BroadcasterError::GenericError(e.to_string()));
+
+        // TODO: remove me after verifying the response for queued transactions
+        let response = self.client.get_transaction_by_id(tx_hash.to_owned()).await;
+        info!("terQUEUED tx response: {:?}", response);
+        Ok(())
     }
 }
 
