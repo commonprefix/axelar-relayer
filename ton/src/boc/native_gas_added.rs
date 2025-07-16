@@ -22,8 +22,8 @@ match NativeGasAddedMessage::from_boc_b64(boc) {
 
 */
 
-use crate::errors::BocError;
-use crate::errors::BocError::BocParsingError;
+use crate::error::BocError;
+use crate::error::BocError::BocParsingError;
 use num_bigint::BigUint;
 use serde::{Deserialize, Serialize};
 use tonlib_core::cell::{Cell, CellParser};

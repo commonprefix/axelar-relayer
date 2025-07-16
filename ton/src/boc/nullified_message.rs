@@ -26,8 +26,8 @@ use crate::ton_op_codes::OP_NULLIFIED_SUCCESSFULLY;
 use serde::{Deserialize, Serialize};
 use tonlib_core::cell::{Cell, CellParser};
 use tonlib_core::tlb_types::tlb::TLB;
-use crate::errors::BocError;
-use crate::errors::BocError::{BocParsingError, InvalidOpCode};
+use crate::error::BocError;
+use crate::error::BocError::{BocParsingError, InvalidOpCode};
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 pub struct NullifiedSuccessfullyMessage {

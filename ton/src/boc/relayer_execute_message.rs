@@ -27,8 +27,8 @@ let ton_cell = message.to_cell().unwrap();
 
 */
 
-use crate::errors::BocError;
-use crate::errors::BocError::BocParsingError;
+use crate::error::BocError;
+use crate::error::BocError::{BocEncodingError, BocParsingError};
 use num_bigint::BigUint;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
@@ -36,34 +36,8 @@ use std::sync::Arc;
 use tiny_keccak::{Hasher, Keccak};
 use tonlib_core::cell::{Cell, CellBuilder};
 use tonlib_core::TonAddress;
+use crate::boc::buffer_to_cell;
 use crate::ton_op_codes::OP_RELAYER_EXECUTE;
-
-const BYTES_PER_CELL: usize = 96;
-
-fn build_cell_chain(start_index: usize, buffer: &Vec<u8>) -> Result<Cell, BocError> {
-    let mut builder = CellBuilder::new();
-    let end_index = std::cmp::min(start_index + BYTES_PER_CELL, buffer.len());
-
-    for byte in buffer.iter().skip(start_index).take(end_index - start_index) {
-        builder
-            .store_uint(8, &BigUint::from(*byte))
-            .map_err(|e| BocParsingError(e.to_string()))?;
-    }
-
-    // If there are more bytes, create a reference to the next cell
-    if end_index < buffer.len() {
-        let next_cell = build_cell_chain(end_index, buffer)?;
-        builder
-            .store_reference(&Arc::new(next_cell))
-            .map_err(|e| BocParsingError(e.to_string()))?;
-    }
-
-    builder.build().map_err(|e| BocParsingError(e.to_string()))
-}
-
-fn buffer_to_cell(buffer: &Vec<u8>) -> Result<Cell, BocError> {
-    build_cell_chain(0, buffer)
-}
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 pub struct RelayerExecuteMessage {
@@ -106,62 +80,62 @@ impl RelayerExecuteMessage {
     }
 
     pub fn to_cell(&self) -> Result<Cell, BocError> {
-        let message_id = buffer_to_cell(&self.message_id.as_bytes().to_vec())?;
-        let source_chain = buffer_to_cell(&self.source_chain.as_bytes().to_vec())?;
-        let source_address = buffer_to_cell(&self.source_address.as_bytes().to_vec())?;
-        let destination_chain = buffer_to_cell(&self.destination_chain.as_bytes().to_vec())?;
-        let destination_address = buffer_to_cell(&self.destination_address.hash_part.to_vec())?;
+        let message_id = buffer_to_cell::buffer_to_cell(&self.message_id.as_bytes().to_vec())?;
+        let source_chain = buffer_to_cell::buffer_to_cell(&self.source_chain.as_bytes().to_vec())?;
+        let source_address = buffer_to_cell::buffer_to_cell(&self.source_address.as_bytes().to_vec())?;
+        let destination_chain = buffer_to_cell::buffer_to_cell(&self.destination_chain.as_bytes().to_vec())?;
+        let destination_address = buffer_to_cell::buffer_to_cell(&self.destination_address.hash_part.to_vec())?;
         let payload_hash = Self::payload_hash(&hex::decode(&self.payload).unwrap());
-        let payload = buffer_to_cell(&hex::decode(&self.payload).unwrap())?;
+        let payload = buffer_to_cell::buffer_to_cell(&hex::decode(&self.payload).unwrap())?;
 
         let mut inner = CellBuilder::new();
         inner
             .store_reference(&Arc::new(payload))
-            .map_err(|e| BocParsingError(e.to_string()))?;
+            .map_err(|e| BocEncodingError(e.to_string()))?;
         inner
             .store_reference(&Arc::new(destination_address))
-            .map_err(|e| BocParsingError(e.to_string()))?;
+            .map_err(|e| BocEncodingError(e.to_string()))?;
         inner
             .store_reference(&Arc::new(destination_chain))
-            .map_err(|e| BocParsingError(e.to_string()))?;
+            .map_err(|e| BocEncodingError(e.to_string()))?;
         inner
             .store_uint(256, &payload_hash)
-            .map_err(|e| BocParsingError(e.to_string()))?;
+            .map_err(|e| BocEncodingError(e.to_string()))?;
         // TODO: Do not hardcode
         inner
             .store_uint(256, &BigUint::from_str("10000000").unwrap())
-            .map_err(|e| BocParsingError(e.to_string()))?;
+            .map_err(|e| BocEncodingError(e.to_string()))?;
 
         let inner = inner.build().map_err(|e| BocParsingError(e.to_string()))?;
 
         let mut message = CellBuilder::new();
         message
             .store_reference(&Arc::new(message_id))
-            .map_err(|e| BocParsingError(e.to_string()))?;
+            .map_err(|e| BocEncodingError(e.to_string()))?;
         message
             .store_reference(&Arc::new(source_chain))
-            .map_err(|e| BocParsingError(e.to_string()))?;
+            .map_err(|e| BocEncodingError(e.to_string()))?;
         message
             .store_reference(&Arc::new(source_address))
-            .map_err(|e| BocParsingError(e.to_string()))?;
+            .map_err(|e| BocEncodingError(e.to_string()))?;
         message
             .store_reference(&Arc::new(inner))
-            .map_err(|e| BocParsingError(e.to_string()))?;
+            .map_err(|e| BocEncodingError(e.to_string()))?;
         let message = message
             .build()
-            .map_err(|e| BocParsingError(e.to_string()))?;
+            .map_err(|e| BocEncodingError(e.to_string()))?;
 
         let mut outer = CellBuilder::new();
         outer
             .store_uint(32, &BigUint::from(OP_RELAYER_EXECUTE))
-            .map_err(|e| BocParsingError(e.to_string()))?;
+            .map_err(|e| BocEncodingError(e.to_string()))?;
         outer
             .store_reference(&Arc::new(message))
-            .map_err(|e| BocParsingError(e.to_string()))?;
+            .map_err(|e| BocEncodingError(e.to_string()))?;
         outer
             .store_address(&self.relayer_address)
-            .map_err(|e| BocParsingError(e.to_string()))?;
-        outer.build().map_err(|e| BocParsingError(e.to_string()))
+            .map_err(|e| BocEncodingError(e.to_string()))?;
+        outer.build().map_err(|e| BocEncodingError(e.to_string()))
     }
 }
 

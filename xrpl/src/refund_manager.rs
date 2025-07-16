@@ -100,6 +100,10 @@ impl<X: XRPLClientTrait> XRPLRefundManager<X> {
 
 impl<X: XRPLClientTrait> RefundManager for XRPLRefundManager<X> {
     type Wallet = (SecretKey, PublicKey, AccountId);
+    
+    fn is_refund_manager_managed(&self) -> bool {
+        true
+    }
 
     fn get_wallet_lock(&self) -> Result<Self::Wallet, RefundManagerError> {
         let mut redis_conn = self

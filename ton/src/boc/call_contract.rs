@@ -27,8 +27,8 @@ use tonlib_core::cell::{Cell, CellParser};
 use tonlib_core::tlb_types::tlb::TLB;
 use tonlib_core::TonAddress;
 use crate::boc::cell_to::CellTo;
-use crate::errors::BocError;
-use crate::errors::BocError::{BocParsingError};
+use crate::error::BocError;
+use crate::error::BocError::{BocParsingError};
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 pub struct CallContractMessage {

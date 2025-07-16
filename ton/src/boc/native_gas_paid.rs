@@ -21,8 +21,8 @@ match NativeGasPaidMessage::from_boc_b64(boc_b64) {
 */
 
 use crate::boc::cell_to::CellTo;
-use crate::errors::BocError;
-use crate::errors::BocError::BocParsingError;
+use crate::error::BocError;
+use crate::error::BocError::BocParsingError;
 use num_bigint::BigUint;
 use tonlib_core::cell::Cell;
 use tonlib_core::tlb_types::tlb::TLB;

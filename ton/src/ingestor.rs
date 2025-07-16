@@ -6,29 +6,26 @@
 - Move handlers to a decorator pattern (?)
 */
 
-use tracing::warn;
-use crate::event_mappers::{map_call_contract, map_gas_credit, map_message_approved, map_message_executed, map_native_gas_added};
-use crate::parse_trace::{ParseTrace, ParsedTransaction, TraceTransactions};
+use crate::event_mappers::{map_call_contract, map_gas_credit, map_message_approved, map_message_executed, map_message_native_gas_refunded, map_native_gas_added};
+use crate::gas_calculator::GasCalculator;
+use crate::parse_trace::{ParseTrace, TraceTransactions};
 use relayer_base::error::IngestorError;
 use relayer_base::gmp_api::gmp_types::{
-    ConstructProofTask, Event
-    ,
-    ReactToWasmEventTask, RetryTask, VerifyTask,
+    ConstructProofTask, Event, ReactToWasmEventTask, RetryTask, VerifyTask,
 };
 use relayer_base::ingestor::IngestorTrait;
 use relayer_base::subscriber::ChainTransaction;
+use tracing::warn;
 
-#[derive(Default)]
-pub struct TONIngestor {}
-
-impl TONIngestor {
-    pub fn new() -> Self {
-        Self::default()
-    }
+pub struct TONIngestor {
+    gas_calculator: GasCalculator,
 }
 
-type Mapping<'a> = (&'a [ParsedTransaction], fn(&ParsedTransaction) -> Event);
-
+impl TONIngestor {
+    pub fn new(gas_calculator: GasCalculator) -> Self {
+        Self { gas_calculator }
+    }
+}
 
 impl IngestorTrait for TONIngestor {
     async fn handle_verify(&self, task: VerifyTask) -> Result<(), IngestorError> {
@@ -50,21 +47,52 @@ impl IngestorTrait for TONIngestor {
             )));
         };
 
-        let trace_transactions = TraceTransactions::from_trace(trace)
+        let detailed_gas_used = self
+            .gas_calculator
+            .calc_message_gas_detailed(&trace.transactions)
+            .map_err(|e| IngestorError::GenericError(e.to_string()))?;
+        
+        let total_gas_used = self
+            .gas_calculator
+            .calc_message_gas_naive(&trace.transactions)
             .map_err(|e| IngestorError::GenericError(e.to_string()))?;
 
+        let trace_transactions = TraceTransactions::from_trace(trace)
+            .map_err(|e| IngestorError::GenericError(e.to_string()))?;
         let mut events = vec![];
 
-        let mappings: Vec<Mapping> = vec![
-            (&trace_transactions.message_approved, map_message_approved),
-            (&trace_transactions.executed, map_message_executed),
-            (&trace_transactions.gas_credit, map_gas_credit),
-            (&trace_transactions.call_contract, map_call_contract),
-            (&trace_transactions.gas_added, map_native_gas_added),
-        ];
+        // TODO: Document this: we assume only one executed message or more than one approved
+        // message per trace. We should never have a combination. If we had a combination of
+        // different transactions in the same trace (unlikely, because it's coming from us)
+        // this approach won't work and we'll have to follow each subpath of trace
+        let mut per_msg_gas: u64 = total_gas_used;
 
-        for (txs, mapper) in mappings {
-            events.extend(txs.iter().map(mapper));
+        if !trace_transactions.message_approved.is_empty() {
+            per_msg_gas = total_gas_used / trace_transactions.message_approved.len() as u64;
+        }
+
+        for tx in &trace_transactions.message_approved {
+            events.push(map_message_approved(tx, per_msg_gas));
+        }
+
+        for tx in &trace_transactions.executed {
+            events.push(map_message_executed(tx, per_msg_gas));
+        }
+
+        for tx in &trace_transactions.gas_refunded {
+            events.push(map_message_native_gas_refunded(tx, detailed_gas_used));
+        }
+
+        for tx in &trace_transactions.gas_credit {
+            events.push(map_gas_credit(tx));
+        }
+
+        for tx in &trace_transactions.call_contract {
+            events.push(map_call_contract(tx));
+        }
+
+        for tx in &trace_transactions.gas_added {
+            events.push(map_native_gas_added(tx));
         }
 
         Ok(events)

@@ -2,8 +2,8 @@
 Map events from TON traces to the GMP Event. If you are adding a new transaction type,
 start in parse_trace.rs and then come back here to map your output to a GMP Event.
 
-There is probably a nicer way to encapsulate code so adding new transactions is easier,
-but this allows us not to have to tightly couple chain parsing and GMP Events.
+There is probably a nicer way to encapsulate code, so adding new transactions is easier,
+but this allows us not to have a tight coupling of chain parsing and GMP Events.
 */
 
 use crate::parse_trace::{LogMessage, ParsedTransaction};
@@ -16,7 +16,7 @@ use relayer_base::gmp_api::gmp_types::{
 };
 use std::collections::HashMap;
 
-pub fn map_message_approved(parsed_tx: &ParsedTransaction) -> Event {
+pub fn map_message_approved(parsed_tx: &ParsedTransaction, used_gas: u64) -> Event {
     let msg = match &parsed_tx.log_message {
         Some(LogMessage::Approved(m)) => m,
         _ => panic!("Expected LogMessage::Approved"),
@@ -48,12 +48,12 @@ pub fn map_message_approved(parsed_tx: &ParsedTransaction) -> Event {
         },
         cost: Amount {
             token_id: None,
-            amount: "0".to_string(),
+            amount: used_gas.to_string(),
         },
     }
 }
 
-pub fn map_message_executed(parsed_tx: &ParsedTransaction) -> Event {
+pub fn map_message_executed(parsed_tx: &ParsedTransaction, used_gas: u64) -> Event {
     let msg = match &parsed_tx.log_message {
         Some(LogMessage::Executed(m)) => m,
         _ => panic!("Expected LogMessage::Executed"),
@@ -83,7 +83,7 @@ pub fn map_message_executed(parsed_tx: &ParsedTransaction) -> Event {
         status: MessageExecutionStatus::SUCCESSFUL,
         cost: Amount {
             token_id: None,
-            amount: "0".to_string(),
+            amount: used_gas.to_string(),
         },
     }
 }
@@ -187,15 +187,40 @@ pub fn map_native_gas_added(parsed_tx: &ParsedTransaction) -> Event {
     }
 }
 
+pub fn map_message_native_gas_refunded(parsed_tx: &ParsedTransaction, used_gas: u64) -> Event {
+    let msg = match &parsed_tx.log_message {
+        Some(LogMessage::NativeGasRefunded(m)) => m,
+        _ => panic!("Expected LogMessage::NativeGasPaid"),
+    };
+    let tx = &parsed_tx.transaction;
+
+    Event::GasRefunded {
+        common: CommonEventFields {
+            r#type: "GAS_REFUNDED".to_owned(),
+            event_id: tx.hash.clone(),
+            meta: None,
+        },
+        message_id: parsed_tx.message_id.clone().unwrap(),
+        recipient_address: msg.address.to_hex(),
+        refunded_amount: Amount {
+            token_id: None,
+            amount: msg.amount.to_string(),
+        },
+        cost: Amount {
+            token_id: None,
+            amount: used_gas.to_string(),
+        },
+    }
+}
 
 #[cfg(test)]
 mod tests {
-    use crate::event_mappers::{map_call_contract, map_gas_credit, map_message_approved, map_message_executed, map_native_gas_added};
-    use crate::parse_trace::ParseTrace;
-    use relayer_base::gmp_api::gmp_types::{
-        Event,
-        MessageExecutionStatus,
+    use crate::event_mappers::{
+        map_call_contract, map_gas_credit, map_message_approved, map_message_executed,
+        map_native_gas_added,
     };
+    use crate::parse_trace::ParseTrace;
+    use relayer_base::gmp_api::gmp_types::{Event, MessageExecutionStatus};
     use relayer_base::ton_types::{Trace, TracesResponse, TracesResponseRest};
     use std::fs;
 
@@ -214,7 +239,7 @@ mod tests {
         let trace_transactions =
             crate::parse_trace::TraceTransactions::from_trace(traces[0].clone()).unwrap();
 
-        let event = map_message_approved(&trace_transactions.message_approved[0]);
+        let event = map_message_approved(&trace_transactions.message_approved[0], 123);
 
         match event {
             Event::MessageApproved {
@@ -231,7 +256,7 @@ mod tests {
                     message.payload_hash,
                     "9e01c423ca440c5ec2beecc9d0a152b54fc8e7a416c931b7089eaf221605af17"
                 );
-                assert_eq!(cost.amount, "0");
+                assert_eq!(cost.amount, "123");
                 assert_eq!(cost.token_id.as_deref(), None);
 
                 let meta = &common.meta.as_ref().unwrap();
@@ -247,7 +272,7 @@ mod tests {
         let trace_transactions =
             crate::parse_trace::TraceTransactions::from_trace(traces[0].clone()).unwrap();
 
-        let event = map_message_executed(&trace_transactions.executed[0]);
+        let event = map_message_executed(&trace_transactions.executed[0], 321);
 
         match event {
             Event::MessageExecuted {
@@ -263,7 +288,7 @@ mod tests {
                 );
                 assert_eq!(source_chain, "avalanche-fuji");
                 assert_eq!(status, MessageExecutionStatus::SUCCESSFUL);
-                assert_eq!(cost.amount, "0");
+                assert_eq!(cost.amount, "321");
                 assert_eq!(cost.token_id.as_deref(), None);
 
                 let meta = &common.meta.as_ref().unwrap();
@@ -382,6 +407,41 @@ mod tests {
                 );
             }
             _ => panic!("Expected GasCredit event"),
+        }
+    }
+
+    #[test]
+    fn test_map_message_native_gas_refunded() {
+        let traces = fixture_traces();
+        let trace_transactions =
+            crate::parse_trace::TraceTransactions::from_trace(traces[7].clone()).unwrap();
+
+        let event =
+            super::map_message_native_gas_refunded(&trace_transactions.gas_refunded[0], 456);
+
+        match event {
+            Event::GasRefunded {
+                common,
+                message_id,
+                recipient_address,
+                refunded_amount,
+                cost,
+            } => {
+                assert_eq!(
+                    message_id,
+                    "0xeb065d9d930349d0643b946d961ec600f80d5e5f30ab01df6f136243ee5035c2"
+                );
+                assert_eq!(
+                    recipient_address,
+                    "0:e1e633eb701b118b44297716cee7069ee847b56db88c497efea681ed14b2d2c7"
+                );
+                assert_eq!(refunded_amount.amount, "266907599");
+                assert_eq!(cost.amount, "456");
+                assert_eq!(refunded_amount.token_id.as_deref(), None);
+                assert_eq!(cost.token_id.as_deref(), None);
+                assert!(common.meta.is_none());
+            }
+            _ => panic!("Expected GasRefunded event"),
         }
     }
 }

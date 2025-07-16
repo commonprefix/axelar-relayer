@@ -48,13 +48,10 @@ Look at test_parse_trace test for an example.
 
 */
 
-use crate::errors::TONRpcError::DataError;
-use crate::errors::{BocError, TONRpcError};
+use crate::error::TONRpcError::DataError;
+use crate::error::{BocError, TONRpcError};
 use crate::parse_trace::LogMessage::{Approved, CallContract, Executed};
-use crate::ton_op_codes::{
-    OP_ADD_NATIVE_GAS, OP_CALL_CONTRACT, OP_GATEWAY_EXECUTE, OP_MESSAGE_APPROVED,
-    OP_NULLIFIED_SUCCESSFULLY, OP_PAY_NATIVE_GAS_FOR_CONTRACT_CALL,
-};
+use crate::ton_op_codes::{OP_ADD_NATIVE_GAS, OP_CALL_CONTRACT, OP_GATEWAY_EXECUTE, OP_MESSAGE_APPROVED, OP_NATIVE_REFUND, OP_NULLIFIED_SUCCESSFULLY, OP_PAY_NATIVE_GAS_FOR_CONTRACT_CALL};
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
 use relayer_base::ton_types::{Trace, Transaction};
@@ -63,6 +60,7 @@ use crate::boc::call_contract::CallContractMessage;
 use crate::boc::cc_message::TonCCMessage;
 use crate::boc::native_gas_added::NativeGasAddedMessage;
 use crate::boc::native_gas_paid::NativeGasPaidMessage;
+use crate::boc::native_gas_refunded::NativeGasRefundedMessage;
 use crate::boc::nullified_message::NullifiedSuccessfullyMessage;
 
 #[derive(Eq, Hash, PartialEq)]
@@ -78,7 +76,7 @@ pub struct TraceTransactions {
     pub(crate) executed: Vec<ParsedTransaction>,
     pub(crate) gas_credit: Vec<ParsedTransaction>,
     pub(crate) gas_added: Vec<ParsedTransaction>,
-
+    pub(crate) gas_refunded: Vec<ParsedTransaction>,
 }
 
 #[derive(Clone)]
@@ -88,6 +86,7 @@ pub enum LogMessage {
     CallContract(CallContractMessage),
     NativeGasPaid(NativeGasPaidMessage),
     NativeGasAdded(NativeGasAddedMessage),
+    NativeGasRefunded(NativeGasRefundedMessage),
 }
 
 pub struct ParsedTransaction {
@@ -145,6 +144,11 @@ fn is_native_gas_added(tx: &Transaction) -> bool {
     is_log_emmitted(tx, &op_code, 0)
 }
 
+fn is_native_gas_refunded(tx: &Transaction) -> bool {
+    let op_code = format!("0x{:08x}", OP_NATIVE_REFUND);
+    is_log_emmitted(tx, &op_code, 1)
+}
+
 fn hash_to_message_id(hash: &str) -> Result<String, TONRpcError> {
     let hash = BASE64_STANDARD
         .decode(hash)
@@ -183,6 +187,7 @@ impl ParseTrace for TraceTransactions {
         let mut executed: Vec<ParsedTransaction> = Vec::new();
         let mut gas_credit_map: HashMap<MessageMatchingKey, ParsedTransaction> = HashMap::new();
         let mut gas_added: Vec<ParsedTransaction> = Vec::new();
+        let mut gas_refunded: Vec<ParsedTransaction> = Vec::new();
 
         for tx in trace.transactions {
             if is_message_approved(&tx) {
@@ -240,6 +245,16 @@ impl ParseTrace for TraceTransactions {
                     message_id: Some(addr),
                     transaction: tx,
                 });
+            } else if is_native_gas_refunded(&tx) {
+                let out_msg = &tx.out_msgs[1];
+                let msg = NativeGasRefundedMessage::from_boc_b64(&out_msg.message_content.body)?;
+                let addr = format!("0x{}", msg.tx_hash);
+
+                gas_refunded.push(ParsedTransaction {
+                    log_message: Option::from(LogMessage::NativeGasRefunded(msg.clone())),
+                    message_id: Some(addr),
+                    transaction: tx,
+                });
             }
         }
 
@@ -250,7 +265,8 @@ impl ParseTrace for TraceTransactions {
             message_approved,
             executed,
             gas_credit,
-            gas_added
+            gas_added,
+            gas_refunded
         })
     }
 }
@@ -334,6 +350,28 @@ mod tests {
             Some(LogMessage::NativeGasAdded(_))
         ));
     }
+
+    #[test]
+    fn test_native_gas_refunded() {
+        let traces = fixture_traces();
+
+        let trace_transactions = TraceTransactions::from_trace(traces[7].clone()).unwrap();
+        assert_eq!(trace_transactions.gas_refunded.len(), 1);
+        let parsed_tx = &trace_transactions.gas_refunded[0];
+        assert_eq!(
+            parsed_tx.transaction.hash,
+            "HbFekh+vKZKeNQkTBanWSiipy2/v0ynpQ4fiafFls3s="
+        );
+        assert_eq!(
+            parsed_tx.message_id,
+            Some("0xeb065d9d930349d0643b946d961ec600f80d5e5f30ab01df6f136243ee5035c2".to_string())
+        );
+        assert!(matches!(
+            parsed_tx.log_message,
+            Some(LogMessage::NativeGasRefunded(_))
+        ));
+    }
+
 
     #[test]
     fn test_gas_credit_map_to_vec() {

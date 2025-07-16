@@ -92,7 +92,8 @@ pub struct Transaction {
     pub prev_trans_lt: String,
     pub orig_status: String,
     pub end_status: String,
-    pub total_fees: String,
+    #[serde_as(as = "DisplayFromStr")]
+    pub total_fees: u64,
     pub total_fees_extra_currencies: ExtraCurrencies,
     pub description: TransactionDescription,
     pub block_ref: BlockRef,

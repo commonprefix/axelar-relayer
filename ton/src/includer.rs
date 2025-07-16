@@ -31,6 +31,7 @@ impl TONIncluder {
         let ton_api_key = config.ton_api_key;
         let wallets = config.wallets;
         let ton_gateway = config.ton_gateway;
+        let ton_gas_service = config.ton_gas_service;
 
         let lock_manager = Arc::new(RedisLockManager::new(redis_pool.clone()));
         let wallet_manager = Arc::new(WalletManager::new(wallets, lock_manager).await);
@@ -42,6 +43,8 @@ impl TONIncluder {
         );
 
         let gateway_address = TonAddress::from_base64_url(ton_gateway.as_str()).unwrap();
+        let gas_service_address = TonAddress::from_base64_url(ton_gas_service.as_str()).unwrap();
+
         let internal_message_value = 1_000_000_000u32; // TODO: Do not hardcode this
         
         let broadcaster = TONBroadcaster::new(
@@ -49,6 +52,7 @@ impl TONIncluder {
             Arc::clone(&client),
             high_load_query_id_db_wrapper,
             gateway_address,
+            gas_service_address,
             internal_message_value,
             config.common_config.chain_name,
         )

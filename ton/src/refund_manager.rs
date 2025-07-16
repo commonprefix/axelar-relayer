@@ -31,6 +31,10 @@ pub struct TONWallet;
 impl RefundManager for TONRefundManager {
     type Wallet = TONWallet;
 
+    fn is_refund_manager_managed(&self) -> bool {
+        false
+    }
+    
     async fn build_refund_tx(
         &self,
         _recipient: String,

@@ -1,7 +1,7 @@
 pub mod broadcaster;
 pub mod client;
 pub mod config;
-mod errors;
+mod error;
 pub mod high_load_query_id;
 pub mod high_load_query_id_db_wrapper;
 pub mod includer;
@@ -21,5 +21,6 @@ mod event_mappers;
 pub use models::ton_trace;
 
 pub mod boc;
+pub mod gas_calculator;
 
 pub(crate) use boc::relayer_execute_message;

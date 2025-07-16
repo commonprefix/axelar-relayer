@@ -1,3 +1,4 @@
+use std::str::FromStr;
 use dotenv::dotenv;
 use relayer_base::config::config_from_yaml;
 use relayer_base::database::PostgresDB;
@@ -9,7 +10,9 @@ use relayer_base::utils::{setup_heartbeat, setup_logging};
 use sqlx::PgPool;
 use std::sync::Arc;
 use tokio::signal::unix::{signal, SignalKind};
+use tonlib_core::TonAddress;
 use ton::config::TONConfig;
+use ton::gas_calculator::GasCalculator;
 use ton::ingestor::TONIngestor;
 
 #[tokio::main]
@@ -27,7 +30,15 @@ async fn main() -> anyhow::Result<()> {
     let _pg_pool = PgPool::connect(&config.common_config.postgres_url).await.unwrap();
     let _price_view = PriceView::new(postgres_db.clone());
     
-    let ton_ingestor = TONIngestor::new();
+    let mut our_addresses = vec![];
+    for wallet in config.wallets {
+        our_addresses.push(TonAddress::from_str(&wallet.address)?);
+    }
+    our_addresses.push(TonAddress::from_str(&config.ton_gas_service)?);
+        
+    let gas_calculator = GasCalculator::new(our_addresses);
+    
+    let ton_ingestor = TONIngestor::new(gas_calculator);
     let ingestor = Ingestor::new(gmp_api, ton_ingestor);
 
     let redis_client = redis::Client::open(config.common_config.redis_server.clone())?;

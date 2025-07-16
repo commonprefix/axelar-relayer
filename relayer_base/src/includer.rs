@@ -16,11 +16,12 @@ use crate::{
     payload_cache::PayloadCache,
     queue::{Queue, QueueItem},
 };
-use crate::gmp_api::gmp_types::ExecuteTaskFields;
+use crate::gmp_api::gmp_types::{ExecuteTaskFields, RefundTaskFields};
 use crate::payload_cache::PayloadCacheTrait;
 
 pub trait RefundManager {
     type Wallet;
+    fn is_refund_manager_managed(&self) -> bool;
 
     fn build_refund_tx(
         &self,
@@ -63,6 +64,7 @@ pub trait Broadcaster {
         &self,
         message: ExecuteTaskFields
     ) -> impl Future<Output = Result<BroadcastResult<Self::Transaction>, BroadcasterError>>;
+    fn broadcast_refund_message(&self, refund_task: RefundTaskFields) -> impl Future<Output = Result<String, BroadcasterError>>;
 }
 
 pub struct Includer<B, C, R, DB>
@@ -248,6 +250,16 @@ where
                 }
                 Task::Refund(refund_task) => {
                     info!("Consuming task: {:?}", refund_task);
+                    if !self.refund_manager.is_refund_manager_managed() {
+                        self
+                            .broadcaster
+                            .broadcast_refund_message(refund_task.task)
+                            .await
+                            .map_err(|e| IncluderError::GenericError(e.to_string()))?;
+
+                        return Ok(());
+                    }
+
                     if self
                         .refund_manager
                         .is_refund_processed(&refund_task, &refund_task.common.id)

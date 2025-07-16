@@ -28,8 +28,8 @@ assert_eq!(buffer, b"Hello");
 
 use std::sync::Arc;
 use tonlib_core::cell::Cell;
-use crate::errors::BocError;
-use crate::errors::BocError::BocParsingError;
+use crate::error::BocError;
+use crate::error::BocError::BocParsingError;
 
 const BYTES_PER_CELL: usize = 96;
 

@@ -19,8 +19,8 @@ use tonlib_core::cell::dict::predefined_readers::{key_reader_u8, val_reader_ref_
 use tonlib_core::cell::{ArcCell, Cell, CellParser};
 use tonlib_core::tlb_types::tlb::TLB;
 use crate::boc::cell_to::CellTo;
-use crate::errors::BocError;
-use crate::errors::BocError::{BocParsingError, InvalidOpCode};
+use crate::error::BocError;
+use crate::error::BocError::{BocParsingError, InvalidOpCode};
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 pub struct ApproveMessage {
