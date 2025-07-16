@@ -16,6 +16,7 @@ use crate::{
     payload_cache::PayloadCache,
     queue::{Queue, QueueItem},
 };
+use crate::payload_cache::PayloadCacheTrait;
 
 pub trait RefundManager {
     type Wallet;
