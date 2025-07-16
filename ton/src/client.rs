@@ -82,6 +82,16 @@ impl TONRpcClient {
     }
 }
 
+fn clean_json_string_full(input: &[u8]) -> String {
+    let json_str = String::from_utf8_lossy(input);
+    json_str
+        .replace("\\u0000", "")              // remove escaped nulls
+        .chars()
+        .filter(|c| !c.is_control() || *c == '\n' || *c == '\t') // keep readable controls
+        .collect()
+}
+
+
 #[async_trait::async_trait]
 impl RestClient for TONRpcClient {
     async fn post_v3_message(&self, boc: String) -> Result<V3MessageResponse, ClientError> {
@@ -144,17 +154,21 @@ impl RestClient for TONRpcClient {
             .map_err(|err| ConnectionFailed(err.to_string()))?;
 
         let status = response.status();
-        let text = response
-            .text()
+        let raw_bytes = response
+            .bytes()
             .await
             .map_err(|err| BadResponse(err.to_string()))?;
+
+        // We sometimes get bad UTF8 from the api, so let's make sure to clean it up
+        let clean_text = clean_json_string_full(&raw_bytes);
+
         if status.is_success() {
-            serde_json::from_str::<TracesResponseRest>(&text)
+            serde_json::from_str::<TracesResponseRest>(&clean_text)
                 .map(TracesResponse::from)
                 .map(|res| res.traces)
                 .map_err(|err| BadResponse(format!("Failed to parse traces list: {err}")))
         } else {
-            Err(self.handle_non_success_response(status, &text))
+            Err(self.handle_non_success_response(status, &clean_text))
         }
     }
 
