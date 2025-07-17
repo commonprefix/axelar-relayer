@@ -22,5 +22,6 @@ pub use models::ton_trace;
 
 pub mod boc;
 pub mod gas_calculator;
+pub mod gas_estimator;
 
 pub(crate) use boc::relayer_execute_message;

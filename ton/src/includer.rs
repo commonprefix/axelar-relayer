@@ -10,6 +10,7 @@ use relayer_base::{
 };
 use std::sync::Arc;
 use tonlib_core::TonAddress;
+use crate::gas_estimator::TONGasEstimator;
 
 pub struct TONIncluder {}
 
@@ -23,7 +24,7 @@ impl TONIncluder {
         construct_proof_queue: Arc<Queue>,
         high_load_query_id_db_wrapper: Arc<HighLoadQueryIdDbWrapper>,
     ) -> error_stack::Result<
-        Includer<TONBroadcaster, Arc<dyn RestClient>, TONRefundManager, DB>,
+        Includer<TONBroadcaster<TONGasEstimator>, Arc<dyn RestClient>, TONRefundManager, DB>,
         BroadcasterError,
     > {
         let config_for_refund_manager = config.clone();
@@ -55,6 +56,7 @@ impl TONIncluder {
             gas_service_address,
             internal_message_value,
             config.common_config.chain_name,
+            TONGasEstimator::new(config.gas_estimates.clone())
         )
         .map_err(|e| e.attach_printable("Failed to create TONBroadcaster"))?;
 

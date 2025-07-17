@@ -40,8 +40,9 @@ use tonlib_core::tlb_types::block::out_action::OutAction;
 use tonlib_core::tlb_types::tlb::TLB;
 use tonlib_core::{TonAddress, TonHash};
 use tracing::{debug, error};
+use crate::gas_estimator::{GasEstimator};
 
-pub struct TONBroadcaster {
+pub struct TONBroadcaster<GE> {
     wallet_manager: Arc<WalletManager>,
     query_id_wrapper: Arc<dyn HighLoadQueryIdWrapper>,
     client: Arc<dyn RestClient>,
@@ -49,9 +50,10 @@ pub struct TONBroadcaster {
     gas_service_address: TonAddress,
     internal_message_value: u32,
     chain_name: String,
+    gas_estimator: GE,
 }
 
-impl TONBroadcaster {
+impl<GE> TONBroadcaster<GE> {
     pub fn new(
         wallet_manager: Arc<WalletManager>,
         client: Arc<dyn RestClient>,
@@ -60,6 +62,7 @@ impl TONBroadcaster {
         gas_service_address: TonAddress,
         internal_message_value: u32,
         chain_name: String,
+        gas_estimator: GE
     ) -> error_stack::Result<Self, BroadcasterError> {
         Ok(TONBroadcaster {
             wallet_manager,
@@ -69,6 +72,7 @@ impl TONBroadcaster {
             gas_service_address,
             internal_message_value,
             chain_name,
+            gas_estimator
         })
     }
 
@@ -105,7 +109,7 @@ impl TONBroadcaster {
 
 pub struct TONTransaction;
 
-impl Broadcaster for TONBroadcaster {
+impl<GE: GasEstimator> Broadcaster for TONBroadcaster<GE> {
     type Transaction = TONTransaction;
 
     async fn broadcast_prover_message(
@@ -253,8 +257,10 @@ impl Broadcaster for TONBroadcaster {
 
         let address = TonAddress::from_hex_str(&refund_task.refund_recipient_address)
             .map_err(|err| BroadcasterError::GenericError(err.to_string()))?;
+
+        let gas_estimate = self.gas_estimator.estimate_native_gas_refund().await;
         let amount = BigUint::from_str(&refund_task.remaining_gas_balance.amount)
-            .map_err(|err| BroadcasterError::GenericError(err.to_string()))?;
+            .map_err(|err| BroadcasterError::GenericError(err.to_string()))? - BigUint::from(gas_estimate);
 
         let native_refund = NativeRefundMessage::new(tx_hash, address, amount);
         let boc = native_refund
@@ -315,6 +321,7 @@ mod tests {
     use std::str::FromStr;
     use std::sync::Arc;
     use tonlib_core::TonAddress;
+    use crate::gas_estimator::{MockGasEstimator};
 
     struct MockQueryIdWrapper;
 
@@ -353,6 +360,8 @@ mod tests {
 
         let internal_message_value = 1_000_000_000u32;
 
+        let gas_estimator = MockGasEstimator::new();
+
         let broadcaster = TONBroadcaster {
             wallet_manager: Arc::new(wallet_manager),
             query_id_wrapper: Arc::new(query_id_wrapper),
@@ -361,6 +370,7 @@ mod tests {
             gas_service_address,
             internal_message_value,
             chain_name: "ton2".to_string(),
+            gas_estimator
         };
         let approve_message = hex::encode(BASE64_STANDARD.decode("te6cckECDAEAAYsAAggAAAAoAQIBYYAAAAAAAAAAAAAAAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADf5gkADAQHABADi0LAAUYmshNOh1nWEdwB3eJHd51H6EH1kg3v2M30y32eQAAAAAAAAAAAAAAAAAAAAAQ+j+g0KWjWTaPqB9qQHuWZQn7IPz7x3xzwbprT1a85sjh0UlPlFU84LDdRcD4GZ6n6GJlEKKTlRW5QtlzKGrAsBAtAFBECeAcQjykQMXsK+7MnQoVK1T8jnpBbJMbcInq8iFgWvFwYHCAkAiDB4MTdmZDdkYTNkODE5Y2ZiYzQ2ZmYyOGYzZDgwOTgwNzcwZWMxYjgwZmQ3ZDFiMjI5Y2VjMzI1MTkzOWI5YjIzZi0xABxhdmFsYW5jaGUtZnVqaQBUMHhkNzA2N0FlM0MzNTllODM3ODkwYjI4QjdCRDBkMjA4NENmRGY0OWI1AgAKCwBAuHpKD2RLehhu5xoUVGNPcMIqYqyhprpna1F1wh1/2TAACHRvbjJLddsV").unwrap());
 
@@ -405,6 +415,8 @@ mod tests {
         ).unwrap();
         let internal_message_value = 1_000_000_000u32;
 
+        let gas_estimator = MockGasEstimator::new();
+
         let broadcaster = TONBroadcaster {
             wallet_manager: Arc::new(wallet_manager),
             query_id_wrapper: Arc::new(query_id_wrapper),
@@ -413,6 +425,7 @@ mod tests {
             gas_service_address,
             internal_message_value,
             chain_name: "ton2".to_string(),
+            gas_estimator
         };
 
         // Invalid base64 string for BOC (non-decodable)
@@ -456,6 +469,7 @@ mod tests {
         ).unwrap();
 
         let internal_message_value = 1_000_000_000u32;
+        let gas_estimator = MockGasEstimator::new();
 
         let broadcaster = TONBroadcaster {
             wallet_manager: Arc::new(wallet_manager),
@@ -465,6 +479,7 @@ mod tests {
             gas_service_address,
             internal_message_value,
             chain_name: "ton2".to_string(),
+            gas_estimator
         };
 
         let execute_task = ExecuteTaskFields {
@@ -520,6 +535,10 @@ mod tests {
         ).unwrap();
 
         let internal_message_value = 1_000_000_000u32;
+        let mut gas_estimator = MockGasEstimator::new();
+        
+        gas_estimator.expect_estimate_native_gas_refund()
+            .returning(|| Box::pin(async { 42u64 }));
 
         let broadcaster = TONBroadcaster {
             wallet_manager: Arc::new(wallet_manager),
@@ -529,6 +548,7 @@ mod tests {
             gas_service_address,
             internal_message_value,
             chain_name: "ton2".to_string(),
+            gas_estimator
         };
 
         let refund_task = RefundTaskFields {

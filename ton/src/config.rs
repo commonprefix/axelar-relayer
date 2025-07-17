@@ -11,6 +11,15 @@ pub struct WalletConfig {
 }
 
 #[derive(Debug, Clone, Deserialize, Default)]
+pub struct GasEstimates {
+    pub native_gas_refund: u64,
+    pub native_gas_refund_storage_slippage: u64,
+    pub execute: u64,
+    pub execute_storage_slippage: u64,
+
+}
+
+#[derive(Debug, Clone, Deserialize, Default)]
 pub struct TONConfig {
     #[serde(flatten)]
     pub common_config: Config,
@@ -20,4 +29,5 @@ pub struct TONConfig {
     pub ton_gas_service: String,
     pub ton_rpc: String,
     pub ton_api_key: String,
+    pub gas_estimates: GasEstimates
 }

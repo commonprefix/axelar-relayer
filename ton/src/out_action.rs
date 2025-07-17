@@ -46,7 +46,7 @@ pub fn out_action(
     let tm = TransferMessage::new(common.clone(), body).build()?.to_arc();
 
     Ok(OutAction::SendMsg(OutActionSendMsg {
-        mode: 1,
+        mode: 2,
         out_msg: tm,
     }))
 }
@@ -66,6 +66,6 @@ mod tests {
                 .unwrap();
 
         let res = out_action(&approve_message, BigUint::from(value), destination).unwrap();
-        assert_eq!(res.to_boc_b64(true).unwrap(), "te6cckECDgEAAckAAQoOw8htAQEBZiIAf/////////////////////////////////////////+YehIAAAAAAAAAAAAAAAAAAQICCAAAACgDBAFhgAAAAAAAAAAAAAAAAAAAAIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAN/mCQAUBAcAGAOLQsABRiayE06HWdYR3AHd4kd3nUfoQfWSDe/YzfTLfZ5AAAAAAAAAAAAAAAAAAAAABD6P6DQpaNZNo+oH2pAe5ZlCfsg/PvHfHPBumtPVrzmyOHRSU+UVTzgsN1FwPgZnqfoYmUQopOVFblC2XMoasCwEC0AcEQJ4BxCPKRAxewr7sydChUrVPyOekFskxtwieryIWBa8XCAkKCwCIMHgxN2ZkN2RhM2Q4MTljZmJjNDZmZjI4ZjNkODA5ODA3NzBlYzFiODBmZDdkMWIyMjljZWMzMjUxOTM5YjliMjNmLTEAHGF2YWxhbmNoZS1mdWppAFQweGQ3MDY3QWUzQzM1OWU4Mzc4OTBiMjhCN0JEMGQyMDg0Q2ZEZjQ5YjUCAAwNAEC4ekoPZEt6GG7nGhRUY09wwipirKGmumdrUXXCHX/ZMAAIdG9uMgsyVlk=");
+        assert_eq!(res.to_boc_b64(true).unwrap(), "te6cckECDgEAAckAAQoOw8htAgEBZiIAf/////////////////////////////////////////+YehIAAAAAAAAAAAAAAAAAAQICCAAAACgDBAFhgAAAAAAAAAAAAAAAAAAAAIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAN/mCQAUBAcAGAOLQsABRiayE06HWdYR3AHd4kd3nUfoQfWSDe/YzfTLfZ5AAAAAAAAAAAAAAAAAAAAABD6P6DQpaNZNo+oH2pAe5ZlCfsg/PvHfHPBumtPVrzmyOHRSU+UVTzgsN1FwPgZnqfoYmUQopOVFblC2XMoasCwEC0AcEQJ4BxCPKRAxewr7sydChUrVPyOekFskxtwieryIWBa8XCAkKCwCIMHgxN2ZkN2RhM2Q4MTljZmJjNDZmZjI4ZjNkODA5ODA3NzBlYzFiODBmZDdkMWIyMjljZWMzMjUxOTM5YjliMjNmLTEAHGF2YWxhbmNoZS1mdWppAFQweGQ3MDY3QWUzQzM1OWU4Mzc4OTBiMjhCN0JEMGQyMDg0Q2ZEZjQ5YjUCAAwNAEC4ekoPZEt6GG7nGhRUY09wwipirKGmumdrUXXCHX/ZMAAIdG9uMpDtUgc=");
     }
 }

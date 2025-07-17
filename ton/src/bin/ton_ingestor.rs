@@ -35,6 +35,7 @@ async fn main() -> anyhow::Result<()> {
         our_addresses.push(TonAddress::from_str(&wallet.address)?);
     }
     our_addresses.push(TonAddress::from_str(&config.ton_gas_service)?);
+    our_addresses.push(TonAddress::from_str(&config.ton_gateway)?);
         
     let gas_calculator = GasCalculator::new(our_addresses);
     

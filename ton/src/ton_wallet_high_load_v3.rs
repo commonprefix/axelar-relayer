@@ -187,7 +187,7 @@ impl<T: TimeProvider> TonWalletHighLoadV3<T> {
         let message_inner = self
             .message_inner(
                 internal_transfer.unwrap(),
-                1,
+                2,
                 query_id,
                 created_at,
                 self.timeout,
@@ -359,6 +359,6 @@ mod tests {
             mock_time,
         );
         let boc = wallet.outgoing_message(&vec![mock_out_action()], 42, BigUint::from(999u32));
-        assert_eq!(boc.root(0).unwrap().to_boc_b64(true).unwrap(), "te6cckEBCQEA6wABxYgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACXCFa6bM55U2zArv5G9cdeG77TKolB1hGNn/4Am2aaNiv4r7ZGkgBtIOl4vL8MhFFQdTIkMn/hdwNwGLhJ69wTAEBJQAAAUEBAABUAAAAAAADDTAAD6QCASEgID5wAAAAAAAAAAAAAAAAAwMBGK5C5aQAAAAAAAAAKgQCCg7DyG0BBQYAAAFoMgB//////////////////////////////////////////6O5rKAAAAAAAAAAAAAAAAAAAQcBCAAAACgIAAIq0VehOw==");
+        assert_eq!(boc.root(0).unwrap().to_boc_b64(true).unwrap(), "te6cckEBCQEA6wABxYgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA2yfwHuviGA2kiylZKUJynwaF0GS1SvjlC3unXxNyS7PWw2k6gOe0jA3Jzud9ccztHLk2jhJ1h9qRwU0LtrYgfAEBJQAAAUECAABUAAAAAAADDTAAD6QCASEgID5wAAAAAAAAAAAAAAAAAwMBGK5C5aQAAAAAAAAAKgQCCg7DyG0BBQYAAAFoMgB//////////////////////////////////////////6O5rKAAAAAAAAAAAAAAAAAAAQcBCAAAACgIAAIqFPptJQ==");
     }
 }

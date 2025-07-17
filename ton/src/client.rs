@@ -280,7 +280,7 @@ mod tests {
         );
 
         let traces = result.unwrap();
-        assert_eq!(traces.len(), 8);
+        assert_eq!(traces.len(), 9);
 
         let txs = &traces[0].transactions;
         assert_eq!(txs.len(), 6);

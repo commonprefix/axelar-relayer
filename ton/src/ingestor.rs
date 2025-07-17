@@ -47,14 +47,14 @@ impl IngestorTrait for TONIngestor {
             )));
         };
 
-        let detailed_gas_used = self
+        let refund_gas_used = self
             .gas_calculator
-            .calc_message_gas_detailed(&trace.transactions)
+            .calc_message_gas_native_gas_refunded(&trace.transactions)
             .map_err(|e| IngestorError::GenericError(e.to_string()))?;
-        
+
         let total_gas_used = self
             .gas_calculator
-            .calc_message_gas_naive(&trace.transactions)
+            .calc_message_gas(&trace.transactions)
             .map_err(|e| IngestorError::GenericError(e.to_string()))?;
 
         let trace_transactions = TraceTransactions::from_trace(trace)
@@ -80,7 +80,7 @@ impl IngestorTrait for TONIngestor {
         }
 
         for tx in &trace_transactions.gas_refunded {
-            events.push(map_message_native_gas_refunded(tx, detailed_gas_used));
+            events.push(map_message_native_gas_refunded(tx, refund_gas_used));
         }
 
         for tx in &trace_transactions.gas_credit {

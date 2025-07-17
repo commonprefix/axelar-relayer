@@ -1,0 +1,4 @@
+Trace 0 - Check ordering of transactions
+Trace 2 - Real validate single transaction
+Trace 7 - Real data for refund with send mode 1
+Trace 8 - Real data for refund with send mode 2
