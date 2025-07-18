@@ -1,5 +1,7 @@
 Trace 0 - Check ordering of transactions
 Trace 2 - Real validate single transaction
+Trace 5 - Real data for native gas added
 Trace 7 - Real data for refund with send mode 1
 Trace 8 - Real data for refund with send mode 2
 Trace 9 - Real data for pay with jetton
+Trace 10 - Real data for add jetton gas

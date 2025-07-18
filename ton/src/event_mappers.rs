@@ -25,6 +25,7 @@ use relayer_base::price_view::PriceViewTrait;
 use rust_decimal::Decimal;
 use std::collections::HashMap;
 use std::str::FromStr;
+use tonlib_core::{TonAddress, TonHash};
 
 pub fn map_message_approved(parsed_tx: &ParsedTransaction, used_gas: u64) -> Event {
     let msg = match &parsed_tx.log_message {
@@ -236,7 +237,7 @@ where
     };
     let tx = &parsed_tx.transaction;
 
-    let msg_value = convert_jetton_to_native(&msg, price_view).await?;
+    let msg_value = convert_jetton_to_native(&msg.minter, &msg.amount, price_view).await?;
 
     Ok(Event::GasCredit {
         common: CommonEventFields {
@@ -259,14 +260,52 @@ where
     })
 }
 
+pub async fn map_jetton_gas_added<PV>(
+    parsed_tx: &ParsedTransaction,
+    price_view: &PV,
+) -> Result<Event, GasError>
+where
+    PV: PriceViewTrait,
+{
+    let msg = match &parsed_tx.log_message {
+        Some(LogMessage::JettonGasAdded(m)) => m,
+        _ => panic!("Expected LogMessage::NativeGasPaid"),
+    };
+    let tx = &parsed_tx.transaction;
+    
+    let msg_value = convert_jetton_to_native(&msg.minter, &msg.amount, price_view).await?;
+
+    Ok(Event::GasCredit {
+        common: CommonEventFields {
+            r#type: "GAS_CREDIT".to_owned(),
+            event_id: format!("{}-gas-added", tx.hash.clone()),
+            meta: Some(EventMetadata {
+                tx_id: Some(tx.hash.clone()),
+                from_address: None,
+                finalized: None,
+                source_context: None,
+                timestamp: chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
+            }),
+        },
+        message_id: parsed_tx.message_id.clone().unwrap(),
+        refund_address: msg.refund_address.to_hex(),
+        payment: Amount {
+            token_id: None,
+            amount: msg_value.to_string(),
+        },
+    })
+}
+
+
 async fn convert_jetton_to_native<PV>(
-    msg: &JettonGasPaidMessage,
+    minter: &TonAddress,
+    amount: &BigUint,
     price_view: &PV,
 ) -> Result<BigUint, GasError>
 where
     PV: PriceViewTrait,
 {
-    let minter = msg.minter.to_hex();
+    let minter = minter.to_hex();
 
     let coin_pair = format!("{}/USD", minter);
     let coin_to_usd = price_view
@@ -278,7 +317,7 @@ where
         .await
         .map_err(|err| GasError::ConversionError(err.to_string()))?;
 
-    let amount = Decimal::from_str(&msg.amount.to_string()).unwrap();
+    let amount = Decimal::from_str(&amount.to_string()).unwrap();
     let result = amount * coin_to_usd / ton_to_usd;
     let result = result.round();
 
@@ -287,6 +326,7 @@ where
 
 #[cfg(test)]
 mod tests {
+    use std::cmp::min;
     use crate::boc::jetton_gas_paid::JettonGasPaidMessage;
     use crate::event_mappers::{
         convert_jetton_to_native, map_call_contract, map_jetton_gas_paid, map_message_approved,
@@ -539,19 +579,10 @@ mod tests {
             .with(eq("TON/USD"))
             .returning(|_| Ok(Decimal::from_str(&"3").unwrap()));
 
-        let msg = JettonGasPaidMessage {
-            minter: TonAddress::from_base64_url("EQDh5jPrcBsRi0QpdxbO5wae6Ee1bbiMSX7-poHtFLLSxyuC")
-                .unwrap(),
-            amount: BigUint::from(1000u32),
-            refund_address: TonAddress::from_base64_url(
-                "EQDh5jPrcBsRi0QpdxbO5wae6Ee1bbiMSX7-poHtFLLSxyuC",
-            )
-            .unwrap(),
-            payload_hash: [0u8; 32],
-            destination_chain: "avalanche-fuji".to_string(),
-            destination_address: "0:b".parse().unwrap(),
-        };
-        let result = convert_jetton_to_native(&msg, &price_view).await.unwrap();
+        let minter = TonAddress::from_base64_url("EQDh5jPrcBsRi0QpdxbO5wae6Ee1bbiMSX7-poHtFLLSxyuC")
+            .unwrap();
+        let amount = BigUint::from(1000u32);
+        let result = convert_jetton_to_native(&minter, &amount, &price_view).await.unwrap();
         assert_eq!(result, BigUint::from(167u32));
     }
 

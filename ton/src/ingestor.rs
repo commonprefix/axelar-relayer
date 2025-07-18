@@ -6,7 +6,7 @@
 - Move handlers to a decorator pattern (?)
 */
 
-use crate::event_mappers::{map_call_contract, map_native_gas_paid, map_message_approved, map_message_executed, map_message_native_gas_refunded, map_native_gas_added, map_jetton_gas_paid};
+use crate::event_mappers::{map_call_contract, map_native_gas_paid, map_message_approved, map_message_executed, map_message_native_gas_refunded, map_native_gas_added, map_jetton_gas_paid, map_jetton_gas_added};
 use crate::gas_calculator::GasCalculator;
 use crate::parse_trace::{LogMessage, ParseTrace, TraceTransactions};
 use relayer_base::error::IngestorError;
@@ -106,7 +106,19 @@ impl<DB: relayer_base::database::Database> IngestorTrait for TONIngestor<DB> {
         }
 
         for tx in &trace_transactions.gas_added {
-            events.push(map_native_gas_added(tx));
+            match &tx.log_message {
+                Some(LogMessage::NativeGasAdded(_)) => {
+                    events.push(map_native_gas_added(tx));
+                }
+                Some(LogMessage::JettonGasAdded(_)) => {
+                    events.push(map_jetton_gas_added::<PriceView<DB>>(tx, &self.price_view).await.map_err(|e| IngestorError::GenericError(e.to_string()))?);
+                }
+                _ => {
+                    return Err(IngestorError::GenericError(
+                        "Unexpected log_message type in gas_credit".to_string(),
+                    ));
+                }
+            }
         }
 
         Ok(events)

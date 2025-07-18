@@ -58,6 +58,7 @@ use relayer_base::ton_types::{Trace, Transaction};
 use std::collections::HashMap;
 use crate::boc::call_contract::CallContractMessage;
 use crate::boc::cc_message::TonCCMessage;
+use crate::boc::jetton_gas_added::JettonGasAddedMessage;
 use crate::boc::jetton_gas_paid::JettonGasPaidMessage;
 use crate::boc::native_gas_added::NativeGasAddedMessage;
 use crate::boc::native_gas_paid::NativeGasPaidMessage;
@@ -88,6 +89,7 @@ pub enum LogMessage {
     NativeGasPaid(NativeGasPaidMessage),
     JettonGasPaid(JettonGasPaidMessage),
     NativeGasAdded(NativeGasAddedMessage),
+    JettonGasAdded(JettonGasAddedMessage),
     NativeGasRefunded(NativeGasRefundedMessage),
 }
 
@@ -153,8 +155,28 @@ fn is_native_gas_refunded(tx: &Transaction) -> bool {
 
 fn is_jetton_gas_paid(tx: &Transaction) -> bool {
     let op_code = format!("0x{:08x}", OP_USER_BALANCE_SUBTRACTED);
-    is_log_emmitted(tx, &op_code, 0)
+    let candidate = is_log_emmitted(tx, &op_code, 0);
+
+    if !candidate {
+        return false;
+    }
+
+    let parsed = JettonGasPaidMessage::from_boc_b64(&tx.out_msgs[0].message_content.body);
+    parsed.is_ok()
 }
+
+fn is_jetton_gas_added(tx: &Transaction) -> bool {
+    let op_code = format!("0x{:08x}", OP_USER_BALANCE_SUBTRACTED);
+    let candidate = is_log_emmitted(tx, &op_code, 0);
+
+    if !candidate {
+        return false;
+    }
+
+    let parsed = JettonGasAddedMessage::from_boc_b64(&tx.out_msgs[0].message_content.body);
+    parsed.is_ok()
+}
+
 
 
 fn hash_to_message_id(hash: &str) -> Result<String, TONRpcError> {
@@ -253,7 +275,17 @@ impl ParseTrace for TraceTransactions {
                     message_id: Some(addr),
                     transaction: tx,
                 });
-            } else if is_native_gas_refunded(&tx) {
+            } else if is_jetton_gas_added(&tx) {
+                let out_msg = &tx.out_msgs[0];
+                let msg = JettonGasAddedMessage::from_boc_b64(&out_msg.message_content.body)?;
+                let addr = format!("0x{}", msg.tx_hash); // TODO: Move this message_id type
+
+                gas_added.push(ParsedTransaction {
+                    log_message: Option::from(LogMessage::JettonGasAdded(msg.clone())),
+                    message_id: Some(addr),
+                    transaction: tx,
+                });
+            }else if is_native_gas_refunded(&tx) {
                 let out_msg = &tx.out_msgs[1];
                 let msg = NativeGasRefundedMessage::from_boc_b64(&out_msg.message_content.body)?;
                 let addr = format!("0x{}", msg.tx_hash);
@@ -488,5 +520,26 @@ mod tests {
             matched.message_id.as_deref(),
             Some("0x1e0a43bfccfdb8a6f8be0b6c1551a3c8295f35c5b3549a1f5d5938fbb1591d4e")
         );
+    }
+
+    #[test]
+    fn test_jetton_gas_added() {
+        let traces = fixture_traces();
+
+        let trace_transactions = TraceTransactions::from_trace(traces[10].clone()).unwrap();
+        assert_eq!(trace_transactions.gas_added.len(), 1);
+        let parsed_tx = &trace_transactions.gas_added[0];
+        assert_eq!(
+            parsed_tx.transaction.hash,
+            "blzE/VLC5oz8yBYjKnSgUMomLj4oecIIiBwXZcxXY+k="
+        );
+        assert_eq!(
+            parsed_tx.message_id,
+            Some("0xb9ac1cbe75a96a7146a71df1bf5f3ac00668edba0b432d4c5fbe5d59162aced7".to_string())
+        );
+        assert!(matches!(
+            parsed_tx.log_message,
+            Some(LogMessage::JettonGasAdded(_))
+        ));
     }
 }
