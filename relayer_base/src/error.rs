@@ -32,6 +32,8 @@ pub enum BroadcasterError {
     RPCCallFailed(String),
     #[error("RPC call failed: {0}")]
     RPCError(String),
+    #[error("Insufficient gas: {0} -- required: {1}, available: {2}")]
+    InsufficientGas(String, u64, u64),
     #[error("Generic error: {0}")]
     GenericError(String),
 }

@@ -16,6 +16,11 @@ pub struct GasEstimates {
     pub native_gas_refund_storage_slippage: u64,
     pub execute: u64,
     pub execute_storage_slippage: u64,
+    pub approve_fixed: u64,
+    pub approve_fixed_storage_slippage: u64,
+    pub approve_per_message: u64,
+    pub approve_per_message_storage_slippage: u64,
+    pub highload_wallet_per_action: u64
 
 }
 

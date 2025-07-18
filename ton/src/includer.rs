@@ -45,8 +45,6 @@ impl TONIncluder {
 
         let gateway_address = TonAddress::from_base64_url(ton_gateway.as_str()).unwrap();
         let gas_service_address = TonAddress::from_base64_url(ton_gas_service.as_str()).unwrap();
-
-        let internal_message_value = 1_000_000_000u32; // TODO: Do not hardcode this
         
         let broadcaster = TONBroadcaster::new(
             Arc::clone(&wallet_manager),
@@ -54,7 +52,6 @@ impl TONIncluder {
             high_load_query_id_db_wrapper,
             gateway_address,
             gas_service_address,
-            internal_message_value,
             config.common_config.chain_name,
             TONGasEstimator::new(config.gas_estimates.clone())
         )

@@ -397,6 +397,7 @@ impl GmpApi {
         message_id: String,
         source_chain: String,
         details: String,
+        reason: CannotExecuteMessageReason,
     ) -> Result<(), GmpApiError> {
         let cannot_execute_message_event = Event::CannotExecuteMessageV2 {
             common: CommonEventFields {
@@ -406,7 +407,7 @@ impl GmpApi {
             },
             message_id,
             source_chain,
-            reason: CannotExecuteMessageReason::Error, // TODO
+            reason,
             details,
         };
 

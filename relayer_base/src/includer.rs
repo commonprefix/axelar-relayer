@@ -154,9 +154,9 @@ where
                         .await
                         .map_err(|e| IncluderError::ConsumerError(e.to_string()))?;
 
-
                     if broadcast_result.message_id.is_some()
-                        && broadcast_result.source_chain.is_some() && broadcast_result.status.is_ok()
+                        && broadcast_result.source_chain.is_some()
+                        && broadcast_result.status.is_ok()
                     {
                         return Ok(());
                     }
@@ -174,6 +174,7 @@ where
                                 message_id,
                                 source_chain,
                                 err.to_string(),
+                                crate::gmp_api::gmp_types::CannotExecuteMessageReason::Error
                             )
                             .await
                             .map_err(|e| IncluderError::ConsumerError(e.to_string()))?;
@@ -228,6 +229,7 @@ where
                                     message_id,
                                     source_chain,
                                     broadcast_result.status.unwrap_err().to_string(),
+                                    crate::gmp_api::gmp_types::CannotExecuteMessageReason::Error
                                 )
                                 .await
                                 .map_err(|e| IncluderError::ConsumerError(e.to_string()))?;

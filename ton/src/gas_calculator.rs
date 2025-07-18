@@ -45,7 +45,7 @@ impl GasCalculator {
     }
 
     pub fn calc_message_gas_native_gas_refunded(&self, transactions: &[Transaction]) -> Result<u64, GasError> {
-        if transactions.len() < 3 {
+        if transactions.len() < 3 || transactions[2].out_msgs.is_empty() {
             return Ok(0);
         }
 
@@ -65,7 +65,6 @@ impl GasCalculator {
         let mut balances: HashMap<TonAddress, i128> = HashMap::new();
 
         for tx in transactions {
-
             let balance_before = i128::from_str(&tx.account_state_before.balance.clone().unwrap_or("0".to_string())).unwrap_or(0);
             let balance_after = i128::from_str(&tx.account_state_after.balance.clone().unwrap_or("0".to_string())).unwrap_or(0);
             let balance = balance_before - balance_after;

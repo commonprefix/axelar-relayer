@@ -2,7 +2,7 @@ use axelar_wasm_std::{msg_id::HexTxHash, nonempty};
 use base64::prelude::*;
 use interchain_token_service::TokenId;
 use regex::Regex;
-use relayer_base::gmp_api::gmp_types::{RetryTask, VerificationStatus};
+use relayer_base::gmp_api::gmp_types::{CannotExecuteMessageReason, RetryTask, VerificationStatus};
 use relayer_base::ingestor::IngestorTrait;
 use relayer_base::models::task_retries::{PgTaskRetriesModel, TaskRetries};
 use relayer_base::subscriber::ChainTransaction;
@@ -1378,6 +1378,7 @@ impl<DB: Database> IngestorTrait for XrplIngestor<DB> {
                         task.task.message.message_id.clone(),
                         task.task.message.source_chain.clone(),
                         e.to_string(),
+                        CannotExecuteMessageReason::Error
                     )
                     .await
                     .map_err(|e| IngestorError::GenericError(e.to_string()))?;
