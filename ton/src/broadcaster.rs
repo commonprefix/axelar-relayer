@@ -283,9 +283,17 @@ impl<GE: GasEstimator> Broadcaster for TONBroadcaster<GE> {
         let address = TonAddress::from_hex_str(&refund_task.refund_recipient_address)
             .map_err(|err| BroadcasterError::GenericError(err.to_string()))?;
 
+        let original_amount = BigUint::from_str(&refund_task.remaining_gas_balance.amount)
+            .map_err(|err| BroadcasterError::GenericError(err.to_string()))?;
         let gas_estimate = self.gas_estimator.estimate_native_gas_refund().await;
-        let amount = BigUint::from_str(&refund_task.remaining_gas_balance.amount)
-            .map_err(|err| BroadcasterError::GenericError(err.to_string()))?
+
+        if original_amount < BigUint::from(gas_estimate) {
+            return Err(BroadcasterError::GenericError(
+                "Not enough balance to cover gas for refund".to_string(),
+            ));
+        }
+
+        let amount = original_amount
             - BigUint::from(gas_estimate);
 
         let native_refund = NativeRefundMessage::new(tx_hash, address, amount);
@@ -306,7 +314,7 @@ impl<GE: GasEstimator> Broadcaster for TONBroadcaster<GE> {
         })?;
 
         let result = async {
-            let msg_value: BigUint = BigUint::from(10_000_000u32); // We will need to calculate this
+            let msg_value: BigUint = BigUint::from(10_000_000u32); // TODO: Define this dust somewhere
 
             let actions: Vec<OutAction> =
                 vec![
@@ -683,4 +691,67 @@ mod tests {
 
         assert_eq!(unwrapped, "abc");
     }
+
+    #[tokio::test]
+    async fn test_broadcast_refund_message_refund_too_big() {
+        let mut client = MockRestClient::new();
+        // TODO: Actually test we send to correct address (gas_service, and not gateway)
+        client.expect_post_v3_message().returning(|_| {
+            Ok(V3MessageResponse {
+                message_hash: "abc".to_string(),
+                message_hash_norm: "ABC".to_string(),
+            })
+        });
+
+        let wallet_manager = load_wallets().await;
+        let query_id_wrapper = MockQueryIdWrapper;
+        let gateway_address = TonAddress::from_str(
+            "0:0000000000000000000000000000000000000000000000000000000000000000",
+        )
+            .unwrap();
+        let gas_service_address = TonAddress::from_str(
+            "0:0000000000000000000000000000000000000000000000000000000000000fff",
+        )
+            .unwrap();
+
+        let mut gas_estimator = MockGasEstimator::new();
+        gas_estimator
+            .expect_estimate_native_gas_refund()
+            .returning(|| Box::pin(async { 1000u64 }));
+        gas_estimator
+            .expect_estimate_highload_wallet()
+            .returning(|_| Box::pin(async { 1000u64 }));
+
+        let broadcaster = TONBroadcaster {
+            wallet_manager: Arc::new(wallet_manager),
+            query_id_wrapper: Arc::new(query_id_wrapper),
+            client: Arc::new(client),
+            gateway_address,
+            gas_service_address,
+            chain_name: "ton2".to_string(),
+            gas_estimator,
+        };
+
+        let refund_task = RefundTaskFields {
+            message: GatewayV2Message {
+                message_id: "0xf38d2a646e4b60e37bc16d54bb9163739372594dc96bab954a85b4a170f49e58"
+                    .to_string(),
+                source_chain: "avalanche-fuji".to_string(),
+                destination_address:
+                "0:b87a4a0f644b7a186ee71a1454634f70c22a62aca1a6ba676b5175c21d7fd930".to_string(),
+                source_address: "ton2".to_string(),
+                payload_hash: "aea6524367000fb4a0aa20b1d4f63daad1ed9e9df70=".to_string(),
+            },
+            refund_recipient_address:
+            "0:e1e633eb701b118b44297716cee7069ee847b56db88c497efea681ed14b2d2c7".to_string(),
+            remaining_gas_balance: Amount {
+                token_id: None,
+                amount: "42".to_string(),
+            },
+        };
+
+        let res = broadcaster.broadcast_refund_message(refund_task).await;
+        assert!(res.is_err());
+    }
+
 }
