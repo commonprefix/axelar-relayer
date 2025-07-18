@@ -4,17 +4,27 @@ start in parse_trace.rs and then come back here to map your output to a GMP Even
 
 There is probably a nicer way to encapsulate code, so adding new transactions is easier,
 but this allows us not to have a tight coupling of chain parsing and GMP Events.
+
+# TODO:
+- Document conversion
+
 */
 
+use crate::boc::jetton_gas_paid::JettonGasPaidMessage;
+use crate::error::GasError;
 use crate::parse_trace::{LogMessage, ParsedTransaction};
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
+use num_bigint::BigUint;
 use relayer_base::error::IngestorError;
 use relayer_base::gmp_api::gmp_types::{
     Amount, CommonEventFields, Event, EventMetadata, GatewayV2Message,
     MessageApprovedEventMetadata, MessageExecutedEventMetadata, MessageExecutionStatus,
 };
+use relayer_base::price_view::PriceViewTrait;
+use rust_decimal::Decimal;
 use std::collections::HashMap;
+use std::str::FromStr;
 
 pub fn map_message_approved(parsed_tx: &ParsedTransaction, used_gas: u64) -> Event {
     let msg = match &parsed_tx.log_message {
@@ -131,7 +141,7 @@ pub fn map_call_contract(parsed_tx: &ParsedTransaction) -> Event {
     }
 }
 
-pub fn map_gas_credit(parsed_tx: &ParsedTransaction) -> Event {
+pub fn map_native_gas_paid(parsed_tx: &ParsedTransaction) -> Event {
     let msg = match &parsed_tx.log_message {
         Some(LogMessage::NativeGasPaid(m)) => m,
         _ => panic!("Expected LogMessage::NativeGasPaid"),
@@ -151,7 +161,7 @@ pub fn map_gas_credit(parsed_tx: &ParsedTransaction) -> Event {
             }),
         },
         message_id: parsed_tx.message_id.clone().unwrap(),
-        refund_address: msg.sender.to_hex(),
+        refund_address: msg.refund_address.to_hex(),
         payment: Amount {
             token_id: None,
             amount: msg.msg_value.to_string(),
@@ -213,16 +223,86 @@ pub fn map_message_native_gas_refunded(parsed_tx: &ParsedTransaction, used_gas: 
     }
 }
 
+pub async fn map_jetton_gas_paid<PV>(
+    parsed_tx: &ParsedTransaction,
+    price_view: &PV,
+) -> Result<Event, GasError>
+where
+    PV: PriceViewTrait,
+{
+    let msg = match &parsed_tx.log_message {
+        Some(LogMessage::JettonGasPaid(m)) => m,
+        _ => panic!("Expected LogMessage::JettonGasPaid"),
+    };
+    let tx = &parsed_tx.transaction;
+
+    let msg_value = convert_jetton_to_native(&msg, price_view).await?;
+
+    Ok(Event::GasCredit {
+        common: CommonEventFields {
+            r#type: "GAS_CREDIT".to_owned(),
+            event_id: format!("{}-gas", tx.hash.clone()),
+            meta: Some(EventMetadata {
+                tx_id: Some(tx.hash.clone()),
+                from_address: None,
+                finalized: None,
+                source_context: None,
+                timestamp: chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
+            }),
+        },
+        message_id: parsed_tx.message_id.clone().unwrap(),
+        refund_address: msg.refund_address.to_hex(),
+        payment: Amount {
+            token_id: None,
+            amount: msg_value.to_string(),
+        },
+    })
+}
+
+async fn convert_jetton_to_native<PV>(
+    msg: &JettonGasPaidMessage,
+    price_view: &PV,
+) -> Result<BigUint, GasError>
+where
+    PV: PriceViewTrait,
+{
+    let minter = msg.minter.to_hex();
+
+    let coin_pair = format!("{}/USD", minter);
+    let coin_to_usd = price_view
+        .get_price(&coin_pair)
+        .await
+        .map_err(|err| GasError::ConversionError(err.to_string()))?;
+    let ton_to_usd = price_view
+        .get_price("TON/USD")
+        .await
+        .map_err(|err| GasError::ConversionError(err.to_string()))?;
+
+    let amount = Decimal::from_str(&msg.amount.to_string()).unwrap();
+    let result = amount * coin_to_usd / ton_to_usd;
+    let result = result.round();
+
+    BigUint::from_str(&result.to_string()).map_err(|err| GasError::ConversionError(err.to_string()))
+}
+
 #[cfg(test)]
 mod tests {
+    use crate::boc::jetton_gas_paid::JettonGasPaidMessage;
     use crate::event_mappers::{
-        map_call_contract, map_gas_credit, map_message_approved, map_message_executed,
-        map_native_gas_added,
+        convert_jetton_to_native, map_call_contract, map_jetton_gas_paid, map_message_approved,
+        map_message_executed, map_native_gas_added, map_native_gas_paid,
     };
     use crate::parse_trace::ParseTrace;
+    use mockall::predicate::*;
+    use num_bigint::BigUint;
+    use relayer_base::database::PostgresDB;
     use relayer_base::gmp_api::gmp_types::{Event, MessageExecutionStatus};
+    use relayer_base::price_view::MockPriceView;
     use relayer_base::ton_types::{Trace, TracesResponse, TracesResponseRest};
+    use rust_decimal::Decimal;
     use std::fs;
+    use std::str::FromStr;
+    use tonlib_core::TonAddress;
 
     fn fixture_traces() -> Vec<Trace> {
         let file_path = "tests/data/v3_traces.json";
@@ -346,7 +426,7 @@ mod tests {
         let trace_transactions =
             crate::parse_trace::TraceTransactions::from_trace(traces[4].clone()).unwrap();
 
-        let event = map_gas_credit(&trace_transactions.gas_credit[0]);
+        let event = map_native_gas_paid(&trace_transactions.gas_credit[0]);
 
         match event {
             Event::GasCredit {
@@ -442,6 +522,84 @@ mod tests {
                 assert!(common.meta.is_none());
             }
             _ => panic!("Expected GasRefunded event"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_convert_jetton_to_native() {
+        let mut price_view: MockPriceView<PostgresDB> = MockPriceView::new();
+        price_view
+            .expect_get_price()
+            .with(eq(
+                "0:e1e633eb701b118b44297716cee7069ee847b56db88c497efea681ed14b2d2c7/USD",
+            ))
+            .returning(|_| Ok(Decimal::from_str(&"0.5").unwrap()));
+        price_view
+            .expect_get_price()
+            .with(eq("TON/USD"))
+            .returning(|_| Ok(Decimal::from_str(&"3").unwrap()));
+
+        let msg = JettonGasPaidMessage {
+            minter: TonAddress::from_base64_url("EQDh5jPrcBsRi0QpdxbO5wae6Ee1bbiMSX7-poHtFLLSxyuC")
+                .unwrap(),
+            amount: BigUint::from(1000u32),
+            refund_address: TonAddress::from_base64_url(
+                "EQDh5jPrcBsRi0QpdxbO5wae6Ee1bbiMSX7-poHtFLLSxyuC",
+            )
+            .unwrap(),
+            payload_hash: [0u8; 32],
+            destination_chain: "avalanche-fuji".to_string(),
+            destination_address: "0:b".parse().unwrap(),
+        };
+        let result = convert_jetton_to_native(&msg, &price_view).await.unwrap();
+        assert_eq!(result, BigUint::from(167u32));
+    }
+
+    #[tokio::test]
+    async fn test_map_jetton_gas_paid() {
+        let traces = fixture_traces();
+        let trace_transactions =
+            crate::parse_trace::TraceTransactions::from_trace(traces[9].clone()).unwrap();
+        let mut price_view: MockPriceView<PostgresDB> = MockPriceView::new();
+        price_view
+            .expect_get_price()
+            .with(eq(
+                "0:1962e375dcf78f97880e9bec4f63e1afe683b4abdd8855d366014c05ff1160e9/USD",
+            ))
+            .returning(|_| Ok(Decimal::from_str(&"0.5").unwrap()));
+        price_view
+            .expect_get_price()
+            .with(eq("TON/USD"))
+            .returning(|_| Ok(Decimal::from_str(&"3").unwrap()));
+
+        let event = map_jetton_gas_paid(&trace_transactions.gas_credit[0], &price_view)
+            .await
+            .unwrap();
+
+        match event {
+            Event::GasCredit {
+                common,
+                message_id,
+                refund_address,
+                payment,
+            } => {
+                assert_eq!(
+                    message_id,
+                    "0xd59014fd585eed8bee519c40d93be23a991fdb7d68a41eb7ad678dc40510e65d"
+                );
+                assert_eq!(
+                    refund_address,
+                    "0:e1e633eb701b118b44297716cee7069ee847b56db88c497efea681ed14b2d2c7"
+                );
+                assert_eq!(payment.amount, "166667");
+
+                let meta = &common.meta.as_ref().unwrap();
+                assert_eq!(
+                    meta.tx_id.as_deref(),
+                    Some("/OxewvVQHSEhT6pz1L/et2BKJC7avRCYEx0FbUWPEuo=")
+                );
+            }
+            _ => panic!("Expected GasCredit event"),
         }
     }
 }

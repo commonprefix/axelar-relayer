@@ -6,9 +6,9 @@
 - Move handlers to a decorator pattern (?)
 */
 
-use crate::event_mappers::{map_call_contract, map_gas_credit, map_message_approved, map_message_executed, map_message_native_gas_refunded, map_native_gas_added};
+use crate::event_mappers::{map_call_contract, map_native_gas_paid, map_message_approved, map_message_executed, map_message_native_gas_refunded, map_native_gas_added, map_jetton_gas_paid};
 use crate::gas_calculator::GasCalculator;
-use crate::parse_trace::{ParseTrace, TraceTransactions};
+use crate::parse_trace::{LogMessage, ParseTrace, TraceTransactions};
 use relayer_base::error::IngestorError;
 use relayer_base::gmp_api::gmp_types::{
     ConstructProofTask, Event, ReactToWasmEventTask, RetryTask, VerifyTask,
@@ -16,18 +16,20 @@ use relayer_base::gmp_api::gmp_types::{
 use relayer_base::ingestor::IngestorTrait;
 use relayer_base::subscriber::ChainTransaction;
 use tracing::warn;
+use relayer_base::price_view::PriceView;
 
-pub struct TONIngestor {
+pub struct TONIngestor<DB: relayer_base::database::Database> {
     gas_calculator: GasCalculator,
+    price_view: PriceView<DB>
 }
 
-impl TONIngestor {
-    pub fn new(gas_calculator: GasCalculator) -> Self {
-        Self { gas_calculator }
+impl<DB: relayer_base::database::Database> TONIngestor<DB> {
+    pub fn new(gas_calculator: GasCalculator, price_view: PriceView<DB>) -> Self {
+        Self { gas_calculator, price_view }
     }
 }
 
-impl IngestorTrait for TONIngestor {
+impl<DB: relayer_base::database::Database> IngestorTrait for TONIngestor<DB> {
     async fn handle_verify(&self, task: VerifyTask) -> Result<(), IngestorError> {
         warn!("handle_verify: {:?}", task);
 
@@ -84,7 +86,19 @@ impl IngestorTrait for TONIngestor {
         }
 
         for tx in &trace_transactions.gas_credit {
-            events.push(map_gas_credit(tx));
+            match &tx.log_message {
+                Some(LogMessage::NativeGasPaid(_)) => {
+                    events.push(map_native_gas_paid(tx));
+                }
+                Some(LogMessage::JettonGasPaid(_)) => {
+                    events.push(map_jetton_gas_paid::<PriceView<DB>>(tx, &self.price_view).await.map_err(|e| IngestorError::GenericError(e.to_string()))?);
+                }
+                _ => {
+                    return Err(IngestorError::GenericError(
+                        "Unexpected log_message type in gas_credit".to_string(),
+                    ));
+                }
+            }
         }
 
         for tx in &trace_transactions.call_contract {

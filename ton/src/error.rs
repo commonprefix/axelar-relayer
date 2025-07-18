@@ -10,16 +10,16 @@ pub enum BocError {
     InvalidOpCode(String),
 }
 
-
 #[derive(Error, Debug)]
 pub enum TONRpcError {
     #[error("DataError: {0}")]
     DataError(String)
 }
 
-
 #[derive(Error, Debug)]
 pub enum GasError {
+    #[error("ConversionError: {0}")]
+    ConversionError(String),
     #[error("GasCalculationError: {0}")]
     GasCalculationError(String)
 }

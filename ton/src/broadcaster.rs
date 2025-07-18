@@ -190,7 +190,7 @@ impl<GE: GasEstimator> Broadcaster for TONBroadcaster<GE> {
 
         let available_gas = u64::from_str(&message.available_gas_balance.amount).unwrap_or(0);
         let required_gas =
-            self.gas_estimator.estimate_execute().await * REFUNDABLE_MESSAGE_MULTIPLIER as u64;
+            self.gas_estimator.estimate_execute().await;
 
         if available_gas < required_gas {
             return Ok(BroadcastResult {
@@ -614,7 +614,7 @@ mod tests {
         assert!(unwrapped.status.is_err());
         assert_eq!(
             unwrapped.status.err().unwrap().to_string(),
-            "Insufficient gas: Cannot proceed to execute -- required: 84, available: 11"
+            "Insufficient gas: Cannot proceed to execute -- required: 42, available: 11"
         );
     }
 

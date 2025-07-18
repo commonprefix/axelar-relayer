@@ -51,13 +51,14 @@ Look at test_parse_trace test for an example.
 use crate::error::TONRpcError::DataError;
 use crate::error::{BocError, TONRpcError};
 use crate::parse_trace::LogMessage::{Approved, CallContract, Executed};
-use crate::ton_op_codes::{OP_ADD_NATIVE_GAS, OP_CALL_CONTRACT, OP_GATEWAY_EXECUTE, OP_MESSAGE_APPROVED, OP_NATIVE_REFUND, OP_NULLIFIED_SUCCESSFULLY, OP_PAY_NATIVE_GAS_FOR_CONTRACT_CALL};
+use crate::ton_op_codes::{OP_ADD_NATIVE_GAS, OP_CALL_CONTRACT, OP_GATEWAY_EXECUTE, OP_MESSAGE_APPROVED, OP_NATIVE_REFUND, OP_NULLIFIED_SUCCESSFULLY, OP_PAY_NATIVE_GAS_FOR_CONTRACT_CALL, OP_USER_BALANCE_SUBTRACTED};
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
 use relayer_base::ton_types::{Trace, Transaction};
 use std::collections::HashMap;
 use crate::boc::call_contract::CallContractMessage;
 use crate::boc::cc_message::TonCCMessage;
+use crate::boc::jetton_gas_paid::JettonGasPaidMessage;
 use crate::boc::native_gas_added::NativeGasAddedMessage;
 use crate::boc::native_gas_paid::NativeGasPaidMessage;
 use crate::boc::native_gas_refunded::NativeGasRefundedMessage;
@@ -85,6 +86,7 @@ pub enum LogMessage {
     Executed(NullifiedSuccessfullyMessage),
     CallContract(CallContractMessage),
     NativeGasPaid(NativeGasPaidMessage),
+    JettonGasPaid(JettonGasPaidMessage),
     NativeGasAdded(NativeGasAddedMessage),
     NativeGasRefunded(NativeGasRefundedMessage),
 }
@@ -134,7 +136,7 @@ fn is_executed(tx: &Transaction) -> bool {
         .unwrap_or(false)
 }
 
-fn is_gas_credit(tx: &Transaction) -> bool {
+fn is_native_gas_paid(tx: &Transaction) -> bool {
     let op_code = format!("0x{:08x}", OP_PAY_NATIVE_GAS_FOR_CONTRACT_CALL);
     is_log_emmitted(tx, &op_code, 0)
 }
@@ -148,6 +150,12 @@ fn is_native_gas_refunded(tx: &Transaction) -> bool {
     let op_code = format!("0x{:08x}", OP_NATIVE_REFUND);
     is_log_emmitted(tx, &op_code, 1)
 }
+
+fn is_jetton_gas_paid(tx: &Transaction) -> bool {
+    let op_code = format!("0x{:08x}", OP_USER_BALANCE_SUBTRACTED);
+    is_log_emmitted(tx, &op_code, 0)
+}
+
 
 fn hash_to_message_id(hash: &str) -> Result<String, TONRpcError> {
     let hash = BASE64_STANDARD
@@ -219,7 +227,7 @@ impl ParseTrace for TraceTransactions {
                     transaction: tx,
                     message_id: None,
                 });
-            } else if is_gas_credit(&tx) {
+            } else if is_native_gas_paid(&tx) {
                 let out_msg = &tx.out_msgs[0];
                 let msg = NativeGasPaidMessage::from_boc_b64(&out_msg.message_content.body)?;
                 let key = MessageMatchingKey {
@@ -255,6 +263,23 @@ impl ParseTrace for TraceTransactions {
                     message_id: Some(addr),
                     transaction: tx,
                 });
+            } else if is_jetton_gas_paid(&tx) {
+                let out_msg = &tx.out_msgs[0];
+                let msg = JettonGasPaidMessage::from_boc_b64(&out_msg.message_content.body)?;
+                let key = MessageMatchingKey {
+                    destination_chain: msg.destination_chain.clone(),
+                    destination_address: msg.destination_address.clone(),
+                    payload_hash: msg.payload_hash,
+                };
+                gas_credit_map.insert(
+                    key,
+                    ParsedTransaction {
+                        log_message: Option::from(LogMessage::JettonGasPaid(msg)),
+                        transaction: tx,
+                        message_id: None,
+                    },
+                );
+
             }
         }
 
@@ -372,6 +397,26 @@ mod tests {
         ));
     }
 
+    #[test]
+    fn test_jetton_gas_paid() {
+        let traces = fixture_traces();
+
+        let trace_transactions = TraceTransactions::from_trace(traces[9].clone()).unwrap();
+        assert_eq!(trace_transactions.gas_credit.len(), 1);
+        let parsed_tx = &trace_transactions.gas_credit[0];
+        assert_eq!(
+            parsed_tx.transaction.hash,
+            "/OxewvVQHSEhT6pz1L/et2BKJC7avRCYEx0FbUWPEuo="
+        );
+        assert_eq!(
+            parsed_tx.message_id,
+            Some("0xd59014fd585eed8bee519c40d93be23a991fdb7d68a41eb7ad678dc40510e65d".to_string())
+        );
+        assert!(matches!(
+            parsed_tx.log_message,
+            Some(LogMessage::JettonGasPaid(_))
+        ));
+    }
 
     #[test]
     fn test_gas_credit_map_to_vec() {
@@ -410,7 +455,7 @@ mod tests {
             )
             .unwrap(),
             msg_value: BigUint::from(1u8),
-            _refund_address: TonAddress::from_hex_str(
+            refund_address: TonAddress::from_hex_str(
                 "0:0000000000000000000000000000000000000000000000000000000000000000",
             )
             .unwrap(),

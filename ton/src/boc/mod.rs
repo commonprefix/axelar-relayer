@@ -9,3 +9,4 @@ pub mod relayer_execute_message;
 pub mod native_refund;
 mod buffer_to_cell;
 pub mod native_gas_refunded;
+pub mod jetton_gas_paid;

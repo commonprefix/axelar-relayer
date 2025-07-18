@@ -28,7 +28,7 @@ async fn main() -> anyhow::Result<()> {
     let gmp_api = Arc::new(gmp_api::GmpApi::new(&config.common_config, true).unwrap());
     let postgres_db = PostgresDB::new(&config.common_config.postgres_url).await.unwrap();
     let _pg_pool = PgPool::connect(&config.common_config.postgres_url).await.unwrap();
-    let _price_view = PriceView::new(postgres_db.clone());
+    let price_view = PriceView::new(postgres_db.clone());
     
     let mut our_addresses = vec![];
     for wallet in config.wallets {
@@ -39,7 +39,7 @@ async fn main() -> anyhow::Result<()> {
         
     let gas_calculator = GasCalculator::new(our_addresses);
     
-    let ton_ingestor = TONIngestor::new(gas_calculator);
+    let ton_ingestor = TONIngestor::new(gas_calculator, price_view);
     let ingestor = Ingestor::new(gmp_api, ton_ingestor);
 
     let redis_client = redis::Client::open(config.common_config.redis_server.clone())?;

@@ -2,21 +2,21 @@
 
 # Usage Example
 ```rust,no_run
-use ton::boc::native_gas_paid::NativeGasPaidMessage;
+use ton::boc::jetton_gas_paid::JettonGasPaidMessage;
 
 let boc_b64 = "b64 boc";
 
-match NativeGasPaidMessage::from_boc_b64(boc_b64) {
+match JettonGasPaidMessage::from_boc_b64(boc_b64) {
     Ok(log) => {
         // Handle fields
     }
-    Err(e) => println!("Failed to parse NativeGasPaid: {:?}", e),
+    Err(e) => println!("Failed to parse JettonGasPaid: {:?}", e),
 }
 ```
 
 # See also
 
-- https://github.com/commonprefix/axelar-gmp-sdk-ton/blob/b1053bf982f21d6d207d30338f5b264505966948/contracts/gas_service.fc#L59:L65
+- https://github.com/commonprefix/axelar-gmp-sdk-ton/blob/e0573ff258a1da0977a7b4e805f7a0a2bb1b76f2/contracts/gas_service.fc#L103:111
 
 */
 
@@ -29,22 +29,26 @@ use tonlib_core::tlb_types::tlb::TLB;
 use tonlib_core::TonAddress;
 
 #[derive(Debug, Clone)]
-pub struct NativeGasPaidMessage {
-    pub(crate) sender: TonAddress,
+pub struct JettonGasPaidMessage {
+    pub(crate) minter: TonAddress,
     pub(crate) payload_hash: [u8; 32],
-    pub(crate) msg_value: BigUint,
+    pub(crate) amount: BigUint,
     pub(crate) refund_address: TonAddress,
     pub(crate) destination_chain: String,
     pub(crate) destination_address: String,
 }
 
-impl NativeGasPaidMessage {
+impl JettonGasPaidMessage {
     pub fn from_boc_b64(boc_b64: &str) -> Result<Self, BocError> {
         let cell = Cell::from_boc_b64(boc_b64).map_err(|err| BocParsingError(err.to_string()))?;
         let mut parser = cell.parser();
 
-        let sender = parser
+        let minter = parser
             .load_address()
+            .map_err(|err| BocParsingError(err.to_string()))?;
+
+        let amount = parser
+            .load_coins()
             .map_err(|err| BocParsingError(err.to_string()))?;
 
         let payload_hash: [u8; 32] = parser
@@ -52,14 +56,6 @@ impl NativeGasPaidMessage {
             .map_err(|err| BocParsingError(err.to_string()))?
             .try_into()
             .map_err(|_| BocParsingError("Invalid payload hash length".to_string()))?;
-
-        let msg_value: [u8; 32] = parser
-            .load_bits(256)
-            .map_err(|err| BocParsingError(err.to_string()))?
-            .try_into()
-            .map_err(|_| BocParsingError("Invalid msg_value hash length".to_string()))?;
-        
-        let msg_value = BigUint::from_bytes_be(&msg_value);
 
         let refund_address = parser.next_reference().unwrap();
         let mut inner_parser = refund_address.parser();
@@ -78,9 +74,9 @@ impl NativeGasPaidMessage {
             .cell_to_string()?;
 
         Ok(Self {
-            sender,
+            minter,
             payload_hash,
-            msg_value,
+            amount,
             refund_address,
             destination_chain,
             destination_address,
@@ -90,13 +86,14 @@ impl NativeGasPaidMessage {
 
 #[cfg(test)]
 mod tests {
+    use crate::boc::jetton_gas_paid::JettonGasPaidMessage;
+    use num_bigint::BigUint;
     use primitive_types::H256;
     use tonlib_core::TonAddress;
-    use crate::boc::native_gas_paid::NativeGasPaidMessage;
 
     #[test]
     fn test_from_boc_b64() {
-        let response = NativeGasPaidMessage::from_boc_b64("te6cckEBBAEAxwADw4AcPMZ9bgNiMWiFLuLZ3ODT3Qj2rbcRiS/f1NA9opZaWPXUykhs4AH2lBVEFjqex7VaPbPTvuLH5GEs5sIeXm+pYAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA3BVoQAQIDAEOAHDzGfW4DYjFohS7i2dzg090I9q23EYkv39TQPaKWWljwABxhdmFsYW5jaGUtZnVqaQBUMHhkNzA2N0FlM0MzNTllODM3ODkwYjI4QjdCRDBkMjA4NENmRGY0OWI1+B8bUw==");
+        let response = JettonGasPaidMessage::from_boc_b64("te6cckEBBAEAuQAEiYADLFxuu57x8vEB032J7Hw1/NB2lXuxCrpswCmAv+IsHSYehIFdTKSGzgAfaUFUQWOp7HtVo9s9O+4sfkYSzmwh5eb6lwMBAgMACHRvbjIAhDA6ZWQyMmRmMzQyMTlhZTI2MDM5ZmQ5NzdkOGU0MTlhZTE0ZDc4YjE5MmU5ZGI1ZGNmYTM1OTc4OTkwOTY0NzBkMQBDgBw8xn1uA2IxaIUu4tnc4NPdCPattxGJL9/U0D2illpY8JdJDvc=");
         assert!(
             response.is_ok(),
             "Failed to parse: {:?}",
@@ -116,14 +113,16 @@ mod tests {
                 .unwrap()
         );
         assert_eq!(
-            log.sender,
-            TonAddress::from_base64_url("EQDh5jPrcBsRi0QpdxbO5wae6Ee1bbiMSX7-poHtFLLSxyuC")
+            log.minter,
+            TonAddress::from_base64_url("EQAZYuN13PePl4gOm-xPY-Gv5oO0q92IVdNmAUwF_xFg6fqe")
                 .unwrap()
         );
-        assert_eq!(log.destination_chain, "avalanche-fuji");
+        assert_eq!(log.destination_chain, "ton2");
         assert_eq!(
             log.destination_address,
-            "0xd7067Ae3C359e837890b28B7BD0d2084CfDf49b5"
+            "0:ed22df34219ae26039fd977d8e419ae14d78b192e9db5dcfa3597899096470d1"
         );
+
+        assert_eq!(log.amount, BigUint::from(1000000u32));
     }
 }
