@@ -10,7 +10,6 @@ but this allows us not to have a tight coupling of chain parsing and GMP Events.
 
 */
 
-use crate::boc::jetton_gas_paid::JettonGasPaidMessage;
 use crate::error::GasError;
 use crate::parse_trace::{LogMessage, ParsedTransaction};
 use base64::prelude::BASE64_STANDARD;
@@ -25,7 +24,7 @@ use relayer_base::price_view::PriceViewTrait;
 use rust_decimal::Decimal;
 use std::collections::HashMap;
 use std::str::FromStr;
-use tonlib_core::{TonAddress, TonHash};
+use tonlib_core::TonAddress;
 
 pub fn map_message_approved(parsed_tx: &ParsedTransaction, used_gas: u64) -> Event {
     let msg = match &parsed_tx.log_message {
@@ -272,7 +271,7 @@ where
         _ => panic!("Expected LogMessage::NativeGasPaid"),
     };
     let tx = &parsed_tx.transaction;
-    
+
     let msg_value = convert_jetton_to_native(&msg.minter, &msg.amount, price_view).await?;
 
     Ok(Event::GasCredit {
@@ -295,7 +294,6 @@ where
         },
     })
 }
-
 
 async fn convert_jetton_to_native<PV>(
     minter: &TonAddress,
@@ -326,8 +324,6 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::cmp::min;
-    use crate::boc::jetton_gas_paid::JettonGasPaidMessage;
     use crate::event_mappers::{
         convert_jetton_to_native, map_call_contract, map_jetton_gas_paid, map_message_approved,
         map_message_executed, map_native_gas_added, map_native_gas_paid,
@@ -338,20 +334,10 @@ mod tests {
     use relayer_base::database::PostgresDB;
     use relayer_base::gmp_api::gmp_types::{Event, MessageExecutionStatus};
     use relayer_base::price_view::MockPriceView;
-    use relayer_base::ton_types::{Trace, TracesResponse, TracesResponseRest};
     use rust_decimal::Decimal;
-    use std::fs;
     use std::str::FromStr;
     use tonlib_core::TonAddress;
-
-    fn fixture_traces() -> Vec<Trace> {
-        let file_path = "tests/data/v3_traces.json";
-        let body = fs::read_to_string(file_path).expect("Failed to read JSON test file");
-        let rest: TracesResponseRest =
-            serde_json::from_str(&body).expect("Failed to deserialize test transaction data");
-
-        TracesResponse::from(rest).traces
-    }
+    use crate::test_utils::fixtures::fixture_traces;
 
     #[test]
     fn test_map_message_approved() {
@@ -579,10 +565,13 @@ mod tests {
             .with(eq("TON/USD"))
             .returning(|_| Ok(Decimal::from_str(&"3").unwrap()));
 
-        let minter = TonAddress::from_base64_url("EQDh5jPrcBsRi0QpdxbO5wae6Ee1bbiMSX7-poHtFLLSxyuC")
-            .unwrap();
+        let minter =
+            TonAddress::from_base64_url("EQDh5jPrcBsRi0QpdxbO5wae6Ee1bbiMSX7-poHtFLLSxyuC")
+                .unwrap();
         let amount = BigUint::from(1000u32);
-        let result = convert_jetton_to_native(&minter, &amount, &price_view).await.unwrap();
+        let result = convert_jetton_to_native(&minter, &amount, &price_view)
+            .await
+            .unwrap();
         assert_eq!(result, BigUint::from(167u32));
     }
 

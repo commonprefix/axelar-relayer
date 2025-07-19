@@ -22,7 +22,7 @@ match NullifiedSuccessfullyMessage::from_boc_b64(boc) {
 */
 
 use crate::boc::cell_to::CellTo;
-use crate::ton_op_codes::OP_NULLIFIED_SUCCESSFULLY;
+use crate::ton_constants::OP_NULLIFIED_SUCCESSFULLY;
 use serde::{Deserialize, Serialize};
 use tonlib_core::cell::{Cell, CellParser};
 use tonlib_core::tlb_types::tlb::TLB;

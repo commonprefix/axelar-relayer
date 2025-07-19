@@ -8,20 +8,15 @@ TON RPC Client.
 #[tokio::main]
 async fn main() {
     use ton::client::{RestClient, TONRpcClient};
-    let client = TONRpcClient::new("https://testnet.toncenter.com".to_string(), 1, "test".to_string()).await.unwrap();
+    let client = TONRpcClient::new("https://testnet.toncenter.com".to_string(), "test".to_string(), 5, 5, 30).await.unwrap();
     let response = client.post_v3_message("test".to_string()).await.unwrap();
 }
 ```
 
-# TODO
-
-- Handle retries
-- Check that timeouts are handled correctly
-
 # Notes
 
-In principle, we should be getting similar functionality from tonlib, but in practice
-it's not working reliably.
+Tonlib offers a client. However, in practice, it does not reliably work, has no support for v3 API,
+and it is less flexible and more time consuming to get it running than writing one from scratch.
 
 */
 
@@ -29,16 +24,18 @@ use async_trait::async_trait;
 use relayer_base::error::ClientError;
 use relayer_base::error::ClientError::{BadRequest, BadResponse, ConnectionFailed};
 use relayer_base::ton_types::{Trace, TracesResponse, TracesResponseRest};
-use reqwest::Client;
+use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
+use reqwest_retry::{policies::ExponentialBackoff, RetryTransientMiddleware};
 use serde::Deserialize;
 use serde_json::json;
+use std::time::Duration;
 use tonlib_core::TonAddress;
 use tracing::debug;
 
 #[derive(Clone)]
 pub struct TONRpcClient {
     url: String,
-    client: Client,
+    client: ClientWithMiddleware,
     api_key: String,
 }
 
@@ -60,7 +57,7 @@ pub trait RestClient: Send + Sync {
     async fn post_v3_message(&self, boc: String) -> Result<V3MessageResponse, ClientError>;
     async fn get_traces_for_account(
         &self,
-        account: TonAddress,
+        account: &TonAddress,
         start_lt: Option<i64>,
     ) -> Result<Vec<Trace>, ClientError>;
     fn handle_non_success_response(&self, status: reqwest::StatusCode, text: &str) -> ClientError;
@@ -69,10 +66,25 @@ pub trait RestClient: Send + Sync {
 impl TONRpcClient {
     pub async fn new(
         url: String,
-        _max_retries: usize,
         api_key: String,
+        max_retries: u32,
+        connect_timeout: u64,
+        timeout: u64,
     ) -> Result<Self, ClientError> {
-        let client = Client::new();
+        let retry_policy = ExponentialBackoff::builder().build_with_max_retries(max_retries);
+
+        let client_builder = reqwest::ClientBuilder::new()
+            .connect_timeout(Duration::from_secs(connect_timeout))
+            .timeout(Duration::from_secs(timeout))
+            .pool_idle_timeout(Some(Duration::from_secs(300)));
+
+        let client = ClientBuilder::new(
+            client_builder
+                .build()
+                .map_err(|e| ConnectionFailed(e.to_string()))?,
+        )
+        .with(RetryTransientMiddleware::new_with_policy(retry_policy))
+        .build();
 
         Ok(Self {
             url,
@@ -85,12 +97,11 @@ impl TONRpcClient {
 fn clean_json_string_full(input: &[u8]) -> String {
     let json_str = String::from_utf8_lossy(input);
     json_str
-        .replace("\\u0000", "")              // remove escaped nulls
+        .replace("\\u0000", "") // remove escaped nulls
         .chars()
         .filter(|c| !c.is_control() || *c == '\n' || *c == '\t') // keep readable controls
         .collect()
 }
-
 
 #[async_trait::async_trait]
 impl RestClient for TONRpcClient {
@@ -125,7 +136,7 @@ impl RestClient for TONRpcClient {
 
     async fn get_traces_for_account(
         &self,
-        account: TonAddress,
+        account: &TonAddress,
         start_lt: Option<i64>,
     ) -> Result<Vec<Trace>, ClientError> {
         let url = format!("{}/api/v3/traces", self.url.trim_end_matches('/'));
@@ -139,10 +150,7 @@ impl RestClient for TONRpcClient {
             query_params.push(("start_lt", (lt_min_val + 1).to_string()));
         }
 
-        debug!(
-            "Fetching TON traces from: {:?} {:?}",
-            url, query_params
-        );
+        debug!("Fetching TON traces from: {:?} {:?}", url, query_params);
 
         let response = self
             .client
@@ -203,7 +211,7 @@ mod tests {
                 .json_body(json!({"message_hash": "abc123", "message_hash_norm": "ABC123"}));
         });
 
-        let client = TONRpcClient::new(server.base_url(), 1, "test".to_string())
+        let client = TONRpcClient::new(server.base_url(), "test".to_string(), 5, 5, 5)
             .await
             .unwrap();
         let response = client.post_v3_message("test".to_string()).await.unwrap();
@@ -225,7 +233,7 @@ mod tests {
             }));
         });
 
-        let client = TONRpcClient::new(server.base_url(), 1, "test".to_string())
+        let client = TONRpcClient::new(server.base_url(), "test".to_string(), 5, 5, 5)
             .await
             .unwrap();
 
@@ -260,13 +268,13 @@ mod tests {
                 .body(body.clone());
         });
 
-        let client = TONRpcClient::new(server.base_url(), 1, "test".to_string())
+        let client = TONRpcClient::new(server.base_url(), "test".to_string(), 5, 5, 5)
             .await
             .unwrap();
 
         let result = client
             .get_traces_for_account(
-                TonAddress::from_str(
+                &TonAddress::from_str(
                     "0:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
                 )
                 .unwrap(),
@@ -336,13 +344,13 @@ mod tests {
                 .body(body.clone());
         });
 
-        let client = TONRpcClient::new(server.base_url(), 1, "test".to_string())
+        let client = TONRpcClient::new(server.base_url(), "test".to_string(), 5, 5, 5)
             .await
             .unwrap();
 
         let result = client
             .get_traces_for_account(
-                TonAddress::from_str(
+                &TonAddress::from_str(
                     "0:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
                 )
                 .unwrap(),
@@ -355,5 +363,56 @@ mod tests {
             "Expected successful result without start_lt, but got error: {:?}",
             result.unwrap_err()
         );
+    }
+
+    #[tokio::test]
+    async fn test_post_v3_message_retries_on_failure() {
+        let server = MockServer::start();
+
+        let mock = server.mock(move |when, then| {
+            when.method(POST)
+                .path("/api/v3/message")
+                .body(r#"{"boc":"retry"}"#);
+            then.status(500).body("Internal Server Error");
+        });
+
+        let max_retries = 3;
+        let client = TONRpcClient::new(server.base_url(), "test".to_string(), max_retries, 5, 30)
+            .await
+            .unwrap();
+
+        let result = client.post_v3_message("retry".to_string()).await;
+
+        assert!(result.is_err());
+        mock.assert_hits_async(max_retries as usize + 1).await; // initial + retries
+    }
+
+    #[tokio::test]
+    async fn test_post_v3_message_retries_on_timeout() {
+        use std::time::Duration;
+
+        let server = MockServer::start();
+
+        let mock = server.mock(|when, then| {
+            when.method(POST)
+                .path("/api/v3/message")
+                .body(r#"{"boc":"timeout"}"#);
+            then.status(200)
+                .body(r#"{"message_hash":"dummy","message_hash_norm":"DUMMY"}"#)
+                .delay(Duration::from_millis(1100));
+        });
+        let max_retries = 1;
+
+        let client = TONRpcClient::new(server.base_url(), "test".to_string(), max_retries, 1, 1)
+            .await
+            .unwrap();
+
+        let result = client.post_v3_message("timeout".to_string()).await;
+
+        assert!(
+            result.is_err(),
+            "Expected request to timeout and retry, but got: {result:?}"
+        );
+        mock.assert_hits(max_retries as usize + 1);
     }
 }

@@ -38,7 +38,7 @@ impl TONIncluder {
         let wallet_manager = Arc::new(WalletManager::new(wallets, lock_manager).await);
 
         let client: Arc<dyn RestClient> = Arc::new(
-            TONRpcClient::new(ton_rpc, 3, ton_api_key)
+            TONRpcClient::new(ton_rpc, ton_api_key, 5, 5, 30)
                 .await
                 .map_err(|e| error_stack::report!(BroadcasterError::GenericError(e.to_string())))?,
         );

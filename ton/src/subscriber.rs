@@ -2,10 +2,6 @@
 
 Reads from TON blockchain and adds transactions to a queue.
 
-# TODO:
-
-- Also read failed executions/approvals and send them to the queue.
-
 */
 
 use super::client::{RestClient};
@@ -14,7 +10,7 @@ use relayer_base::error::SubscriberError;
 use relayer_base::subscriber::{ChainTransaction, TransactionPoller};
 use relayer_base::ton_types::{Trace};
 use tonlib_core::TonAddress;
-use tracing::{info, warn};
+use tracing::{debug, info, warn};
 use crate::ton_trace::{AtomicUpsert, TONTrace};
 
 pub struct TONSubscriber<DB: Database, TM: AtomicUpsert, CL: RestClient> {
@@ -81,7 +77,7 @@ impl<DB: Database, TM: AtomicUpsert, CL: RestClient> TransactionPoller for TONSu
 
         let traces = self
             .client
-            .get_traces_for_account(account_id, start_lt)
+            .get_traces_for_account(&account_id, start_lt)
             .await?;
 
         let max_lt = traces.iter().map(|trace| trace.end_lt).max();
@@ -98,7 +94,10 @@ impl<DB: Database, TM: AtomicUpsert, CL: RestClient> TransactionPoller for TONSu
         for trace in traces {
             let trace_model = TONTrace::from(&trace);
             if self.ton_trace_model.upsert_and_return_if_changed(trace_model).await?.is_some() {
+                debug!("Trace {} added from account {}", trace.trace_id, account_id);
                 unseen_traces.push(trace);
+            } else {
+                info!("Trace {} already seen, skipping", trace.trace_id);
             }
         }
 

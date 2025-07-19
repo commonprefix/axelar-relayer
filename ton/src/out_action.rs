@@ -23,6 +23,7 @@ use tonlib_core::message::{InternalMessage, TonMessage, TonMessageError, Transfe
 use tonlib_core::tlb_types::block::out_action::{OutAction, OutActionSendMsg};
 use tonlib_core::tlb_types::tlb::TLB;
 use tonlib_core::TonAddress;
+use crate::ton_constants::SEND_MODE_IGNORE_ERRORS;
 
 pub fn out_action(
     boc_hex: &str,
@@ -46,7 +47,7 @@ pub fn out_action(
     let tm = TransferMessage::new(common.clone(), body).build()?.to_arc();
 
     Ok(OutAction::SendMsg(OutActionSendMsg {
-        mode: 2,
+        mode: SEND_MODE_IGNORE_ERRORS,
         out_msg: tm,
     }))
 }

@@ -30,7 +30,7 @@ use tonlib_core::{TonAddress, TonHash};
 #[derive(Debug, Clone)]
 pub struct JettonGasAddedMessage {
     pub(crate) minter: TonAddress,
-    pub(crate) sender: TonAddress,
+    pub(crate) _sender: TonAddress,
     pub(crate) tx_hash: TonHash,
     pub(crate) amount: BigUint,
     pub(crate) refund_address: TonAddress,
@@ -69,7 +69,7 @@ impl JettonGasAddedMessage {
 
         Ok(Self {
             minter,
-            sender,
+            _sender: sender,
             tx_hash,
             amount,
             refund_address,
@@ -105,7 +105,7 @@ mod tests {
                 .unwrap()
         );
         assert_eq!(
-            log.sender,
+            log._sender,
             TonAddress::from_base64_url("EQDh5jPrcBsRi0QpdxbO5wae6Ee1bbiMSX7-poHtFLLSxyuC")
                 .unwrap()
         );

@@ -50,6 +50,7 @@ use tonlib_core::tlb_types::block::out_action::{OutAction, OutList};
 use tonlib_core::tlb_types::tlb::TLB;
 use tonlib_core::wallet::mnemonic::KeyPair;
 use tonlib_core::TonAddress;
+use crate::ton_constants::SEND_MODE_IGNORE_ERRORS;
 
 #[derive(Debug)]
 pub struct SystemTimeProvider;
@@ -100,7 +101,7 @@ impl<T: TimeProvider> TonWalletHighLoadV3<T> {
 
         let mut builder = CellBuilder::new();
         let out_list = OutList::new(actions)?;
-        out_list.write(&mut builder).expect("TODO: panic message");
+        out_list.write(&mut builder)?;
         let actions_cell = builder.build();
 
         let mut b = CellBuilder::new();
@@ -187,7 +188,7 @@ impl<T: TimeProvider> TonWalletHighLoadV3<T> {
         let message_inner = self
             .message_inner(
                 internal_transfer.unwrap(),
-                2,
+                SEND_MODE_IGNORE_ERRORS,
                 query_id,
                 created_at,
                 self.timeout,

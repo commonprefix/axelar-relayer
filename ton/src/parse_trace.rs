@@ -48,14 +48,6 @@ Look at test_parse_trace test for an example.
 
 */
 
-use crate::error::TONRpcError::DataError;
-use crate::error::{BocError, TONRpcError};
-use crate::parse_trace::LogMessage::{Approved, CallContract, Executed};
-use crate::ton_op_codes::{OP_ADD_NATIVE_GAS, OP_CALL_CONTRACT, OP_GATEWAY_EXECUTE, OP_MESSAGE_APPROVED, OP_NATIVE_REFUND, OP_NULLIFIED_SUCCESSFULLY, OP_PAY_NATIVE_GAS_FOR_CONTRACT_CALL, OP_USER_BALANCE_SUBTRACTED};
-use base64::prelude::BASE64_STANDARD;
-use base64::Engine;
-use relayer_base::ton_types::{Trace, Transaction};
-use std::collections::HashMap;
 use crate::boc::call_contract::CallContractMessage;
 use crate::boc::cc_message::TonCCMessage;
 use crate::boc::jetton_gas_added::JettonGasAddedMessage;
@@ -64,6 +56,17 @@ use crate::boc::native_gas_added::NativeGasAddedMessage;
 use crate::boc::native_gas_paid::NativeGasPaidMessage;
 use crate::boc::native_gas_refunded::NativeGasRefundedMessage;
 use crate::boc::nullified_message::NullifiedSuccessfullyMessage;
+use crate::error::TONRpcError::DataError;
+use crate::error::{BocError, TONRpcError};
+use crate::parse_trace::LogMessage::{Approved, CallContract, Executed};
+use crate::ton_constants::{
+    OP_ADD_NATIVE_GAS, OP_CALL_CONTRACT, OP_GATEWAY_EXECUTE, OP_MESSAGE_APPROVED, OP_NATIVE_REFUND,
+    OP_NULLIFIED_SUCCESSFULLY, OP_PAY_NATIVE_GAS_FOR_CONTRACT_CALL, OP_USER_BALANCE_SUBTRACTED,
+};
+use base64::prelude::BASE64_STANDARD;
+use base64::Engine;
+use relayer_base::ton_types::{Trace, Transaction};
+use std::collections::HashMap;
 
 #[derive(Eq, Hash, PartialEq)]
 struct MessageMatchingKey {
@@ -177,8 +180,6 @@ fn is_jetton_gas_added(tx: &Transaction) -> bool {
     parsed.is_ok()
 }
 
-
-
 fn hash_to_message_id(hash: &str) -> Result<String, TONRpcError> {
     let hash = BASE64_STANDARD
         .decode(hash)
@@ -268,7 +269,7 @@ impl ParseTrace for TraceTransactions {
             } else if is_native_gas_added(&tx) {
                 let out_msg = &tx.out_msgs[0];
                 let msg = NativeGasAddedMessage::from_boc_b64(&out_msg.message_content.body)?;
-                let addr = format!("0x{}", msg.tx_hash); // TODO: Move this message_id type
+                let addr = format!("0x{}", msg.tx_hash); 
 
                 gas_added.push(ParsedTransaction {
                     log_message: Option::from(LogMessage::NativeGasAdded(msg.clone())),
@@ -278,14 +279,14 @@ impl ParseTrace for TraceTransactions {
             } else if is_jetton_gas_added(&tx) {
                 let out_msg = &tx.out_msgs[0];
                 let msg = JettonGasAddedMessage::from_boc_b64(&out_msg.message_content.body)?;
-                let addr = format!("0x{}", msg.tx_hash); // TODO: Move this message_id type
+                let addr = format!("0x{}", msg.tx_hash); 
 
                 gas_added.push(ParsedTransaction {
                     log_message: Option::from(LogMessage::JettonGasAdded(msg.clone())),
                     message_id: Some(addr),
                     transaction: tx,
                 });
-            }else if is_native_gas_refunded(&tx) {
+            } else if is_native_gas_refunded(&tx) {
                 let out_msg = &tx.out_msgs[1];
                 let msg = NativeGasRefundedMessage::from_boc_b64(&out_msg.message_content.body)?;
                 let addr = format!("0x{}", msg.tx_hash);
@@ -311,7 +312,6 @@ impl ParseTrace for TraceTransactions {
                         message_id: None,
                     },
                 );
-
             }
         }
 
@@ -323,30 +323,20 @@ impl ParseTrace for TraceTransactions {
             executed,
             gas_credit,
             gas_added,
-            gas_refunded
+            gas_refunded,
         })
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::parse_trace::{LogMessage, ParseTrace, TraceTransactions};
-    use num_bigint::BigUint;
-    use relayer_base::ton_types::{Trace, TracesResponse, TracesResponseRest};
-    use std::collections::HashMap;
-    use std::fs;
-    use tonlib_core::TonAddress;
     use crate::boc::call_contract::CallContractMessage;
     use crate::boc::native_gas_paid::NativeGasPaidMessage;
-
-    fn fixture_traces() -> Vec<Trace> {
-        let file_path = "tests/data/v3_traces.json";
-        let body = fs::read_to_string(file_path).expect("Failed to read JSON test file");
-        let rest: TracesResponseRest =
-            serde_json::from_str(&body).expect("Failed to deserialize test transaction data");
-
-        TracesResponse::from(rest).traces
-    }
+    use crate::parse_trace::{LogMessage, ParseTrace, TraceTransactions};
+    use crate::test_utils::fixtures::fixture_traces;
+    use num_bigint::BigUint;
+    use std::collections::HashMap;
+    use tonlib_core::TonAddress;
 
     #[test]
     fn test_parse_trace() {
@@ -482,7 +472,7 @@ mod tests {
             destination_chain: call_contract_msg.destination_chain.clone(),
             destination_address: call_contract_msg.destination_address.clone(),
             payload_hash: call_contract_msg.payload_hash,
-            sender: TonAddress::from_hex_str(
+            _sender: TonAddress::from_hex_str(
                 "0:0000000000000000000000000000000000000000000000000000000000000000",
             )
             .unwrap(),

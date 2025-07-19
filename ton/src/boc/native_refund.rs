@@ -19,15 +19,11 @@ let message = NativeRefundMessage::new(
 
 let ton_cell = message.to_cell().unwrap();
 ```
-
-# TODO:
-- Don't hardcode execute message gas
-
 */
 
 use crate::error::BocError;
 use crate::error::BocError::BocEncodingError;
-use crate::ton_op_codes::OP_NATIVE_REFUND;
+use crate::ton_constants::OP_NATIVE_REFUND;
 use num_bigint::BigUint;
 use serde::{Deserialize, Serialize};
 use tonlib_core::cell::{Cell, CellBuilder};

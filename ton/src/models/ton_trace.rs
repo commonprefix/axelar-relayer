@@ -24,7 +24,7 @@ impl TONTrace {
             end_lt: trace.end_lt,
             transactions: Json::from(trace.transactions.clone()),
             created_at: chrono::Utc::now(),
-            updated_at: None,       
+            updated_at: None,
         }
     }
 }
@@ -109,22 +109,12 @@ impl Model<TONTrace, String> for PgTONTraceModel {
 
 #[cfg(test)]
 mod tests {
-    use std::fs;
     use sqlx::types::Json;
     use testcontainers::runners::AsyncRunner;
     use testcontainers_modules::postgres;
     use relayer_base::models::Model;
-    use relayer_base::ton_types::{Transaction, TransactionsResponse};
     use crate::models::ton_trace::{AtomicUpsert, PgTONTraceModel, TONTrace};
-
-    fn fixture_transactions() -> Vec<Transaction> {
-        let file_path = "tests/data/v3_transactions.json";
-        let body = fs::read_to_string(file_path).expect("Failed to read JSON test file");
-        let transactions_response: TransactionsResponse =
-            serde_json::from_str(&body).expect("Failed to deserialize test transaction data");
-
-        transactions_response.transactions
-    }
+    use crate::test_utils::fixtures::fixture_traces;
 
     #[tokio::test]
     async fn test_crud() {
@@ -144,7 +134,7 @@ mod tests {
         );
         let pool = sqlx::PgPool::connect(&connection_string).await.unwrap();
         let model = PgTONTraceModel::new(pool);
-        let transactions = fixture_transactions();
+        let transactions = &fixture_traces()[0].transactions;
 
         let trace = TONTrace {
             trace_id: "123".to_string(),
@@ -159,14 +149,14 @@ mod tests {
         let ret = model.upsert_and_return_if_changed(trace.clone()).await.unwrap().unwrap();
         let saved = model.find("123".to_string()).await.unwrap().unwrap();
         assert_eq!(saved.trace_id, "123");
-        assert_eq!(saved.transactions[0].hash, "RwUVL9in7fSCxZmVThP0eKM8Qvh3fJpVZQTPxU1mD8I=");
+        assert_eq!(saved.transactions[0].hash, "aa1");
         assert_eq!(saved.transactions.len(), transactions.len());
         assert_eq!(saved.start_lt, 123);
         assert_eq!(saved.end_lt, 321);
         assert_eq!(saved.is_incomplete, false);
 
         assert_eq!(ret.trace_id, "123");
-        assert_eq!(ret.transactions[0].hash, "RwUVL9in7fSCxZmVThP0eKM8Qvh3fJpVZQTPxU1mD8I=");
+        assert_eq!(ret.transactions[0].hash, "aa1");
         assert_eq!(ret.transactions.len(), transactions.len());
         assert_eq!(ret.start_lt, 123);
         assert_eq!(ret.end_lt, 321);

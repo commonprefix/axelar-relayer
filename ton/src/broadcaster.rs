@@ -4,15 +4,9 @@ Broadcaster implementation for TON. Listens to GATEWAY_TX (essentially APPROVE m
 
 # Note
 
-Relayer code assumes there is one message per transaction. This might not be a safe assumption
+Relayer code assumes there is one message per transaction. This might not be a safe assumption, 
 and broadcaster should potentially be returning a vector of BroadcastResults.
 
-# TODO
-
-- Handle multiple messages per transaction.
-- Move MockQueryIdWrapper to mockall
-- Check in tests that we actually call what we need to call and on the correct address
-- Document that when refunding we expect the message id to be a correct ton message
 */
 
 use super::client::{RestClient, V3MessageResponse};
@@ -39,6 +33,7 @@ use tonlib_core::tlb_types::block::out_action::OutAction;
 use tonlib_core::tlb_types::tlb::TLB;
 use tonlib_core::{TonAddress, TonHash};
 use tracing::{debug, error};
+use crate::ton_constants::REFUND_DUST;
 
 const REFUNDABLE_MESSAGE_MULTIPLIER: u8 = 2;
 
@@ -314,7 +309,7 @@ impl<GE: GasEstimator> Broadcaster for TONBroadcaster<GE> {
         })?;
 
         let result = async {
-            let msg_value: BigUint = BigUint::from(10_000_000u32); // TODO: Define this dust somewhere
+            let msg_value: BigUint = BigUint::from(REFUND_DUST);
 
             let actions: Vec<OutAction> =
                 vec![
@@ -358,6 +353,8 @@ mod tests {
     use relayer_base::includer::{BroadcastResult, Broadcaster};
     use std::str::FromStr;
     use std::sync::Arc;
+    use tonlib_core::cell::Cell;
+    use tonlib_core::tlb_types::tlb::TLB;
     use tonlib_core::TonAddress;
 
     struct MockQueryIdWrapper;
@@ -629,8 +626,12 @@ mod tests {
     #[tokio::test]
     async fn test_broadcast_refund_message() {
         let mut client = MockRestClient::new();
-        // TODO: Actually test we send to correct address (gas_service, and not gateway)
-        client.expect_post_v3_message().returning(|_| {
+        client.expect_post_v3_message()
+            .withf(|boc| {
+                let cell = Cell::from_boc_b64(boc);
+                cell.is_ok()
+            })
+            .returning(|_| {
             Ok(V3MessageResponse {
                 message_hash: "abc".to_string(),
                 message_hash_norm: "ABC".to_string(),
@@ -666,23 +667,7 @@ mod tests {
             gas_estimator,
         };
 
-        let refund_task = RefundTaskFields {
-            message: GatewayV2Message {
-                message_id: "0xf38d2a646e4b60e37bc16d54bb9163739372594dc96bab954a85b4a170f49e58"
-                    .to_string(),
-                source_chain: "avalanche-fuji".to_string(),
-                destination_address:
-                    "0:b87a4a0f644b7a186ee71a1454634f70c22a62aca1a6ba676b5175c21d7fd930".to_string(),
-                source_address: "ton2".to_string(),
-                payload_hash: "aea6524367000fb4a0aa20b1d4f63daad1ed9e9df70=".to_string(),
-            },
-            refund_recipient_address:
-                "0:e1e633eb701b118b44297716cee7069ee847b56db88c497efea681ed14b2d2c7".to_string(),
-            remaining_gas_balance: Amount {
-                token_id: None,
-                amount: "42".to_string(),
-            },
-        };
+        let refund_task = refund_task();
 
         let res = broadcaster.broadcast_refund_message(refund_task).await;
         assert!(res.is_ok());
@@ -694,14 +679,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_broadcast_refund_message_refund_too_big() {
-        let mut client = MockRestClient::new();
-        // TODO: Actually test we send to correct address (gas_service, and not gateway)
-        client.expect_post_v3_message().returning(|_| {
-            Ok(V3MessageResponse {
-                message_hash: "abc".to_string(),
-                message_hash_norm: "ABC".to_string(),
-            })
-        });
+        let client = mock_rest_client();
 
         let wallet_manager = load_wallets().await;
         let query_id_wrapper = MockQueryIdWrapper;
@@ -732,6 +710,29 @@ mod tests {
             gas_estimator,
         };
 
+        let refund_task = refund_task();
+
+        let res = broadcaster.broadcast_refund_message(refund_task).await;
+        assert!(res.is_err());
+    }
+
+    fn mock_rest_client() -> MockRestClient {
+        let mut client = MockRestClient::new();
+        client.expect_post_v3_message()
+            .withf(|boc| {
+                let cell = Cell::from_boc_b64(boc);
+                cell.is_ok()
+            })
+            .returning(|_| {
+                Ok(V3MessageResponse {
+                    message_hash: "abc".to_string(),
+                    message_hash_norm: "ABC".to_string(),
+                })
+            });
+        client
+    }
+
+    fn refund_task() -> RefundTaskFields {
         let refund_task = RefundTaskFields {
             message: GatewayV2Message {
                 message_id: "0xf38d2a646e4b60e37bc16d54bb9163739372594dc96bab954a85b4a170f49e58"
@@ -749,9 +750,6 @@ mod tests {
                 amount: "42".to_string(),
             },
         };
-
-        let res = broadcaster.broadcast_refund_message(refund_task).await;
-        assert!(res.is_err());
+        refund_task
     }
-
 }

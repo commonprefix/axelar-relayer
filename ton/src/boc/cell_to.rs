@@ -20,10 +20,6 @@ assert_eq!(string, "Hello");
 let buffer = cell.cell_to_buffer().unwrap();
 assert_eq!(buffer, b"Hello");
 ```
-
-# TODO:
-- Move to common code base
-
 */
 
 use std::sync::Arc;

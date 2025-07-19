@@ -15,8 +15,6 @@ use ton::config::TONConfig;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    // TODO: Consider refactoring to reuse boilerplate
-
     dotenv().ok();
     let network = std::env::var("NETWORK").expect("NETWORK must be set");
     let config: TONConfig = config_from_yaml(&format!("config.{}.yaml", network)).unwrap();

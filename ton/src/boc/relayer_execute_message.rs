@@ -23,7 +23,7 @@ let ton_cell = message.to_cell().unwrap();
 ```
 
 # TODO:
-- Don't hardcode execute message gas
+- Don't hardcode execute message gas - waiting for the chain contract fix
 
 */
 
@@ -37,7 +37,7 @@ use tiny_keccak::{Hasher, Keccak};
 use tonlib_core::cell::{Cell, CellBuilder};
 use tonlib_core::TonAddress;
 use crate::boc::buffer_to_cell;
-use crate::ton_op_codes::OP_RELAYER_EXECUTE;
+use crate::ton_constants::OP_RELAYER_EXECUTE;
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 pub struct RelayerExecuteMessage {

@@ -21,8 +21,6 @@ match TonCCMessage::from_boc_b64(boc_b64) {
 
 - https://github.com/commonprefix/axelar-gmp-sdk-ton/blob/b1053bf982f21d6d207d30338f5b264505966948/contracts/axelar_gateway.fc#L528:L543
 
-# TODO:
-- Don't hardcode workchain
 */
 
 use crate::boc::cell_to::CellTo;
@@ -31,6 +29,7 @@ use tonlib_core::tlb_types::tlb::TLB;
 use tonlib_core::{TonAddress, TonHash};
 use crate::error::BocError;
 use crate::error::BocError::BocParsingError;
+use crate::ton_constants::WORKCHAIN;
 
 #[derive(Debug, Clone)]
 pub struct TonCCMessage {
@@ -85,7 +84,8 @@ impl TonCCMessage {
             .try_into()
             .map_err(|_| "Invalid hash length")
             .unwrap();
-        let ton_address = TonAddress::new(0, hash_part);
+        
+        let ton_address = TonAddress::new(WORKCHAIN, hash_part);
 
         let destination_chain = inner_parser
             .next_reference()

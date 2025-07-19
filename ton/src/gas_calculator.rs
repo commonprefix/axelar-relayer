@@ -2,25 +2,17 @@
 
 Why we see empty balances?
 
-1. **Every** transaction _always_ gets its `AccountStateBefore/After` fields primed with just the hash.
-2. The code then does a lookup in `account_states` to fill in balance, status, etc—but only for those hashes that
-_actually exist_ in the table.
-3. If a particular state‐hash was never recorded in `account_states` (for example, the indexer didn’t snapshot every
-single intermediate state, or that account had no on‐chain state change so no row was inserted), **no** row is returned
-for that hash.
+ * **Every** transaction _always_ gets its `AccountStateBefore/After` fields primed with just the hash.
+ * The code then does a lookup in `account_states` to fill in balance, status, etc—but only for those hashes that _actually exist_ in the table.
+ * If a particular state‐hash was never recorded in `account_states` (for example, the indexer didn’t snapshot every single intermediate state, or that account had no on‐chain state change so no row was inserted), **no** row is returned for that hash.
+ * In that case the `AccountStateBefore/After` pointer remains the bare struct with only the hash, and all the other fields (including `balance`) stay nil → you get an empty JSON object (no `balance`) for those slots.
 
-4. In that case the `AccountStateBefore/After` pointer remains the bare struct with only the hash, and all the other
-fields (including `balance`) stay nil → you get an empty JSON object (no `balance`) for those slots.
-
-# TODO:
-
-Document how we calculate gas and why is native gas refunded different
 */
 
-use std::collections::HashMap;
-use std::ops::AddAssign;
 use crate::error::GasError;
 use relayer_base::ton_types::Transaction;
+use std::collections::HashMap;
+use std::ops::AddAssign;
 use std::str::FromStr;
 use tonlib_core::TonAddress;
 
@@ -44,20 +36,25 @@ impl GasCalculator {
         }
     }
 
-    pub fn calc_message_gas_native_gas_refunded(&self, transactions: &[Transaction]) -> Result<u64, GasError> {
+    pub fn calc_message_gas_native_gas_refunded(
+        &self,
+        transactions: &[Transaction],
+    ) -> Result<u64, GasError> {
         if transactions.len() < 3 || transactions[2].out_msgs.is_empty() {
             return Ok(0);
         }
 
         let balance_diff = self.balance_diff(transactions)?;
-        let refund = i128::from_str(&transactions[2].out_msgs[0].value.clone().unwrap_or("0".to_string())).unwrap_or(0);
+        let refund = i128::from_str(
+            &transactions[2].out_msgs[0]
+                .value
+                .clone()
+                .unwrap_or("0".to_string()),
+        )
+        .unwrap_or(0);
         let total = balance_diff - refund;
 
-        Ok(if total > 0 {
-            total as u64
-        } else {
-            0
-        })
+        Ok(if total > 0 { total as u64 } else { 0 })
     }
 
     fn balance_diff(&self, transactions: &[Transaction]) -> Result<i128, GasError> {
@@ -65,13 +62,28 @@ impl GasCalculator {
         let mut balances: HashMap<TonAddress, i128> = HashMap::new();
 
         for tx in transactions {
-            let balance_before = i128::from_str(&tx.account_state_before.balance.clone().unwrap_or("0".to_string())).unwrap_or(0);
-            let balance_after = i128::from_str(&tx.account_state_after.balance.clone().unwrap_or("0".to_string())).unwrap_or(0);
+            let balance_before = i128::from_str(
+                &tx.account_state_before
+                    .balance
+                    .clone()
+                    .unwrap_or("0".to_string()),
+            )
+            .unwrap_or(0);
+            let balance_after = i128::from_str(
+                &tx.account_state_after
+                    .balance
+                    .clone()
+                    .unwrap_or("0".to_string()),
+            )
+            .unwrap_or(0);
             let balance = balance_before - balance_after;
             if let Some(addr) = self.load_address(&Some(tx.account.clone()))? {
-                balances.entry(addr.clone()).or_insert(0).add_assign(balance);
+                balances
+                    .entry(addr.clone())
+                    .or_insert(0)
+                    .add_assign(balance);
             }
-        };
+        }
 
         let total: i128 = balances.values().cloned().sum();
         Ok(total)
@@ -79,29 +91,15 @@ impl GasCalculator {
 
     pub fn calc_message_gas(&self, transactions: &[Transaction]) -> Result<u64, GasError> {
         let total = self.balance_diff(transactions)?;
-        Ok(if total > 0 {
-            total as u64
-        } else {
-            0
-        })
+        Ok(if total > 0 { total as u64 } else { 0 })
     }
 }
 
 #[cfg(test)]
 mod tests {
     use crate::gas_calculator::GasCalculator;
-    use relayer_base::ton_types::{Trace, TracesResponse, TracesResponseRest};
-    use std::fs;
+    use crate::test_utils::fixtures::fixture_traces;
     use tonlib_core::TonAddress;
-
-    fn fixture_traces() -> Vec<Trace> {
-        let file_path = "tests/data/v3_traces.json";
-        let body = fs::read_to_string(file_path).expect("Failed to read JSON test file");
-        let rest: TracesResponseRest =
-            serde_json::from_str(&body).expect("Failed to deserialize test transaction data");
-
-        TracesResponse::from(rest).traces
-    }
 
     #[test]
     fn test_gas_approved() {
@@ -118,7 +116,6 @@ mod tests {
         let amount = calc.calc_message_gas(&traces[2].transactions);
         assert_eq!(amount.unwrap(), 27244157);
     }
-
 
     #[test]
     fn test_gas_refund() {
@@ -151,5 +148,4 @@ mod tests {
         let amount = calc.calc_message_gas_native_gas_refunded(&traces[8].transactions);
         assert_eq!(amount.unwrap(), 10869279);
     }
-
 }

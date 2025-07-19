@@ -30,7 +30,7 @@ use tonlib_core::TonAddress;
 
 #[derive(Debug, Clone)]
 pub struct NativeGasPaidMessage {
-    pub(crate) sender: TonAddress,
+    pub(crate) _sender: TonAddress,
     pub(crate) payload_hash: [u8; 32],
     pub(crate) msg_value: BigUint,
     pub(crate) refund_address: TonAddress,
@@ -78,7 +78,7 @@ impl NativeGasPaidMessage {
             .cell_to_string()?;
 
         Ok(Self {
-            sender,
+            _sender: sender,
             payload_hash,
             msg_value,
             refund_address,
@@ -116,7 +116,7 @@ mod tests {
                 .unwrap()
         );
         assert_eq!(
-            log.sender,
+            log._sender,
             TonAddress::from_base64_url("EQDh5jPrcBsRi0QpdxbO5wae6Ee1bbiMSX7-poHtFLLSxyuC")
                 .unwrap()
         );

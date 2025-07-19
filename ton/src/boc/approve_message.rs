@@ -11,7 +11,7 @@ let approve_messages = ApproveMessages::from_boc_hex(boc);
 ```
 */
 
-use crate::ton_op_codes::OP_APPROVE_MESSAGES;
+use crate::ton_constants::OP_APPROVE_MESSAGES;
 use num_bigint::BigUint;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;

@@ -1,11 +1,3 @@
-/*!
-
-# TODO:
-- source_context has a limit of 1000 characters, make sure we never exceed it
-- Handle all errors, no unwraps() on reading from API
-- Move handlers to a decorator pattern (?)
-*/
-
 use crate::event_mappers::{map_call_contract, map_native_gas_paid, map_message_approved, map_message_executed, map_message_native_gas_refunded, map_native_gas_added, map_jetton_gas_paid, map_jetton_gas_added};
 use crate::gas_calculator::GasCalculator;
 use crate::parse_trace::{LogMessage, ParseTrace, TraceTransactions};

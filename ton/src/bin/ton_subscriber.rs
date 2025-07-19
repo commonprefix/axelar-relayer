@@ -44,7 +44,7 @@ async fn main() -> anyhow::Result<()> {
     
     let mut handles: Vec<JoinHandle<()>> = vec![];
     
-    let client = TONRpcClient::new(config.ton_rpc.clone(), 3, config.ton_api_key.clone())
+    let client = TONRpcClient::new(config.ton_rpc.clone(), config.ton_api_key.clone(), 5, 5, 30)
         .await
         .map_err(|e| error_stack::report!(SubscriberError::GenericError(e.to_string())))
         .unwrap();
