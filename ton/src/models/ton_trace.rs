@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use sqlx::types::Json;
 use relayer_base::models::Model;
-use relayer_base::ton_types::{Trace, Transaction};
+use ton_types::ton_types::{Trace, Transaction};
 
 #[derive(Debug, Serialize, Deserialize, Clone, sqlx::FromRow)]
 pub struct TONTrace {

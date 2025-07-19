@@ -65,7 +65,7 @@ use crate::ton_constants::{
 };
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
-use relayer_base::ton_types::{Trace, Transaction};
+use ton_types::ton_types::{Trace, Transaction};
 use std::collections::HashMap;
 use tracing::info;
 

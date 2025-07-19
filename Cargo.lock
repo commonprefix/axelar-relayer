@@ -4828,13 +4828,13 @@ dependencies = [
  "sentry-tracing",
  "serde",
  "serde_json",
- "serde_with",
  "serde_yaml",
  "sqlx",
  "testcontainers",
  "thiserror 2.0.12",
  "tokio",
  "tokio-util",
+ "ton_types",
  "tracing",
  "tracing-subscriber",
  "uuid",
@@ -6767,8 +6767,18 @@ dependencies = [
  "thiserror 2.0.12",
  "tiny-keccak",
  "tokio",
+ "ton_types",
  "tonlib-core",
  "tracing",
+]
+
+[[package]]
+name = "ton_types"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "serde_with",
 ]
 
 [[package]]

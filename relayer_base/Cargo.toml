@@ -44,7 +44,7 @@ r2d2 = { workspace = true }
 mockall = { workspace = true, optional = true }
 testcontainers = { workspace = true }
 async-trait = { workspace = true }
-serde_with = "3.14.0"
+ton_types = { workspace = true }
 
 [dev-dependencies]
 mockall = { workspace = true }

@@ -9,7 +9,7 @@ use crate::ton_trace::{AtomicUpsert, TONTrace};
 use relayer_base::database::Database;
 use relayer_base::error::SubscriberError;
 use relayer_base::subscriber::{ChainTransaction, TransactionPoller};
-use relayer_base::ton_types::Trace;
+use ton_types::ton_types::Trace;
 use tonlib_core::TonAddress;
 use tracing::{debug, info, warn};
 

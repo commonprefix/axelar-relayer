@@ -1,10 +1,11 @@
 [workspace]
-members = ["relayer_base", "recovery_tools", "xrpl", "ton"]
+members = ["relayer_base", "recovery_tools", "xrpl", "ton", "ton_types"]
 resolver = "2"
 
 [workspace.dependencies]
 relayer-base = { path = "relayer_base" }
 xrpl = { path = "xrpl" }
+ton_types = { path = "ton_types" }
 recovery-tools = { path = "recovery_tools" }
 anyhow = "1.0.93"
 async-stream = "0.3.6"
@@ -48,7 +49,6 @@ sentry = "0.36.0"
 sentry-tracing = "0.36.0"
 base64 = "0.22.1"
 serde_yaml = "0.9.34"
-serde_with = "3.14.0"
 chrono = { version = "0.4.40", features = ["serde"] }
 rand = "0.9.1"
 coingecko = "1.1.3"

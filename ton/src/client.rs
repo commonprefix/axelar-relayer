@@ -23,7 +23,7 @@ and it is less flexible and more time consuming to get it running than writing o
 use async_trait::async_trait;
 use relayer_base::error::ClientError;
 use relayer_base::error::ClientError::{BadRequest, BadResponse, ConnectionFailed};
-use relayer_base::ton_types::{Trace, TracesResponse, TracesResponseRest};
+use ton_types::ton_types::{Trace, TracesResponse, TracesResponseRest};
 use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
 use reqwest_retry::{policies::ExponentialBackoff, RetryTransientMiddleware};
 use serde::Deserialize;

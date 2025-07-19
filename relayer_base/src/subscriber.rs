@@ -1,4 +1,5 @@
-use crate::{queue::{Queue, QueueItem}, ton_types};
+use ton_types::ton_types::Trace;
+use crate::{queue::{Queue, QueueItem}};
 use futures::Stream;
 use serde::{Deserialize, Serialize};
 use std::{future::Future, pin::Pin, sync::Arc};
@@ -44,7 +45,7 @@ pub struct Subscriber<TP: TransactionPoller> {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum ChainTransaction {
     Xrpl(xrpl_api::Transaction),
-    TON(ton_types::Trace)
+    TON(Trace)
 }
 
 impl<TP: TransactionPoller> Subscriber<TP>

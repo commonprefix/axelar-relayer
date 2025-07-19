@@ -10,7 +10,7 @@ Why we see empty balances?
 */
 
 use crate::error::GasError;
-use relayer_base::ton_types::Transaction;
+use ton_types::ton_types::Transaction;
 use std::collections::HashMap;
 use std::ops::AddAssign;
 use std::str::FromStr;
