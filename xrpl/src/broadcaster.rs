@@ -10,6 +10,7 @@ use relayer_base::{
     includer::{BroadcastResult, Broadcaster},
     utils::extract_hex_xrpl_memo,
 };
+use relayer_base::gmp_api::gmp_types::{ExecuteTaskFields, RefundTaskFields};
 
 use crate::models::queued_transactions::QueuedTransactionsModel;
 
@@ -184,6 +185,21 @@ impl<QM: QueuedTransactionsModel, X: XRPLClientTrait> Broadcaster for XRPLBroadc
             )))
         }
     }
+
+    async fn broadcast_execute_message(
+        &self, 
+        _message: ExecuteTaskFields
+    ) -> Result<BroadcastResult<Self::Transaction>, BroadcasterError> {
+        unimplemented!()
+    }
+
+    async fn broadcast_refund_message(
+        &self,
+        _refund_task: RefundTaskFields)
+        -> Result<String, BroadcasterError> {
+        unimplemented!()
+    }
+
 }
 
 #[cfg(test)]

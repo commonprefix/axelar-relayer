@@ -2,7 +2,7 @@ use axelar_wasm_std::{msg_id::HexTxHash, nonempty};
 use base64::prelude::*;
 use interchain_token_service::TokenId;
 use regex::Regex;
-use relayer_base::gmp_api::gmp_types::{RetryTask, VerificationStatus};
+use relayer_base::gmp_api::gmp_types::{CannotExecuteMessageReason, RetryTask, VerificationStatus};
 use relayer_base::ingestor::IngestorTrait;
 use relayer_base::models::task_retries::{PgTaskRetriesModel, TaskRetries};
 use relayer_base::subscriber::ChainTransaction;
@@ -43,6 +43,7 @@ use xrpl_amplifier_types::{
 use xrpl_api::Transaction;
 use xrpl_api::{Memo, PaymentTransaction};
 use xrpl_gateway::msg::{CallContract, InterchainTransfer, MessageWithPayload};
+use relayer_base::payload_cache::PayloadCacheTrait;
 use crate::config::XRPLConfig;
 use crate::utils::message_id_from_retry_task;
 use crate::xrpl_transaction::{PgXrplTransactionModel, XrplTransaction, XrplTransactionStatus};
@@ -112,6 +113,7 @@ impl<DB: Database> XrplIngestor<DB> {
         &self,
         xrpl_message_with_payload: &WithPayload<XRPLMessage>,
     ) -> Result<Vec<Event>, IngestorError> {
+
         let mut events = vec![];
 
         events.push(
@@ -1085,10 +1087,10 @@ impl<DB: Database> XrplIngestor<DB> {
 
 impl<DB: Database> IngestorTrait for XrplIngestor<DB> {
     async fn handle_transaction(&self, tx: ChainTransaction) -> Result<Vec<Event>, IngestorError> {
-        let tx = match tx {
-            ChainTransaction::Xrpl(tx) => tx,
+        let ChainTransaction::Xrpl(tx) = tx else {
+            return Err(IngestorError::UnexpectedChainTransactionType(format!("{:?}", tx)))
         };
-
+        
         let xrpl_transaction =
             XrplTransaction::from_native_transaction(&tx, &self.config.xrpl_multisig)
                 .map_err(|e| IngestorError::GenericError(e.to_string()))?;
@@ -1376,6 +1378,7 @@ impl<DB: Database> IngestorTrait for XrplIngestor<DB> {
                         task.task.message.message_id.clone(),
                         task.task.message.source_chain.clone(),
                         e.to_string(),
+                        CannotExecuteMessageReason::Error
                     )
                     .await
                     .map_err(|e| IngestorError::GenericError(e.to_string()))?;

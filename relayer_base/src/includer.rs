@@ -16,9 +16,12 @@ use crate::{
     payload_cache::PayloadCache,
     queue::{Queue, QueueItem},
 };
+use crate::gmp_api::gmp_types::{ExecuteTaskFields, RefundTaskFields};
+use crate::payload_cache::PayloadCacheTrait;
 
 pub trait RefundManager {
     type Wallet;
+    fn is_refund_manager_managed(&self) -> bool;
 
     fn build_refund_tx(
         &self,
@@ -57,6 +60,11 @@ pub trait Broadcaster {
         &self,
         tx_blob: String,
     ) -> impl Future<Output = Result<String, BroadcasterError>>;
+    fn broadcast_execute_message(
+        &self,
+        message: ExecuteTaskFields
+    ) -> impl Future<Output = Result<BroadcastResult<Self::Transaction>, BroadcasterError>>;
+    fn broadcast_refund_message(&self, refund_task: RefundTaskFields) -> impl Future<Output = Result<String, BroadcasterError>>;
 }
 
 pub struct Includer<B, C, R, DB>
@@ -136,6 +144,44 @@ where
     pub async fn consume(&self, task: QueueItem) -> Result<(), IncluderError> {
         match task {
             QueueItem::Task(task) => match task {
+                // TODO: We probably want to clean up this file, and maybe even move consume logic
+                // up to chain includer
+                Task::Execute(execute_task) => {
+                    info!("Consuming task: {:?}", execute_task);
+                    let broadcast_result = self
+                        .broadcaster
+                        .broadcast_execute_message(execute_task.task)
+                        .await
+                        .map_err(|e| IncluderError::ConsumerError(e.to_string()))?;
+
+                    if broadcast_result.message_id.is_some()
+                        && broadcast_result.source_chain.is_some()
+                        && broadcast_result.status.is_ok()
+                    {
+                        return Ok(());
+                    }
+
+                    let err = broadcast_result.status.unwrap_err();
+
+                    if broadcast_result.message_id.is_some()
+                        && broadcast_result.source_chain.is_some() {
+                        let message_id = broadcast_result.message_id.unwrap();
+                        let source_chain = broadcast_result.source_chain.unwrap();
+
+                        self.gmp_api
+                            .cannot_execute_message(
+                                execute_task.common.id,
+                                message_id,
+                                source_chain,
+                                err.to_string(),
+                                crate::gmp_api::gmp_types::CannotExecuteMessageReason::Error
+                            )
+                            .await
+                            .map_err(|e| IncluderError::ConsumerError(e.to_string()))?;
+                    }
+
+                    Err(IncluderError::ConsumerError(err.to_string()))
+                }
                 Task::GatewayTx(gateway_tx_task) => {
                     info!("Consuming task: {:?}", gateway_tx_task);
                     let broadcast_result = self
@@ -183,6 +229,7 @@ where
                                     message_id,
                                     source_chain,
                                     broadcast_result.status.unwrap_err().to_string(),
+                                    crate::gmp_api::gmp_types::CannotExecuteMessageReason::Error
                                 )
                                 .await
                                 .map_err(|e| IncluderError::ConsumerError(e.to_string()))?;
@@ -205,6 +252,16 @@ where
                 }
                 Task::Refund(refund_task) => {
                     info!("Consuming task: {:?}", refund_task);
+                    if !self.refund_manager.is_refund_manager_managed() {
+                        self
+                            .broadcaster
+                            .broadcast_refund_message(refund_task.task)
+                            .await
+                            .map_err(|e| IncluderError::GenericError(e.to_string()))?;
+
+                        return Ok(());
+                    }
+
                     if self
                         .refund_manager
                         .is_refund_processed(&refund_task, &refund_task.common.id)

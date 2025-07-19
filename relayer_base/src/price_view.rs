@@ -16,7 +16,7 @@ impl<DB: Database> PriceView<DB> {
     }
 }
 
-#[cfg_attr(test, mockall::automock)]
+#[cfg_attr(any(test, feature = "mocks"), mockall::automock)]
 impl<DB: Database> PriceViewTrait for PriceView<DB> {
     async fn get_price(&self, pair: &str) -> Result<Decimal, anyhow::Error> {
         let (symbol_a, symbol_b) = pair
