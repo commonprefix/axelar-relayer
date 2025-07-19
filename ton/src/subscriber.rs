@@ -1,17 +1,17 @@
 /*!
 
-Reads from TON blockchain and adds transactions to a queue.
+Reads from the TON blockchain and adds transactions to a queue.
 
 */
 
-use super::client::{RestClient};
+use super::client::RestClient;
+use crate::ton_trace::{AtomicUpsert, TONTrace};
 use relayer_base::database::Database;
 use relayer_base::error::SubscriberError;
 use relayer_base::subscriber::{ChainTransaction, TransactionPoller};
-use relayer_base::ton_types::{Trace};
+use relayer_base::ton_types::Trace;
 use tonlib_core::TonAddress;
 use tracing::{debug, info, warn};
-use crate::ton_trace::{AtomicUpsert, TONTrace};
 
 pub struct TONSubscriber<DB: Database, TM: AtomicUpsert, CL: RestClient> {
     client: CL,
@@ -19,7 +19,7 @@ pub struct TONSubscriber<DB: Database, TM: AtomicUpsert, CL: RestClient> {
     db: DB,
     context: String,
     chain_name: String,
-    ton_trace_model: TM
+    ton_trace_model: TM,
 }
 
 impl<DB: Database, TM: AtomicUpsert, CL: RestClient> TONSubscriber<DB, TM, CL> {
@@ -28,7 +28,7 @@ impl<DB: Database, TM: AtomicUpsert, CL: RestClient> TONSubscriber<DB, TM, CL> {
         db: DB,
         context: String,
         chain_name: String,
-        ton_trace_model: TM
+        ton_trace_model: TM,
     ) -> Result<Self, SubscriberError> {
         let latest_lt = db
             .get_latest_height(&chain_name, &context)
@@ -37,7 +37,10 @@ impl<DB: Database, TM: AtomicUpsert, CL: RestClient> TONSubscriber<DB, TM, CL> {
             .unwrap_or(-1);
 
         if latest_lt != -1 {
-            info!("TON Subscriber for {}: starting from ledger index: {}", context, latest_lt);
+            info!(
+                "TON Subscriber for {}: starting from ledger index: {}",
+                context, latest_lt
+            );
         }
         Ok(TONSubscriber {
             client,
@@ -45,7 +48,7 @@ impl<DB: Database, TM: AtomicUpsert, CL: RestClient> TONSubscriber<DB, TM, CL> {
             db,
             context,
             chain_name,
-            ton_trace_model
+            ton_trace_model,
         })
     }
 
@@ -57,7 +60,9 @@ impl<DB: Database, TM: AtomicUpsert, CL: RestClient> TONSubscriber<DB, TM, CL> {
     }
 }
 
-impl<DB: Database, TM: AtomicUpsert, CL: RestClient> TransactionPoller for TONSubscriber<DB, TM, CL> {
+impl<DB: Database, TM: AtomicUpsert, CL: RestClient> TransactionPoller
+    for TONSubscriber<DB, TM, CL>
+{
     type Transaction = Trace;
     type Account = TonAddress;
 
@@ -77,7 +82,7 @@ impl<DB: Database, TM: AtomicUpsert, CL: RestClient> TransactionPoller for TONSu
 
         let traces = self
             .client
-            .get_traces_for_account(&account_id, start_lt)
+            .get_traces_for_account(Some(account_id.clone()), None, start_lt)
             .await?;
 
         let max_lt = traces.iter().map(|trace| trace.end_lt).max();
@@ -93,9 +98,17 @@ impl<DB: Database, TM: AtomicUpsert, CL: RestClient> TransactionPoller for TONSu
 
         for trace in traces {
             let trace_model = TONTrace::from(&trace);
-            if self.ton_trace_model.upsert_and_return_if_changed(trace_model).await?.is_some() {
+            if self
+                .ton_trace_model
+                .upsert_and_return_if_changed(trace_model)
+                .await?
+                .is_some()
+                && !trace.is_incomplete
+            {
                 debug!("Trace {} added from account {}", trace.trace_id, account_id);
                 unseen_traces.push(trace);
+            } else if trace.is_incomplete {
+                info!("Trace {} is incomplete, skipping", trace.trace_id);
             } else {
                 info!("Trace {} already seen, skipping", trace.trace_id);
             }
@@ -113,11 +126,10 @@ impl<DB: Database, TM: AtomicUpsert, CL: RestClient> TransactionPoller for TONSu
 mod tests {
     use super::*;
     use crate::client::MockRestClient;
+    use crate::test_utils::fixtures::fixture_traces;
+    use crate::ton_trace::MockAtomicUpsert;
     use mockall::predicate::eq;
     use relayer_base::database::MockDatabase;
-    use relayer_base::ton_types::{TracesResponse, TracesResponseRest};
-    use std::fs;
-    use crate::ton_trace::MockAtomicUpsert;
 
     #[tokio::test]
     async fn test_subscriber_no_init_height() {
@@ -132,7 +144,7 @@ mod tests {
             mock_db,
             "test-context".to_string(),
             "test-chain".to_string(),
-            MockAtomicUpsert::new()
+            MockAtomicUpsert::new(),
         )
         .await
         .expect("TONSubscriber should be created successfully");
@@ -153,7 +165,7 @@ mod tests {
             mock_db,
             "test-context".to_string(),
             "test-chain".to_string(),
-            MockAtomicUpsert::new()
+            MockAtomicUpsert::new(),
         )
         .await
         .expect("TONSubscriber should be created successfully");
@@ -171,20 +183,16 @@ mod tests {
 
         let mut mock_client = MockRestClient::new();
 
-        let file_path = "tests/data/v3_traces.json";
-        let body = fs::read_to_string(file_path).expect("Failed to read JSON test file");
-        let rest: TracesResponseRest =
-            serde_json::from_str(&body).expect("Failed to deserialize test transaction data");
-
-        let expected_traces = TracesResponse::from(rest).traces;
+        let expected_traces = fixture_traces();
 
         mock_client
             .expect_get_traces_for_account()
-            .withf(|account, start_lt| {
-                account.to_string() == "EQCqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqseb"
+            .withf(|account, _, start_lt| {
+                account.clone().unwrap().to_string()
+                    == "EQCqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqseb"
                     && *start_lt == Some(12345)
             })
-            .returning(move |_, _| {
+            .returning(move |_, _, _| {
                 let txs = expected_traces.clone();
                 Ok(txs)
             });
@@ -219,36 +227,38 @@ mod tests {
 
         mock_client
             .expect_get_traces_for_account()
-            .returning(move |_, _| Ok(traces.clone()));
+            .returning(move |_, _, _| Ok(traces.clone()));
 
         let mut mock_upsert = MockAtomicUpsert::new();
         mock_upsert
             .expect_upsert_and_return_if_changed()
-            .returning(|trace| Box::pin(async move {
-                if trace.trace_id == "trace_2" {
-                    return Ok(None);
-                }
-                Ok(Some(trace))
-            }));
+            .returning(|trace| {
+                Box::pin(async move {
+                    if trace.trace_id == "trace_2" {
+                        return Ok(None);
+                    }
+                    Ok(Some(trace))
+                })
+            });
 
         let mut subscriber = TONSubscriber::new(
             mock_client,
             mock_db,
             "test-context".to_string(),
             "test-chain".to_string(),
-            mock_upsert
-        ).await.unwrap();
+            mock_upsert,
+        )
+        .await
+        .unwrap();
 
-        let address = TonAddress::from_base64_url("EQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM9c").unwrap();
+        let address =
+            TonAddress::from_base64_url("EQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM9c")
+                .unwrap();
 
-        let result = subscriber
-            .poll_account(address)
-            .await
-            .unwrap();
+        let result = subscriber.poll_account(address).await.unwrap();
 
         assert_eq!(result.len(), 2);
         assert!(result.iter().any(|t| t.trace_id == "trace_1"));
         assert!(result.iter().any(|t| t.trace_id == "trace_3"));
     }
-
 }

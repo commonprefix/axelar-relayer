@@ -12,6 +12,7 @@ use ton::subscriber::TONSubscriber;
 use tonlib_core::TonAddress;
 use relayer_base::error::SubscriberError;
 use ton::client::TONRpcClient;
+use ton::retry_subscriber::RetryTONSubscriber;
 use ton::ton_trace::PgTONTraceModel;
 
 #[tokio::main]
@@ -49,15 +50,15 @@ async fn main() -> anyhow::Result<()> {
         .map_err(|e| error_stack::report!(SubscriberError::GenericError(e.to_string())))
         .unwrap();
 
-    for acct in [gateway_account, gas_service_account] {
+    for acct in [gateway_account.clone(), gas_service_account] {
         let ton_sub = TONSubscriber::new(
             client.clone(),
             postgres_db.clone(),
             acct.to_string(),
             config.common_config.chain_name.clone(),
             ton_traces.clone()
-        )
-            .await?;
+        ).await?;
+
         let mut sub = Subscriber::new(ton_sub);
         let queue_clone = events_queue.clone();
         let handle = tokio::spawn(async move {
@@ -65,6 +66,14 @@ async fn main() -> anyhow::Result<()> {
         });
         handles.push(handle);
     }
+
+    let retry_subscriber = RetryTONSubscriber::new(client.clone(), ton_traces.clone()).await?;
+    let mut sub = Subscriber::new(retry_subscriber);
+    let events_queue_clone = events_queue.clone();
+    let handle = tokio::spawn(async move {
+        sub.run(gateway_account, events_queue_clone).await;
+    });
+    handles.push(handle);
 
     tokio::select! {
         _ = sigint.recv()  => {},

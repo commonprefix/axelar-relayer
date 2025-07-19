@@ -57,7 +57,8 @@ pub trait RestClient: Send + Sync {
     async fn post_v3_message(&self, boc: String) -> Result<V3MessageResponse, ClientError>;
     async fn get_traces_for_account(
         &self,
-        account: &TonAddress,
+        account: Option<TonAddress>,
+        trace_ids: Option<Vec<String>>,
         start_lt: Option<i64>,
     ) -> Result<Vec<Trace>, ClientError>;
     fn handle_non_success_response(&self, status: reqwest::StatusCode, text: &str) -> ClientError;
@@ -94,7 +95,7 @@ impl TONRpcClient {
     }
 }
 
-fn clean_json_string_full(input: &[u8]) -> String {
+pub(crate) fn clean_json_string_full(input: &[u8]) -> String {
     let json_str = String::from_utf8_lossy(input);
     json_str
         .replace("\\u0000", "") // remove escaped nulls
@@ -136,15 +137,25 @@ impl RestClient for TONRpcClient {
 
     async fn get_traces_for_account(
         &self,
-        account: &TonAddress,
+        account: Option<TonAddress>,
+        trace_ids: Option<Vec<String>>,
         start_lt: Option<i64>,
     ) -> Result<Vec<Trace>, ClientError> {
         let url = format!("{}/api/v3/traces", self.url.trim_end_matches('/'));
 
         let mut query_params = vec![
-            ("account", account.to_string()),
-            ("limit", "100".to_string()),
+            ("limit", "100".to_string())
         ];
+
+        if account.is_some() {
+            query_params.push(("account", account.unwrap().to_string()));
+        }
+
+        if trace_ids.is_some() {
+            for t in trace_ids.unwrap() {
+                query_params.push(("trace_id", t.to_string()));
+            }
+        }
 
         if let Some(lt_min_val) = start_lt {
             query_params.push(("start_lt", (lt_min_val + 1).to_string()));
@@ -274,10 +285,10 @@ mod tests {
 
         let result = client
             .get_traces_for_account(
-                &TonAddress::from_str(
+                Some(TonAddress::from_str(
                     "0:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
-                )
-                .unwrap(),
+                ).unwrap()),
+                None,
                 Some(1),
             )
             .await;
@@ -288,7 +299,7 @@ mod tests {
         );
 
         let traces = result.unwrap();
-        assert_eq!(traces.len(), 11);
+        assert_eq!(traces.len(), 12);
 
         let txs = &traces[0].transactions;
         assert_eq!(txs.len(), 6);
@@ -350,10 +361,10 @@ mod tests {
 
         let result = client
             .get_traces_for_account(
-                &TonAddress::from_str(
+                Some(TonAddress::from_str(
                     "0:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
-                )
-                .unwrap(),
+                ).unwrap()),
+                None,
                 None,
             )
             .await;

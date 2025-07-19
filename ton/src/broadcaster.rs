@@ -4,7 +4,7 @@ Broadcaster implementation for TON. Listens to GATEWAY_TX (essentially APPROVE m
 
 # Note
 
-Relayer code assumes there is one message per transaction. This might not be a safe assumption, 
+Relayer code assumes there is one message per transaction. This might not be a safe assumption,
 and broadcaster should potentially be returning a vector of BroadcastResults.
 
 */
@@ -32,7 +32,7 @@ use std::sync::Arc;
 use tonlib_core::tlb_types::block::out_action::OutAction;
 use tonlib_core::tlb_types::tlb::TLB;
 use tonlib_core::{TonAddress, TonHash};
-use tracing::{debug, error};
+use tracing::{debug, error, info};
 use crate::ton_constants::REFUND_DUST;
 
 const REFUNDABLE_MESSAGE_MULTIPLIER: u8 = 2;
@@ -96,7 +96,7 @@ impl<GE: GasEstimator> TONBroadcaster<GE> {
             .map_err(|e| BroadcasterError::GenericError(e.to_string()))?;
         let boc = general_purpose::STANDARD.encode(&tx);
 
-        debug!("Sending actions to chain: {:?}", actions);
+        debug!("Sending actions to chain: {:?}, with query_id: {:?}", actions, query_id);
         self.client
             .post_v3_message(boc)
             .await
@@ -130,8 +130,6 @@ impl<GE: GasEstimator> Broadcaster for TONBroadcaster<GE> {
             self.gateway_address.clone(),
         )
         .map_err(|e| BroadcasterError::GenericError(e.to_string()))?];
-
-        debug!("broadcast_prover_message actions: {:?}", actions);
 
         let wallet = self.wallet_manager.acquire().await.map_err(|e| {
             BroadcasterError::GenericError(format!("Wallet acquire failed: {:?}", e))
@@ -187,6 +185,7 @@ impl<GE: GasEstimator> Broadcaster for TONBroadcaster<GE> {
         let required_gas =
             self.gas_estimator.estimate_execute().await;
 
+        info!("Execute message: message_id={}, source_chain={}, available_gas={}, required_gas={}", message_id, source_chain, available_gas, required_gas);
         if available_gas < required_gas {
             return Ok(BroadcastResult {
                 transaction: TONTransaction,

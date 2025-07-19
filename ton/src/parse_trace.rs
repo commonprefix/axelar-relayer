@@ -67,6 +67,7 @@ use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
 use relayer_base::ton_types::{Trace, Transaction};
 use std::collections::HashMap;
+use tracing::info;
 
 #[derive(Eq, Hash, PartialEq)]
 struct MessageMatchingKey {
@@ -269,7 +270,7 @@ impl ParseTrace for TraceTransactions {
             } else if is_native_gas_added(&tx) {
                 let out_msg = &tx.out_msgs[0];
                 let msg = NativeGasAddedMessage::from_boc_b64(&out_msg.message_content.body)?;
-                let addr = format!("0x{}", msg.tx_hash); 
+                let addr = format!("0x{}", msg.tx_hash);
 
                 gas_added.push(ParsedTransaction {
                     log_message: Option::from(LogMessage::NativeGasAdded(msg.clone())),
@@ -279,7 +280,7 @@ impl ParseTrace for TraceTransactions {
             } else if is_jetton_gas_added(&tx) {
                 let out_msg = &tx.out_msgs[0];
                 let msg = JettonGasAddedMessage::from_boc_b64(&out_msg.message_content.body)?;
-                let addr = format!("0x{}", msg.tx_hash); 
+                let addr = format!("0x{}", msg.tx_hash);
 
                 gas_added.push(ParsedTransaction {
                     log_message: Option::from(LogMessage::JettonGasAdded(msg.clone())),
@@ -316,6 +317,15 @@ impl ParseTrace for TraceTransactions {
         }
 
         let gas_credit = gas_credit_map_to_vec(&call_contract, gas_credit_map);
+
+        info!("Parsed trace id {} and found call_contract:{}, message_approved:{}, executed:{}, gas_credit:{}, gas_added:{}, gas_refunded:{}", 
+            trace.trace_id, 
+            call_contract.len(), 
+            message_approved.len(), 
+            executed.len(), 
+            gas_credit.len(), 
+            gas_added.len(), 
+            gas_refunded.len());
 
         Ok(TraceTransactions {
             call_contract,
@@ -530,6 +540,23 @@ mod tests {
         assert!(matches!(
             parsed_tx.log_message,
             Some(LogMessage::JettonGasAdded(_))
+        ));
+    }
+
+    #[test]
+    fn test_executed() {
+        let traces = fixture_traces();
+
+        let trace_transactions = TraceTransactions::from_trace(traces[11].clone()).unwrap();
+        assert_eq!(trace_transactions.executed.len(), 1);
+        let parsed_tx = &trace_transactions.executed[0];
+        assert_eq!(
+            parsed_tx.transaction.hash,
+            "lx8e350/GIl5bTGULSGwnGhqoOZmndKjgW3aX7nkg+w="
+        );
+        assert!(matches!(
+            parsed_tx.log_message,
+            Some(LogMessage::Executed(_))
         ));
     }
 }
