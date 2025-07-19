@@ -1,3 +1,4 @@
+use std::future::Future;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use sqlx::types::Json;
@@ -10,7 +11,8 @@ pub struct TONTrace {
     pub is_incomplete: bool,
     pub start_lt: i64,
     pub end_lt: i64,
-    pub transactions: sqlx::types::Json<Vec<Transaction>>,
+    pub retries: i32,
+    pub transactions: Json<Vec<Transaction>>,
     pub created_at: chrono::DateTime<chrono::Utc>,
     pub updated_at: Option<chrono::DateTime<chrono::Utc>>,
 }
@@ -25,6 +27,7 @@ impl TONTrace {
             transactions: Json::from(trace.transactions.clone()),
             created_at: chrono::Utc::now(),
             updated_at: None,
+            retries: 5
         }
     }
 }
@@ -43,8 +46,16 @@ impl PgTONTraceModel {
 
 #[cfg_attr(test, mockall::automock)]
 pub trait AtomicUpsert {
-    fn upsert_and_return_if_changed(&self, tx: TONTrace) -> impl std::future::Future<Output =anyhow::Result<Option<TONTrace>>> + Send;
+    fn upsert_and_return_if_changed(&self, tx: TONTrace) -> impl Future<Output =anyhow::Result<Option<TONTrace>>> + Send;
 }
+
+#[cfg_attr(test, mockall::automock)]
+pub trait Retriable {
+    fn fetch_retry(&self, limit: u32) -> impl Future<Output = anyhow::Result<Vec<TONTrace>>> + Send;
+
+    fn decrease_retry(&self, tx: TONTrace) -> impl Future<Output = anyhow::Result<()>> + Send;
+}
+
 
 impl AtomicUpsert for PgTONTraceModel {
     async fn upsert_and_return_if_changed(&self, tx: TONTrace) -> anyhow::Result<Option<TONTrace>> {
@@ -78,6 +89,31 @@ impl AtomicUpsert for PgTONTraceModel {
             .await?;
 
         Ok(result)
+    }
+}
+
+impl Retriable for PgTONTraceModel {
+    async fn fetch_retry(&self, limit: u32) -> anyhow::Result<Vec<TONTrace>> {
+        let query = format!(
+            "SELECT * FROM {} WHERE retries > 0 AND is_incomplete = true ORDER BY updated_at NULLS FIRST LIMIT $1",
+            PG_TABLE_NAME
+        );
+
+        let rows = sqlx::query_as::<_, TONTrace>(&query)
+            .bind(limit as i64)
+            .fetch_all(&self.pool)
+            .await?;
+
+        Ok(rows)
+    }
+
+    async fn decrease_retry(&self, tx: TONTrace) -> anyhow::Result<()> {
+        let query = format!("UPDATE {} SET retries = retries - 1 WHERE trace_id = $1", PG_TABLE_NAME);
+        sqlx::query(&query)
+            .bind(tx.trace_id)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
     }
 }
 
@@ -144,6 +180,7 @@ mod tests {
             transactions: Json::from(transactions.clone()),
             created_at: chrono::Utc::now(),
             updated_at: Some(chrono::Utc::now()),
+            retries: 5
         };
 
         let ret = model.upsert_and_return_if_changed(trace.clone()).await.unwrap().unwrap();
@@ -173,6 +210,7 @@ mod tests {
             transactions: Json::from(transactions.clone()),
             created_at: chrono::Utc::now(),
             updated_at: Some(chrono::Utc::now()),
+            retries: 5
         };
 
         let ret = model.upsert_and_return_if_changed(trace.clone()).await.unwrap();

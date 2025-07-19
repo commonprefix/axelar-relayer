@@ -53,6 +53,8 @@ async fn main() {
 
 */
 
+const TIMEOUT_BUFFER_MULTIPLIER: i32 = 2; // Just to be on the safe side, increase the timeout so we never run close to cleanup.
+
 use crate::high_load_query_id::HighLoadQueryId;
 use async_trait::async_trait;
 use relayer_base::database::{Database, PostgresDB};
@@ -118,7 +120,7 @@ impl HighLoadQueryIdWrapper for HighLoadQueryIdDbWrapper {
                     address,
                     query_id.shift as i32,
                     query_id.bitnumber as i32,
-                    timeout as i32,
+                    timeout as i32 * TIMEOUT_BUFFER_MULTIPLIER,
                 )
                 .await
                 .unwrap();

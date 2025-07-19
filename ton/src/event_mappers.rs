@@ -6,7 +6,7 @@ There is probably a nicer way to encapsulate code, so adding new transactions is
 but this allows us not to have a tight coupling of chain parsing and GMP Events.
 
 # TODO:
-- Document conversion
+- Document currency conversion
 
 */
 
@@ -105,12 +105,12 @@ pub fn map_call_contract(parsed_tx: &ParsedTransaction) -> Event {
     };
     let tx = &parsed_tx.transaction;
 
-    // TODO: Make sure this is under 1000 characters
-    let source_context = HashMap::from([(
-        "ton_message".to_owned(),
-        serde_json::to_string(msg).unwrap(),
-    )]);
-
+    let source_context = HashMap::from([
+        ("source_address".to_owned(), msg.source_address.to_hex()),
+        ("destination_address".to_owned(), msg.destination_address.to_string()),
+        ("destination_chain".to_owned(), msg.destination_chain.clone()),
+    ]);
+    
     let b64_payload = BASE64_STANDARD.encode(
         hex::decode(&msg.payload)
             .map_err(|e| IngestorError::GenericError(format!("Failed to decode payload: {}", e)))
