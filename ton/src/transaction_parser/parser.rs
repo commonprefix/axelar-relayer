@@ -18,6 +18,7 @@ use std::collections::HashMap;
 use std::str::FromStr;
 use ton_types::ton_types::Trace;
 use tonlib_core::TonAddress;
+use crate::transaction_parser::parser_execute_insufficient_gas::ParserExecuteInsufficientGas;
 
 #[async_trait]
 pub trait Parser {
@@ -29,8 +30,6 @@ pub trait Parser {
         message_id: Option<String>,
     ) -> Result<Event, crate::error::TransactionParsingError>;
     async fn message_id(&self) -> Result<Option<String>, crate::error::TransactionParsingError>;
-    async fn needs_message_id(&self) -> bool;
-    async fn provides_message_id(&self) -> bool;
 }
 
 pub struct TraceParser<PV> {
@@ -183,13 +182,23 @@ impl<PV: PriceViewTrait> TraceParser<PV> {
         chain_name: String,
     ) -> Result<u64, TransactionParsingError> {
         let mut message_approved_count = 0u64;
+        let trace_copy = trace.clone();
         for tx in trace.transactions {
+            let mut parser = ParserExecuteInsufficientGas::new(
+                trace_copy.clone(), // Surely this can be optimized!
+                self.gateway_address.clone(),
+                chain_name.clone(),
+            ).await?;
+            if parser.is_match().await? {
+                parser.parse().await?;
+                parsers.push(Box::new(parser));
+                continue;
+            }
             let mut parser = ParserCallContract::new(
                 tx.clone(),
                 self.gateway_address.clone(),
                 chain_name.clone(),
-            )
-            .await?;
+            ).await?;
             if parser.is_match().await? {
                 parser.parse().await?;
                 call_contract.push(Box::new(parser));

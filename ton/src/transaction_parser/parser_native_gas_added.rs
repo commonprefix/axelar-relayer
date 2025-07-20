@@ -83,14 +83,6 @@ impl Parser for ParserNativeGasAdded {
         let addr = format!("0x{}", log.tx_hash);
         Ok(Some(addr))
     }
-
-    async fn needs_message_id(&self) -> bool {
-        true
-    }
-
-    async fn provides_message_id(&self) -> bool {
-        false
-    }
 }
 
 #[cfg(test)]

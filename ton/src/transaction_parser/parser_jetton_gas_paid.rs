@@ -44,7 +44,7 @@ impl Parser for ParserJettonGasPaid {
         if self.tx.account != self.allowed_address {
             return Ok(false);
         }
-        
+
         let candidate = is_log_emmitted(&self.tx, OP_USER_BALANCE_SUBTRACTED, 0)?;
 
         if !candidate {
@@ -94,14 +94,6 @@ impl Parser for ParserJettonGasPaid {
 
     async fn message_id(&self) -> Result<Option<String>, TransactionParsingError> {
         Ok(None)
-    }
-
-    async fn needs_message_id(&self) -> bool {
-        true
-    }
-
-    async fn provides_message_id(&self) -> bool {
-        false
     }
 }
 

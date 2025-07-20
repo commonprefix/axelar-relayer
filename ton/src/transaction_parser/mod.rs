@@ -9,3 +9,4 @@ mod parser_native_gas_added;
 mod parser_jetton_gas_added;
 mod parser_jetton_gas_paid;
 mod parser_native_gas_refunded;
+mod parser_execute_insufficient_gas;

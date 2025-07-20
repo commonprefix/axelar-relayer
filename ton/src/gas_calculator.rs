@@ -62,7 +62,7 @@ impl GasCalculator {
         let mut balances: HashMap<TonAddress, i128> = HashMap::new();
 
         for tx in transactions {
-            if let Some(_) = self.load_address(&Some(tx.account.clone()))? {
+            if (self.load_address(&Some(tx.account.clone()))?).is_some() {
                 for msg in &tx.out_msgs {
                     if let Some(op) = &msg.opcode {
                         if *op == OP_MESSAGE_APPROVE || *op == OP_NULLIFY_IF_APPROVED {

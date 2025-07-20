@@ -120,14 +120,6 @@ impl Parser for ParserCallContract {
             TransactionParsingError::Message(e.to_string())
         })?))
     }
-
-    async fn needs_message_id(&self) -> bool {
-        false
-    }
-
-    async fn provides_message_id(&self) -> bool {
-        true
-    }
 }
 
 #[cfg(test)]

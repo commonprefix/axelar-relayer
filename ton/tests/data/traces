@@ -10,3 +10,5 @@ Trace 10 - Real data for add jetton gas
 Trace 11 - Real data for executed transaction (with an error that can be ignored and invalid UTF8 up encoding that has to be cleaned up)
 Trace 12 - Real approve message
 Trace 13 - Real approve message
+Trace 14 - Execute message failed because there was insufficient gas (exit code 106)
+Trace 15 - Execute message failed because there was insufficient gas (result code 37)

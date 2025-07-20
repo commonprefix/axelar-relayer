@@ -88,14 +88,6 @@ impl Parser for ParserNativeGasPaid {
     async fn message_id(&self) -> Result<Option<String>, TransactionParsingError> {
         Ok(None)
     }
-
-    async fn needs_message_id(&self) -> bool {
-        true
-    }
-
-    async fn provides_message_id(&self) -> bool {
-        false
-    }
 }
 
 #[cfg(test)]

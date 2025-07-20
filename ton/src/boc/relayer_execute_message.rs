@@ -41,12 +41,12 @@ use crate::ton_constants::OP_RELAYER_EXECUTE;
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 pub struct RelayerExecuteMessage {
-    message_id: String,
-    source_chain: String,
-    source_address: String,
-    destination_chain: String,
-    destination_address: TonAddress,
-    payload: String,
+    pub(crate) message_id: String,
+    pub(crate) source_chain: String,
+    pub(crate) source_address: String,
+    pub(crate) destination_chain: String,
+    pub(crate) destination_address: TonAddress,
+    pub(crate) payload: String,
     relayer_address: TonAddress,
 }
 

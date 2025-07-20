@@ -104,14 +104,6 @@ impl Parser for ParserMessageExecuted {
     async fn message_id(&self) -> Result<Option<String>, TransactionParsingError> {
         Ok(None)
     }
-
-    async fn needs_message_id(&self) -> bool {
-        false
-    }
-
-    async fn provides_message_id(&self) -> bool {
-        false
-    }
 }
 
 #[cfg(test)]
