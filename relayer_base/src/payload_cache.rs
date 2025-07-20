@@ -87,9 +87,7 @@ mod tests {
     use mockall::predicate::*;
     use tokio;
 
-    #[tokio::test]
-    async fn test_store() {
-        let mut mock_db = MockDatabase::new();
+    fn cache_payload() -> (CrossChainId, PayloadCacheValue) {
         let cc_id = CrossChainId::new("foo", "bar").unwrap();
         let message = GatewayV2Message {
             message_id: "message".to_string(),
@@ -102,6 +100,14 @@ mod tests {
             message: message.clone(),
             payload: "test_payload".into(),
         };
+        (cc_id, value)
+    }
+
+    #[tokio::test]
+    async fn test_store() {
+        let mut mock_db = MockDatabase::new();
+        let (cc_id, value) = cache_payload();
+
         let serialized = serde_json::to_string(&value).unwrap();
 
         mock_db
@@ -116,20 +122,25 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_store_error() {
+        let mut mock_db = MockDatabase::new();
+        let (cc_id, value) = cache_payload();
+
+        mock_db
+            .expect_store_payload()
+            .returning(|_, _| Box::pin(async { Err(anyhow::anyhow!("error")) }));
+
+        let cache = PayloadCache::new(mock_db);
+        let result = cache.store(cc_id, value).await;
+
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().to_string(), "Failed to store payload: error");
+    }
+
+    #[tokio::test]
     async fn test_get_existing_hit() {
         let mut mock_db = MockDatabase::new();
-        let cc_id = CrossChainId::new("foo", "bar").unwrap();
-        let message = GatewayV2Message {
-            message_id: "message".to_string(),
-            source_chain: "source chain".to_string(),
-            source_address: "source address".to_string(),
-            destination_address: "destination address".to_string(),
-            payload_hash: "payload hash".to_string(),
-        };
-        let value = PayloadCacheValue {
-            message: message.clone(),
-            payload: "test_payload".into(),
-        };
+        let (cc_id, value) = cache_payload();
         let serialized = serde_json::to_string(&value).unwrap();
         mock_db
             .expect_get_payload()
@@ -162,4 +173,61 @@ mod tests {
 
         assert_eq!(result, None);
     }
+
+    #[tokio::test]
+    async fn test_get_db_error() {
+        let mut mock_db = MockDatabase::new();
+        let cc_id = CrossChainId::new("foo", "bar").unwrap();
+
+        mock_db
+            .expect_get_payload()
+            .with(eq(cc_id.clone()))
+            .returning(|_| Box::pin(async { Err(anyhow::anyhow!("db get failure")) }));
+
+        let cache = PayloadCache::new(mock_db);
+        let result = cache.get(cc_id).await;
+
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "Failed to get payload from database: db get failure"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_clear() {
+        let mut mock_db = MockDatabase::new();
+        let cc_id = CrossChainId::new("foo", "bar").unwrap();
+
+        mock_db
+            .expect_clear_payload()
+            .with(eq(cc_id.clone()))
+            .returning(|_| Box::pin(async { Ok(()) }));
+
+        let cache = PayloadCache::new(mock_db);
+        let result = cache.clear(cc_id).await;
+
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_clear_error() {
+        let mut mock_db = MockDatabase::new();
+        let cc_id = CrossChainId::new("foo", "bar").unwrap();
+
+        mock_db
+            .expect_clear_payload()
+            .with(eq(cc_id.clone()))
+            .returning(|_| Box::pin(async { Err(anyhow::anyhow!("clear error")) }));
+
+        let cache = PayloadCache::new(mock_db);
+        let result = cache.clear(cc_id).await;
+
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "Failed to clear payload: clear error"
+        );
+    }
+
 }
