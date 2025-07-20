@@ -15,6 +15,7 @@ use num_bigint::BigUint;
 use relayer_base::gmp_api::gmp_types::Event;
 use relayer_base::price_view::PriceViewTrait;
 use std::collections::HashMap;
+use std::future::Future;
 use std::str::FromStr;
 use ton_types::ton_types::Trace;
 use tonlib_core::TonAddress;
@@ -40,24 +41,14 @@ pub struct TraceParser<PV> {
     chain_name: String,
 }
 
-impl<PV: PriceViewTrait> TraceParser<PV> {
-    pub fn new(
-        price_view: PV,
-        gateway_address: TonAddress,
-        gas_service_address: TonAddress,
-        gas_calculator: GasCalculator,
-        chain_name: String,
-    ) -> Self {
-        Self {
-            price_view,
-            gateway_address,
-            gas_service_address,
-            gas_calculator,
-            chain_name,
-        }
-    }
+#[cfg_attr(test, mockall::automock)]
+pub trait TraceParserTrait {
+    fn parse_trace(&self, trace: Trace)
+        -> impl Future<Output = Result<Vec<Event>, crate::error::TransactionParsingError>>;
+}
 
-    pub async fn parse_trace(&self, trace: Trace) -> Result<Vec<Event>, TransactionParsingError> {
+impl<PV: PriceViewTrait> TraceParserTrait for TraceParser<PV> {
+    async fn parse_trace(&self, trace: Trace) -> Result<Vec<Event>, TransactionParsingError> {
         let mut events: Vec<Event> = Vec::new();
         let mut parsers: Vec<Box<dyn Parser>> = Vec::new();
         let mut call_contract: Vec<Box<dyn Parser>> = Vec::new();
@@ -107,8 +98,8 @@ impl<PV: PriceViewTrait> TraceParser<PV> {
                                 .map_err(|e| TransactionParsingError::Generic(e.to_string()))?,
                             &self.price_view,
                         )
-                        .await
-                        .map_err(|e| TransactionParsingError::Generic(e.to_string()))?;
+                            .await
+                            .map_err(|e| TransactionParsingError::Generic(e.to_string()))?;
                         p.amount = msg_value.to_string();
                         p.token_id = None;
                         payment = p;
@@ -171,6 +162,24 @@ impl<PV: PriceViewTrait> TraceParser<PV> {
         }
 
         Ok(parsed_events)
+    }
+}
+
+impl<PV: PriceViewTrait> TraceParser<PV> {
+    pub fn new(
+        price_view: PV,
+        gateway_address: TonAddress,
+        gas_service_address: TonAddress,
+        gas_calculator: GasCalculator,
+        chain_name: String,
+    ) -> Self {
+        Self {
+            price_view,
+            gateway_address,
+            gas_service_address,
+            gas_calculator,
+            chain_name,
+        }
     }
 
     async fn create_parsers(

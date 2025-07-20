@@ -1,24 +1,23 @@
-use crate::parser::TraceParser;
+use crate::parser::TraceParserTrait;
 use relayer_base::error::IngestorError;
 use relayer_base::gmp_api::gmp_types::{
     ConstructProofTask, Event, ReactToWasmEventTask, RetryTask, VerifyTask,
 };
 use relayer_base::ingestor::IngestorTrait;
-use relayer_base::price_view::PriceViewTrait;
 use relayer_base::subscriber::ChainTransaction;
 use tracing::warn;
 
-pub struct TONIngestor<PV: PriceViewTrait> {
-    trace_parser: TraceParser<PV>,
+pub struct TONIngestor<TP: TraceParserTrait> {
+    trace_parser: TP,
 }
 
-impl<PV: PriceViewTrait> TONIngestor<PV> {
-    pub fn new(trace_parser: TraceParser<PV>) -> Self {
+impl<TP: TraceParserTrait> TONIngestor<TP> {
+    pub fn new(trace_parser: TP) -> Self {
         Self { trace_parser }
     }
 }
 
-impl<PV: PriceViewTrait> IngestorTrait for TONIngestor<PV> {
+impl<TP: TraceParserTrait> IngestorTrait for TONIngestor<TP> {
     async fn handle_verify(&self, task: VerifyTask) -> Result<(), IngestorError> {
         warn!("handle_verify: {:?}", task);
 
@@ -69,5 +68,134 @@ impl<PV: PriceViewTrait> IngestorTrait for TONIngestor<PV> {
         Err(IngestorError::GenericError(
             "Still not implemented".to_string(),
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::ingestor::TONIngestor;
+    use crate::parser::MockTraceParserTrait;
+    use relayer_base::error::IngestorError;
+    use relayer_base::gmp_api::gmp_types::{
+        CommonTaskFields, ConstructProofTask, ConstructProofTaskFields, GatewayV2Message,
+        ReactToExpiredSigningSessionTask, ReactToExpiredSigningSessionTaskFields,
+        ReactToWasmEventTask, ReactToWasmEventTaskFields, RetryTask, VerifyTask, VerifyTaskFields,
+        WasmEvent,
+    };
+    use relayer_base::ingestor::IngestorTrait;
+
+    #[tokio::test]
+    async fn test_handle_retriable_task_unimplemented() {
+        let mock_parser = MockTraceParserTrait::new();
+        let ingestor = TONIngestor::new(mock_parser);
+        let task: RetryTask =
+            RetryTask::ReactToExpiredSigningSession(ReactToExpiredSigningSessionTask {
+                common: CommonTaskFields {
+                    id: "".to_string(),
+                    chain: "".to_string(),
+                    timestamp: "".to_string(),
+                    r#type: "".to_string(),
+                    meta: None,
+                },
+                task: ReactToExpiredSigningSessionTaskFields {
+                    session_id: 0,
+                    broadcast_id: "".to_string(),
+                    invoked_contract_address: "".to_string(),
+                    request_payload: "".to_string(),
+                },
+            });
+        let result = ingestor.handle_retriable_task(task).await;
+
+        assert!(
+            matches!(result, Err(IngestorError::GenericError(msg)) if msg.contains("Still not implemented"))
+        );
+    }
+
+    #[tokio::test]
+    async fn test_handle_construct_proof_unimplemented() {
+        let mock_parser = MockTraceParserTrait::new();
+        let ingestor = TONIngestor::new(mock_parser);
+        let result = ingestor
+            .handle_construct_proof(ConstructProofTask {
+                common: CommonTaskFields {
+                    id: "".to_string(),
+                    chain: "".to_string(),
+                    timestamp: "".to_string(),
+                    r#type: "".to_string(),
+                    meta: None,
+                },
+                task: ConstructProofTaskFields {
+                    message: gateway_v2_message(),
+                    payload: "".to_string(),
+                },
+            })
+            .await;
+
+        assert!(
+            matches!(result, Err(IngestorError::GenericError(msg)) if msg.contains("Still not implemented"))
+        );
+    }
+
+    fn gateway_v2_message() -> GatewayV2Message {
+        GatewayV2Message {
+            message_id: "".to_string(),
+            source_chain: "".to_string(),
+            source_address: "".to_string(),
+            destination_address: "".to_string(),
+            payload_hash: "".to_string(),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_handle_wasm_event_unimplemented() {
+        let mock_parser = MockTraceParserTrait::new();
+        let ingestor = TONIngestor::new(mock_parser);
+        let result = ingestor
+            .handle_wasm_event(ReactToWasmEventTask {
+                common: CommonTaskFields {
+                    id: "".to_string(),
+                    chain: "".to_string(),
+                    timestamp: "".to_string(),
+                    r#type: "".to_string(),
+                    meta: None,
+                },
+                task: ReactToWasmEventTaskFields {
+                    event: WasmEvent {
+                        attributes: vec![],
+                        r#type: "".to_string(),
+                    },
+                    height: 0,
+                },
+            })
+            .await;
+
+        assert!(
+            matches!(result, Err(IngestorError::GenericError(msg)) if msg.contains("Still not implemented"))
+        );
+    }
+
+    #[tokio::test]
+    async fn test_handle_verify_unimplemented() {
+        let mock_parser = MockTraceParserTrait::new();
+        let ingestor = TONIngestor::new(mock_parser);
+        let result = ingestor
+            .handle_verify(VerifyTask {
+                common: CommonTaskFields {
+                    id: "".to_string(),
+                    chain: "".to_string(),
+                    timestamp: "".to_string(),
+                    r#type: "".to_string(),
+                    meta: None,
+                },
+                task: VerifyTaskFields {
+                    message: gateway_v2_message(),
+                    payload: "".to_string(),
+                },
+            })
+            .await;
+
+        assert!(
+            matches!(result, Err(IngestorError::GenericError(msg)) if msg.contains("Still not implemented"))
+        );
     }
 }
