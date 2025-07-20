@@ -52,8 +52,7 @@ impl Parser for ParserCallContract {
             return Ok(false);
         }
 
-        let op_code = format!("0x{:08x}", OP_CALL_CONTRACT);
-        is_log_emmitted(&self.tx, &op_code, 0)
+        is_log_emmitted(&self.tx, OP_CALL_CONTRACT, 0)
     }
 
     async fn key(&self) -> Result<MessageMatchingKey, TransactionParsingError> {

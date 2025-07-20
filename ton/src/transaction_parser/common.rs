@@ -10,13 +10,13 @@ use ton_types::ton_types::Transaction;
 
 pub fn is_log_emmitted(
     tx: &Transaction,
-    op_code: &str,
+    op_code: u32,
     out_msg_log_index: usize,
 ) -> Result<bool, TransactionParsingError> {
     Ok(Some(tx)
         .and_then(|tx| tx.in_msg.as_ref())
-        .and_then(|in_msg| in_msg.opcode.as_ref())
-        .filter(|opcode| opcode == &op_code)
+        .and_then(|in_msg| in_msg.opcode)
+        .filter(|opcode| *opcode == op_code)
         .and_then(|_| tx.out_msgs.get(out_msg_log_index))
         .map(|msg| msg.destination.is_none())
         .unwrap_or(false))

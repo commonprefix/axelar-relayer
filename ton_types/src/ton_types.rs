@@ -1,4 +1,4 @@
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use serde_with::{serde_as, DisplayFromStr};
 use std::collections::HashMap;
 use tonlib_core::TonAddress;
@@ -17,38 +17,6 @@ pub struct TracesResponse {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct TracesResponseRest {
     pub traces: Vec<TraceRest>,
-}
-
-impl From<TracesResponseRest> for TracesResponse {
-    fn from(rest: TracesResponseRest) -> Self {
-        let traces = rest
-            .traces
-            .into_iter()
-            .map(|trace_rest| {
-                let transactions = trace_rest
-                    .transactions_order
-                    .into_iter()
-                    .map(|key| {
-                        trace_rest
-                            .transactions
-                            .get(&key)
-                            .cloned()
-                            .unwrap_or_else(|| panic!("Transaction key '{}' not found in map", key))
-                    })
-                    .collect();
-
-                Trace {
-                    is_incomplete: trace_rest.is_incomplete,
-                    start_lt: trace_rest.start_lt,
-                    end_lt: trace_rest.end_lt,
-                    trace_id: trace_rest.trace_id,
-                    transactions,
-                }
-            })
-            .collect();
-
-        TracesResponse { traces }
-    }
 }
 
 #[serde_as]
@@ -182,18 +150,22 @@ pub struct BlockRef {
     pub seqno: u32,
 }
 
+
+#[serde_as]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct TransactionMessage {
     pub hash: String,
     pub source: Option<String>,
-    pub destination: Option<String>,
+    #[serde_as(as = "Option<DisplayFromStr>")]
+    pub destination: Option<TonAddress>,
     pub value: Option<String>,
     pub value_extra_currencies: Option<ExtraCurrencies>,
     pub fwd_fee: Option<String>,
     pub ihr_fee: Option<String>,
     pub created_lt: Option<String>,
     pub created_at: Option<String>,
-    pub opcode: Option<String>,
+    #[serde(deserialize_with = "deserialize_hex_u32")]
+    pub opcode: Option<u32>,
     pub ihr_disabled: Option<bool>,
     pub bounce: Option<bool>,
     pub bounced: Option<bool>,
@@ -218,4 +190,59 @@ pub struct AccountState {
     pub frozen_hash: Option<String>,
     pub data_hash: Option<String>,
     pub code_hash: Option<String>,
+}
+
+impl From<TracesResponseRest> for TracesResponse {
+    fn from(rest: TracesResponseRest) -> Self {
+        let traces = rest
+            .traces
+            .into_iter()
+            .map(|trace_rest| {
+                let transactions = trace_rest
+                    .transactions_order
+                    .into_iter()
+                    .map(|key| {
+                        trace_rest
+                            .transactions
+                            .get(&key)
+                            .cloned()
+                            .unwrap_or_else(|| panic!("Transaction key '{}' not found in map", key))
+                    })
+                    .collect();
+
+                Trace {
+                    is_incomplete: trace_rest.is_incomplete,
+                    start_lt: trace_rest.start_lt,
+                    end_lt: trace_rest.end_lt,
+                    trace_id: trace_rest.trace_id,
+                    transactions,
+                }
+            })
+            .collect();
+
+        TracesResponse { traces }
+    }
+}
+
+fn deserialize_hex_u32<'de, D>(deserializer: D) -> Result<Option<u32>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    use serde_json::Value;
+    let val = Option::<Value>::deserialize(deserializer)?;
+
+    match val {
+        Some(Value::String(s)) => {
+            let trimmed = s.trim_start_matches("0x");
+            u32::from_str_radix(trimmed, 16)
+                .map(Some)
+                .map_err(serde::de::Error::custom)
+        }
+        Some(Value::Number(n)) => n
+            .as_u64()
+            .map(|n| Some(n as u32))
+            .ok_or_else(|| serde::de::Error::custom("Expected u64 number")),
+        Some(_) => Err(serde::de::Error::custom("Expected string or number for opcode")),
+        None => Ok(None),
+    }
 }

@@ -51,20 +51,17 @@ impl Parser for ParserMessageExecuted {
         if self.tx.account != self.allowed_address {
             return Ok(false);
         }
-
-        let op_code = format!("0x{:08x}", OP_NULLIFIED_SUCCESSFULLY);
-        if !is_log_emmitted(&self.tx, &op_code, 1)? {
+        
+        if !is_log_emmitted(&self.tx, OP_NULLIFIED_SUCCESSFULLY, 1)? {
             return Ok(false);
         }
-
-        let op_code = format!("0x{:08x}", OP_GATEWAY_EXECUTE);
 
         Ok(self
             .tx
             .out_msgs
             .first()
             .and_then(|out_msg| out_msg.opcode.as_ref())
-            .map(|op| op == &op_code)
+            .map(|op| *op == OP_GATEWAY_EXECUTE)
             .unwrap_or(false))
     }
 

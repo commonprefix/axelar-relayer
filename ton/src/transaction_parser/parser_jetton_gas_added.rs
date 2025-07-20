@@ -47,8 +47,7 @@ impl Parser for ParserJettonGasAdded {
             return Ok(false);
         }
 
-        let op_code = format!("0x{:08x}", OP_USER_BALANCE_SUBTRACTED);
-        let candidate = is_log_emmitted(&self.tx, &op_code, 0)?;
+        let candidate = is_log_emmitted(&self.tx, OP_USER_BALANCE_SUBTRACTED, 0)?;
 
         if !candidate {
             return Ok(false);

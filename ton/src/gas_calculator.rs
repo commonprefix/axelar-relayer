@@ -11,10 +11,11 @@ Why we see empty balances?
 
 use crate::error::GasError;
 use ton_types::ton_types::Transaction;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::ops::AddAssign;
 use std::str::FromStr;
 use tonlib_core::TonAddress;
+use crate::ton_constants::{OP_MESSAGE_APPROVE, OP_NULLIFY_IF_APPROVED};
 
 #[derive(Default)]
 pub struct GasCalculator {
@@ -57,10 +58,22 @@ impl GasCalculator {
     }
 
     fn balance_diff(&self, transactions: &[Transaction]) -> Result<i128, GasError> {
-        // We may lose some precision, but the computation should be much cheaper than using BigUInt
+        let mut dynamic_addresses: HashSet<TonAddress> = self.our_addresses.iter().cloned().collect();
         let mut balances: HashMap<TonAddress, i128> = HashMap::new();
 
         for tx in transactions {
+            if let Some(_) = self.load_address(&Some(tx.account.clone()))? {
+                for msg in &tx.out_msgs {
+                    if let Some(op) = &msg.opcode {
+                        if *op == OP_MESSAGE_APPROVE || *op == OP_NULLIFY_IF_APPROVED {
+                            if let Some(dest) = &msg.destination {
+                                dynamic_addresses.insert(dest.clone());
+                            }
+                        }
+                    }
+                }
+            }
+
             let balance_before = i128::from_str(
                 &tx.account_state_before
                     .balance
@@ -76,9 +89,9 @@ impl GasCalculator {
             )
             .unwrap_or(0);
             let balance = balance_before - balance_after;
-            if let Some(addr) = self.load_address(&Some(tx.account.clone()))? {
+            if dynamic_addresses.contains(&tx.account) {
                 balances
-                    .entry(addr.clone())
+                    .entry(tx.account.clone())
                     .or_insert(0)
                     .add_assign(balance);
             }
@@ -145,6 +158,61 @@ mod tests {
 
         let calc = GasCalculator::new(our_addresses);
         let amount = calc.calc_message_gas_native_gas_refunded(&traces[8].transactions);
+
+        // We care about A + C network fees:
+        // https://testnet.tonviewer.com/transaction/9e2300fdb67ef055031c1f1250c0ec76a5b0181692d41a383adb5df890faf5cc?section=valueFlow
         assert_eq!(amount.unwrap(), 10869279);
     }
+
+    #[test]
+    fn test_gas_approved_a() {
+        let traces = fixture_traces();
+
+        let our_addresses = vec![
+            TonAddress::from_base64_url("0QCQPVhDBzLBwIlt8MtDhPwIrANfNH2ZQnX0cSvhCD4Dld4b")
+                .unwrap(),
+            TonAddress::from_base64_url("kQAAGUqtjkIr7fQ_7nRtbZKdNp26slRopp1RNwbqaXi2OnXH")
+                .unwrap(),
+        ];
+
+        let calc = GasCalculator::new(our_addresses);
+        let amount = calc.calc_message_gas(&traces[12].transactions);
+        assert_eq!(amount.unwrap(), 42744830);
+    }
+
+    #[test]
+    fn test_gas_approved_b() {
+        let traces = fixture_traces();
+
+        let our_addresses = vec![
+            TonAddress::from_base64_url("0QCQPVhDBzLBwIlt8MtDhPwIrANfNH2ZQnX0cSvhCD4Dld4b")
+                .unwrap(),
+            TonAddress::from_base64_url("kQAAGUqtjkIr7fQ_7nRtbZKdNp26slRopp1RNwbqaXi2OnXH")
+                .unwrap(),
+        ];
+
+        let calc = GasCalculator::new(our_addresses);
+        let amount = calc.calc_message_gas(&traces[13].transactions);
+        assert_eq!(amount.unwrap(), 42628574);
+    }
+
+    #[test]
+    fn test_gas_executed() {
+        let traces = fixture_traces();
+
+        let our_addresses = vec![
+            TonAddress::from_base64_url("0QCQPVhDBzLBwIlt8MtDhPwIrANfNH2ZQnX0cSvhCD4Dld4b")
+                .unwrap(),
+            TonAddress::from_base64_url("kQAAGUqtjkIr7fQ_7nRtbZKdNp26slRopp1RNwbqaXi2OnXH")
+                .unwrap(),
+        ];
+
+        let calc = GasCalculator::new(our_addresses);
+        let amount = calc.calc_message_gas(&traces[11].transactions);
+
+        // https://testnet.tonviewer.com/transaction/3594522d1f0b4ec694558538e1f4b701acae9f7c9ee282f5c73b08ca18cb322c?section=valueFlow
+        // We should have the same number as A, B and C
+        assert_eq!(amount.unwrap(), 36656408 + 4271633);
+    }
+
 }

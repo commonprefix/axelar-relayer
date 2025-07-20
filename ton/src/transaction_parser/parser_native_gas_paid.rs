@@ -45,8 +45,7 @@ impl Parser for ParserNativeGasPaid {
             return Ok(false);
         }
 
-        let op_code = format!("0x{:08x}", OP_PAY_NATIVE_GAS_FOR_CONTRACT_CALL);
-        is_log_emmitted(&self.tx, &op_code, 0)
+        is_log_emmitted(&self.tx, OP_PAY_NATIVE_GAS_FOR_CONTRACT_CALL, 0)
     }
 
     async fn key(&self) -> Result<MessageMatchingKey, TransactionParsingError> {

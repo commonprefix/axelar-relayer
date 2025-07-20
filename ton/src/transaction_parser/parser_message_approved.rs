@@ -46,9 +46,8 @@ impl Parser for ParserMessageApproved {
         if self.tx.account != self.allowed_address {
             return Ok(false);
         }
-
-        let op_code = format!("0x{:08x}", OP_MESSAGE_APPROVED);
-        is_log_emmitted(&self.tx, &op_code, 0)
+        
+        is_log_emmitted(&self.tx, OP_MESSAGE_APPROVED, 0)
     }
 
     async fn key(&self) -> Result<MessageMatchingKey, TransactionParsingError> {
