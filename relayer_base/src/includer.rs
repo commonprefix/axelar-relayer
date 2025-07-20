@@ -144,27 +144,45 @@ where
     pub async fn consume(&self, task: QueueItem) -> Result<(), IncluderError> {
         match task {
             QueueItem::Task(task) => match task {
-                // TODO: We probably want to clean up this file, and maybe even move consume logic
-                // up to chain includer
                 Task::Execute(execute_task) => {
-                    info!("Consuming task: {:?}", execute_task);
-                    let broadcast_result = self
+                    info!("Consuming execute task: {:?}", execute_task);
+                    let broadcast_result = match self
                         .broadcaster
                         .broadcast_execute_message(execute_task.task)
                         .await
-                        .map_err(|e| IncluderError::ConsumerError(e.to_string()))?;
+                    {
+                        Ok(result) => result,
+                        Err(BroadcasterError::IrrelevantTask(_)) => {
+                            return Ok(());
+                        }
+                        Err(e) => {
+                            return Err(IncluderError::ConsumerError(e.to_string()));
+                        }
+                    };
 
-                    if broadcast_result.message_id.is_some()
-                        && broadcast_result.source_chain.is_some()
+                    if Self::broadcast_result_has_message(&broadcast_result)
                         && broadcast_result.status.is_ok()
                     {
                         return Ok(());
                     }
 
-                    let err = broadcast_result.status.unwrap_err();
+                    let err = &broadcast_result.status;
+                    let err = err.as_ref().unwrap_err();
+                    let (gmp_error, retry) = match err {
+                        BroadcasterError::InsufficientGas(_) => (
+                            crate::gmp_api::gmp_types::CannotExecuteMessageReason::InsufficientGas,
+                            false,
+                        ),
+                        _ => {
+                            warn!("Failed to broadcast execute message: {:?}", err);
+                            (
+                                crate::gmp_api::gmp_types::CannotExecuteMessageReason::Error,
+                                true,
+                            )
+                        }
+                    };
 
-                    if broadcast_result.message_id.is_some()
-                        && broadcast_result.source_chain.is_some() {
+                    if Self::broadcast_result_has_message(&broadcast_result) {
                         let message_id = broadcast_result.message_id.unwrap();
                         let source_chain = broadcast_result.source_chain.unwrap();
 
@@ -174,12 +192,15 @@ where
                                 message_id,
                                 source_chain,
                                 err.to_string(),
-                                crate::gmp_api::gmp_types::CannotExecuteMessageReason::Error
+                                gmp_error
                             )
                             .await
                             .map_err(|e| IncluderError::ConsumerError(e.to_string()))?;
                     }
-
+                    
+                    if !retry {
+                        return Ok(());
+                    }
                     Err(IncluderError::ConsumerError(err.to_string()))
                 }
                 Task::GatewayTx(gateway_tx_task) => {
@@ -199,8 +220,7 @@ where
                         broadcast_result.tx_hash
                     );
 
-                    if broadcast_result.message_id.is_some()
-                        && broadcast_result.source_chain.is_some()
+                    if Self::broadcast_result_has_message(&broadcast_result)
                     {
                         let message_id = broadcast_result.message_id.unwrap();
                         let source_chain = broadcast_result.source_chain.unwrap();
@@ -346,5 +366,10 @@ where
                 "Invalid queue item".to_string(),
             )),
         }
+    }
+
+    fn broadcast_result_has_message(broadcast_result: &BroadcastResult<<B as Broadcaster>::Transaction>) -> bool {
+        broadcast_result.message_id.is_some()
+            && broadcast_result.source_chain.is_some()
     }
 }

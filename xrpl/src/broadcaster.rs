@@ -190,9 +190,13 @@ impl<QM: QueuedTransactionsModel, X: XRPLClientTrait> Broadcaster for XRPLBroadc
         &self, 
         _message: ExecuteTaskFields
     ) -> Result<BroadcastResult<Self::Transaction>, BroadcasterError> {
-        unimplemented!()
+        Err(BroadcasterError::IrrelevantTask("XRPL does not send Execute Message".to_string()))
     }
 
+    // We have both broadcast_refund_message and broadcast_refund for legacy reasons: Ton
+    // requires entire RefundTaskFields, while XRPL depends only on tx_blob, and Rust
+    // does not support method overloading, alas. We should refactor refund_manager to be 
+    // XRPL-specific. 
     async fn broadcast_refund_message(
         &self,
         _refund_task: RefundTaskFields)

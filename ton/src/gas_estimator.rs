@@ -40,7 +40,6 @@ impl GasEstimator for TONGasEstimator {
     }
 
     async fn estimate_approve_messages(&self, num_messages: usize) -> u64 {
-        // TODO: We shouldn't include hload wallet in approve_fixed
         self.config.approve_fixed
             + self.config.approve_fixed_storage_slippage
             + self.config.approve_per_message * num_messages as u64

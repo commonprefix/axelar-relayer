@@ -26,10 +26,9 @@ impl GasCalculator {
         Self { our_addresses }
     }
 
-    fn load_address(&self, addr_str: &Option<String>) -> Result<Option<TonAddress>, GasError> {
-        if let Some(s) = addr_str {
-            let addr =
-                TonAddress::from_str(s).map_err(|_| GasError::GasCalculationError(s.clone()))?;
+    fn load_address(&self, addr: &Option<TonAddress>) -> Result<Option<TonAddress>, GasError> {
+        if let Some(s) = addr {
+            let addr = s.clone();
             Ok(Some(addr).filter(|a| self.our_addresses.contains(a)))
         } else {
             Ok(None)

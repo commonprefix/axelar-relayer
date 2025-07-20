@@ -5,6 +5,27 @@ to increase it. Each wallet has a timeout. If the timeout has passed, the query 
 
 This code *must be used* in conjuction with the `WalletManager`.
 
+The TIMEOUT_BUFFER_MULTIPLIER is set to 3 for the following reason:
+
+`
+    if (last_clean_time < (now() - timeout)) {
+        (old_queries, queries) = (queries, null());
+        if (last_clean_time < (now() - (timeout * 2))) {
+            old_queries = null();
+        }
+        last_clean_time = now();
+    }
+`
+
+That means that it is only safe to reset query_id after 3 * timeout:
+
+| Time           | Action                       | `queries` Contains | `old_queries` Contains | Can Send `X`? | Can Send `Y`? |
+|----------------|------------------------------|---------------------|-------------------------|----------------|----------------|
+| `t = 0`        | Send `X`                     | `X`                 | —                       | ❌ (was just used) | ✅ (not yet used) |
+| `t = T`        | Send `Y`                     | `Y`                 | `X`                     | ❌ (in old_queries) | ❌ (was just used) |
+| `t = 2T`       | `X` evicted from old_queries | —                   | `Y`                     | ✅ (fully expired) | ❌ (in old_queries) |
+| `t = 3T`       | `Y` evicted from old_queries | —                   | —                       | ✅              | ✅              |
+
 # Usage Example
 
 ```rust,no_run
@@ -53,7 +74,7 @@ async fn main() {
 
 */
 
-const TIMEOUT_BUFFER_MULTIPLIER: i32 = 2; // Just to be on the safe side, increase the timeout so we never run close to cleanup.
+const TIMEOUT_BUFFER_MULTIPLIER: i32 = 3;
 
 use crate::high_load_query_id::HighLoadQueryId;
 use async_trait::async_trait;

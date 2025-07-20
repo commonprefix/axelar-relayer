@@ -23,8 +23,8 @@ reqwest = { workspace = true }
 reqwest-retry = { workspace = true }
 reqwest-middleware = { workspace = true, features = ["json"] }
 ton_types = { workspace = true }
+tonlib-core = { workspace = true }
 
-tonlib-core = "0.26.0"
 nacl = "0.5.3"
 num-bigint = "0.4.6"
 async-trait = "0.1.88"

@@ -16,6 +16,7 @@ use crate::gas_estimator::GasEstimator;
 use crate::high_load_query_id_db_wrapper::HighLoadQueryIdWrapper;
 use crate::out_action::out_action;
 use crate::relayer_execute_message::RelayerExecuteMessage;
+use crate::ton_constants::REFUND_DUST;
 use crate::ton_wallet_high_load_v3::TonWalletHighLoadV3;
 use crate::wallet_manager::WalletManager;
 use base64::engine::general_purpose;
@@ -33,7 +34,6 @@ use tonlib_core::tlb_types::block::out_action::OutAction;
 use tonlib_core::tlb_types::tlb::TLB;
 use tonlib_core::{TonAddress, TonHash};
 use tracing::{debug, error, info};
-use crate::ton_constants::REFUND_DUST;
 
 const REFUNDABLE_MESSAGE_MULTIPLIER: u8 = 2;
 
@@ -96,7 +96,10 @@ impl<GE: GasEstimator> TONBroadcaster<GE> {
             .map_err(|e| BroadcasterError::GenericError(e.to_string()))?;
         let boc = general_purpose::STANDARD.encode(&tx);
 
-        debug!("Sending actions to chain: {:?}, with query_id: {:?}", actions, query_id);
+        debug!(
+            "Sending boc: {:?} to post_v3_message with query_id: {:?}",
+            boc, query_id
+        );
         self.client
             .post_v3_message(boc)
             .await
@@ -182,10 +185,12 @@ impl<GE: GasEstimator> Broadcaster for TONBroadcaster<GE> {
         let source_chain = message.message.source_chain;
 
         let available_gas = u64::from_str(&message.available_gas_balance.amount).unwrap_or(0);
-        let required_gas =
-            self.gas_estimator.estimate_execute().await;
+        let required_gas = self.gas_estimator.estimate_execute().await;
 
-        info!("Execute message: message_id={}, source_chain={}, available_gas={}, required_gas={}", message_id, source_chain, available_gas, required_gas);
+        info!(
+            "Execute message: message_id={}, source_chain={}, available_gas={}, required_gas={}",
+            message_id, source_chain, available_gas, required_gas
+        );
         if available_gas < required_gas {
             return Ok(BroadcastResult {
                 transaction: TONTransaction,
@@ -194,8 +199,6 @@ impl<GE: GasEstimator> Broadcaster for TONBroadcaster<GE> {
                 source_chain: Some(source_chain),
                 status: Err(BroadcasterError::InsufficientGas(
                     "Cannot proceed to execute".to_string(),
-                    required_gas,
-                    available_gas,
                 )),
             });
         }
@@ -287,8 +290,7 @@ impl<GE: GasEstimator> Broadcaster for TONBroadcaster<GE> {
             ));
         }
 
-        let amount = original_amount
-            - BigUint::from(gas_estimate);
+        let amount = original_amount - BigUint::from(gas_estimate);
 
         let native_refund = NativeRefundMessage::new(tx_hash, address, amount);
         let boc = native_refund
@@ -618,24 +620,25 @@ mod tests {
         assert!(unwrapped.status.is_err());
         assert_eq!(
             unwrapped.status.err().unwrap().to_string(),
-            "Insufficient gas: Cannot proceed to execute -- required: 42, available: 11"
+            "Insufficient gas: Cannot proceed to execute"
         );
     }
 
     #[tokio::test]
     async fn test_broadcast_refund_message() {
         let mut client = MockRestClient::new();
-        client.expect_post_v3_message()
+        client
+            .expect_post_v3_message()
             .withf(|boc| {
                 let cell = Cell::from_boc_b64(boc);
                 cell.is_ok()
             })
             .returning(|_| {
-            Ok(V3MessageResponse {
-                message_hash: "abc".to_string(),
-                message_hash_norm: "ABC".to_string(),
-            })
-        });
+                Ok(V3MessageResponse {
+                    message_hash: "abc".to_string(),
+                    message_hash_norm: "ABC".to_string(),
+                })
+            });
 
         let wallet_manager = load_wallets().await;
         let query_id_wrapper = MockQueryIdWrapper;
@@ -685,11 +688,11 @@ mod tests {
         let gateway_address = TonAddress::from_str(
             "0:0000000000000000000000000000000000000000000000000000000000000000",
         )
-            .unwrap();
+        .unwrap();
         let gas_service_address = TonAddress::from_str(
             "0:0000000000000000000000000000000000000000000000000000000000000fff",
         )
-            .unwrap();
+        .unwrap();
 
         let mut gas_estimator = MockGasEstimator::new();
         gas_estimator
@@ -717,7 +720,8 @@ mod tests {
 
     fn mock_rest_client() -> MockRestClient {
         let mut client = MockRestClient::new();
-        client.expect_post_v3_message()
+        client
+            .expect_post_v3_message()
             .withf(|boc| {
                 let cell = Cell::from_boc_b64(boc);
                 cell.is_ok()
@@ -738,12 +742,12 @@ mod tests {
                     .to_string(),
                 source_chain: "avalanche-fuji".to_string(),
                 destination_address:
-                "0:b87a4a0f644b7a186ee71a1454634f70c22a62aca1a6ba676b5175c21d7fd930".to_string(),
+                    "0:b87a4a0f644b7a186ee71a1454634f70c22a62aca1a6ba676b5175c21d7fd930".to_string(),
                 source_address: "ton2".to_string(),
                 payload_hash: "aea6524367000fb4a0aa20b1d4f63daad1ed9e9df70=".to_string(),
             },
             refund_recipient_address:
-            "0:e1e633eb701b118b44297716cee7069ee847b56db88c497efea681ed14b2d2c7".to_string(),
+                "0:e1e633eb701b118b44297716cee7069ee847b56db88c497efea681ed14b2d2c7".to_string(),
             remaining_gas_balance: Amount {
                 token_id: None,
                 amount: "42".to_string(),

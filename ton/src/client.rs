@@ -23,14 +23,14 @@ and it is less flexible and more time consuming to get it running than writing o
 use async_trait::async_trait;
 use relayer_base::error::ClientError;
 use relayer_base::error::ClientError::{BadRequest, BadResponse, ConnectionFailed};
-use ton_types::ton_types::{Trace, TracesResponse, TracesResponseRest};
 use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
 use reqwest_retry::{policies::ExponentialBackoff, RetryTransientMiddleware};
 use serde::Deserialize;
 use serde_json::json;
 use std::time::Duration;
+use ton_types::ton_types::{Trace, TracesResponse, TracesResponseRest};
 use tonlib_core::TonAddress;
-use tracing::debug;
+use tracing::{debug, error};
 
 #[derive(Clone)]
 pub struct TONRpcClient {
@@ -61,7 +61,12 @@ pub trait RestClient: Send + Sync {
         trace_ids: Option<Vec<String>>,
         start_lt: Option<i64>,
     ) -> Result<Vec<Trace>, ClientError>;
-    fn handle_non_success_response(&self, status: reqwest::StatusCode, text: &str) -> ClientError;
+    fn handle_non_success_response(
+        &self,
+        status: reqwest::StatusCode,
+        text: &str,
+        context: &str,
+    ) -> ClientError;
 }
 
 impl TONRpcClient {
@@ -131,7 +136,7 @@ impl RestClient for TONRpcClient {
             serde_json::from_str::<V3MessageResponse>(&text)
                 .map_err(|err| BadResponse(format!("Failed to parse success response: {err}")))
         } else {
-            Err(self.handle_non_success_response(status, &text))
+            Err(self.handle_non_success_response(status, &text, boc.as_str()))
         }
     }
 
@@ -143,9 +148,7 @@ impl RestClient for TONRpcClient {
     ) -> Result<Vec<Trace>, ClientError> {
         let url = format!("{}/api/v3/traces", self.url.trim_end_matches('/'));
 
-        let mut query_params = vec![
-            ("limit", "100".to_string())
-        ];
+        let mut query_params = vec![("limit", "100".to_string())];
 
         if account.is_some() {
             query_params.push(("account", account.unwrap().to_string()));
@@ -187,18 +190,31 @@ impl RestClient for TONRpcClient {
                 .map(|res| res.traces)
                 .map_err(|err| BadResponse(format!("Failed to parse traces list: {err}")))
         } else {
-            Err(self.handle_non_success_response(status, &clean_text))
+            Err(self.handle_non_success_response(
+                status,
+                &clean_text,
+                format!("{:?}", query_params).as_str(),
+            ))
         }
     }
 
-    fn handle_non_success_response(&self, status: reqwest::StatusCode, text: &str) -> ClientError {
+    fn handle_non_success_response(
+        &self,
+        status: reqwest::StatusCode,
+        text: &str,
+        context: &str,
+    ) -> ClientError {
+        error!("TON RPC request failed: {}: {}, (sent {})", status, text, context);
         if status.as_u16() == 400 {
             match serde_json::from_str::<V3ErrorResponse>(text) {
                 Ok(err_body) => BadRequest(err_body.error),
                 Err(err) => BadResponse(format!("Invalid 400 body: {err}")),
             }
         } else {
-            BadResponse(format!("Unexpected status {}: {}", status, text))
+            BadResponse(format!(
+                "Unexpected status {}: {}",
+                status, text
+            ))
         }
     }
 }
@@ -285,9 +301,12 @@ mod tests {
 
         let result = client
             .get_traces_for_account(
-                Some(TonAddress::from_str(
-                    "0:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
-                ).unwrap()),
+                Some(
+                    TonAddress::from_str(
+                        "0:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+                    )
+                    .unwrap(),
+                ),
                 None,
                 Some(1),
             )
@@ -361,9 +380,12 @@ mod tests {
 
         let result = client
             .get_traces_for_account(
-                Some(TonAddress::from_str(
-                    "0:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
-                ).unwrap()),
+                Some(
+                    TonAddress::from_str(
+                        "0:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+                    )
+                    .unwrap(),
+                ),
                 None,
                 None,
             )

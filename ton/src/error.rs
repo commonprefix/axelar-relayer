@@ -23,3 +23,16 @@ pub enum GasError {
     #[error("GasCalculationError: {0}")]
     GasCalculationError(String)
 }
+
+#[derive(Error, Debug)]
+pub enum TransactionParsingError {
+    #[error("BocParsingError: {0}")]
+    BocParsing(String),
+    #[error("MessageParsingError: {0}")]
+    Message(String),
+    #[error("GasError: {0}")]
+    Gas(String),
+    #[error("GeneralError: {0}")]
+    Generic(String)
+}
+

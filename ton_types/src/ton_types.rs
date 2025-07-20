@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, DisplayFromStr};
 use std::collections::HashMap;
+use tonlib_core::TonAddress;
 
 #[serde_as]
 #[derive(Debug, Serialize, Deserialize)]
@@ -78,7 +79,8 @@ pub struct Trace {
 #[serde_as]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Transaction {
-    pub account: String,
+    #[serde_as(as = "DisplayFromStr")]
+    pub account: TonAddress,
     pub hash: String,
     #[serde_as(as = "DisplayFromStr")]
     pub lt: i64,
