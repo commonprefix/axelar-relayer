@@ -71,14 +71,12 @@ impl Parser for ParserExecuteInsufficientGas {
             }
         }
 
-        if txs.len() == 5 {
-            if txs[3].in_msg.is_some() {
-                if let Some(in_msg4) = &txs[4].in_msg {
-                    if in_msg4.opcode == Some(OP_NULLIFIED_SUCCESSFULLY) {
-                        if let Some(action) = &txs[4].description.action {
-                            if action.result_code == 37 {
-                                return Ok(true);
-                            }
+        if txs.len() == 5 && txs[3].in_msg.is_some() {
+            if let Some(in_msg4) = &txs[4].in_msg {
+                if in_msg4.opcode == Some(OP_NULLIFIED_SUCCESSFULLY) {
+                    if let Some(action) = &txs[4].description.action {
+                        if action.result_code == 37 {
+                            return Ok(true);
                         }
                     }
                 }

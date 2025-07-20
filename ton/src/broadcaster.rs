@@ -174,7 +174,7 @@ impl<GE: GasEstimator> Broadcaster for TONBroadcaster<GE> {
             })?;
 
         let decoded_bytes = general_purpose::STANDARD
-            .decode(message.payload)
+            .decode(message.payload.clone())
             .map_err(|e| {
                 BroadcasterError::GenericError(format!("Failed decoding payload: {:?}", e))
             })?;
@@ -185,7 +185,7 @@ impl<GE: GasEstimator> Broadcaster for TONBroadcaster<GE> {
         let source_chain = message.message.source_chain;
 
         let available_gas = u64::from_str(&message.available_gas_balance.amount).unwrap_or(0);
-        let required_gas = self.gas_estimator.estimate_execute().await;
+        let required_gas = self.gas_estimator.estimate_execute(message.payload.len()).await;
 
         info!(
             "Execute message: message_id={}, source_chain={}, available_gas={}, required_gas={}",
@@ -319,7 +319,6 @@ impl<GE: GasEstimator> Broadcaster for TONBroadcaster<GE> {
                 ];
 
             let res = self.send_to_chain(wallet, actions.clone()).await;
-            // TODO: Handle failure
             let (tx_hash, _status) = match res {
                 Ok(response) => (response.message_hash, Ok(())),
                 Err(err) => (String::new(), Err(err)),
@@ -513,7 +512,7 @@ mod tests {
         let mut gas_estimator = MockGasEstimator::new();
         gas_estimator
             .expect_estimate_execute()
-            .returning(|| Box::pin(async { 42u64 }));
+            .returning(|_| Box::pin(async { 42u64 }));
         gas_estimator
             .expect_estimate_highload_wallet()
             .returning(|_| Box::pin(async { 1024u64 }));
@@ -585,7 +584,7 @@ mod tests {
         let mut gas_estimator = MockGasEstimator::new();
         gas_estimator
             .expect_estimate_execute()
-            .returning(|| Box::pin(async { 42u64 }));
+            .returning(|_| Box::pin(async { 42u64 }));
         gas_estimator
             .expect_estimate_highload_wallet()
             .returning(|_| Box::pin(async { 1024u64 }));

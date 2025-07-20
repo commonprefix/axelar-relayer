@@ -15,6 +15,8 @@ pub struct GasEstimates {
     pub native_gas_refund: u64,
     pub native_gas_refund_storage_slippage: u64,
     pub execute: u64,
+    pub execute_base: u64,
+    pub execute_payload: u64,
     pub execute_storage_slippage: u64,
     pub approve_fixed: u64,
     pub approve_fixed_storage_slippage: u64,
