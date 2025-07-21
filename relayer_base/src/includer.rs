@@ -169,7 +169,7 @@ where
                                 .await;
 
                             let mut redis_conn = self.redis_pool.get().unwrap();
-                            let redis_key = format!("failed_proof:{}", cross_chain_id);
+                            let redis_key = format!("failed_proof:{cross_chain_id}");
                             let _: i64 = redis_conn
                                 .incr(redis_key.clone(), 1)
                                 .map_err(|e| IncluderError::GenericError(e.to_string()))?;

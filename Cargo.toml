@@ -59,3 +59,13 @@ mockall = "0.13.1"
 mockito = "1.6.1"
 testcontainers = "0.24.0"
 testcontainers-modules = { version = "0.12.1", features = ["postgres"] }
+
+[workspace.lints.clippy]
+uninlined_format_args = "warn"
+unwrap_used = "warn"
+expect_used = "warn"
+panic = "warn"
+indexing_slicing = "warn"
+clone_on_ref_ptr = "warn"
+redundant_clone = "warn"
+unnecessary_box_returns = "warn"

@@ -24,7 +24,7 @@ impl PgTaskRetriesModel {
 
 impl Model<TaskRetries, String> for PgTaskRetriesModel {
     async fn find(&self, id: String) -> Result<Option<TaskRetries>> {
-        let query = format!("SELECT * FROM {} WHERE message_id = $1", PG_TABLE_NAME);
+        let query = format!("SELECT * FROM {PG_TABLE_NAME} WHERE message_id = $1");
         let entry = sqlx::query_as::<_, TaskRetries>(&query)
             .bind(id)
             .fetch_optional(&self.pool)
@@ -34,8 +34,7 @@ impl Model<TaskRetries, String> for PgTaskRetriesModel {
 
     async fn upsert(&self, entry: TaskRetries) -> Result<()> {
         let query = format!(
-            "INSERT INTO {} (message_id, retries, updated_at) VALUES ($1, $2, NOW()) ON CONFLICT (message_id) DO UPDATE SET retries = $2, updated_at = NOW() RETURNING *",
-            PG_TABLE_NAME
+            "INSERT INTO {PG_TABLE_NAME} (message_id, retries, updated_at) VALUES ($1, $2, NOW()) ON CONFLICT (message_id) DO UPDATE SET retries = $2, updated_at = NOW() RETURNING *"
         );
 
         sqlx::query(&query)
@@ -48,7 +47,7 @@ impl Model<TaskRetries, String> for PgTaskRetriesModel {
     }
 
     async fn delete(&self, entry: TaskRetries) -> Result<()> {
-        let query = format!("DELETE FROM {} WHERE message_id = $1", PG_TABLE_NAME);
+        let query = format!("DELETE FROM {PG_TABLE_NAME} WHERE message_id = $1");
         sqlx::query(&query)
             .bind(entry.message_id)
             .execute(&self.pool)

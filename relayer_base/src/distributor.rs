@@ -76,7 +76,7 @@ impl<DB: Database> Distributor<DB> {
             )
             .await
             .map_err(|e| {
-                DistributorError::GenericError(format!("Failed to store last_task_id: {}", e))
+                DistributorError::GenericError(format!("Failed to store last_task_id: {e}"))
             })?;
 
         Ok(())
@@ -93,7 +93,7 @@ impl<DB: Database> Distributor<DB> {
             .gmp_api
             .get_tasks_action(self.last_task_id.clone())
             .await
-            .map_err(|e| DistributorError::GenericError(format!("Failed to get tasks: {}", e)))?;
+            .map_err(|e| DistributorError::GenericError(format!("Failed to get tasks: {e}")))?;
         for task in tasks {
             let task_id = task.id();
             processed_task_ids.push(task_id.clone());

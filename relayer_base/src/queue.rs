@@ -275,7 +275,7 @@ impl Queue {
             .await?;
 
         // Declare DLQ
-        let dlq_name = format!("{}{}", DEAD_LETTER_QUEUE_PREFIX, name);
+        let dlq_name = format!("{DEAD_LETTER_QUEUE_PREFIX}{name}");
         channel
             .queue_declare(
                 &dlq_name,
@@ -313,7 +313,7 @@ impl Queue {
         // Declare retry queue
         let retry_queue = channel
             .queue_declare(
-                &format!("retry_{}", name),
+                &format!("retry_{name}"),
                 QueueDeclareOptions {
                     durable: true,
                     ..Default::default()
