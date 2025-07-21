@@ -1,8 +1,8 @@
 use dotenv::dotenv;
 use tokio::signal::unix::{signal, SignalKind};
 
+use relayer_base::config::{config_from_yaml, Config};
 use relayer_base::{
-    config::Config,
     database::PostgresDB,
     payload_cache::PayloadCache,
     proof_retrier::ProofRetrier,
@@ -14,12 +14,12 @@ use relayer_base::{
 async fn main() -> anyhow::Result<()> {
     dotenv().ok();
     let network = std::env::var("NETWORK").expect("NETWORK must be set");
-    let config = Config::from_yaml(&format!("config.{}.yaml", network)).unwrap();
+    let config: Config = config_from_yaml(&format!("config.{}.yaml", network)).unwrap();
 
     let _guard = setup_logging(&config);
 
     let construct_proof_queue = Queue::new(&config.queue_address, "construct_proof").await;
-    let tasks_queue = Queue::new(&config.queue_address, "tasks").await;
+    let tasks_queue = Queue::new(&config.queue_address, "ingestor_tasks").await;
     let postgres_db = PostgresDB::new(&config.postgres_url).await.unwrap();
     let payload_cache = PayloadCache::new(postgres_db);
     let redis_client = redis::Client::open(config.redis_server.clone()).unwrap();

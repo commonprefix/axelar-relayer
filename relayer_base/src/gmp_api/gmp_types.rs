@@ -141,6 +141,28 @@ pub struct ReactToRetriablePollTask {
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub enum RetryTask {
+    ReactToRetriablePoll(ReactToRetriablePollTask),
+    ReactToExpiredSigningSession(ReactToExpiredSigningSessionTask),
+}
+
+impl RetryTask {
+    pub fn request_payload(&self) -> String {
+        match self {
+            RetryTask::ReactToRetriablePoll(t) => t.task.request_payload.clone(),
+            RetryTask::ReactToExpiredSigningSession(t) => t.task.request_payload.clone(),
+        }
+    }
+
+    pub fn invoked_contract_address(&self) -> String {
+        match self {
+            RetryTask::ReactToRetriablePoll(t) => t.task.invoked_contract_address.clone(),
+            RetryTask::ReactToExpiredSigningSession(t) => t.task.invoked_contract_address.clone(),
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct EventAttribute {
     pub key: String,
     pub value: String,

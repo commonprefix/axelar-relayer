@@ -21,11 +21,11 @@ COPY recovery_tools/Cargo.toml ./recovery_tools/
 COPY xrpl/Cargo.toml ./xrpl/
 
 # Create dummy files for each workspace member to cache dependencies
-RUN mkdir -p relayer_base/src/bin recovery_tools/src/bin xrpl/src/bin/recovery && \
+RUN mkdir -p relayer_base/src/bin/scripts recovery_tools/src/bin xrpl/src/bin/recovery && \
     echo 'fn main() {}' > recovery_tools/src/bin/proof_retrier.rs && \
-    echo 'fn main() {}' > recovery_tools/src/bin/voting_retrier.rs && \
     echo 'fn main() {}' > recovery_tools/src/bin/dlq_recovery.rs && \
     echo 'fn main() {}' > relayer_base/src/bin/price_feed.rs && \
+    echo 'fn main() {}' > relayer_base/src/bin/scripts/queue_migration.rs && \
     echo 'fn main() {}' > xrpl/src/bin/xrpl_ingestor.rs && \
     echo 'fn main() {}' > xrpl/src/bin/xrpl_distributor.rs && \
     echo 'fn main() {}' > xrpl/src/bin/xrpl_subscriber.rs && \
@@ -33,8 +33,10 @@ RUN mkdir -p relayer_base/src/bin recovery_tools/src/bin xrpl/src/bin/recovery &
     echo 'fn main() {}' > xrpl/src/bin/xrpl_funder.rs && \
     echo 'fn main() {}' > xrpl/src/bin/xrpl_ticket_creator.rs && \
     echo 'fn main() {}' > xrpl/src/bin/xrpl_ticket_monitor.rs && \
+    echo 'fn main() {}' > xrpl/src/bin/xrpl_queued_tx_monitor.rs && \
     echo 'fn main() {}' > xrpl/src/bin/recovery/xrpl_subscriber_recovery.rs && \
-    echo 'fn main() {}' > xrpl/src/bin/recovery/xrpl_task_recovery.rs
+    echo 'fn main() {}' > xrpl/src/bin/recovery/xrpl_task_recovery.rs && \
+    echo 'fn main() {}' > xrpl/src/bin/xrpl_heartbeat_monitor.rs
 
 # Build dependencies (this will cache them)
 RUN cargo build --release
@@ -48,7 +50,13 @@ COPY recovery_tools/src/ ./recovery_tools/src/
 COPY xrpl/src/ ./xrpl/src/
 
 # Build the project with actual source code
-RUN cargo build --release --package xrpl --bin ${BINARY_NAME}
+RUN if [ "${BINARY_NAME}" = "proof_retrier" ]; then \
+      cargo build --release --package recovery-tools --bin ${BINARY_NAME}; \
+    elif [ "${BINARY_NAME}" = "price_feed" ]; then \
+      cargo build --release --package relayer-base --bin ${BINARY_NAME}; \
+    else \
+      cargo build --release --package xrpl --bin ${BINARY_NAME}; \
+    fi
 
 # Final Stage: Produce a lean runtime image
 FROM debian:bookworm-slim
@@ -63,6 +71,10 @@ RUN apt-get update && \
 
 WORKDIR /app
 
+# Set the base path environment variable
+ENV BASE_PATH=/app
+
+# Copy config and certs
 COPY certs/ ./certs/
 COPY config/ ./config/
 

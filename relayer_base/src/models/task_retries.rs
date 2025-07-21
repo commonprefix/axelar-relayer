@@ -6,21 +6,24 @@ use sqlx::PgPool;
 #[derive(Debug, Serialize, Deserialize, Clone, sqlx::FromRow)]
 pub struct TaskRetries {
     pub message_id: String,
-    pub retries: i64,
+    pub retries: i32,
     pub updated_at: chrono::DateTime<chrono::Utc>,
 }
 
 const PG_TABLE_NAME: &str = "task_retries";
 #[derive(Debug, Clone)]
 pub struct PgTaskRetriesModel {
-    pub pool: PgPool,
+    pool: PgPool,
 }
 
-impl Model for PgTaskRetriesModel {
-    type Entity = TaskRetries;
-    type PrimaryKey = String;
+impl PgTaskRetriesModel {
+    pub fn new(pool: PgPool) -> Self {
+        Self { pool }
+    }
+}
 
-    async fn find(&self, id: Self::PrimaryKey) -> Result<Option<Self::Entity>> {
+impl Model<TaskRetries, String> for PgTaskRetriesModel {
+    async fn find(&self, id: String) -> Result<Option<TaskRetries>> {
         let query = format!("SELECT * FROM {} WHERE message_id = $1", PG_TABLE_NAME);
         let entry = sqlx::query_as::<_, TaskRetries>(&query)
             .bind(id)

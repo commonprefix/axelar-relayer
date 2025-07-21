@@ -1,17 +1,7 @@
 services:
-  xrpl_ingestor_testnet:
-    build:
-      context: .
-      args:
-        BINARY_NAME: xrpl_ingestor
-    deploy:
-      mode: replicated
-      replicas: 60
-    environment:
-      - NETWORK=testnet
-      - ENVIRONMENT=production
+  # Main Relayer Services
 
-  xrpl_ingestor_devnet:
+  xrpl_ingestor:
     build:
       context: .
       args:
@@ -19,142 +9,95 @@ services:
     deploy:
       mode: replicated
       replicas: 1
-    environment:
-      - NETWORK=devnet
-      - ENVIRONMENT=production
+    env_file:
+      - .env
 
-  xrpl_distributor_testnet:
+  xrpl_distributor:
     build:
       context: .
       args:
         BINARY_NAME: xrpl_distributor
-    environment:
-      - NETWORK=testnet
-      - ENVIRONMENT=production
+    env_file:
+      - .env
 
-  xrpl_distributor_devnet:
-    build:
-      context: .
-      args:
-        BINARY_NAME: xrpl_distributor
-    environment:
-      - NETWORK=devnet
-      - ENVIRONMENT=production
-
-  xrpl_ticket_creator_testnet:
+  xrpl_ticket_creator:
     build:
       context: .
       args:
         BINARY_NAME: xrpl_ticket_creator
-    environment:
-      - NETWORK=testnet
-      - ENVIRONMENT=production
+    env_file:
+      - .env
 
-  xrpl_ticket_creator_devnet:
-    build:
-      context: .
-      args:
-        BINARY_NAME: xrpl_ticket_creator
-    environment:
-      - NETWORK=devnet
-      - ENVIRONMENT=production
-
-  xrpl_includer_testnet:
+  xrpl_includer:
     build:
       context: .
       args:
         BINARY_NAME: xrpl_includer
     deploy:
       mode: replicated
-      replicas: 4
-    environment:
-      - NETWORK=testnet
-      - ENVIRONMENT=production
+      replicas: 1
+    env_file:
+      - .env
 
-  xrpl_includer_devnet:
-    build:
-      context: .
-      args:
-        BINARY_NAME: xrpl_includer
-    deploy:
-      mode: replicated
-      replicas: 4
-    environment:
-      - NETWORK=devnet
-      - ENVIRONMENT=production
-
-  xrpl_subscriber_testnet:
+  xrpl_subscriber:
     build:
       context: .
       args:
         BINARY_NAME: xrpl_subscriber
-    environment:
-      - NETWORK=testnet
-      - ENVIRONMENT=production
-
-  xrpl_subscriber_devnet:
-    build:
-      context: .
-      args:
-        BINARY_NAME: xrpl_subscriber
-    environment:
-      - NETWORK=devnet
-      - ENVIRONMENT=production
-
-  xrpl_funder_testnet:
-    build:
-      context: .
-      args:
-        BINARY_NAME: xrpl_funder
-    environment:
-      - NETWORK=testnet
-      - ENVIRONMENT=production
-
-  xrpl_funder_devnet:
-    build:
-      context: .
-      args:
-        BINARY_NAME: xrpl_funder
-    environment:
-      - NETWORK=devnet
-      - ENVIRONMENT=production
+    env_file:
+      - .env
 
   price_feed:
     build:
       context: .
       args:
         BINARY_NAME: price_feed
-    environment:
-      - NETWORK=testnet
-      - ENVIRONMENT=production
+    env_file:
+      - .env
 
   proof_retrier:
     build:
       context: .
       args:
         BINARY_NAME: proof_retrier
-    environment:
-      - NETWORK=testnet
-      - ENVIRONMENT=production
+    env_file:
+      - .env
 
-  voting_retrier:
+  xrpl_heartbeat_monitor:
     build:
       context: .
       args:
-        BINARY_NAME: voting_retrier
-    environment:
-      - NETWORK=testnet
-      - ENVIRONMENT=production
+        BINARY_NAME: xrpl_heartbeat_monitor
+    env_file:
+      - .env
 
-  redis_devnet:
+  xrpl_queued_tx_monitor:
+    build:
+      context: .
+      args:
+        BINARY_NAME: xrpl_queued_tx_monitor
+    env_file:
+      - .env
+
+  # Testnet / Devnet Helper Services
+
+  xrpl_funder:
+    build:
+      context: .
+      args:
+        BINARY_NAME: xrpl_funder
+    env_file:
+      - .env
+
+  redis:
     image: redis:alpine
-    container_name: redis_devnet
+    container_name: redis
     ports:
       - "127.0.0.1:6379:6379"
 
-  rabbitmq_devnet:
+  rabbitmq:
     image: rabbitmq:3-management
-    container_name: rabbitmq_devnet
+    container_name: rabbitmq
     environment:
       RABBITMQ_PLUGINS: "rabbitmq_prometheus rabbitmq_management"
     ports:
@@ -162,45 +105,16 @@ services:
       - "127.0.0.1:15672:15672"
       - "127.0.0.1:15692:15692"
 
-  redis_testnet:
-    image: redis:alpine
-    container_name: redis_testnet
-    ports:
-      - "127.0.0.1:6380:6379"
-
-  rabbitmq_testnet:
-    image: rabbitmq:3-management
-    container_name: rabbitmq_testnet
-    environment:
-      RABBITMQ_PLUGINS: "rabbitmq_prometheus rabbitmq_management"
-    ports:
-      - "127.0.0.1:5673:5672"
-      - "127.0.0.1:15673:15672"
-      - "127.0.0.1:15693:15692"
-
-  redis_mainnet:
-    image: redis:alpine
-    container_name: redis_mainnet
-    ports:
-      - "127.0.0.1:6380:6379"
-
-  rabbitmq_mainnet:
-    image: rabbitmq:3-management
-    container_name: rabbitmq_mainnet
-    environment:
-      RABBITMQ_PLUGINS: "rabbitmq_prometheus rabbitmq_management"
-    ports:
-      - "127.0.0.1:5674:5672"
-      - "127.0.0.1:15674:15672"
-      - "127.0.0.1:15694:15692"
-
-  postgres_devnet:
+  postgres:
     image: postgres:16
-    container_name: postgres_devnet
+    container_name: postgres
     ports:
       - "127.0.0.1:5432:5432"
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
+    command: >
+      -c max_connections=300
+      -c shared_buffers=512MB
 

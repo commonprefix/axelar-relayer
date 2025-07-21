@@ -3,13 +3,12 @@ use std::str::FromStr;
 use anyhow::Context;
 use axelar_wasm_std::msg_id::HexTxHash;
 use redis::{Commands, SetExpiry, SetOptions};
-use router_api::CrossChainId;
-use rust_decimal::Decimal;
+use rust_decimal::{prelude::FromPrimitive, Decimal};
 use sentry::ClientInitGuard;
 use sentry_tracing::{layer as sentry_layer, EventFilter};
 use serde::de::DeserializeOwned;
 use serde_json::Value;
-use tracing::{level_filters::LevelFilter, warn, Level};
+use tracing::{debug, level_filters::LevelFilter, warn, Level};
 use tracing_subscriber::{fmt, prelude::*, Registry};
 use xrpl_amplifier_types::{
     msg::XRPLMessage,
@@ -27,6 +26,8 @@ use crate::{
     },
     price_view::PriceViewTrait,
 };
+
+const HEARTBEAT_EXPIRATION: u64 = 30;
 
 fn parse_as<T: DeserializeOwned>(value: &Value) -> Result<T, GmpApiError> {
     serde_json::from_value(value.clone()).map_err(|e| GmpApiError::InvalidResponse(e.to_string()))
@@ -111,7 +112,7 @@ pub fn setup_logging(config: &Config) -> ClientInitGuard {
     let environment = std::env::var("ENVIRONMENT").unwrap_or_else(|_| "development".to_string());
 
     let _guard = sentry::init((
-        config.xrpl_relayer_sentry_dsn.to_string(),
+        config.sentry_dsn.to_string(),
         sentry::ClientOptions {
             release: sentry::release_name!(),
             environment: Some(std::borrow::Cow::Owned(environment.clone())),
@@ -251,17 +252,18 @@ pub fn parse_message_from_context(
     })
 }
 
-pub fn setup_heartbeat(url: String, redis_pool: r2d2::Pool<redis::Client>) {
+pub fn setup_heartbeat(service: String, redis_pool: r2d2::Pool<redis::Client>) {
     tokio::spawn(async move {
         loop {
             tracing::info!("Writing heartbeat to DB");
             let mut redis_conn = redis_pool.get().unwrap();
-            let set_opts = SetOptions::default().with_expiration(SetExpiry::EX(30));
-            let result: redis::RedisResult<()> = redis_conn.set_options(url.clone(), "1", set_opts);
+            let set_opts =
+                SetOptions::default().with_expiration(SetExpiry::EX(HEARTBEAT_EXPIRATION));
+            let result: redis::RedisResult<()> =
+                redis_conn.set_options(service.clone(), "1", set_opts);
             if let Err(e) = result {
                 tracing::error!("Failed to write heartbeat: {}", e);
             }
-
             tokio::time::sleep(tokio::time::Duration::from_secs(15)).await;
         }
     });
@@ -281,9 +283,19 @@ where
         .get(token_id)
         .ok_or_else(|| anyhow::anyhow!("Token id {} not found in deployed tokens", token_id))?;
 
-    let price = price_view
-        .get_price(&format!("{}/XRP", token_symbol))
-        .await?;
+    let maybe_price = price_view.get_price(&format!("{}/XRP", token_symbol)).await;
+    let price = if let Ok(price) = maybe_price {
+        price
+    } else {
+        debug!("Price not found in database, checking demo tokens");
+        // if it wasn't found in the database, it could be a demo token
+        let token_to_xrp_rate = config.demo_tokens_rate.get(token_id);
+        if token_to_xrp_rate.is_none() {
+            return Err(maybe_price.unwrap_err());
+        }
+        Decimal::from_f64(*token_to_xrp_rate.unwrap())
+            .ok_or_else(|| anyhow::anyhow!("Failed to convert token rate to Decimal"))?
+    };
 
     let xrp = amount * price;
     let drops = xrp * Decimal::from(1_000_000);
@@ -294,64 +306,23 @@ where
     Ok(drops.trunc().to_string())
 }
 
-pub fn message_id_from_retry_task(task: Task) -> Result<String, anyhow::Error> {
-    match task {
-        Task::ReactToRetriablePoll(task) => {
-            let payload: Value = serde_json::from_str(&task.task.request_payload)?;
-            let tx_id_value = payload
-                .get("verify_messages")
-                .and_then(|v| v.get(0))
-                .and_then(|v| v.get("add_gas_message"))
-                .and_then(|v| v.get("tx_id"))
-                .ok_or_else(|| {
-                    anyhow::anyhow!(
-                        "Failed to extract tx_id from verify_messages[0].add_gas_message.tx_id"
-                    )
-                })?;
-            let tx_id_str = tx_id_value
-                .as_str()
-                .ok_or_else(|| anyhow::anyhow!("tx_id is not a string: {:?}", tx_id_value))?
-                .to_owned();
-            Ok(tx_id_str)
-        }
-        Task::ReactToExpiredSigningSession(task) => {
-            let payload: Value = serde_json::from_str(&task.task.request_payload)?;
-            let construct_proof = payload
-                .get("construct_proof")
-                .ok_or_else(|| anyhow::anyhow!("construct_proof is missing"))?;
-            let cc_id = construct_proof
-                .get("cc_id")
-                .ok_or_else(|| anyhow::anyhow!("cc_id is missing"))?;
-            let message_id = cc_id
-                .get("message_id")
-                .ok_or_else(|| anyhow::anyhow!("message_id is missing"))?
-                .as_str()
-                .ok_or_else(|| anyhow::anyhow!("message_id is not a string"))?;
-            let source_chain = cc_id
-                .get("source_chain")
-                .ok_or_else(|| anyhow::anyhow!("source_chain is missing"))?
-                .as_str()
-                .ok_or_else(|| anyhow::anyhow!("source_chain is not a string"))?;
-            let cc_id = CrossChainId::new(source_chain, message_id)
-                .map_err(|e| anyhow::anyhow!("Failed to create CrossChainId: {}", e))?;
-            let cc_id_str = cc_id.to_string();
-            Ok(cc_id_str)
-        }
-        _ => Err(anyhow::anyhow!("Irrelevant task")),
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use std::{
         collections::{BTreeMap, HashMap},
         fs,
+        time::Duration,
     };
 
+    use crate::{database::MockDatabase, price_view::MockPriceView};
+    use redis::Client;
+    use testcontainers::{
+        core::{IntoContainerPort, WaitFor},
+        runners::AsyncRunner,
+        GenericImage,
+    };
     use xrpl_amplifier_types::types::{XRPLAccountId, XRPLCurrency};
     use xrpl_api::IssuedAmount;
-
-    use crate::{database::MockDatabase, price_view::MockPriceView};
 
     use super::*;
 
@@ -1022,60 +993,36 @@ mod tests {
             .contains("Failed to parse xrpl_message"));
     }
 
-    #[test]
-    fn test_message_id_from_retry_task_react_to_retriable_poll() {
-        let valid_tasks_dir = "testdata/gmp_tasks/valid_tasks";
-        let json_str =
-            fs::read_to_string(format!("{}/ReactToRetriablePollTask.json", valid_tasks_dir))
-                .expect("Failed to read ReactToRetriablePollTask.json");
-        let tasks: Vec<ReactToRetriablePollTask> = serde_json::from_str(&json_str)
-            .expect("Failed to parse JSON into Vec<ReactToRetriablePollTask>");
-        // test a specific valid task
-        let task = tasks
-            .clone()
-            .into_iter()
-            .nth(1)
-            .expect("Missing second task");
-        let maybe_message_id = message_id_from_retry_task(Task::ReactToRetriablePoll(task));
-        assert_eq!(
-            maybe_message_id.unwrap(),
-            "5fa140ff4b90c83df9fdfdc81595bd134f41d929694eedb15cf7fd1c511e8025"
-        );
+    #[tokio::test]
+    async fn test_setup_heartbeat() {
+        let container = GenericImage::new("redis", "7.2.4")
+            .with_exposed_port(6379.tcp())
+            .with_wait_for(WaitFor::message_on_stdout("Ready to accept connections"))
+            .start()
+            .await
+            .unwrap();
 
-        // test a specific valid task which does not have the fields we need
-        let task_err = tasks.into_iter().nth(0).unwrap();
-        let err = message_id_from_retry_task(Task::ReactToRetriablePoll(task_err));
-        assert!(err.is_err());
-    }
+        let host = container.get_host().await.unwrap();
+        let host_port = container.get_host_port_ipv4(6379).await.unwrap();
 
-    #[test]
-    fn test_message_id_from_retry_task_react_to_expired_signing_session() {
-        let valid_tasks_dir = "testdata/gmp_tasks/valid_tasks";
-        let json_str = fs::read_to_string(format!(
-            "{}/ReactToExpiredSigningSessionTask.json",
-            valid_tasks_dir
-        ))
-        .expect("Failed to read ReactToExpiredSigningSessionTask.json");
-        let tasks: Vec<ReactToExpiredSigningSessionTask> = serde_json::from_str(&json_str)
-            .expect("Failed to parse JSON into Vec<ReactToExpiredSigningSessionTask>");
-        // test a specific valid task
-        let task = tasks
-            .clone()
-            .into_iter()
-            .nth(1)
-            .expect("Missing second task");
-        let maybe_message_id = message_id_from_retry_task(Task::ReactToExpiredSigningSession(task));
-        assert!(maybe_message_id.is_ok());
-        let actual_source_chain = "axelar";
-        let actual_message_id =
-            "0x054e170d88e181b39f638cd5da6f3c76d1a5c4f0945a4540ffddc5e13965444b-150693962";
-        let actual_cc_id = CrossChainId::new(actual_source_chain, actual_message_id).unwrap();
+        let url = format!("redis://{host}:{host_port}");
+        let client = Client::open(url.as_ref()).unwrap();
 
-        assert_eq!(maybe_message_id.unwrap(), actual_cc_id.to_string());
+        let pool = r2d2::Pool::builder()
+            .connection_timeout(Duration::from_millis(1000))
+            .build(client)
+            .unwrap();
+        let mut conn = pool.get().unwrap();
+        tokio::time::pause();
+        setup_heartbeat("test".to_string(), pool);
+        let mut val: Option<String> = conn.get("test").unwrap();
+        assert!(val.is_none());
 
-        // test a specific valid task which does not have the fields we need
-        let task_err = tasks.into_iter().nth(0).unwrap();
-        let err = message_id_from_retry_task(Task::ReactToExpiredSigningSession(task_err));
-        assert!(err.is_err());
+        // It may be misleading to think that moving the clock forwards by 15 seconds will complete
+        // the loop. In fact, advance will move the tokio loop forward and change the clock, so
+        // the loop needs to be run as many times as there are yield opportunities.
+        tokio::time::advance(Duration::from_secs(1)).await;
+        val = conn.get("test").unwrap();
+        assert_eq!(val, Some("1".to_string()));
     }
 }
