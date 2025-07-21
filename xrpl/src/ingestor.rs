@@ -393,7 +393,9 @@ impl<DB: Database> XrplIngestor<DB> {
 
         let source_context = HashMap::from([(
             "xrpl_message".to_owned(),
-            serde_json::to_string(&xrpl_message).unwrap(),
+            serde_json::to_string(&xrpl_message).map_err(|e| {
+                IngestorError::GenericError(format!("Failed to serialize xrpl_message: {}", e))
+            })?,
         )]);
 
         let translation_result = self
@@ -759,8 +761,15 @@ impl<DB: Database> XrplIngestor<DB> {
                 .map_err(|e| {
                     IngestorError::GenericError(format!("Failed to get payload from cache: {}", e))
                 })?;
-            let payload_bytes = hex::decode(payload_string).unwrap();
-            payload = Some(payload_bytes.try_into().unwrap());
+            let payload_bytes = hex::decode(payload_string).map_err(|e| {
+                IngestorError::GenericError(format!("Failed to decode payload: {}", e))
+            })?;
+            payload = Some(payload_bytes.try_into().map_err(|e| {
+                IngestorError::GenericError(format!(
+                    "Failed to convert payload bytes to array: {}",
+                    e
+                ))
+            })?);
         }
         let execute_msg = xrpl_gateway::msg::ExecuteMsg::RouteIncomingMessages(vec![WithPayload {
             message: xrpl_message.clone(),
@@ -1174,7 +1183,12 @@ impl<DB: Database> IngestorTrait for XrplIngestor<DB> {
                     self.handle_prover_tx(tx).await
                 } else {
                     Err(IngestorError::UnsupportedTransaction(
-                        serde_json::to_string(&payment).unwrap(),
+                        serde_json::to_string(&payment).map_err(|e| {
+                            IngestorError::GenericError(format!(
+                                "Failed to serialize payment: {}",
+                                e
+                            ))
+                        })?,
                     ))
                 }
             }
@@ -1189,7 +1203,12 @@ impl<DB: Database> IngestorTrait for XrplIngestor<DB> {
             tx => {
                 warn!(
                     "Unsupported transaction type: {}",
-                    serde_json::to_string(&tx).unwrap()
+                    serde_json::to_string(&tx).map_err(|e| {
+                        IngestorError::GenericError(format!(
+                            "Failed to serialize transaction: {}",
+                            e
+                        ))
+                    })?
                 );
                 Ok(vec![])
             }
