@@ -48,7 +48,7 @@ pub struct BroadcastResult<T> {
 pub trait Broadcaster {
     type Transaction;
 
-        fn broadcast_prover_message(
+    fn broadcast_prover_message(
         &self,
         tx_blob: String,
     ) -> impl Future<Output = Result<BroadcastResult<Self::Transaction>, BroadcasterError>>;
@@ -135,7 +135,7 @@ where
 
     pub async fn consume(&self, task: QueueItem) -> Result<(), IncluderError> {
         match task {
-            QueueItem::Task(task) => match task {
+            QueueItem::Task(task) => match *task {
                 Task::GatewayTx(gateway_tx_task) => {
                     info!("Consuming task: {:?}", gateway_tx_task);
                     let broadcast_result = self

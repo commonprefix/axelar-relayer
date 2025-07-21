@@ -50,8 +50,8 @@ pub struct Queue {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum QueueItem {
-    Task(Task),
-    Transaction(ChainTransaction),
+    Task(Box<Task>),
+    Transaction(Box<ChainTransaction>),
     RetryConstructProof(String),
 }
 

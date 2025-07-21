@@ -65,7 +65,7 @@ where
             Ok(txs) => {
                 for tx in txs {
                     let chain_transaction = self.transaction_poller.make_queue_item(tx);
-                    let item = &QueueItem::Transaction(chain_transaction.clone());
+                    let item = &QueueItem::Transaction(Box::new(chain_transaction.clone()));
                     info!("Publishing transaction: {:?}", chain_transaction);
                     queue.publish(item.clone()).await;
                     debug!("Published tx: {:?}", item);
@@ -91,7 +91,7 @@ where
             match res {
                 Ok(tx) => {
                     let chain_transaction = self.transaction_poller.make_queue_item(tx);
-                    let item = &QueueItem::Transaction(chain_transaction.clone());
+                    let item = &QueueItem::Transaction(Box::new(chain_transaction.clone()));
                     info!("Publishing transaction: {:?}", chain_transaction);
                     queue.publish(item.clone()).await;
                     debug!("Published tx: {:?}", item);

@@ -88,7 +88,7 @@ impl<DB: Database> ProofRetrier<DB> {
             });
 
             self.tasks_queue
-                .publish(QueueItem::Task(construct_proof_task.clone()))
+                .publish(QueueItem::Task(Box::new(construct_proof_task.clone())))
                 .await;
             info!(
                 "Published ConstructProof task for message {:?}",
