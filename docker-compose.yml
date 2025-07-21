@@ -71,6 +71,14 @@ services:
     env_file:
       - .env
 
+  xrpl_queued_tx_monitor:
+    build:
+      context: .
+      args:
+        BINARY_NAME: xrpl_queued_tx_monitor
+    env_file:
+      - .env
+
   # Testnet / Devnet Helper Services
 
   xrpl_funder:
@@ -78,14 +86,6 @@ services:
       context: .
       args:
         BINARY_NAME: xrpl_funder
-    env_file:
-      - .env
-
-  voting_retrier:
-    build:
-      context: .
-      args:
-        BINARY_NAME: voting_retrier
     env_file:
       - .env
 

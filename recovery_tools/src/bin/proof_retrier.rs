@@ -19,7 +19,7 @@ async fn main() -> anyhow::Result<()> {
     let _guard = setup_logging(&config);
 
     let construct_proof_queue = Queue::new(&config.queue_address, "construct_proof").await;
-    let tasks_queue = Queue::new(&config.queue_address, "tasks").await;
+    let tasks_queue = Queue::new(&config.queue_address, "ingestor_tasks").await;
     let postgres_db = PostgresDB::new(&config.postgres_url).await.unwrap();
     let payload_cache = PayloadCache::new(postgres_db);
     let redis_client = redis::Client::open(config.redis_server.clone()).unwrap();
