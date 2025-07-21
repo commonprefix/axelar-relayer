@@ -1,24 +1,42 @@
-name: Rust Format
+name: Rust Format & Build
 on:
   push:
-    branches: ['**']
+    branches:
+      - '**'
+
 jobs:
   fmt:
-    name: Check Code Formatting with rustfmt
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      - name: Install Rust toolchain
+        with:
+          fetch-depth: 0        # needed to push back
+      - name: Install Rust
         uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
-      - name: Check formatting
+
+      - name: Run rustfmt (apply fixes)
+        run: cargo fmt --all
+
+      - name: Commit & push formatting changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .
+          git diff --cached --quiet || git commit -m "chore: apply rustfmt formatting"
+          git push
+
+      - name: Verify formatting (optional double‑check)
         run: cargo fmt --all -- --check
+
       - name: Run Clippy
         run: cargo clippy --all -- -D warnings
-      - name: Build project
+
+      - name: Build (release)
         run: cargo build --all --release
+
       - name: Deploy Application
         if: success()
         run: |
