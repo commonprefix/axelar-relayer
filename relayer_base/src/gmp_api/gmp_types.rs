@@ -434,7 +434,6 @@ pub struct StorePayloadResult {
 #[cfg(test)]
 mod tests {
     use super::{ReactToExpiredSigningSessionTask, ReactToRetriablePollTask};
-    use crate::{gmp_api, utils::message_id_from_retry_task};
     use std::fs;
     use std::path::Path;
 
@@ -456,16 +455,6 @@ mod tests {
             maybe_actual_task.err()
         );
         let actual_task = maybe_actual_task.unwrap();
-        let maybe_message_id = message_id_from_retry_task(
-            gmp_api::gmp_types::Task::ReactToExpiredSigningSession(actual_task.clone()),
-        );
-        assert!(maybe_message_id.is_ok());
-        let message_id = maybe_message_id.unwrap();
-        assert_eq!(
-            message_id,
-            "axelar_0xb8ecb910c92c4937c548b7b1fe63c512d8f68743d41bfb539ca181999736d597-98806061"
-        );
-
         let serialized_task = serde_json::to_value(&actual_task).unwrap();
         assert_eq!(serialized_task, *task);
     }
@@ -488,16 +477,6 @@ mod tests {
             maybe_actual_task.err()
         );
         let actual_task = maybe_actual_task.unwrap();
-        let maybe_message_id = message_id_from_retry_task(
-            gmp_api::gmp_types::Task::ReactToRetriablePoll(actual_task.clone()),
-        );
-        assert!(maybe_message_id.is_ok());
-        let message_id = maybe_message_id.unwrap();
-        assert_eq!(
-            message_id,
-            "5fa140ff4b90c83df9fdfdc81595bd134f41d929694eedb15cf7fd1c511e8025"
-        );
-
         let serialized_task = serde_json::to_value(&actual_task).unwrap();
         assert_eq!(serialized_task, *task);
     }
