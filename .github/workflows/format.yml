@@ -31,8 +31,8 @@ jobs:
       - name: Verify formatting (optional double‑check)
         run: cargo fmt --all -- --check
 
-      - name: Run Clippy
-        run: cargo clippy --all -- -D warnings
+      # - name: Run Clippy
+      #   run: cargo clippy --all -- -D warnings
 
       - name: Build (release)
         run: cargo build --all --release

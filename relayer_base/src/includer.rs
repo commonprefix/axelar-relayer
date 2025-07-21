@@ -48,7 +48,7 @@ pub struct BroadcastResult<T> {
 pub trait Broadcaster {
     type Transaction;
 
-    fn broadcast_prover_message(
+        fn broadcast_prover_message(
         &self,
         tx_blob: String,
     ) -> impl Future<Output = Result<BroadcastResult<Self::Transaction>, BroadcasterError>>;
