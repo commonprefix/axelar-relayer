@@ -31,7 +31,6 @@ use crate::error::BocError;
 use crate::error::BocError::{BocEncodingError, BocParsingError};
 use num_bigint::BigUint;
 use serde::{Deserialize, Serialize};
-use std::str::FromStr;
 use std::sync::Arc;
 use tiny_keccak::{Hasher, Keccak};
 use tonlib_core::cell::{Cell, CellBuilder};
@@ -100,10 +99,6 @@ impl RelayerExecuteMessage {
             .map_err(|e| BocEncodingError(e.to_string()))?;
         inner
             .store_uint(256, &payload_hash)
-            .map_err(|e| BocEncodingError(e.to_string()))?;
-        // TODO: Do not hardcode
-        inner
-            .store_uint(256, &BigUint::from_str("10000000").unwrap())
             .map_err(|e| BocEncodingError(e.to_string()))?;
 
         let inner = inner.build().map_err(|e| BocParsingError(e.to_string()))?;
@@ -186,6 +181,6 @@ mod tests {
         );
 
         let res = message.to_cell().unwrap();
-        assert_eq!(res.to_boc_b64(true).unwrap(), "te6cckECCQEAAYAAAUsAAAAIgBIHqwhg5lg4ES2+GWhwn4EVgGvmj7MoTr6OJXwhB8BysAEEAAIDBAUAiDB4OGNjY2E3NjIyMzc3YjExYWM3NDUxMTc3ODQyNDJkYmFlODY5NGI0YTg0NDk1ZGFjZmZkZTA4YWY3MzhkYjlhMC0xABxhdmFsYW5jaGUtZnVqaQBUMHhkNzA2N0FlM0MzNTllODM3ODkwYjI4QjdCRDBkMjA4NENmRGY0OWI1A4CeAcQjykQMXsK+7MnQoVK1T8jnpBbJMbcInq8iFgWvFwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAmJaABgcIAMAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAATSGVsbG8gZnJvbSByZWxheWVyIQAAAAAAAAAAAAAAAAAAQLh6Sg9kS3oYbucaFFRjT3DCKmKsoaa6Z2tRdcIdf9kwAAh0b24yM/3ROw==");
+        assert_eq!(res.to_boc_b64(true).unwrap(), "te6cckECCQEAAWAAAUsAAAAIgBIHqwhg5lg4ES2+GWhwn4EVgGvmj7MoTr6OJXwhB8BysAEEAAIDBAUAiDB4OGNjY2E3NjIyMzc3YjExYWM3NDUxMTc3ODQyNDJkYmFlODY5NGI0YTg0NDk1ZGFjZmZkZTA4YWY3MzhkYjlhMC0xABxhdmFsYW5jaGUtZnVqaQBUMHhkNzA2N0FlM0MzNTllODM3ODkwYjI4QjdCRDBkMjA4NENmRGY0OWI1A0CeAcQjykQMXsK+7MnQoVK1T8jnpBbJMbcInq8iFgWvFwYHCADAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAE0hlbGxvIGZyb20gcmVsYXllciEAAAAAAAAAAAAAAAAAAEC4ekoPZEt6GG7nGhRUY09wwipirKGmumdrUXXCHX/ZMAAIdG9uMgKZxA0=");
     }
 }

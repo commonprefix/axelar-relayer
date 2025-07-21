@@ -22,7 +22,6 @@ pub trait GasEstimator {
     fn estimate_native_gas_refund(&self) -> impl Future<Output = u64>;
     fn estimate_execute(&self, payload: usize) -> impl Future<Output = u64>;
     fn estimate_approve_messages(&self, num_message: usize) -> impl Future<Output = u64>;
-
     fn estimate_highload_wallet(&self, num_actions: usize) -> impl Future<Output = u64>;
 }
 

@@ -5,9 +5,7 @@ use crate::transaction_parser::common::is_log_emmitted;
 use crate::transaction_parser::message_matching_key::MessageMatchingKey;
 use crate::transaction_parser::parser::Parser;
 use async_trait::async_trait;
-use relayer_base::gmp_api::gmp_types::{
-    Amount, CommonEventFields, Event,
-};
+use relayer_base::gmp_api::gmp_types::{Amount, CommonEventFields, Event};
 use ton_types::ton_types::Transaction;
 use tonlib_core::TonAddress;
 
@@ -96,9 +94,7 @@ mod tests {
 
         let tx = traces[7].transactions[2].clone();
         let address = tx.clone().account;
-        let mut parser = ParserNativeGasRefunded::new(tx, address)
-            .await
-            .unwrap();
+        let mut parser = ParserNativeGasRefunded::new(tx, address).await.unwrap();
         assert!(parser.is_match().await.unwrap());
         parser.parse().await.unwrap();
         assert_eq!(

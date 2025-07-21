@@ -46,7 +46,7 @@ impl Parser for ParserMessageApproved {
         if self.tx.account != self.allowed_address {
             return Ok(false);
         }
-        
+
         is_log_emmitted(&self.tx, OP_MESSAGE_APPROVED, 0)
     }
 
@@ -113,9 +113,7 @@ mod tests {
         let tx = traces[0].transactions[0].clone();
         let address = tx.clone().account;
 
-        let mut parser = ParserMessageApproved::new(tx, address)
-            .await
-            .unwrap();
+        let mut parser = ParserMessageApproved::new(tx, address).await.unwrap();
         assert!(parser.is_match().await.unwrap());
         parser.parse().await.unwrap();
         let event = parser.event(None).await.unwrap();

@@ -98,9 +98,7 @@ mod tests {
         let tx = traces[5].transactions[1].clone();
         let address = tx.clone().account;
 
-        let mut parser = ParserNativeGasAdded::new(tx, address)
-            .await
-            .unwrap();
+        let mut parser = ParserNativeGasAdded::new(tx, address).await.unwrap();
         assert!(parser.is_match().await.unwrap());
         parser.parse().await.unwrap();
         assert_eq!(

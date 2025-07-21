@@ -3,6 +3,7 @@ use crate::error::TransactionParsingError;
 use crate::gas_calculator::GasCalculator;
 use crate::transaction_parser::common::convert_jetton_to_native;
 use crate::transaction_parser::parser_call_contract::ParserCallContract;
+use crate::transaction_parser::parser_execute_insufficient_gas::ParserExecuteInsufficientGas;
 use crate::transaction_parser::parser_jetton_gas_added::ParserJettonGasAdded;
 use crate::transaction_parser::parser_jetton_gas_paid::ParserJettonGasPaid;
 use crate::transaction_parser::parser_message_approved::ParserMessageApproved;
@@ -19,7 +20,6 @@ use std::future::Future;
 use std::str::FromStr;
 use ton_types::ton_types::Trace;
 use tonlib_core::TonAddress;
-use crate::transaction_parser::parser_execute_insufficient_gas::ParserExecuteInsufficientGas;
 
 #[async_trait]
 pub trait Parser {
@@ -43,8 +43,10 @@ pub struct TraceParser<PV> {
 
 #[cfg_attr(test, mockall::automock)]
 pub trait TraceParserTrait {
-    fn parse_trace(&self, trace: Trace)
-        -> impl Future<Output = Result<Vec<Event>, crate::error::TransactionParsingError>>;
+    fn parse_trace(
+        &self,
+        trace: Trace,
+    ) -> impl Future<Output = Result<Vec<Event>, crate::error::TransactionParsingError>>;
 }
 
 impl<PV: PriceViewTrait> TraceParserTrait for TraceParser<PV> {
@@ -98,8 +100,8 @@ impl<PV: PriceViewTrait> TraceParserTrait for TraceParser<PV> {
                                 .map_err(|e| TransactionParsingError::Generic(e.to_string()))?,
                             &self.price_view,
                         )
-                            .await
-                            .map_err(|e| TransactionParsingError::Generic(e.to_string()))?;
+                        .await
+                        .map_err(|e| TransactionParsingError::Generic(e.to_string()))?;
                         p.amount = msg_value.to_string();
                         p.token_id = None;
                         payment = p;
@@ -197,7 +199,8 @@ impl<PV: PriceViewTrait> TraceParser<PV> {
                 trace_copy.clone(), // Surely this can be optimized!
                 self.gateway_address.clone(),
                 chain_name.clone(),
-            ).await?;
+            )
+            .await?;
             if parser.is_match().await? {
                 parser.parse().await?;
                 parsers.push(Box::new(parser));
@@ -207,7 +210,8 @@ impl<PV: PriceViewTrait> TraceParser<PV> {
                 tx.clone(),
                 self.gateway_address.clone(),
                 chain_name.clone(),
-            ).await?;
+            )
+            .await?;
             if parser.is_match().await? {
                 parser.parse().await?;
                 call_contract.push(Box::new(parser));

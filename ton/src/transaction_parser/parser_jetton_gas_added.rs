@@ -5,9 +5,7 @@ use crate::transaction_parser::common::is_log_emmitted;
 use crate::transaction_parser::message_matching_key::MessageMatchingKey;
 use crate::transaction_parser::parser::Parser;
 use async_trait::async_trait;
-use relayer_base::gmp_api::gmp_types::{
-    Amount, CommonEventFields, Event, EventMetadata,
-};
+use relayer_base::gmp_api::gmp_types::{Amount, CommonEventFields, Event, EventMetadata};
 use ton_types::ton_types::Transaction;
 use tonlib_core::TonAddress;
 
@@ -103,12 +101,10 @@ mod tests {
     #[tokio::test]
     async fn test_parser() {
         let traces = fixture_traces();
-        
+
         let tx = traces[10].transactions[3].clone();
         let address = tx.clone().account;
-        let mut parser = ParserJettonGasAdded::new(tx, address)
-            .await
-            .unwrap();
+        let mut parser = ParserJettonGasAdded::new(tx, address).await.unwrap();
         assert!(parser.is_match().await.unwrap());
         parser.parse().await.unwrap();
         assert_eq!(

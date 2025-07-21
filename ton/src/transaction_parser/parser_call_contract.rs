@@ -24,13 +24,13 @@ impl ParserCallContract {
     pub(crate) async fn new(
         tx: Transaction,
         allowed_address: TonAddress,
-        chain_name: String
+        chain_name: String,
     ) -> Result<Self, TransactionParsingError> {
         Ok(Self {
             log: None,
             tx,
             allowed_address,
-            chain_name
+            chain_name,
         })
     }
 }
@@ -138,7 +138,9 @@ mod tests {
         .unwrap();
 
         let tx = traces[1].transactions[1].clone();
-        let mut parser = ParserCallContract::new(tx, address.clone(), "ton2".to_string()).await.unwrap();
+        let mut parser = ParserCallContract::new(tx, address.clone(), "ton2".to_string())
+            .await
+            .unwrap();
         assert!(parser.is_match().await.unwrap());
         assert_eq!(
             parser.message_id().await.unwrap().unwrap(),
@@ -188,7 +190,9 @@ mod tests {
         )
         .unwrap();
         let tx = traces[1].transactions[0].clone();
-        let parser = ParserCallContract::new(tx, address.clone(), "ton2".to_string()).await.unwrap();
+        let parser = ParserCallContract::new(tx, address.clone(), "ton2".to_string())
+            .await
+            .unwrap();
         assert!(!parser.is_match().await.unwrap());
     }
 
@@ -202,7 +206,9 @@ mod tests {
         .unwrap();
 
         let tx = traces[1].transactions[1].clone();
-        let parser = ParserCallContract::new(tx, address.clone(), "ton2".to_string()).await.unwrap();
+        let parser = ParserCallContract::new(tx, address.clone(), "ton2".to_string())
+            .await
+            .unwrap();
         assert!(!parser.is_match().await.unwrap());
     }
 }

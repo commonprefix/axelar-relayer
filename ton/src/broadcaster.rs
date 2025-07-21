@@ -218,7 +218,7 @@ impl<GE: GasEstimator> Broadcaster for TONBroadcaster<GE> {
                 hex_payload,
                 wallet.address.clone(),
             );
-
+            
             let boc = relayer_execute_msg
                 .to_cell()
                 .map_err(|e| BroadcasterError::GenericError(e.to_string()))?
@@ -230,7 +230,7 @@ impl<GE: GasEstimator> Broadcaster for TONBroadcaster<GE> {
                     ))
                 })?;
 
-            let execute_message_value: BigUint = BigUint::from(required_gas);
+            let execute_message_value: BigUint = BigUint::from(available_gas);
 
             let actions: Vec<OutAction> = vec![out_action(
                 &boc,
@@ -338,7 +338,7 @@ impl<GE: GasEstimator> Broadcaster for TONBroadcaster<GE> {
 mod tests {
     use crate::broadcaster::{TONBroadcaster, TONTransaction};
     use crate::client::{MockRestClient, V3MessageResponse};
-    use crate::gas_estimator::MockGasEstimator;
+    use crate::gas_estimator::{MockGasEstimator};
     use crate::high_load_query_id::HighLoadQueryId;
     use crate::high_load_query_id_db_wrapper::{
         HighLoadQueryIdWrapper, HighLoadQueryIdWrapperError,

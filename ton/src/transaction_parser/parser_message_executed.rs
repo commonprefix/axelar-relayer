@@ -51,7 +51,7 @@ impl Parser for ParserMessageExecuted {
         if self.tx.account != self.allowed_address {
             return Ok(false);
         }
-        
+
         if !is_log_emmitted(&self.tx, OP_NULLIFIED_SUCCESSFULLY, 1)? {
             return Ok(false);
         }
@@ -119,9 +119,7 @@ mod tests {
         let tx = traces[0].transactions[3].clone();
         let address = tx.clone().account;
 
-        let mut parser = ParserMessageExecuted::new(tx, address)
-            .await
-            .unwrap();
+        let mut parser = ParserMessageExecuted::new(tx, address).await.unwrap();
         assert!(parser.is_match().await.unwrap());
         parser.parse().await.unwrap();
         let event = parser.event(None).await.unwrap();
