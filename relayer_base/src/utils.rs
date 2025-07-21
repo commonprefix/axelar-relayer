@@ -961,9 +961,7 @@ mod tests {
             ..Default::default()
         };
         let message_result = parse_message_from_context(&Some(metadata));
-        assert!(message_result.is_ok());
-        let message = message_result.unwrap();
-        assert_eq!(message, dummy_message);
+        assert!(matches!(message_result, Ok(message) if message == dummy_message));
     }
 
     #[test]
@@ -1039,7 +1037,6 @@ mod tests {
             .nth(1)
             .expect("Missing second task");
         let maybe_message_id = message_id_from_retry_task(Task::ReactToRetriablePoll(task));
-        assert!(maybe_message_id.is_ok());
         assert_eq!(
             maybe_message_id.unwrap(),
             "5fa140ff4b90c83df9fdfdc81595bd134f41d929694eedb15cf7fd1c511e8025"
