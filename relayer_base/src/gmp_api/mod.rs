@@ -43,18 +43,23 @@ fn identity_from_config(config: &Config) -> Result<Identity, GmpApiError> {
     let cert_path = project_root.join(&config.client_cert_path);
 
     let key = fs::read(&key_path).map_err(|e| {
-        GmpApiError::GenericError(format!("Failed to read client key from {key_path:?}: {e}"))
+        GmpApiError::GenericError(format!(
+            "Failed to read client key from {:?}: {}",
+            key_path, e
+        ))
     })?;
 
     let cert = fs::read(&cert_path).map_err(|e| {
         GmpApiError::GenericError(format!(
-            "Failed to read client certificate from {cert_path:?}: {e}"
+            "Failed to read client certificate from {:?}: {}",
+            cert_path, e
         ))
     })?;
 
     Identity::from_pkcs8_pem(&cert, &key).map_err(|e| {
         GmpApiError::GenericError(format!(
-            "Failed to create identity from certificate and key: {e}"
+            "Failed to create identity from certificate and key: {}",
+            e
         ))
     })
 }
@@ -282,7 +287,8 @@ impl GmpApi {
         loop {
             if retries > (MAX_BROADCAST_WAIT_TIME_SECONDS / BROADCAST_POLL_INTERVAL_SECONDS) {
                 return Err(GmpApiError::Timeout(format!(
-                    "Broadcast with id {broadcast_id} timed out"
+                    "Broadcast with id {} timed out",
+                    broadcast_id
                 )));
             }
             retries += 1;
@@ -333,12 +339,14 @@ impl GmpApi {
                     None => {
                         let string_response = serde_json::to_string(&response).map_err(|e| {
                             GmpApiError::GenericError(format!(
-                                "Failed to parse broadcast result {response:?}: {e}"
+                                "Failed to parse broadcast result {:?}: {}",
+                                response, e
                             ))
                         })?;
 
                         return Err(GmpApiError::GenericError(format!(
-                            "Broadcast failed: {string_response}"
+                            "Broadcast failed: {}",
+                            string_response
                         )));
                     }
                 },
@@ -430,7 +438,8 @@ impl GmpApi {
             },
             _ => {
                 return Err(GmpApiError::GenericError(format!(
-                    "Cannot send ITSInterchainTransfer event for message: {xrpl_message:?}"
+                    "Cannot send ITSInterchainTransfer event for message: {:?}",
+                    xrpl_message
                 )));
             }
         };

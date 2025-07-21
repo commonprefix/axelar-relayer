@@ -176,7 +176,7 @@ pub fn parse_gas_fee_amount(
 
 pub fn extract_memo(memos: &Option<Vec<Memo>>, memo_type: &str) -> Result<String, IngestorError> {
     extract_from_xrpl_memo(memos.clone(), memo_type).map_err(|e| {
-        IngestorError::GenericError(format!("Failed to extract {memo_type} from memos: {e}"))
+        IngestorError::GenericError(format!("Failed to extract {} from memos: {}", memo_type, e))
     })
 }
 
@@ -186,8 +186,8 @@ pub fn extract_and_decode_memo(
 ) -> Result<String, anyhow::Error> {
     let hex_str = extract_memo(memos, memo_type)?;
     let bytes =
-        hex::decode(&hex_str).with_context(|| format!("Failed to hex-decode memo {hex_str}"))?;
-    String::from_utf8(bytes).with_context(|| format!("Invalid UTF-8 in memo {hex_str}"))
+        hex::decode(&hex_str).with_context(|| format!("Failed to hex-decode memo {}", hex_str))?;
+    String::from_utf8(bytes).with_context(|| format!("Invalid UTF-8 in memo {}", hex_str))
 }
 
 pub fn parse_payment_amount(
@@ -230,7 +230,7 @@ pub async fn xrpl_tx_from_hash(
     client
         .call(tx_request)
         .await
-        .map_err(|e| IngestorError::GenericError(format!("Failed to get transaction: {e}")))
+        .map_err(|e| IngestorError::GenericError(format!("Failed to get transaction: {}", e)))
         .map(|res| res.tx)
 }
 
@@ -251,7 +251,8 @@ pub fn parse_message_from_context(
 
     serde_json::from_str(xrpl_message).map_err(|e| {
         IngestorError::GenericError(format!(
-            "Failed to parse xrpl_message from {xrpl_message}: {e}"
+            "Failed to parse xrpl_message from {}: {}",
+            xrpl_message, e
         ))
     })
 }
@@ -287,7 +288,7 @@ where
         .get(token_id)
         .ok_or_else(|| anyhow::anyhow!("Token id {} not found in deployed tokens", token_id))?;
 
-    let maybe_price = price_view.get_price(&format!("{token_symbol}/XRP")).await;
+    let maybe_price = price_view.get_price(&format!("{}/XRP", token_symbol)).await;
     let price = if let Ok(price) = maybe_price {
         price
     } else {

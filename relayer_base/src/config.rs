@@ -89,10 +89,10 @@ where
     info!("Loading configuration from {:?}", config_path);
 
     let content = fs::read_to_string(config_path.clone())
-        .with_context(|| format!("Failed to read config file: {config_path:?}"))?;
+        .with_context(|| format!("Failed to read config file: {:?}", config_path))?;
 
     let parsed = serde_yaml::from_str(&content)
-        .with_context(|| format!("Failed to parse YAML config from {config_path:?}"))?;
+        .with_context(|| format!("Failed to parse YAML config from {:?}", config_path))?;
 
     Ok(parsed)
 }

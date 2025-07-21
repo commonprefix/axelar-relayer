@@ -54,3 +54,6 @@ path = "src/bin/price_feed.rs"
 [[bin]]
 name = "queue_migration"
 path = "src/bin/scripts/queue_migration.rs"
+
+[lints]
+workspace = true

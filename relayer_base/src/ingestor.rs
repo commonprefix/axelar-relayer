@@ -104,7 +104,7 @@ impl<I: IngestorTrait> Ingestor<I> {
 
     async fn process_delivery(&self, data: &[u8]) -> Result<(), IngestorError> {
         let item = serde_json::from_slice::<QueueItem>(data)
-            .map_err(|e| IngestorError::ParseError(format!("Invalid JSON: {e}")))?;
+            .map_err(|e| IngestorError::ParseError(format!("Invalid JSON: {}", e)))?;
 
         self.consume(item).await
     }
