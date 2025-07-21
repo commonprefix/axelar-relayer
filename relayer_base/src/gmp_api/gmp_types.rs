@@ -1,5 +1,5 @@
 use core::fmt;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -274,7 +274,7 @@ pub struct CommonEventFields<T> {
     pub meta: Option<T>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[derive(Default, Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct TaskMetadata {
     #[serde(rename = "txID")]
     pub tx_id: Option<String>,
@@ -282,7 +282,7 @@ pub struct TaskMetadata {
     pub from_address: Option<String>,
     pub finalized: Option<bool>,
     #[serde(rename = "sourceContext")]
-    pub source_context: Option<HashMap<String, String>>,
+    pub source_context: Option<BTreeMap<String, String>>,
     #[serde(rename = "scopedMessages")]
     pub scoped_messages: Option<Vec<ScopedMessage>>,
 }
@@ -456,98 +456,50 @@ pub struct StorePayloadResult {
 #[cfg(test)]
 mod tests {
     use super::{ReactToExpiredSigningSessionTask, ReactToRetriablePollTask};
+    use std::fs;
+    use std::path::Path;
 
     #[test]
     fn test_react_to_expired_signing_session_task() {
-        let task = r#"{
-            "id": "0197159e-a704-7cce-b89b-e7eba3e9d7d7",
-            "chain": "xrpl",
-            "timestamp": "2025-05-28T06:40:08.453075Z",
-            "type": "REACT_TO_EXPIRED_SIGNING_SESSION",
-            "meta": {
-                "txID" : null,
-                "fromAddress" : null,
-                "finalized" : null,
-                "sourceContext" : null,
-                "scopedMessages": [
-                    {
-                        "messageID": "0xb8ecb910c92c4937c548b7b1fe63c512d8f68743d41bfb539ca181999736d597-98806061",
-                        "sourceChain": "axelar"
-                    }
-                ]
-            },
-            "task": {
-                "sessionID": 874302,
-                "broadcastID": "01971594-4e05-7ef5-869f-716616729956",
-                "invokedContractAddress": "axelar1k82qfzu3l6rvc7twlp9lpwsnav507czl6xyrk0xv287t4439ymvsl6n470",
-                "requestPayload": "{\"construct_proof\":{\"cc_id\":{\"message_id\":\"0xb8ecb910c92c4937c548b7b1fe63c512d8f68743d41bfb539ca181999736d597-98806061\",\"source_chain\":\"axelar\"},\"payload\":\"0000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000a000000000000000000000000000000000000000000000000000000000000000087872706c2d65766d00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001800000000000000000000000000000000000000000000000000000000000000000ba5a21ca88ef6bba2bfff5088994f90e1077e2a1cc3dcc38bd261f00fce2824f00000000000000000000000000000000000000000000000000000000000000c00000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000081b32000000000000000000000000000000000000000000000000000000000000001600000000000000000000000000000000000000000000000000000000000000014d07a2ebf4caded3297753dd95c8fc08e971300cf00000000000000000000000000000000000000000000000000000000000000000000000000000000000000227245616279676243506d397744565731325557504d37344c63314d38546970594d580000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000\"}}"
-            }
-        }"#;
+        let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("testdata/gmp_tasks/valid_tasks/ReactToExpiredSigningSessionTask.json");
+        let json_content = fs::read_to_string(&path)
+            .unwrap_or_else(|e| panic!("Failed to read {}: {}", path.display(), e));
+        let tasks: Vec<serde_json::Value> = serde_json::from_str(&json_content)
+            .expect("Failed to parse ReactToExpiredSigningSessionTask.json");
 
+        let task = &tasks[2]; // specific test, could be more abstract in the future
         let maybe_actual_task: Result<ReactToExpiredSigningSessionTask, serde_json::Error> =
-            serde_json::from_str(task);
+            serde_json::from_value(task.clone());
         assert!(
             maybe_actual_task.is_ok(),
             "Failed to parse task: {:?}",
             maybe_actual_task.err()
         );
         let actual_task = maybe_actual_task.unwrap();
-        let maybe_serialized_task = serde_json::to_string(&actual_task);
-        assert!(maybe_serialized_task.is_ok());
-        let actual_serialized_task = maybe_serialized_task.unwrap();
-
-        assert_eq!(
-            actual_serialized_task,
-            task.split_whitespace().collect::<String>()
-        );
+        let serialized_task = serde_json::to_value(&actual_task).unwrap();
+        assert_eq!(serialized_task, *task);
     }
 
     #[test]
     fn test_react_to_retriable_poll_task() {
-        let task = r#"{
-  "id": "019715e8-5570-7f31-a6cf-90ad32e2b9b6",
-  "chain": "xrpl",
-  "timestamp": "2025-05-28T08:00:37.239699Z",
-  "type": "REACT_TO_RETRIABLE_POLL",
-  "meta": null,
-  "task": {
-    "pollID": 1742631,
-    "broadcastID": "019715e5-c882-7c12-83b8-e771588c1353",
-    "invokedContractAddress": "axelar1pnynr6wnmchutkv6490mdqqxkz54fnrtmq8krqhvglhsqhmu7wzsnc86sy",
-    "requestPayload": "{\"verify_messages\":[{\"add_gas_message\":{\"tx_id\":\"5fa140ff4b90c83df9fdfdc81595bd134f41d929694eedb15cf7fd1c511e8025\",\"amount\":{\"drops\":169771},\"msg_id\":\"67f6ddc5421acc8f17e3f1942d2fbc718295894f2ea1647229e054c125a261e8\",\"source_address\":\"rBs8uSfoAePdbr8eZtq7FK2QnTgvHyWAee\"}}]}",
-    "quorumReachedEvents": [
-      {
-        "status": "not_found_on_source_chain",
-        "content": {
-          "add_gas_message": {
-            "amount": {
-              "drops": 169771
-            },
-            "msg_id": "67f6ddc5421acc8f17e3f1942d2fbc718295894f2ea1647229e054c125a261e8",
-            "source_address": "rBs8uSfoAePdbr8eZtq7FK2QnTgvHyWAee",
-            "tx_id": "5fa140ff4b90c83df9fdfdc81595bd134f41d929694eedb15cf7fd1c511e8025"
-          }
-        }
-      }
-    ]
-  }
-}"#;
+        let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("testdata/gmp_tasks/valid_tasks/ReactToRetriablePollTask.json");
+        let json_content = fs::read_to_string(&path)
+            .unwrap_or_else(|e| panic!("Failed to read {}: {}", path.display(), e));
+        let tasks: Vec<serde_json::Value> = serde_json::from_str(&json_content)
+            .expect("Failed to parse ReactToRetriablePollTask.json");
 
+        let task = &tasks[1]; // specific test, could be more abstract in the future
         let maybe_actual_task: Result<ReactToRetriablePollTask, serde_json::Error> =
-            serde_json::from_str(task);
+            serde_json::from_value(task.clone());
         assert!(
             maybe_actual_task.is_ok(),
             "Failed to parse task: {:?}",
             maybe_actual_task.err()
         );
         let actual_task = maybe_actual_task.unwrap();
-        let maybe_serialized_task = serde_json::to_string(&actual_task);
-        assert!(maybe_serialized_task.is_ok());
-        let actual_serialized_task = maybe_serialized_task.unwrap();
-
-        assert_eq!(
-            actual_serialized_task,
-            task.split_whitespace().collect::<String>()
-        );
+        let serialized_task = serde_json::to_value(&actual_task).unwrap();
+        assert_eq!(serialized_task, *task);
     }
 }

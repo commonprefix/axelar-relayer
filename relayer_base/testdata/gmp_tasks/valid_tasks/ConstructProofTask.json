@@ -1,0 +1,33 @@
+[{
+    "id": "construct_proof_123",
+    "chain": "xrpl",
+    "timestamp": "2023-01-01T00:00:00Z",
+    "type": "CONSTRUCT_PROOF",
+    "meta": null,
+    "task": {
+        "message": {
+            "messageID": "msg_789",
+            "sourceChain": "avalanche",
+            "sourceAddress": "0xdef",
+            "destinationAddress": "0xghi",
+            "payloadHash": "hash789"
+        },
+        "payload": "proof_payload"
+    }
+}, {
+    "id": "0197a672-00c6-7a57-acb5-9c7c58aa8ac0",
+    "chain": "xrpl",
+    "timestamp": "2025-06-25T09:36:18.630913Z",
+    "type": "CONSTRUCT_PROOF",
+    "meta": null,
+    "task": {
+        "message": {
+            "messageID": "0xdf2804f975ddc5feb878071cd7ac80da9d5ca476076f3e0c7e8977c6ba1733ae-164269022",
+            "sourceChain": "axelar",
+            "sourceAddress": "axelar1aqcj54lzz0rk22gvqgcn8fr5tx4rzwdv5wv5j9dmnacgefvd7wzsy2j2mr",
+            "destinationAddress": "rNrjh1KGZk2jBR3wPfAQnoidtFFYQKbQn2",
+            "payloadHash": "fAm9twDQh7/CT+FK1FihseEIVwIuwKe1L4OGy3+BYTE="
+        },
+        "payload": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAYAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAh4cnBsLWV2bQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAGAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAC6WiHKiO9ruiv/9QiJlPkOEHfiocw9zDi9Jh8A/OKCTwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAJiWgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABT5dKU/oTgIcoaoDwiHSlIvdvsQJwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAickpVWWJjRFZkV3lqdWV6RFA3anFRZ3BIa2ZkYWRGVFZ1VAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+    }
+} ]
