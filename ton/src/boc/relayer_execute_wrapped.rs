@@ -29,7 +29,7 @@ use tonlib_core::tlb_types::tlb::TLB;
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 pub struct RelayerExecuteWrappedMessage {
     pub(crate) message_id: String,
-    pub(crate) source_chain: String
+    pub(crate) source_chain: String,
 }
 
 impl RelayerExecuteWrappedMessage {
@@ -61,14 +61,17 @@ impl RelayerExecuteWrappedMessage {
             .map_err(|err| BocParsingError(err.to_string()))?
             .cell_to_string()
             .map_err(|err| BocParsingError(err.to_string()))?;
-        
+
         let source_chain = parser
             .next_reference()
             .map_err(|err| BocParsingError(err.to_string()))?
             .cell_to_string()
             .map_err(|err| BocParsingError(err.to_string()))?;
 
-        Ok(Self { message_id, source_chain })
+        Ok(Self {
+            message_id,
+            source_chain,
+        })
     }
 }
 
@@ -85,10 +88,6 @@ mod tests {
             res.message_id,
             "0x89f3252fb9ad7003c25471685f48d14c842a2910b9386d35f859694babf7b1cf"
         );
-        assert_eq!(
-            res.source_chain,
-            "ton2"
-        );
-
+        assert_eq!(res.source_chain, "ton2");
     }
 }

@@ -13,7 +13,7 @@ pub enum BocError {
 #[derive(Error, Debug)]
 pub enum TONRpcError {
     #[error("DataError: {0}")]
-    DataError(String)
+    DataError(String),
 }
 
 #[derive(Error, Debug)]
@@ -21,7 +21,7 @@ pub enum GasError {
     #[error("ConversionError: {0}")]
     ConversionError(String),
     #[error("GasCalculationError: {0}")]
-    GasCalculationError(String)
+    GasCalculationError(String),
 }
 
 #[derive(Error, Debug)]
@@ -33,6 +33,5 @@ pub enum TransactionParsingError {
     #[error("GasError: {0}")]
     Gas(String),
     #[error("GeneralError: {0}")]
-    Generic(String)
+    Generic(String),
 }
-

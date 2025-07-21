@@ -71,10 +71,10 @@ impl NativeGasAddedMessage {
 
 #[cfg(test)]
 mod tests {
+    use crate::boc::native_gas_added::NativeGasAddedMessage;
     use num_bigint::BigUint;
     use std::str::FromStr;
     use tonlib_core::{TonAddress, TonHash};
-    use crate::boc::native_gas_added::NativeGasAddedMessage;
 
     #[test]
     fn test_from_boc_b64() {
@@ -84,7 +84,7 @@ mod tests {
         assert_eq!(
             res.tx_hash,
             TonHash::from_hex("0e6f759f68edb972cc1c5ac28ae44a026567c39d0a67d71de90978a12106a6ba")
-            .unwrap()
+                .unwrap()
         );
         assert_eq!(
             res.refund_address,

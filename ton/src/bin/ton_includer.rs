@@ -24,8 +24,7 @@ async fn main() -> anyhow::Result<()> {
     let gmp_api = Arc::new(gmp_api::GmpApi::new(&config.common_config, true).unwrap());
     let redis_client = redis::Client::open(config.common_config.redis_server.clone()).unwrap();
     let redis_pool = r2d2::Pool::builder().build(redis_client).unwrap();
-    let postgres_db = PostgresDB::new(&config.common_config.postgres_url)
-        .await?;
+    let postgres_db = PostgresDB::new(&config.common_config.postgres_url).await?;
     let payload_cache_for_includer = PayloadCache::new(postgres_db.clone());
     let high_load_query_id_wrapper = HighLoadQueryIdDbWrapper::new(postgres_db).await;
     let ton_includer = TONIncluder::new(

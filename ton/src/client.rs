@@ -204,17 +204,17 @@ impl RestClient for TONRpcClient {
         text: &str,
         context: &str,
     ) -> ClientError {
-        error!("TON RPC request failed: {}: {}, (sent {})", status, text, context);
+        error!(
+            "TON RPC request failed: {}: {}, (sent {})",
+            status, text, context
+        );
         if status.as_u16() == 400 {
             match serde_json::from_str::<V3ErrorResponse>(text) {
                 Ok(err_body) => BadRequest(err_body.error),
                 Err(err) => BadResponse(format!("Invalid 400 body: {err}")),
             }
         } else {
-            BadResponse(format!(
-                "Unexpected status {}: {}",
-                status, text
-            ))
+            BadResponse(format!("Unexpected status {}: {}", status, text))
         }
     }
 }

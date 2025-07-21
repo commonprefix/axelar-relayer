@@ -11,6 +11,9 @@ let approve_messages = ApproveMessages::from_boc_hex(boc);
 ```
 */
 
+use crate::boc::cell_to::CellTo;
+use crate::error::BocError;
+use crate::error::BocError::{BocParsingError, InvalidOpCode};
 use crate::ton_constants::OP_APPROVE_MESSAGES;
 use num_bigint::BigUint;
 use serde::{Deserialize, Serialize};
@@ -18,9 +21,6 @@ use std::sync::Arc;
 use tonlib_core::cell::dict::predefined_readers::{key_reader_u8, val_reader_ref_cell};
 use tonlib_core::cell::{ArcCell, Cell, CellParser};
 use tonlib_core::tlb_types::tlb::TLB;
-use crate::boc::cell_to::CellTo;
-use crate::error::BocError;
-use crate::error::BocError::{BocParsingError, InvalidOpCode};
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 pub struct ApproveMessage {

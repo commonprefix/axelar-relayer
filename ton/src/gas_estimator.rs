@@ -33,7 +33,10 @@ impl GasEstimator for TONGasEstimator {
     async fn estimate_execute(&self, payload: usize) -> u64 {
         std::cmp::max(
             self.config.execute,
-            self.config.execute_base + self.config.execute_payload * payload as u64 + self.config.execute_storage_slippage)
+            self.config.execute_base
+                + self.config.execute_payload * payload as u64
+                + self.config.execute_storage_slippage,
+        )
     }
 
     async fn estimate_highload_wallet(&self, num_actions: usize) -> u64 {
@@ -66,7 +69,7 @@ mod tests {
             approve_fixed_storage_slippage: 1,
             approve_per_message: 1,
             approve_per_message_storage_slippage: 1,
-            highload_wallet_per_action: 1
+            highload_wallet_per_action: 1,
         };
 
         let estimator = TONGasEstimator::new(config);
@@ -87,11 +90,11 @@ mod tests {
             approve_fixed_storage_slippage: 1,
             approve_per_message: 1,
             approve_per_message_storage_slippage: 1,
-            highload_wallet_per_action: 1
+            highload_wallet_per_action: 1,
         };
 
         let estimator = TONGasEstimator::new(config);
-        
+
         let execute = estimator.estimate_execute(3842usize).await;
         assert_eq!(execute, 310000000);
 
@@ -112,7 +115,7 @@ mod tests {
             approve_fixed_storage_slippage: 300,
             approve_per_message: 33,
             approve_per_message_storage_slippage: 22,
-            highload_wallet_per_action: 1
+            highload_wallet_per_action: 1,
         };
 
         let estimator = TONGasEstimator::new(config);
@@ -133,14 +136,13 @@ mod tests {
             approve_fixed_storage_slippage: 1,
             approve_per_message: 1,
             approve_per_message_storage_slippage: 1,
-            highload_wallet_per_action: 42
+            highload_wallet_per_action: 42,
         };
 
         let estimator = TONGasEstimator::new(config);
         let approve = estimator.estimate_highload_wallet(3usize).await;
         assert_eq!(approve, 126);
     }
-
 
     #[tokio::test]
     async fn test_zero_values() {
@@ -155,7 +157,7 @@ mod tests {
             approve_fixed_storage_slippage: 0,
             approve_per_message: 0,
             approve_per_message_storage_slippage: 0,
-            highload_wallet_per_action: 0
+            highload_wallet_per_action: 0,
         };
 
         let estimator = TONGasEstimator::new(config);

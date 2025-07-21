@@ -1,6 +1,7 @@
 use super::{broadcaster::TONBroadcaster, client::TONRpcClient, refund_manager::TONRefundManager};
 use crate::client::RestClient;
 use crate::config::TONConfig;
+use crate::gas_estimator::TONGasEstimator;
 use crate::high_load_query_id_db_wrapper::HighLoadQueryIdDbWrapper;
 use crate::lock_manager::RedisLockManager;
 use crate::wallet_manager::WalletManager;
@@ -10,7 +11,6 @@ use relayer_base::{
 };
 use std::sync::Arc;
 use tonlib_core::TonAddress;
-use crate::gas_estimator::TONGasEstimator;
 
 pub struct TONIncluder {}
 
@@ -45,7 +45,7 @@ impl TONIncluder {
 
         let gateway_address = TonAddress::from_base64_url(ton_gateway.as_str()).unwrap();
         let gas_service_address = TonAddress::from_base64_url(ton_gas_service.as_str()).unwrap();
-        
+
         let broadcaster = TONBroadcaster::new(
             Arc::clone(&wallet_manager),
             Arc::clone(&client),
@@ -53,7 +53,7 @@ impl TONIncluder {
             gateway_address,
             gas_service_address,
             config.common_config.chain_name,
-            TONGasEstimator::new(config.gas_estimates.clone())
+            TONGasEstimator::new(config.gas_estimates.clone()),
         )
         .map_err(|e| e.attach_printable("Failed to create TONBroadcaster"))?;
 

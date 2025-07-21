@@ -24,12 +24,12 @@ match TonCCMessage::from_boc_b64(boc_b64) {
 */
 
 use crate::boc::cell_to::CellTo;
-use tonlib_core::cell::{Cell, CellParser};
-use tonlib_core::tlb_types::tlb::TLB;
-use tonlib_core::{TonAddress, TonHash};
 use crate::error::BocError;
 use crate::error::BocError::BocParsingError;
 use crate::ton_constants::WORKCHAIN;
+use tonlib_core::cell::{Cell, CellParser};
+use tonlib_core::tlb_types::tlb::TLB;
+use tonlib_core::{TonAddress, TonHash};
 
 #[derive(Debug, Clone)]
 pub struct TonCCMessage {
@@ -84,15 +84,13 @@ impl TonCCMessage {
             .try_into()
             .map_err(|_| "Invalid hash length")
             .unwrap();
-        
+
         let ton_address = TonAddress::new(WORKCHAIN, hash_part);
 
         let destination_chain = inner_parser
             .next_reference()
             .map_err(|err| BocParsingError(err.to_string()))?
             .cell_to_string()?;
-
-
 
         Ok(TonCCMessage {
             message_id,
@@ -101,15 +99,15 @@ impl TonCCMessage {
             destination_chain,
             destination_address: ton_address.to_hex(),
             log_event: "".to_string(),
-            payload_hash
+            payload_hash,
         })
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use primitive_types::H256;
     use crate::boc::cc_message::TonCCMessage;
+    use primitive_types::H256;
 
     #[test]
     fn test_ton_log() {
@@ -137,7 +135,10 @@ mod tests {
         );
 
         let payload_hash = format!("{:?}", H256::from(log.payload_hash));
-        assert_eq!(payload_hash, "0x9e01c423ca440c5ec2beecc9d0a152b54fc8e7a416c931b7089eaf221605af17");
+        assert_eq!(
+            payload_hash,
+            "0x9e01c423ca440c5ec2beecc9d0a152b54fc8e7a416c931b7089eaf221605af17"
+        );
     }
 
     #[test]

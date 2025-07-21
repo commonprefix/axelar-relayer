@@ -13,5 +13,4 @@ pub(crate) mod fixtures {
 
         TracesResponse::from(rest).traces
     }
-
 }

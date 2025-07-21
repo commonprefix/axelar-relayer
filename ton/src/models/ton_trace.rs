@@ -1,8 +1,8 @@
-use std::future::Future;
-use serde::{Deserialize, Serialize};
-use sqlx::PgPool;
-use sqlx::types::Json;
 use relayer_base::models::Model;
+use serde::{Deserialize, Serialize};
+use sqlx::types::Json;
+use sqlx::PgPool;
+use std::future::Future;
 use ton_types::ton_types::{Trace, Transaction};
 
 #[derive(Debug, Serialize, Deserialize, Clone, sqlx::FromRow)]
@@ -27,7 +27,7 @@ impl TONTrace {
             transactions: Json::from(trace.transactions.clone()),
             created_at: chrono::Utc::now(),
             updated_at: None,
-            retries: 5
+            retries: 5,
         }
     }
 }
@@ -46,16 +46,19 @@ impl PgTONTraceModel {
 
 #[cfg_attr(test, mockall::automock)]
 pub trait AtomicUpsert {
-    fn upsert_and_return_if_changed(&self, tx: TONTrace) -> impl Future<Output =anyhow::Result<Option<TONTrace>>> + Send;
+    fn upsert_and_return_if_changed(
+        &self,
+        tx: TONTrace,
+    ) -> impl Future<Output = anyhow::Result<Option<TONTrace>>> + Send;
 }
 
 #[cfg_attr(test, mockall::automock)]
 pub trait Retriable {
-    fn fetch_retry(&self, limit: u32) -> impl Future<Output = anyhow::Result<Vec<TONTrace>>> + Send;
+    fn fetch_retry(&self, limit: u32)
+        -> impl Future<Output = anyhow::Result<Vec<TONTrace>>> + Send;
 
     fn decrease_retry(&self, tx: TONTrace) -> impl Future<Output = anyhow::Result<()>> + Send;
 }
-
 
 impl AtomicUpsert for PgTONTraceModel {
     async fn upsert_and_return_if_changed(&self, tx: TONTrace) -> anyhow::Result<Option<TONTrace>> {
@@ -108,7 +111,10 @@ impl Retriable for PgTONTraceModel {
     }
 
     async fn decrease_retry(&self, tx: TONTrace) -> anyhow::Result<()> {
-        let query = format!("UPDATE {} SET retries = retries - 1 WHERE trace_id = $1", PG_TABLE_NAME);
+        let query = format!(
+            "UPDATE {} SET retries = retries - 1 WHERE trace_id = $1",
+            PG_TABLE_NAME
+        );
         sqlx::query(&query)
             .bind(tx.trace_id)
             .execute(&self.pool)
@@ -145,12 +151,12 @@ impl Model<TONTrace, String> for PgTONTraceModel {
 
 #[cfg(test)]
 mod tests {
+    use crate::models::ton_trace::{AtomicUpsert, PgTONTraceModel, TONTrace};
+    use crate::test_utils::fixtures::fixture_traces;
+    use relayer_base::models::Model;
     use sqlx::types::Json;
     use testcontainers::runners::AsyncRunner;
     use testcontainers_modules::postgres;
-    use relayer_base::models::Model;
-    use crate::models::ton_trace::{AtomicUpsert, PgTONTraceModel, TONTrace};
-    use crate::test_utils::fixtures::fixture_traces;
 
     #[tokio::test]
     async fn test_crud() {
@@ -180,10 +186,14 @@ mod tests {
             transactions: Json::from(transactions.clone()),
             created_at: chrono::Utc::now(),
             updated_at: Some(chrono::Utc::now()),
-            retries: 5
+            retries: 5,
         };
 
-        let ret = model.upsert_and_return_if_changed(trace.clone()).await.unwrap().unwrap();
+        let ret = model
+            .upsert_and_return_if_changed(trace.clone())
+            .await
+            .unwrap()
+            .unwrap();
         let saved = model.find("123".to_string()).await.unwrap().unwrap();
         assert_eq!(saved.trace_id, "123");
         assert_eq!(saved.transactions[0].hash, "aa1");
@@ -199,7 +209,10 @@ mod tests {
         assert_eq!(ret.end_lt, 321);
         assert_eq!(ret.is_incomplete, false);
 
-        let ret = model.upsert_and_return_if_changed(trace.clone()).await.unwrap();
+        let ret = model
+            .upsert_and_return_if_changed(trace.clone())
+            .await
+            .unwrap();
         assert!(ret.is_none());
 
         let trace = TONTrace {
@@ -210,10 +223,13 @@ mod tests {
             transactions: Json::from(transactions.clone()),
             created_at: chrono::Utc::now(),
             updated_at: Some(chrono::Utc::now()),
-            retries: 5
+            retries: 5,
         };
 
-        let ret = model.upsert_and_return_if_changed(trace.clone()).await.unwrap();
+        let ret = model
+            .upsert_and_return_if_changed(trace.clone())
+            .await
+            .unwrap();
         assert!(ret.is_some());
         assert_eq!(ret.unwrap().is_incomplete, true);
 

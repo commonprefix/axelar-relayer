@@ -58,7 +58,7 @@ impl NativeGasPaidMessage {
             .map_err(|err| BocParsingError(err.to_string()))?
             .try_into()
             .map_err(|_| BocParsingError("Invalid msg_value hash length".to_string()))?;
-        
+
         let msg_value = BigUint::from_bytes_be(&msg_value);
 
         let refund_address = parser.next_reference().unwrap();
@@ -90,9 +90,9 @@ impl NativeGasPaidMessage {
 
 #[cfg(test)]
 mod tests {
+    use crate::boc::native_gas_paid::NativeGasPaidMessage;
     use primitive_types::H256;
     use tonlib_core::TonAddress;
-    use crate::boc::native_gas_paid::NativeGasPaidMessage;
 
     #[test]
     fn test_from_boc_b64() {

@@ -22,13 +22,13 @@ match CallContractMessage::from_boc_b64(boc) {
 
 */
 
+use crate::boc::cell_to::CellTo;
+use crate::error::BocError;
+use crate::error::BocError::BocParsingError;
 use serde::{Deserialize, Serialize};
 use tonlib_core::cell::{Cell, CellParser};
 use tonlib_core::tlb_types::tlb::TLB;
 use tonlib_core::TonAddress;
-use crate::boc::cell_to::CellTo;
-use crate::error::BocError;
-use crate::error::BocError::{BocParsingError};
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 pub struct CallContractMessage {
@@ -61,7 +61,9 @@ impl CallContractMessage {
 
         let payload = hex::encode(payload);
 
-        let source_address = parser.load_address().map_err(|err| BocParsingError(err.to_string()))?;
+        let source_address = parser
+            .load_address()
+            .map_err(|err| BocParsingError(err.to_string()))?;
 
         let payload_hash: [u8; 32] = parser
             .load_bits(256)
@@ -74,17 +76,17 @@ impl CallContractMessage {
             destination_address,
             payload,
             source_address,
-            payload_hash
+            payload_hash,
         })
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
-    use primitive_types::H256;
-    use tonlib_core::TonAddress;
     use crate::boc::call_contract::CallContractMessage;
+    use primitive_types::H256;
+    use std::str::FromStr;
+    use tonlib_core::TonAddress;
 
     #[test]
     fn test_from_boc_b64() {
@@ -92,10 +94,19 @@ mod tests {
         let res = CallContractMessage::from_boc_b64(boc);
         let res = res.unwrap();
         assert_eq!(res.destination_chain, "avalanche-fuji");
-        assert_eq!(res.destination_address, "0xd7067Ae3C359e837890b28B7BD0d2084CfDf49b5");
-        assert_eq!(res.source_address, TonAddress::from_str(&"EQDh5jPrcBsRi0QpdxbO5wae6Ee1bbiMSX7-poHtFLLSxyuC").unwrap());
+        assert_eq!(
+            res.destination_address,
+            "0xd7067Ae3C359e837890b28B7BD0d2084CfDf49b5"
+        );
+        assert_eq!(
+            res.source_address,
+            TonAddress::from_str(&"EQDh5jPrcBsRi0QpdxbO5wae6Ee1bbiMSX7-poHtFLLSxyuC").unwrap()
+        );
         assert_eq!(res.payload, "0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000001348656c6c6f2066726f6d2052656c617965722100000000000000000000000000");
         let payload_hash = format!("{:?}", H256::from(res.payload_hash));
-        assert_eq!(payload_hash, "0xaea6524367000fb4a0aa20b1d4f63daad1ed9e9df7163f2309673610f2f37d4b");
+        assert_eq!(
+            payload_hash,
+            "0xaea6524367000fb4a0aa20b1d4f63daad1ed9e9df7163f2309673610f2f37d4b"
+        );
     }
 }

@@ -22,7 +22,7 @@ pub struct GasEstimates {
     pub approve_fixed_storage_slippage: u64,
     pub approve_per_message: u64,
     pub approve_per_message_storage_slippage: u64,
-    pub highload_wallet_per_action: u64
+    pub highload_wallet_per_action: u64,
 }
 
 #[derive(Debug, Clone, Deserialize, Default)]
@@ -35,5 +35,5 @@ pub struct TONConfig {
     pub ton_gas_service: String,
     pub ton_rpc: String,
     pub ton_api_key: String,
-    pub gas_estimates: GasEstimates
+    pub gas_estimates: GasEstimates,
 }

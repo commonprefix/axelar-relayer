@@ -17,13 +17,13 @@ let res = out_action(&approve_message, BigUint::from(value), destination).unwrap
 
 */
 
+use crate::ton_constants::SEND_MODE_IGNORE_ERRORS;
 use num_bigint::BigUint;
 use tonlib_core::cell::Cell;
 use tonlib_core::message::{InternalMessage, TonMessage, TonMessageError, TransferMessage};
 use tonlib_core::tlb_types::block::out_action::{OutAction, OutActionSendMsg};
 use tonlib_core::tlb_types::tlb::TLB;
 use tonlib_core::TonAddress;
-use crate::ton_constants::SEND_MODE_IGNORE_ERRORS;
 
 pub fn out_action(
     boc_hex: &str,

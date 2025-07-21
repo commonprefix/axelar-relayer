@@ -27,16 +27,16 @@ let ton_cell = message.to_cell().unwrap();
 
 */
 
+use crate::boc::buffer_to_cell;
 use crate::error::BocError;
 use crate::error::BocError::{BocEncodingError, BocParsingError};
+use crate::ton_constants::OP_RELAYER_EXECUTE;
 use num_bigint::BigUint;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tiny_keccak::{Hasher, Keccak};
 use tonlib_core::cell::{Cell, CellBuilder};
 use tonlib_core::TonAddress;
-use crate::boc::buffer_to_cell;
-use crate::ton_constants::OP_RELAYER_EXECUTE;
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 pub struct RelayerExecuteMessage {
@@ -81,9 +81,12 @@ impl RelayerExecuteMessage {
     pub fn to_cell(&self) -> Result<Cell, BocError> {
         let message_id = buffer_to_cell::buffer_to_cell(&self.message_id.as_bytes().to_vec())?;
         let source_chain = buffer_to_cell::buffer_to_cell(&self.source_chain.as_bytes().to_vec())?;
-        let source_address = buffer_to_cell::buffer_to_cell(&self.source_address.as_bytes().to_vec())?;
-        let destination_chain = buffer_to_cell::buffer_to_cell(&self.destination_chain.as_bytes().to_vec())?;
-        let destination_address = buffer_to_cell::buffer_to_cell(&self.destination_address.hash_part.to_vec())?;
+        let source_address =
+            buffer_to_cell::buffer_to_cell(&self.source_address.as_bytes().to_vec())?;
+        let destination_chain =
+            buffer_to_cell::buffer_to_cell(&self.destination_chain.as_bytes().to_vec())?;
+        let destination_address =
+            buffer_to_cell::buffer_to_cell(&self.destination_address.hash_part.to_vec())?;
         let payload_hash = Self::payload_hash(&hex::decode(&self.payload).unwrap());
         let payload = buffer_to_cell::buffer_to_cell(&hex::decode(&self.payload).unwrap())?;
 

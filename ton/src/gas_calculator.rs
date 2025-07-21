@@ -10,12 +10,12 @@ Why we see empty balances?
 */
 
 use crate::error::GasError;
-use ton_types::ton_types::Transaction;
+use crate::ton_constants::{OP_MESSAGE_APPROVE, OP_NULLIFY_IF_APPROVED};
 use std::collections::{HashMap, HashSet};
 use std::ops::AddAssign;
 use std::str::FromStr;
+use ton_types::ton_types::Transaction;
 use tonlib_core::TonAddress;
-use crate::ton_constants::{OP_MESSAGE_APPROVE, OP_NULLIFY_IF_APPROVED};
 
 #[derive(Default)]
 pub struct GasCalculator {
@@ -58,7 +58,8 @@ impl GasCalculator {
     }
 
     fn balance_diff(&self, transactions: &[Transaction]) -> Result<i128, GasError> {
-        let mut dynamic_addresses: HashSet<TonAddress> = self.our_addresses.iter().cloned().collect();
+        let mut dynamic_addresses: HashSet<TonAddress> =
+            self.our_addresses.iter().cloned().collect();
         let mut balances: HashMap<TonAddress, i128> = HashMap::new();
 
         for tx in transactions {
@@ -214,5 +215,4 @@ mod tests {
         // We should have the same number as A, B and C
         assert_eq!(amount.unwrap(), 36656408 + 4271633);
     }
-
 }

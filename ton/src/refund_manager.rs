@@ -1,8 +1,7 @@
 use super::client::RestClient;
 use crate::config::TONConfig;
 use relayer_base::{
-    error::RefundManagerError, gmp_api::gmp_types::RefundTask,
-    includer::RefundManager,
+    error::RefundManagerError, gmp_api::gmp_types::RefundTask, includer::RefundManager,
 };
 use std::sync::Arc;
 
@@ -34,7 +33,7 @@ impl RefundManager for TONRefundManager {
     fn is_refund_manager_managed(&self) -> bool {
         false
     }
-    
+
     async fn build_refund_tx(
         &self,
         _recipient: String,

@@ -22,12 +22,12 @@ match NullifiedSuccessfullyMessage::from_boc_b64(boc) {
 */
 
 use crate::boc::cell_to::CellTo;
+use crate::error::BocError;
+use crate::error::BocError::{BocParsingError, InvalidOpCode};
 use crate::ton_constants::OP_NULLIFIED_SUCCESSFULLY;
 use serde::{Deserialize, Serialize};
 use tonlib_core::cell::{Cell, CellParser};
 use tonlib_core::tlb_types::tlb::TLB;
-use crate::error::BocError;
-use crate::error::BocError::{BocParsingError, InvalidOpCode};
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 pub struct NullifiedSuccessfullyMessage {

@@ -185,7 +185,10 @@ impl<GE: GasEstimator> Broadcaster for TONBroadcaster<GE> {
         let source_chain = message.message.source_chain;
 
         let available_gas = u64::from_str(&message.available_gas_balance.amount).unwrap_or(0);
-        let required_gas = self.gas_estimator.estimate_execute(message.payload.len()).await;
+        let required_gas = self
+            .gas_estimator
+            .estimate_execute(message.payload.len())
+            .await;
 
         info!(
             "Execute message: message_id={}, source_chain={}, available_gas={}, required_gas={}",
@@ -218,7 +221,7 @@ impl<GE: GasEstimator> Broadcaster for TONBroadcaster<GE> {
                 hex_payload,
                 wallet.address.clone(),
             );
-            
+
             let boc = relayer_execute_msg
                 .to_cell()
                 .map_err(|e| BroadcasterError::GenericError(e.to_string()))?
@@ -338,7 +341,7 @@ impl<GE: GasEstimator> Broadcaster for TONBroadcaster<GE> {
 mod tests {
     use crate::broadcaster::{TONBroadcaster, TONTransaction};
     use crate::client::{MockRestClient, V3MessageResponse};
-    use crate::gas_estimator::{MockGasEstimator};
+    use crate::gas_estimator::MockGasEstimator;
     use crate::high_load_query_id::HighLoadQueryId;
     use crate::high_load_query_id_db_wrapper::{
         HighLoadQueryIdWrapper, HighLoadQueryIdWrapperError,

@@ -38,30 +38,43 @@ impl NativeGasRefundedMessage {
     pub fn from_boc_b64(boc_b64: &str) -> Result<Self, BocError> {
         let cell = Cell::from_boc_b64(boc_b64).map_err(|err| BocParsingError(err.to_string()))?;
         let mut parser = cell.parser();
-        let tx_hash = parser.load_tonhash().map_err(|err| BocParsingError(err.to_string()))?;
-        let address = parser.load_address().map_err(|err| BocParsingError(err.to_string()))?;
-        let amount = parser.load_coins().map_err(|err| BocParsingError(err.to_string()))?;
+        let tx_hash = parser
+            .load_tonhash()
+            .map_err(|err| BocParsingError(err.to_string()))?;
+        let address = parser
+            .load_address()
+            .map_err(|err| BocParsingError(err.to_string()))?;
+        let amount = parser
+            .load_coins()
+            .map_err(|err| BocParsingError(err.to_string()))?;
         Ok(Self {
             tx_hash,
             address,
-            amount
+            amount,
         })
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
-    use num_bigint::BigUint;
-    use tonlib_core::{TonAddress, TonHash};
     use crate::boc::native_gas_refunded::NativeGasRefundedMessage;
+    use num_bigint::BigUint;
+    use std::str::FromStr;
+    use tonlib_core::{TonAddress, TonHash};
 
     #[test]
     fn test_from_boc_b64() {
         let response = NativeGasRefundedMessage::from_boc_b64("te6cckEBAQEASAAAi+sGXZ2TA0nQZDuUbZYexgD4DV5fMKsB328TYkPuUDXCgBw8xn1uA2IxaIUu4tnc4NPdCPattxGJL9/U0D2illpY6B/RX5+w1u5M").unwrap();
 
-        assert_eq!(response.address, TonAddress::from_str("EQDh5jPrcBsRi0QpdxbO5wae6Ee1bbiMSX7-poHtFLLSxyuC").unwrap());
+        assert_eq!(
+            response.address,
+            TonAddress::from_str("EQDh5jPrcBsRi0QpdxbO5wae6Ee1bbiMSX7-poHtFLLSxyuC").unwrap()
+        );
         assert_eq!(response.amount, BigUint::from(266907599u64));
-        assert_eq!(response.tx_hash, TonHash::from_hex("eb065d9d930349d0643b946d961ec600f80d5e5f30ab01df6f136243ee5035c2").unwrap());
+        assert_eq!(
+            response.tx_hash,
+            TonHash::from_hex("eb065d9d930349d0643b946d961ec600f80d5e5f30ab01df6f136243ee5035c2")
+                .unwrap()
+        );
     }
 }

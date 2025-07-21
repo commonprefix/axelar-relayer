@@ -7,7 +7,7 @@ Utility for working with TON Cell structures. Dominik's code.
 use tonlib_core::cell::{CellBuilder};
 use std::sync::Arc;
 use ton::boc::cell_to::CellTo;
- 
+
 let mut builder = CellBuilder::new();
 for &byte in b"Hello" {
     builder.store_byte(byte).unwrap();
@@ -22,10 +22,10 @@ assert_eq!(buffer, b"Hello");
 ```
 */
 
-use std::sync::Arc;
-use tonlib_core::cell::Cell;
 use crate::error::BocError;
 use crate::error::BocError::BocParsingError;
+use std::sync::Arc;
+use tonlib_core::cell::Cell;
 
 const BYTES_PER_CELL: usize = 96;
 
