@@ -40,3 +40,4 @@ heartbeats:
   proof_retrier: ""
   ticket_monitor: ""
 refunds_enabled:
+demo_tokens_rate:
