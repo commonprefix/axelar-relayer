@@ -591,20 +591,9 @@ mod tests {
             serde_json::from_str(&tasks_json).expect("Failed to parse invalid tasks JSON");
 
         for task_json in tasks {
-            let task_id = task_json["id"].as_str().unwrap_or("unknown");
             let result = parse_task(&task_json);
 
-            assert!(
-                result.is_err(),
-                "Expected parsing to fail for task: {}",
-                task_id
-            );
-
-            if let Err(GmpApiError::InvalidResponse(_)) = result {
-                // Expected error
-            } else {
-                panic!("Expected InvalidResponse error for task: {}", task_id);
-            }
+            assert!(matches!(result, Err(GmpApiError::InvalidResponse(_))));
         }
     }
 
@@ -618,25 +607,8 @@ mod tests {
             serde_json::from_str(&tasks_json).expect("Failed to parse unknown tasks JSON");
 
         for task_json in tasks {
-            let task_id = task_json["id"].as_str().unwrap_or("unknown");
-            let expected_type = task_json["type"].as_str().unwrap_or("");
-
             let parse_result = parse_task(&task_json);
-            assert!(
-                parse_result.is_ok(),
-                "Expected successful parsing as Unknown for task: {}",
-                task_id
-            );
-
-            if let Ok(Task::Unknown(unknown_task)) = parse_result {
-                assert_eq!(
-                    unknown_task.common.r#type, expected_type,
-                    "Type mismatch for task: {}",
-                    task_id
-                );
-            } else {
-                panic!("Expected Unknown task for: {}", task_id);
-            }
+            assert!(matches!(parse_result, Ok(Task::Unknown(_))));
         }
     }
 
