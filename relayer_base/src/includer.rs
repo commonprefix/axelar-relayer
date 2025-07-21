@@ -172,7 +172,10 @@ where
                                 .publish(QueueItem::RetryConstructProof(cross_chain_id.to_string()))
                                 .await;
 
-                            let mut redis_conn = self.redis_pool.get().unwrap();
+                            let mut redis_conn = self
+                                .redis_pool
+                                .get()
+                                .map_err(|e| IncluderError::ConsumerError(e.to_string()))?;
                             let redis_key = format!("failed_proof:{}", cross_chain_id);
                             let _: i64 = redis_conn
                                 .incr(redis_key.clone(), 1)
