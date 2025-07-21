@@ -684,7 +684,6 @@ mod tests {
             memo_format: Some("hex".to_string()),
         }];
         let maybe_memo_hex = extract_hex_xrpl_memo(Some(memos), "test_type");
-        assert!(maybe_memo_hex.is_ok());
         let memo_hex = maybe_memo_hex.unwrap();
         assert_eq!(memo_hex, "test_data");
     }
@@ -792,14 +791,10 @@ mod tests {
 
         let gas_fee_amount = parse_gas_fee_amount(&payment_amount, "50.0".to_string())
             .expect("Valid gas fee amount for issued tokens");
-        if let XRPLPaymentAmount::Issued(result_token, amount) = gas_fee_amount {
-            assert_eq!(result_token.issuer, token.issuer);
-            assert_eq!(result_token.currency, token.currency);
-            let expected_amount = XRPLTokenAmount::from_str("50.0").unwrap();
-            assert_eq!(amount, expected_amount);
-        } else {
-            panic!("Expected XRPLPaymentAmount::Issued variant");
-        }
+        assert_eq!(
+            gas_fee_amount,
+            XRPLPaymentAmount::Issued(token, XRPLTokenAmount::from_str("50.0").unwrap())
+        );
 
         let err = parse_gas_fee_amount(&payment_amount, "invalid_amount".to_string());
         assert!(
@@ -816,7 +811,6 @@ mod tests {
             memo_format: Some("hex".to_string()),
         }];
         let memo_data = extract_and_decode_memo(&Some(memos), "test_type");
-        assert!(memo_data.is_ok());
         let memo_data = memo_data.unwrap();
         assert_eq!(memo_data, "test_data");
     }
@@ -861,12 +855,7 @@ mod tests {
             ..Default::default()
         };
         let payment_amount = parse_payment_amount(&payment);
-        assert!(payment_amount.is_ok());
-        if let XRPLPaymentAmount::Drops(amount) = payment_amount.unwrap() {
-            assert_eq!(amount, 100);
-        } else {
-            panic!("Expected XRPLPaymentAmount::Drops variant");
-        }
+        assert!(matches!(payment_amount, Ok(XRPLPaymentAmount::Drops(100))));
     }
 
     #[test]
@@ -897,17 +886,10 @@ mod tests {
             ..Default::default()
         };
         let payment_amount = parse_payment_amount(&payment);
-        assert!(payment_amount.is_ok());
-        if let XRPLPaymentAmount::Issued(token, amount) = payment_amount.unwrap() {
-            assert_eq!(
-                token.issuer,
-                XRPLAccountId::from_str("rPT1Sjq2YGrBMTttX4GZHjKu9dyfzbpAYe").unwrap()
-            );
-            assert_eq!(token.currency, XRPLCurrency::new("USD").unwrap());
-            assert_eq!(amount, XRPLTokenAmount::from_str("100.0").unwrap());
-        } else {
-            panic!("Expected XRPLPaymentAmount::Issued variant");
-        }
+        assert!(matches!(
+            payment_amount,
+            Ok(XRPLPaymentAmount::Issued(token, amount)) if amount == XRPLTokenAmount::from_str("100.0").unwrap() && token.issuer == XRPLAccountId::from_str("rPT1Sjq2YGrBMTttX4GZHjKu9dyfzbpAYe").unwrap() && token.currency == XRPLCurrency::new("USD").unwrap()
+        ));
     }
 
     #[test]
@@ -959,13 +941,7 @@ mod tests {
             ..Default::default()
         };
         let payment_amount = parse_payment_amount(&payment);
-        assert!(payment_amount.is_ok());
-        let unwrapped_payment_amount = payment_amount.unwrap();
-        if let XRPLPaymentAmount::Drops(amount) = unwrapped_payment_amount {
-            assert_eq!(amount, 0);
-        } else {
-            panic!("Expected XRPLPaymentAmount::Drops variant");
-        }
+        assert!(matches!(payment_amount, Ok(XRPLPaymentAmount::Drops(0))));
     }
 
     #[test]
