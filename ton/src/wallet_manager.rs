@@ -102,6 +102,8 @@ impl WalletManager {
         }
     }
 
+    // It should be fine to panick here - it's loaded from binary
+    #[allow(clippy::unwrap_used)]
     fn load_wallet(config: WalletConfig) -> TonWalletHighLoadV3 {
         let public_key_bytes = decode(&config.public_key).unwrap();
         let secret_key_bytes = decode(&config.secret_key).unwrap();

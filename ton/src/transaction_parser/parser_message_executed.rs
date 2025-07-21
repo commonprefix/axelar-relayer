@@ -71,7 +71,10 @@ impl Parser for ParserMessageExecuted {
 
     async fn event(&self, _: Option<String>) -> Result<Event, TransactionParsingError> {
         let tx = &self.tx;
-        let log = self.log.clone().unwrap();
+        let log = match self.log.clone() {
+            Some(log) => log,
+            None => return Err(TransactionParsingError::Message("Missing log".to_string())),
+        };
 
         Ok(Event::MessageExecuted {
             common: CommonEventFields {

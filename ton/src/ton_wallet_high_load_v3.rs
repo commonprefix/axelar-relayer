@@ -38,6 +38,7 @@ to rewrite it so it can become a part of the tonlib core library.
 
 */
 
+use crate::error::BocError;
 use crate::ton_constants::SEND_MODE_IGNORE_ERRORS;
 use nacl::sign::signature;
 use num_bigint::{BigInt, BigUint};
@@ -102,12 +103,12 @@ impl<T: TimeProvider> TonWalletHighLoadV3<T> {
         let mut builder = CellBuilder::new();
         let out_list = OutList::new(actions)?;
         out_list.write(&mut builder)?;
-        let actions_cell = builder.build();
+        let actions_cell = builder.build()?;
 
         let mut b = CellBuilder::new();
         b.store_u32(32, 0xae42e5a4)?
             .store_u64(64, query_id)?
-            .store_reference(&actions_cell.unwrap().to_arc())?;
+            .store_reference(&actions_cell.to_arc())?;
 
         b.build()
     }
@@ -176,28 +177,45 @@ impl<T: TimeProvider> TonWalletHighLoadV3<T> {
         actions: &[OutAction],
         query_id: u64,
         internal_message_value: BigUint,
-    ) -> BagOfCells {
-        let internal_transfer_body = self.internal_transfer_body(actions, query_id);
-        let internal_transfer = self.internal_transfer_message_cell(
-            internal_transfer_body.unwrap(),
-            internal_message_value,
-        );
+    ) -> Result<BagOfCells, BocError> {
+        let internal_transfer_body =
+            self.internal_transfer_body(actions, query_id)
+                .map_err(|e| {
+                    BocError::BocEncodingError(format!(
+                        "Failed constructing internal transfer body: {}",
+                        e
+                    ))
+                })?;
+        let internal_transfer = self
+            .internal_transfer_message_cell(internal_transfer_body, internal_message_value)
+            .map_err(|e| {
+                BocError::BocEncodingError(format!(
+                    "Failed constructing internal transfer message: {}",
+                    e
+                ))
+            })?;
 
         let created_at = self.created_at();
 
         let message_inner = self
             .message_inner(
-                internal_transfer.unwrap(),
+                internal_transfer,
                 SEND_MODE_IGNORE_ERRORS,
                 query_id,
                 created_at,
                 self.timeout,
             )
-            .unwrap();
-        let signed_body = self.sign_external_body(&message_inner).unwrap();
+            .map_err(|e| {
+                BocError::BocEncodingError(format!("Failed constructing inner message: {}", e))
+            })?;
+        let signed_body = self.sign_external_body(&message_inner).map_err(|e| {
+            BocError::BocEncodingError(format!("Failed signing external body: {}", e))
+        })?;
 
-        let wrapped_signed_body = self.wrap_signed_body(signed_body).unwrap();
-        BagOfCells::from_root(wrapped_signed_body)
+        let wrapped_signed_body = self.wrap_signed_body(signed_body).map_err(|e| {
+            BocError::BocEncodingError(format!("Failed wrapping signed body: {}", e))
+        })?;
+        Ok(BagOfCells::from_root(wrapped_signed_body))
     }
 
     fn created_at(&self) -> u64 {
@@ -359,7 +377,9 @@ mod tests {
             500,
             mock_time,
         );
-        let boc = wallet.outgoing_message(&vec![mock_out_action()], 42, BigUint::from(999u32));
+        let boc = wallet
+            .outgoing_message(&vec![mock_out_action()], 42, BigUint::from(999u32))
+            .unwrap();
         assert_eq!(boc.root(0).unwrap().to_boc_b64(true).unwrap(), "te6cckEBCQEA6wABxYgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA2yfwHuviGA2kiylZKUJynwaF0GS1SvjlC3unXxNyS7PWw2k6gOe0jA3Jzud9ccztHLk2jhJ1h9qRwU0LtrYgfAEBJQAAAUECAABUAAAAAAADDTAAD6QCASEgID5wAAAAAAAAAAAAAAAAAwMBGK5C5aQAAAAAAAAAKgQCCg7DyG0BBQYAAAFoMgB//////////////////////////////////////////6O5rKAAAAAAAAAAAAAAAAAAAQcBCAAAACgIAAIqFPptJQ==");
     }
 }

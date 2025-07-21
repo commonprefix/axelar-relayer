@@ -56,7 +56,10 @@ impl Parser for ParserJettonGasPaid {
     }
 
     async fn key(&self) -> Result<MessageMatchingKey, TransactionParsingError> {
-        let log = self.log.clone().unwrap();
+        let log = match self.log.clone() {
+            Some(log) => log,
+            None => return Err(TransactionParsingError::Message("Missing log".to_string())),
+        };
         let key = MessageMatchingKey {
             destination_chain: log.destination_chain.clone(),
             destination_address: log.destination_address.clone(),
@@ -68,7 +71,17 @@ impl Parser for ParserJettonGasPaid {
 
     async fn event(&self, message_id: Option<String>) -> Result<Event, TransactionParsingError> {
         let tx = &self.tx;
-        let log = self.log.clone().unwrap();
+
+        let message_id = if let Some(id) = message_id {
+            id
+        } else {
+            return Err(TransactionParsingError::Message("Missing message_id".to_string()));
+        };
+
+        let log = match self.log.clone() {
+            Some(log) => log,
+            None => return Err(TransactionParsingError::Message("Missing log".to_string())),
+        };
 
         Ok(Event::GasCredit {
             common: CommonEventFields {
@@ -83,7 +96,7 @@ impl Parser for ParserJettonGasPaid {
                         .to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
                 }),
             },
-            message_id: message_id.unwrap(),
+            message_id,
             refund_address: log.refund_address.to_hex(),
             payment: Amount {
                 token_id: Some(log.minter.to_hex()),

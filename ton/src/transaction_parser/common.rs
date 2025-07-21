@@ -47,7 +47,8 @@ where
         .await
         .map_err(|err| GasError::ConversionError(err.to_string()))?;
 
-    let amount = Decimal::from_str(&amount.to_string()).unwrap();
+    let amount = Decimal::from_str(&amount.to_string())
+        .map_err(|e| GasError::ConversionError(format!("Invalid amount: {}", e)))?;
     let result = amount * coin_to_usd / ton_to_usd;
     let result = result.round();
 

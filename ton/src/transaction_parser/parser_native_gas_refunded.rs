@@ -54,15 +54,24 @@ impl Parser for ParserNativeGasRefunded {
 
     async fn event(&self, _: Option<String>) -> Result<Event, TransactionParsingError> {
         let tx = &self.tx;
-        let log = self.log.clone().unwrap();
 
+        let log = match self.log.clone() {
+            Some(log) => log,
+            None => return Err(TransactionParsingError::Message("Missing log".to_string())),
+        };
+
+        let message_id = match self.message_id().await? {
+            Some(id) => id,
+            None => return Err(TransactionParsingError::Message("Missing message id".to_string())),
+        };
+        
         Ok(Event::GasRefunded {
             common: CommonEventFields {
                 r#type: "GAS_REFUNDED".to_owned(),
                 event_id: tx.hash.clone(),
                 meta: None,
             },
-            message_id: self.message_id().await?.unwrap(),
+            message_id,
             recipient_address: log.address.to_hex(),
             refunded_amount: Amount {
                 token_id: None,
@@ -76,9 +85,12 @@ impl Parser for ParserNativeGasRefunded {
     }
 
     async fn message_id(&self) -> Result<Option<String>, TransactionParsingError> {
-        let log = self.log.clone().unwrap();
-        let addr = format!("0x{}", log.tx_hash);
-        Ok(Some(addr))
+        if let Some(log) = self.log.clone() {
+            let addr = format!("0x{}", log.tx_hash);
+            Ok(Some(addr))
+        } else {
+            Ok(None)
+        }
     }
 }
 

@@ -150,12 +150,12 @@ impl RestClient for TONRpcClient {
 
         let mut query_params = vec![("limit", "100".to_string())];
 
-        if account.is_some() {
-            query_params.push(("account", account.unwrap().to_string()));
+        if let Some(account) = account {
+            query_params.push(("account", account.to_string()));
         }
 
-        if trace_ids.is_some() {
-            for t in trace_ids.unwrap() {
+        if let Some(trace_ids) = trace_ids {
+            for t in trace_ids {
                 query_params.push(("trace_id", t.to_string()));
             }
         }

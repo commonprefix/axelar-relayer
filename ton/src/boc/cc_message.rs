@@ -83,7 +83,7 @@ impl TonCCMessage {
             .clone()
             .try_into()
             .map_err(|_| "Invalid hash length")
-            .unwrap();
+            .map_err(|err| BocParsingError(err.to_string()))?;
 
         let ton_address = TonAddress::new(WORKCHAIN, hash_part);
 

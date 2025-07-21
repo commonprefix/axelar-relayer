@@ -43,8 +43,10 @@ impl TONIncluder {
                 .map_err(|e| error_stack::report!(BroadcasterError::GenericError(e.to_string())))?,
         );
 
-        let gateway_address = TonAddress::from_base64_url(ton_gateway.as_str()).unwrap();
-        let gas_service_address = TonAddress::from_base64_url(ton_gas_service.as_str()).unwrap();
+        let gateway_address = TonAddress::from_base64_url(ton_gateway.as_str())
+            .map_err(|e| BroadcasterError::GenericError(e.to_string()))?;
+        let gas_service_address = TonAddress::from_base64_url(ton_gas_service.as_str())
+            .map_err(|e| BroadcasterError::GenericError(e.to_string()))?;
 
         let broadcaster = TONBroadcaster::new(
             Arc::clone(&wallet_manager),

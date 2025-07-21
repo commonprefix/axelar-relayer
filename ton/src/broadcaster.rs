@@ -81,15 +81,17 @@ impl<GE: GasEstimator> TONBroadcaster<GE> {
                 BroadcasterError::GenericError(format!("Query Id acquiring failed: {:?}", e))
             })?;
 
-        let outgoing_message = wallet.outgoing_message(
-            &actions,
-            query_id.query_id().await,
-            BigUint::from(
-                self.gas_estimator
-                    .estimate_highload_wallet(actions.len())
-                    .await,
-            ),
-        );
+        let outgoing_message = wallet
+            .outgoing_message(
+                &actions,
+                query_id.query_id().await,
+                BigUint::from(
+                    self.gas_estimator
+                        .estimate_highload_wallet(actions.len())
+                        .await,
+                ),
+            )
+            .map_err(|e| BroadcasterError::GenericError(e.to_string()))?;
 
         let tx = outgoing_message
             .serialize(true)
@@ -278,7 +280,8 @@ impl<GE: GasEstimator> Broadcaster for TONBroadcaster<GE> {
             .message_id
             .strip_prefix("0x")
             .unwrap_or(&refund_task.message.message_id);
-        let tx_hash = TonHash::from_hex(cleaned_hash).unwrap();
+        let tx_hash = TonHash::from_hex(cleaned_hash)
+            .map_err(|e| BroadcasterError::GenericError(e.to_string()))?;
 
         let address = TonAddress::from_hex_str(&refund_task.refund_recipient_address)
             .map_err(|err| BroadcasterError::GenericError(err.to_string()))?;

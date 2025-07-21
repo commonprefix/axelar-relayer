@@ -7,7 +7,6 @@ use crate::transaction_parser::parser::Parser;
 use async_trait::async_trait;
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
-use relayer_base::error::IngestorError;
 use relayer_base::gmp_api::gmp_types::{CommonEventFields, Event, EventMetadata, GatewayV2Message};
 use std::collections::HashMap;
 use ton_types::ton_types::Transaction;
@@ -56,7 +55,10 @@ impl Parser for ParserCallContract {
     }
 
     async fn key(&self) -> Result<MessageMatchingKey, TransactionParsingError> {
-        let log = self.log.clone().unwrap();
+        let log = match self.log.clone() {
+            Some(log) => log,
+            None => return Err(TransactionParsingError::Message("Missing log".to_string())),
+        };
         let key = MessageMatchingKey {
             destination_chain: log.destination_chain.clone(),
             destination_address: log.destination_address.clone(),
@@ -68,7 +70,14 @@ impl Parser for ParserCallContract {
 
     async fn event(&self, _: Option<String>) -> Result<Event, TransactionParsingError> {
         let tx = &self.tx;
-        let log = self.log.clone().unwrap();
+        let log = match self.log.clone() {
+            Some(log) => log,
+            None => return Err(TransactionParsingError::Message("Missing log".to_string())),
+        };
+        let message_id = match self.message_id().await? {
+            Some(id) => id,
+            None => return Err(TransactionParsingError::Message("Missing message id".to_string())),
+        };
 
         let source_context = HashMap::from([
             ("source_address".to_owned(), log.source_address.to_hex()),
@@ -82,13 +91,10 @@ impl Parser for ParserCallContract {
             ),
         ]);
 
-        let b64_payload = BASE64_STANDARD.encode(
-            hex::decode(log.payload)
-                .map_err(|e| {
-                    IngestorError::GenericError(format!("Failed to decode payload: {}", e))
-                })
-                .unwrap(), // We should be safe here to unwrap
-        );
+        let decoded = hex::decode(log.payload)
+            .map_err(|e| TransactionParsingError::BocParsing(format!("Failed to decode payload: {}", e)))?;
+
+        let b64_payload = BASE64_STANDARD.encode(decoded);
 
         Ok(Event::Call {
             common: CommonEventFields {
@@ -104,7 +110,7 @@ impl Parser for ParserCallContract {
                 }),
             },
             message: GatewayV2Message {
-                message_id: self.message_id().await?.unwrap(),
+                message_id,
                 source_chain: self.chain_name.to_string(),
                 source_address: log.source_address.to_hex(),
                 destination_address: log.destination_address.to_string(),

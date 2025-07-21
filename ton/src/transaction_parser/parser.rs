@@ -72,7 +72,10 @@ impl<PV: PriceViewTrait> TraceParserTrait for TraceParser<PV> {
             let cc_key = cc.key().await?;
             events.push(cc.event(None).await?);
             if let Some(parser) = gas_credit_map.get(&cc_key) {
-                let event = parser.event(Some(cc.message_id().await?.unwrap())).await?;
+                let message_id = cc.message_id().await?
+                    .ok_or_else(|| TransactionParsingError::Message("Missing message_id".to_string()))?;
+
+                let event = parser.event(Some(message_id)).await?;
                 events.push(event);
             }
         }
@@ -93,15 +96,15 @@ impl<PV: PriceViewTrait> TraceParserTrait for TraceParser<PV> {
                     mut payment,
                 } => {
                     let mut p = payment.clone();
-                    if p.token_id.is_some() {
+                    if let Some(token_id) = p.token_id {
                         let msg_value = convert_jetton_to_native(
-                            p.token_id.unwrap(),
+                            token_id,
                             &BigUint::from_str(&p.amount)
                                 .map_err(|e| TransactionParsingError::Generic(e.to_string()))?,
                             &self.price_view,
                         )
-                        .await
-                        .map_err(|e| TransactionParsingError::Generic(e.to_string()))?;
+                            .await
+                            .map_err(|e| TransactionParsingError::Generic(e.to_string()))?;
                         p.amount = msg_value.to_string();
                         p.token_id = None;
                         payment = p;

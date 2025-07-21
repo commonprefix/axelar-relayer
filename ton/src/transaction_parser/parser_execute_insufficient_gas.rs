@@ -91,7 +91,10 @@ impl Parser for ParserExecuteInsufficientGas {
     }
 
     async fn event(&self, _: Option<String>) -> Result<Event, TransactionParsingError> {
-        let log = self.log.clone().unwrap();
+        let log = match self.log.clone() {
+            Some(log) => log,
+            None => return Err(TransactionParsingError::Message("Missing log".to_string())),
+        };
 
         let cannot_execute_message_event = Event::CannotExecuteMessageV2 {
             common: CommonEventFields {

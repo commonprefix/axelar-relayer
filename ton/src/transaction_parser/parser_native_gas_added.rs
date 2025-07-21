@@ -54,7 +54,15 @@ impl Parser for ParserNativeGasAdded {
 
     async fn event(&self, _: Option<String>) -> Result<Event, TransactionParsingError> {
         let tx = &self.tx;
-        let log = self.log.clone().unwrap();
+        let log = match self.log.clone() {
+            Some(log) => log,
+            None => return Err(TransactionParsingError::Message("Missing log".to_string())),
+        };
+
+        let message_id = match self.message_id().await? {
+            Some(id) => id,
+            None => return Err(TransactionParsingError::Message("Missing message id".to_string())),
+        };
 
         Ok(Event::GasCredit {
             common: CommonEventFields {
@@ -69,7 +77,7 @@ impl Parser for ParserNativeGasAdded {
                         .to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
                 }),
             },
-            message_id: self.message_id().await?.unwrap(),
+            message_id,
             refund_address: log.refund_address.to_hex(),
             payment: Amount {
                 token_id: None,
@@ -79,7 +87,10 @@ impl Parser for ParserNativeGasAdded {
     }
 
     async fn message_id(&self) -> Result<Option<String>, TransactionParsingError> {
-        let log = self.log.clone().unwrap();
+        let log = match self.log.clone() {
+            Some(log) => log,
+            None => return Err(TransactionParsingError::Message("Missing log".to_string())),
+        };
         let addr = format!("0x{}", log.tx_hash);
         Ok(Some(addr))
     }

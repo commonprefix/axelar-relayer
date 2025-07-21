@@ -57,7 +57,9 @@ impl JettonGasPaidMessage {
             .try_into()
             .map_err(|_| BocParsingError("Invalid payload hash length".to_string()))?;
 
-        let refund_address = parser.next_reference().unwrap();
+        let refund_address = parser
+            .next_reference()
+            .map_err(|err| BocParsingError(err.to_string()))?;
         let mut inner_parser = refund_address.parser();
         let refund_address = inner_parser
             .load_address()

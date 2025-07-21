@@ -61,7 +61,9 @@ impl NativeGasPaidMessage {
 
         let msg_value = BigUint::from_bytes_be(&msg_value);
 
-        let refund_address = parser.next_reference().unwrap();
+        let refund_address = parser
+            .next_reference()
+            .map_err(|err| BocParsingError(err.to_string()))?;
         let mut inner_parser = refund_address.parser();
         let refund_address = inner_parser
             .load_address()

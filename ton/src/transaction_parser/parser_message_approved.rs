@@ -51,7 +51,10 @@ impl Parser for ParserMessageApproved {
     }
 
     async fn key(&self) -> Result<MessageMatchingKey, TransactionParsingError> {
-        let log = self.log.clone().unwrap();
+        let log = match self.log.clone() {
+            Some(log) => log,
+            None => return Err(TransactionParsingError::Message("Missing log".to_string())),
+        };
         let key = MessageMatchingKey {
             destination_chain: log.destination_chain.clone(),
             destination_address: log.destination_address.clone(),
@@ -63,8 +66,11 @@ impl Parser for ParserMessageApproved {
 
     async fn event(&self, _: Option<String>) -> Result<Event, TransactionParsingError> {
         let tx = &self.tx;
-        let log = self.log.clone().unwrap();
-
+        let log = match self.log.clone() {
+            Some(log) => log,
+            None => return Err(TransactionParsingError::Message("Missing log".to_string())),
+        };
+        
         Ok(Event::MessageApproved {
             common: CommonEventFields {
                 r#type: "MESSAGE_APPROVED".to_owned(),

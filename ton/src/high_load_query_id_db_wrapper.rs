@@ -84,6 +84,7 @@ use relayer_base::database::{Database, PostgresDB};
 pub enum HighLoadQueryIdWrapperError {
     ConstructionError,
     NoNextQueryId,
+    DatabaseError,
 }
 
 pub struct HighLoadQueryIdDbWrapper {
@@ -113,7 +114,7 @@ impl HighLoadQueryIdWrapper for HighLoadQueryIdDbWrapper {
         address: &str,
         timeout: u64,
     ) -> Result<HighLoadQueryId, HighLoadQueryIdWrapperError> {
-        let (shift, bitnumber) = self.db.get_query_id(address).await.unwrap();
+        let (shift, bitnumber) = self.db.get_query_id(address).await.map_err(|_| HighLoadQueryIdWrapperError::DatabaseError)?;
 
         let query_id = if shift < 0 || bitnumber < 0 {
             HighLoadQueryId::from_shift_and_bitnumber(0u32, 0u32)
@@ -144,12 +145,12 @@ impl HighLoadQueryIdWrapper for HighLoadQueryIdDbWrapper {
                     timeout as i32 * TIMEOUT_BUFFER_MULTIPLIER,
                 )
                 .await
-                .unwrap();
+                .map_err(|_e| HighLoadQueryIdWrapperError::DatabaseError)?;
         } else {
             self.db
                 .update_query_id(address, query_id.shift as i32, query_id.bitnumber as i32)
                 .await
-                .unwrap();
+                .map_err(|_e| HighLoadQueryIdWrapperError::DatabaseError)?;
         }
 
         Ok(query_id)

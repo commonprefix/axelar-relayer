@@ -1,3 +1,4 @@
+#![warn(clippy::unwrap_used)]
 pub mod broadcaster;
 pub mod client;
 pub mod config;
