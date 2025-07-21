@@ -620,7 +620,6 @@ mod tests {
             memo_format: None,
         }];
         let maybe_memo_data = extract_from_xrpl_memo(Some(memos), "test_type");
-        assert!(maybe_memo_data.is_ok());
         let memo_data = maybe_memo_data.unwrap();
         assert_eq!(memo_data, "test_data");
     }
@@ -776,10 +775,7 @@ mod tests {
         let payment_amount = XRPLPaymentAmount::Drops(10);
 
         let result = parse_gas_fee_amount(&payment_amount, "500000".to_string());
-        assert!(result.is_ok());
-        if let Ok(XRPLPaymentAmount::Drops(amount)) = result {
-            assert_eq!(amount, 500000);
-        }
+        assert!(matches!(result, Ok(XRPLPaymentAmount::Drops(500000))));
 
         let result = parse_gas_fee_amount(&payment_amount, "invalid".to_string());
         assert!(result.is_err());
