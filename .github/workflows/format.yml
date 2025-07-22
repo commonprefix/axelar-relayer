@@ -24,19 +24,6 @@ jobs:
         with:
           toolchain: stable
 
-      - name: Apply rustfmt
-        run: cargo fmt --all
-
-      - name: Commit & push formatting changes
-        if: github.event_name == 'push'
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add .
-          # if there’s anything staged, commit & push
-          git diff --cached --quiet || \
-            (git commit -m "chore: apply rustfmt formatting [skip ci]" && git push)
-
       - name: Check formatting
         run: cargo fmt --all -- --check
 
