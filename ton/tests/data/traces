@@ -12,3 +12,4 @@ Trace 12 - Real approve message
 Trace 13 - Real approve message
 Trace 14 - Execute message failed because there was insufficient gas (exit code 106)
 Trace 15 - Execute message failed because there was insufficient gas (result code 37)
+Trace 16 - Approve message that reported 0 gas used
