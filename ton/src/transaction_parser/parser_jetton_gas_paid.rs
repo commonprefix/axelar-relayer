@@ -75,7 +75,9 @@ impl Parser for ParserJettonGasPaid {
         let message_id = if let Some(id) = message_id {
             id
         } else {
-            return Err(TransactionParsingError::Message("Missing message_id".to_string()));
+            return Err(TransactionParsingError::Message(
+                "Missing message_id".to_string(),
+            ));
         };
 
         let log = match self.log.clone() {

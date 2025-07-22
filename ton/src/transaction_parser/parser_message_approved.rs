@@ -70,7 +70,7 @@ impl Parser for ParserMessageApproved {
             Some(log) => log,
             None => return Err(TransactionParsingError::Message("Missing log".to_string())),
         };
-        
+
         Ok(Event::MessageApproved {
             common: CommonEventFields {
                 r#type: "MESSAGE_APPROVED".to_owned(),

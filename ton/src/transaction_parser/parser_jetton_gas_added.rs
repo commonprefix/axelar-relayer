@@ -67,7 +67,11 @@ impl Parser for ParserJettonGasAdded {
         };
         let message_id = match self.message_id().await? {
             Some(id) => id,
-            None => return Err(TransactionParsingError::Message("Missing message id".to_string())),
+            None => {
+                return Err(TransactionParsingError::Message(
+                    "Missing message id".to_string(),
+                ))
+            }
         };
 
         Ok(Event::GasCredit {

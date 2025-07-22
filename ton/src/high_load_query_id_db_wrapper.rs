@@ -114,7 +114,11 @@ impl HighLoadQueryIdWrapper for HighLoadQueryIdDbWrapper {
         address: &str,
         timeout: u64,
     ) -> Result<HighLoadQueryId, HighLoadQueryIdWrapperError> {
-        let (shift, bitnumber) = self.db.get_query_id(address).await.map_err(|_| HighLoadQueryIdWrapperError::DatabaseError)?;
+        let (shift, bitnumber) = self
+            .db
+            .get_query_id(address)
+            .await
+            .map_err(|_| HighLoadQueryIdWrapperError::DatabaseError)?;
 
         let query_id = if shift < 0 || bitnumber < 0 {
             HighLoadQueryId::from_shift_and_bitnumber(0u32, 0u32)

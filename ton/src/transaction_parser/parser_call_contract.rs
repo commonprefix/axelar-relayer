@@ -76,7 +76,11 @@ impl Parser for ParserCallContract {
         };
         let message_id = match self.message_id().await? {
             Some(id) => id,
-            None => return Err(TransactionParsingError::Message("Missing message id".to_string())),
+            None => {
+                return Err(TransactionParsingError::Message(
+                    "Missing message id".to_string(),
+                ))
+            }
         };
 
         let source_context = HashMap::from([
@@ -91,8 +95,9 @@ impl Parser for ParserCallContract {
             ),
         ]);
 
-        let decoded = hex::decode(log.payload)
-            .map_err(|e| TransactionParsingError::BocParsing(format!("Failed to decode payload: {}", e)))?;
+        let decoded = hex::decode(log.payload).map_err(|e| {
+            TransactionParsingError::BocParsing(format!("Failed to decode payload: {}", e))
+        })?;
 
         let b64_payload = BASE64_STANDARD.encode(decoded);
 
