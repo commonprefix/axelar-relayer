@@ -11,13 +11,11 @@ pub struct GasCalculator {
 }
 
 fn extract_fwd_fee(msg: &TransactionMessage) -> i128 {
-    let fwd_fee = msg
-        .fwd_fee
+    msg.fwd_fee
         .clone()
         .unwrap_or("0".to_string())
         .parse::<i128>()
-        .unwrap_or(0);
-    fwd_fee
+        .unwrap_or(0)
 }
 
 fn add_cost(balances: &mut HashMap<TonAddress, i128>, account: TonAddress, cost: i128) {
@@ -33,7 +31,7 @@ fn us_receiving(
     tx: &&Transaction,
     dest: &TonAddress,
 ) -> bool {
-    !balances.contains_key(&tx.account) && balances.contains_key(&dest)
+    !balances.contains_key(&tx.account) && balances.contains_key(dest)
 }
 
 fn us_sending(
@@ -41,16 +39,14 @@ fn us_sending(
     tx: &&Transaction,
     dest: &TonAddress,
 ) -> bool {
-    balances.contains_key(&tx.account) && !balances.contains_key(&dest)
+    balances.contains_key(&tx.account) && !balances.contains_key(dest)
 }
 
 fn extract_msg_value(msg: TransactionMessage) -> i128 {
-    let value = msg
-        .value
+    msg.value
         .unwrap_or("0".to_string())
         .parse::<i128>()
-        .unwrap_or(0);
-    value
+        .unwrap_or(0)
 }
 
 impl GasCalculator {
