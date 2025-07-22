@@ -164,7 +164,7 @@ price_feed:
 
         assert_eq!(config.chain_foo, "foo");
         assert_eq!(config.chain_bar, "bar");
-        assert_eq!(config.chain_baz, true);
+        assert!(config.chain_baz);
         assert_eq!(config.common_config.chain_name, "mainnet");
         assert!(config.common_config.price_feed.pairs.is_empty());
     }

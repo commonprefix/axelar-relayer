@@ -319,7 +319,7 @@ mod tests {
         // We need to check that handle_queued_tx is called instead
         mock_queued_tx_model
             .expect_store_queued_transaction()
-            .withf(move |h, a, s| h == tx_hash && a == account && *s == sequence as i64)
+            .withf(move |h, a, s| h == tx_hash && a == account && *s == sequence)
             .times(1)
             .returning(|_, _, _| Box::pin(async { Ok(()) }));
 
