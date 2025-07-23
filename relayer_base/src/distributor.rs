@@ -55,12 +55,12 @@ impl<DB: Database> Distributor<DB> {
         gmp_api: Arc<GmpApi>,
         recovery_settings: RecoverySettings,
         refunds_enabled: bool,
-    ) -> Self {
+    ) -> Result<Self, DistributorError> {
         let mut distributor = Self::new(db, context, gmp_api, refunds_enabled).await;
         distributor.recovery_settings = Some(recovery_settings.clone());
         distributor.last_task_id = recovery_settings.from_task_id;
-        distributor.store_last_task_id().await.unwrap();
-        distributor
+        distributor.store_last_task_id().await?;
+        Ok(distributor)
     }
 
     async fn store_last_task_id(&mut self) -> Result<(), DistributorError> {
