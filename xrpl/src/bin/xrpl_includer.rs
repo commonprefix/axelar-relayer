@@ -20,24 +20,20 @@ use xrpl::{
 async fn main() -> anyhow::Result<()> {
     dotenv().ok();
     let network = std::env::var("NETWORK").expect("NETWORK must be set");
-    let config: XRPLConfig = config_from_yaml(&format!("config.{}.yaml", network)).unwrap();
+    let config: XRPLConfig = config_from_yaml(&format!("config.{}.yaml", network))?;
 
     let _guard = setup_logging(&config.common_config);
 
     let tasks_queue = Queue::new(&config.common_config.queue_address, "includer_tasks").await;
     let construct_proof_queue =
         Queue::new(&config.common_config.queue_address, "construct_proof").await;
-    let gmp_api = Arc::new(gmp_api::GmpApi::new(&config.common_config, true).unwrap());
-    let redis_client = redis::Client::open(config.common_config.redis_server.clone()).unwrap();
-    let redis_pool = r2d2::Pool::builder().build(redis_client).unwrap();
-    let postgres_db = PostgresDB::new(&config.common_config.postgres_url)
-        .await
-        .unwrap();
+    let gmp_api = Arc::new(gmp_api::GmpApi::new(&config.common_config, true)?);
+    let redis_client = redis::Client::open(config.common_config.redis_server.clone())?;
+    let redis_pool = r2d2::Pool::builder().build(redis_client)?;
+    let postgres_db = PostgresDB::new(&config.common_config.postgres_url).await?;
     let payload_cache = PayloadCache::new(postgres_db.clone());
-    let xrpl_client = XRPLClient::new(&config.xrpl_rpc, 3).unwrap();
-    let pg_pool = PgPool::connect(&config.common_config.postgres_url)
-        .await
-        .unwrap();
+    let xrpl_client = XRPLClient::new(&config.xrpl_rpc, 3)?;
+    let pg_pool = PgPool::connect(&config.common_config.postgres_url).await?;
     let queued_tx_model = PgQueuedTransactionsModel::new(pg_pool.clone());
     let xrpl_includer = XrplIncluder::new::<XRPLClient, PostgresDB, PgQueuedTransactionsModel>(
         config.clone(),
@@ -49,7 +45,7 @@ async fn main() -> anyhow::Result<()> {
         Arc::new(xrpl_client),
     )
     .await
-    .unwrap();
+    .map_err(|e| anyhow::anyhow!("Failed to create XrplIncluder: {}", e))?;
 
     let mut sigint = signal(SignalKind::interrupt())?;
     let mut sigterm = signal(SignalKind::terminate())?;
