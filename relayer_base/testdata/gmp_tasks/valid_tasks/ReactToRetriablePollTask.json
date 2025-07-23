@@ -1,0 +1,46 @@
+[{
+    "id": "retriable_poll_123",
+    "chain": "xrpl",
+    "timestamp": "2023-01-01T00:00:00Z",
+    "type": "REACT_TO_RETRIABLE_POLL",
+    "meta": null,
+    "task": {
+        "pollID": 42,
+        "broadcastID": "broadcast_123",
+        "invokedContractAddress": "0xcontract",
+        "requestPayload": "request_data",
+        "quorumReachedEvents": [
+            {
+                "status": "succeeded_on_source_chain",
+                "content": {"key": "value"}
+            }
+        ]
+    }
+}, {
+    "id": "019715e8-5570-7f31-a6cf-90ad32e2b9b6",
+    "chain": "xrpl",
+    "timestamp": "2025-05-28T08:00:37.239699Z",
+    "type": "REACT_TO_RETRIABLE_POLL",
+    "meta": null,
+    "task": {
+        "pollID": 1742631,
+        "broadcastID": "019715e5-c882-7c12-83b8-e771588c1353",
+        "invokedContractAddress": "axelar1pnynr6wnmchutkv6490mdqqxkz54fnrtmq8krqhvglhsqhmu7wzsnc86sy",
+        "requestPayload": "{\"verify_messages\":[{\"add_gas_message\":{\"tx_id\":\"5fa140ff4b90c83df9fdfdc81595bd134f41d929694eedb15cf7fd1c511e8025\",\"amount\":{\"drops\":169771},\"msg_id\":\"67f6ddc5421acc8f17e3f1942d2fbc718295894f2ea1647229e054c125a261e8\",\"source_address\":\"rBs8uSfoAePdbr8eZtq7FK2QnTgvHyWAee\"}}]}",
+        "quorumReachedEvents": [
+            {
+                "status": "not_found_on_source_chain",
+                "content": {
+                    "add_gas_message": {
+                        "amount": {
+                            "drops": 169771
+                        },
+                        "msg_id": "67f6ddc5421acc8f17e3f1942d2fbc718295894f2ea1647229e054c125a261e8",
+                        "source_address": "rBs8uSfoAePdbr8eZtq7FK2QnTgvHyWAee",
+                        "tx_id": "5fa140ff4b90c83df9fdfdc81595bd134f41d929694eedb15cf7fd1c511e8025"
+                    }
+                }
+            }
+        ]
+    }
+} ]

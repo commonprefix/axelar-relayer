@@ -1,0 +1,49 @@
+[{
+    "id": "refund_123",
+    "chain": "xrpl",
+    "timestamp": "2023-01-01T00:00:00Z",
+    "type": "REFUND",
+    "meta": null,
+    "task": {
+        "message": {
+            "messageID": "msg_refund",
+            "sourceChain": "binance",
+            "sourceAddress": "0xrefund",
+            "destinationAddress": "0xdest",
+            "payloadHash": "hash_refund"
+        },
+        "refundRecipientAddress": "0xrecipient",
+        "remainingGasBalance": {
+            "tokenID": null,
+            "amount": "500"
+        }
+    }
+}, {
+    "id": "0197a6a9-af8c-71ce-a936-feb6ff8377b8",
+    "chain": "xrpl",
+    "timestamp": "2025-06-25T10:37:07.853431Z",
+    "type": "REFUND",
+    "meta": {
+        "txID": null,
+        "fromAddress": null,
+        "finalized": null,
+        "sourceContext": {
+            "xrpl_message": "{\"interchain_transfer_message\":{\"tx_id\":\"75a46ba7ca702950557cad7784643af66067635f2d6f2431b9945f639ec97f85\",\"source_address\":\"rpxGWrwHkdFF4vPAPa5Jw8GbLKFKniuZgF\",\"destination_chain\":\"xrpl-evm\",\"destination_address\":\"fec7040ef26233175e5f9770a5b0c92564515213\",\"payload_hash\":null,\"transfer_amount\":{\"drops\":7300000},\"gas_fee_amount\":{\"drops\":1700000}}}"
+        },
+        "scopedMessages": null
+    },
+    "task": {
+        "message": {
+            "messageID": "0x75a46ba7ca702950557cad7784643af66067635f2d6f2431b9945f639ec97f85",
+            "sourceChain": "xrpl",
+            "sourceAddress": "rNrjh1KGZk2jBR3wPfAQnoidtFFYQKbQn2",
+            "destinationAddress": "axelar1aqcj54lzz0rk22gvqgcn8fr5tx4rzwdv5wv5j9dmnacgefvd7wzsy2j2mr",
+            "payloadHash": "a1f30d12e9c18c0ed19ad23cca3da4d125255327194="
+        },
+        "refundRecipientAddress": "rpxGWrwHkdFF4vPAPa5Jw8GbLKFKniuZgF",
+        "remainingGasBalance": {
+            "tokenID": null,
+            "amount": "1588306"
+        }
+    }
+} ]

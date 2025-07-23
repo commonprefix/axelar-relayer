@@ -1,0 +1,46 @@
+[
+  {
+    "attributes": [
+      {
+        "key": "_contract_address",
+        "value": "axelar1pnynr6wnmchutkv6490mdqqxkz54fnrtmq8krqhvglhsqhmu7wzsnc86sy"
+      },
+      {
+        "key": "content",
+        "value": "{\"interchain_transfer_message\":{\"tx_id\":\"8bc410a55e7e82a9d82c2ef7371926289cf115e120553241ee18f2737d07e679\",\"source_address\":\"rMCPebYHtFx4ydkhrX2wQzmyd4PLuj63ba\",\"destination_chain\":\"xrpl-evm\",\"destination_address\":\"63875cf7d6f099a203e4d0a3bd0bf76352d28046\",\"payload_hash\":null,\"transfer_amount\":{\"drops\":7300000},\"gas_fee_amount\":{\"drops\":1700000}},\"cc_id\":{\"source_chain\":\"xrpl\",\"message_id\":\"0x8bc410a55e7e82a9d82c2ef7371926289cf115e120553241ee18f2737d07e679\"}}"
+      },
+      {
+        "key": "poll_id",
+        "value": "2249317"
+      },
+      {
+        "key": "status",
+        "value": "succeeded_on_source_chain"
+      }
+    ],
+    "type": "wasm-quorum_reached",
+    "height": 19651056
+  },
+  {
+    "attributes": [
+      {
+        "key": "_contract_address",
+        "value": "axelar1pnynr6wnmchutkv6490mdqqxkz54fnrtmq8krqhvglhsqhmu7wzsnc86sy"
+      },
+      {
+        "key": "content",
+        "value": "{\"interchain_transfer_message\":{\"tx_id\":\"143e58ff18afb08b1af341ff5a598e8344cbcb9fdbb8671ff73fcf1414674814\",\"source_address\":\"rnsSpJX8E1U4LfYru3jgYzZkTuRb9i7Dmi\",\"destination_chain\":\"xrpl-evm\",\"destination_address\":\"debe51Eb7272D33275337C8aa1A776F178066140\",\"payload_hash\":null,\"transfer_amount\":{\"drops\":7300000},\"gas_fee_amount\":{\"drops\":1700000}},\"cc_id\":{\"source_chain\":\"xrpl\",\"message_id\":\"0x143e58ff18afb08b1af341ff5a598e8344cbcb9fdbb8671ff73fcf1414674814\"}}"
+      },
+      {
+        "key": "poll_id",
+        "value": "2251996"
+      },
+      {
+        "key": "status",
+        "value": "succeeded_on_source_chain"
+      }
+    ],
+    "type": "wasm-quorum_reached",
+    "height": 19653448
+  }
+]

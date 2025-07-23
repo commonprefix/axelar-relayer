@@ -1,0 +1,54 @@
+[
+  {
+    "id": "empty_type_test",
+    "chain": "xrpl",
+    "timestamp": "2023-01-01T00:00:00Z",
+    "type": "",
+    "meta": null
+  },
+  {
+    "id": "mixed_case_test",
+    "chain": "xrpl",
+    "timestamp": "2023-01-01T00:00:00Z",
+    "type": "Verify",
+    "meta": null
+  },
+  {
+    "id": "underscore_test",
+    "chain": "xrpl",
+    "timestamp": "2023-01-01T00:00:00Z",
+    "type": "GATEWAY_TX_",
+    "meta": null
+  },
+  {
+    "id": "whitespace_test",
+    "chain": "xrpl",
+    "timestamp": "2023-01-01T00:00:00Z",
+    "type": " VERIFY ",
+    "meta": null,
+    "task": {
+      "message": {
+        "messageID": "msg_123",
+        "sourceChain": "ethereum",
+        "sourceAddress": "0x123",
+        "destinationAddress": "0x456",
+        "payloadHash": "hash123"
+      },
+      "payload": "payload_data"
+    }
+  },
+  {
+    "id": "whitespace_test_simple",
+    "chain": "xrpl",
+    "timestamp": "2023-01-01T00:00:00Z",
+    "type": " VERIFY ",
+    "meta": null
+  },
+  {
+    "id": "unknown_task_123",
+    "chain": "xrpl",
+    "timestamp": "2023-01-01T00:00:00Z",
+    "type": "UNKNOWN_TYPE",
+    "meta": null
+  }
+] 

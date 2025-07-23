@@ -17,9 +17,17 @@ impl XrplTicketCreator {
     }
 
     async fn work(&self) {
-        let request = BroadcastRequest::Generic(
-            serde_json::to_value(xrpl_multisig_prover::msg::ExecuteMsg::TicketCreate).unwrap(),
-        );
+        let ticket_create_msg =
+            serde_json::to_value(xrpl_multisig_prover::msg::ExecuteMsg::TicketCreate);
+        if ticket_create_msg.is_err() {
+            error!(
+                "Failed to serialize TicketCreate message: {:?}",
+                ticket_create_msg.err()
+            );
+            return;
+        }
+
+        let request = BroadcastRequest::Generic(ticket_create_msg.unwrap());
 
         let res = self
             .gmp_api
