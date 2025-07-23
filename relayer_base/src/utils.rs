@@ -513,11 +513,12 @@ mod tests {
                     .expect("Failed to get file name");
 
                 let tasks_json = fs::read_to_string(&path)
-                    .expect(&format!("Failed to load tasks from {}", path.display()));
+                    .unwrap_or_else(|_| panic!("Failed to load tasks from {}", path.display()));
 
-                let tasks: Vec<serde_json::Value> = serde_json::from_str(&tasks_json).expect(
-                    &format!("Failed to parse tasks JSON from {}", path.display()),
-                );
+                let tasks: Vec<serde_json::Value> = serde_json::from_str(&tasks_json)
+                    .unwrap_or_else(|_| {
+                        panic!("Failed to parse tasks JSON from {}", path.display())
+                    });
 
                 for task_json in tasks {
                     let task_json_str = serde_json::to_string(&task_json)
