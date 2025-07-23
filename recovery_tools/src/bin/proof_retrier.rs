@@ -14,16 +14,16 @@ use relayer_base::{
 async fn main() -> anyhow::Result<()> {
     dotenv().ok();
     let network = std::env::var("NETWORK").expect("NETWORK must be set");
-    let config: Config = config_from_yaml(&format!("config.{}.yaml", network)).unwrap();
+    let config: Config = config_from_yaml(&format!("config.{}.yaml", network))?;
 
     let _guard = setup_logging(&config);
 
     let construct_proof_queue = Queue::new(&config.queue_address, "construct_proof").await;
     let tasks_queue = Queue::new(&config.queue_address, "ingestor_tasks").await;
-    let postgres_db = PostgresDB::new(&config.postgres_url).await.unwrap();
+    let postgres_db = PostgresDB::new(&config.postgres_url).await?;
     let payload_cache = PayloadCache::new(postgres_db);
-    let redis_client = redis::Client::open(config.redis_server.clone()).unwrap();
-    let redis_pool = r2d2::Pool::builder().build(redis_client).unwrap();
+    let redis_client = redis::Client::open(config.redis_server.clone())?;
+    let redis_pool = r2d2::Pool::builder().build(redis_client)?;
     let proof_retrier = ProofRetrier::new(
         payload_cache,
         construct_proof_queue.clone(),
