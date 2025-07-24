@@ -10,9 +10,8 @@ x-common-env: &common-env
     - .env
 
 x-common-build: &common-build
+  dockerfile: Dockerfile.ton
   context: .
-
-
 
 services:
   ingestor:

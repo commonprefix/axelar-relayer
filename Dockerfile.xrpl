@@ -50,13 +50,12 @@ COPY ton_types/src/ ./ton_types/src/
 RUN cargo build --release
 
 # Remove the dummy files
-RUN rm -rf recovery_tools/src relayer_base/src xrpl/src ton_types/src ton/src
+RUN rm -rf recovery_tools/src relayer_base/src xrpl/src ton/src
 
 # Now copy the actual source code
 COPY relayer_base/src/ ./relayer_base/src/
 COPY recovery_tools/src/ ./recovery_tools/src/
 COPY xrpl/src/ ./xrpl/src/
-COPY ton_types/src/ ./ton_types/src/
 
 # Build the project with actual source code
 RUN if [ "${BINARY_NAME}" = "proof_retrier" ]; then \
