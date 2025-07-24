@@ -173,7 +173,7 @@ where
                             IncluderError::ConsumerError("Source chain is missing".to_string())
                         })?;
 
-                        if broadcast_result.status.is_err() {
+                        if let Err(e) = broadcast_result.status {
                             // Retry creating proof for this message
                             let cross_chain_id =
                                 CrossChainId::new(source_chain.as_str(), message_id.as_str())
@@ -199,7 +199,7 @@ where
                                     gateway_tx_task.common.id,
                                     message_id,
                                     source_chain,
-                                    broadcast_result.status.unwrap_err().to_string(),
+                                    e.to_string(),
                                 )
                                 .await
                                 .map_err(|e| IncluderError::ConsumerError(e.to_string()))?;
@@ -208,7 +208,7 @@ where
                             self.payload_cache
                                 .clear(
                                     CrossChainId::new(source_chain.as_str(), message_id.as_str())
-                                        .unwrap(),
+                                        .map_err(|e| IncluderError::ConsumerError(e.to_string()))?,
                                 )
                                 .await
                                 .map_err(|e| IncluderError::ConsumerError(e.to_string()))?;
@@ -255,19 +255,21 @@ where
                         .map_err(|e| IncluderError::ConsumerError(e.to_string()))?;
 
                     if let Some((tx_blob, refunded_amount, fee)) = refund_info {
-                        let broadcast_result = self
+                        let tx_hash = match self
                             .broadcaster
                             .broadcast_refund(tx_blob)
                             .await
-                            .map_err(|e| IncluderError::ConsumerError(e.to_string()));
-
-                        if broadcast_result.is_err() {
-                            self.refund_manager
-                                .release_wallet_lock(wallet)
-                                .map_err(|e| IncluderError::ConsumerError(e.to_string()))?;
-                            return Err(broadcast_result.unwrap_err());
-                        }
-                        let tx_hash = broadcast_result.unwrap();
+                            .map_err(|e| IncluderError::ConsumerError(e.to_string()))
+                        {
+                            Ok(hash) => hash, // bind the successful tx_hash here…
+                            Err(err) => {
+                                // …or on error, release the lock and return
+                                self.refund_manager
+                                    .release_wallet_lock(wallet)
+                                    .map_err(|e| IncluderError::ConsumerError(e.to_string()))?;
+                                return Err(err);
+                            }
+                        };
 
                         let gas_refunded = Event::GasRefunded {
                             common: CommonEventFields {
@@ -288,9 +290,9 @@ where
                         };
 
                         let gas_refunded_post = self.gmp_api.post_events(vec![gas_refunded]).await;
-                        if gas_refunded_post.is_err() {
+                        if let Err(e) = gas_refunded_post {
                             // TODO: should retry somehow
-                            warn!("Failed to post event: {:?}", gas_refunded_post.unwrap_err());
+                            warn!("Failed to post event: {:?}", e);
                         }
                     } else {
                         warn!("Refund not executed: refund amount is not enough to cover tx fees");
