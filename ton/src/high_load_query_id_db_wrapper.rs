@@ -36,6 +36,8 @@ use ton::wallet_manager::WalletManager;
 use relayer_base::database::PostgresDB;
 use ton::high_load_query_id_db_wrapper::HighLoadQueryIdDbWrapper;
 use ton::high_load_query_id_db_wrapper::HighLoadQueryIdWrapper;
+use sqlx::PgPool;
+use ton::ton_wallet_query_id::PgTONWalletQueryIdModel;
 
 #[tokio::main]
 async fn main() {
@@ -54,8 +56,10 @@ async fn main() {
 
     let lock_manager = Arc::new(RedisLockManager::new(pool));
     let wallet_manager = WalletManager::new(config, lock_manager).await;
-    let postgres_db = PostgresDB::new("psql://foo?bar").await.unwrap();
-    let wrapper = HighLoadQueryIdDbWrapper::new(postgres_db.clone()).await;
+
+    let pg_pool = PgPool::connect("psql://foo?bar").await.unwrap();
+    let model = PgTONWalletQueryIdModel::new(pg_pool);
+    let wrapper = HighLoadQueryIdDbWrapper::new(model).await;
 
     match wallet_manager.acquire().await {
         Ok(wallet) => {
@@ -77,8 +81,8 @@ async fn main() {
 const TIMEOUT_BUFFER_MULTIPLIER: i32 = 3;
 
 use crate::high_load_query_id::HighLoadQueryId;
+use crate::models::ton_wallet_query_id::{PgTONWalletQueryIdModel, TONWalletQueryId};
 use async_trait::async_trait;
-use relayer_base::database::{Database, PostgresDB};
 
 #[derive(Debug)]
 pub enum HighLoadQueryIdWrapperError {
@@ -88,7 +92,7 @@ pub enum HighLoadQueryIdWrapperError {
 }
 
 pub struct HighLoadQueryIdDbWrapper {
-    db: PostgresDB,
+    model: PgTONWalletQueryIdModel,
 }
 
 #[cfg_attr(any(test), mockall::automock)]
@@ -102,8 +106,8 @@ pub trait HighLoadQueryIdWrapper {
 }
 
 impl HighLoadQueryIdDbWrapper {
-    pub async fn new(db: PostgresDB) -> Self {
-        Self { db }
+    pub async fn new(model: PgTONWalletQueryIdModel) -> Self {
+        Self { model }
     }
 }
 
@@ -115,7 +119,7 @@ impl HighLoadQueryIdWrapper for HighLoadQueryIdDbWrapper {
         timeout: u64,
     ) -> Result<HighLoadQueryId, HighLoadQueryIdWrapperError> {
         let (shift, bitnumber) = self
-            .db
+            .model
             .get_query_id(address)
             .await
             .map_err(|_| HighLoadQueryIdWrapperError::DatabaseError)?;
@@ -141,7 +145,7 @@ impl HighLoadQueryIdWrapper for HighLoadQueryIdDbWrapper {
         };
 
         if query_id.query_id().await == 0 {
-            self.db
+            self.model
                 .upsert_query_id(
                     address,
                     query_id.shift as i32,
@@ -151,7 +155,7 @@ impl HighLoadQueryIdWrapper for HighLoadQueryIdDbWrapper {
                 .await
                 .map_err(|_e| HighLoadQueryIdWrapperError::DatabaseError)?;
         } else {
-            self.db
+            self.model
                 .update_query_id(address, query_id.shift as i32, query_id.bitnumber as i32)
                 .await
                 .map_err(|_e| HighLoadQueryIdWrapperError::DatabaseError)?;
@@ -164,7 +168,8 @@ impl HighLoadQueryIdWrapper for HighLoadQueryIdDbWrapper {
 #[cfg(test)]
 mod tests {
     use crate::high_load_query_id_db_wrapper::{HighLoadQueryIdDbWrapper, HighLoadQueryIdWrapper};
-    use relayer_base::database::PostgresDB;
+    use crate::ton_wallet_query_id::PgTONWalletQueryIdModel;
+    use sqlx::PgPool;
     use testcontainers::runners::AsyncRunner;
     use testcontainers_modules::postgres;
 
@@ -185,9 +190,10 @@ mod tests {
             container.get_host_port_ipv4(5432).await.unwrap()
         );
 
-        let postgres_db = PostgresDB::new(&connection_string).await.unwrap();
+        let pg_pool = PgPool::connect(&connection_string).await.unwrap();
+        let model = PgTONWalletQueryIdModel::new(pg_pool);
 
-        let wrapper = HighLoadQueryIdDbWrapper::new(postgres_db.clone()).await;
+        let wrapper = HighLoadQueryIdDbWrapper::new(model).await;
 
         let query_id_a = wrapper.next("wallet1", 60).await.unwrap();
         assert_eq!(query_id_a.query_id().await, 0);

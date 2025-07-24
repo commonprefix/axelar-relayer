@@ -16,6 +16,7 @@ pub mod ton_constants;
 pub mod ton_wallet_high_load_v3;
 pub mod wallet_manager;
 pub use models::ton_trace;
+pub use models::ton_wallet_query_id;
 pub mod boc;
 pub mod gas_calculator;
 pub mod gas_estimator;
