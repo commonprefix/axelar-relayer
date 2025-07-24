@@ -85,15 +85,18 @@ where
             Some(Ok(delivery)) => {
                 let data = delivery.data.clone();
                 let maybe_task = serde_json::from_slice::<QueueItem>(&data);
-                if maybe_task.is_err() {
-                    error!("Failed to parse task: {:?}", maybe_task.unwrap_err());
-                    if let Err(e) = delivery.ack(BasicAckOptions::default()).await {
-                        error!("Failed to ack message: {:?}", e);
-                    }
-                    return;
-                }
 
-                let task = maybe_task.unwrap(); // unwrap is safe because we checked for errors above
+                let task = match maybe_task {
+                    Ok(task) => task,
+                    Err(e) => {
+                        error!("Failed to parse task: {:?}", e);
+                        if let Err(e) = delivery.ack(BasicAckOptions::default()).await {
+                            error!("Failed to ack message: {:?}", e);
+                        }
+                        return;
+                    }
+                };
+
                 let consume_res = self.consume(task).await;
                 match consume_res {
                     Ok(_) => {
@@ -130,10 +133,13 @@ where
     }
 
     pub async fn run(&self, queue: Arc<Queue>) {
-        let mut consumer = queue.consumer().await.unwrap();
-        loop {
-            info!("Includer is alive.");
-            self.work(&mut consumer, queue.clone()).await;
+        if let Ok(mut consumer) = queue.consumer().await {
+            loop {
+                info!("Includer is alive.");
+                self.work(&mut consumer, queue.clone()).await;
+            }
+        } else {
+            error!("Failed to create consumer");
         }
     }
 
@@ -147,7 +153,7 @@ where
                         .broadcast_prover_message(hex::encode(
                             BASE64_STANDARD
                                 .decode(gateway_tx_task.task.execute_data)
-                                .unwrap(),
+                                .map_err(|e| IncluderError::ConsumerError(e.to_string()))?,
                         ))
                         .await
                         .map_err(|e| IncluderError::ConsumerError(e.to_string()))?;
@@ -160,14 +166,18 @@ where
                     if broadcast_result.message_id.is_some()
                         && broadcast_result.source_chain.is_some()
                     {
-                        let message_id = broadcast_result.message_id.unwrap();
-                        let source_chain = broadcast_result.source_chain.unwrap();
+                        let message_id = broadcast_result.message_id.ok_or_else(|| {
+                            IncluderError::ConsumerError("Message ID is missing".to_string())
+                        })?;
+                        let source_chain = broadcast_result.source_chain.ok_or_else(|| {
+                            IncluderError::ConsumerError("Source chain is missing".to_string())
+                        })?;
 
                         if broadcast_result.status.is_err() {
                             // Retry creating proof for this message
                             let cross_chain_id =
                                 CrossChainId::new(source_chain.as_str(), message_id.as_str())
-                                    .unwrap();
+                                    .map_err(|e| IncluderError::ConsumerError(e.to_string()))?;
                             self.construct_proof_queue
                                 .publish(QueueItem::RetryConstructProof(cross_chain_id.to_string()))
                                 .await;

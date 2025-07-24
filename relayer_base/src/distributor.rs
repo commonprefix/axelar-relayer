@@ -31,13 +31,11 @@ impl<DB: Database> Distributor<DB> {
             .await
             .expect("Failed to get latest task id");
 
-        if last_task_id.is_some() {
-            info!(
-                "Distributor: recovering last task id from {}: {}",
-                context,
-                last_task_id.clone().unwrap()
-            );
-        }
+        info!(
+            "Distributor: recovering last task id from {}: {:?}",
+            context,
+            last_task_id.clone()
+        );
 
         Self {
             db,
@@ -63,22 +61,15 @@ impl<DB: Database> Distributor<DB> {
         Ok(distributor)
     }
 
-    async fn store_last_task_id(&mut self) -> Result<(), DistributorError> {
-        if self.last_task_id.is_none() {
-            return Ok(());
+    pub async fn store_last_task_id(&mut self) -> Result<(), DistributorError> {
+        if let Some(task_id) = &self.last_task_id {
+            self.db
+                .store_latest_task_id(&self.gmp_api.chain, &self.context, task_id)
+                .await
+                .map_err(|e| {
+                    DistributorError::GenericError(format!("Failed to store last_task_id: {}", e))
+                })?;
         }
-
-        self.db
-            .store_latest_task_id(
-                &self.gmp_api.chain,
-                &self.context,
-                &self.last_task_id.clone().unwrap(),
-            )
-            .await
-            .map_err(|e| {
-                DistributorError::GenericError(format!("Failed to store last_task_id: {}", e))
-            })?;
-
         Ok(())
     }
 
@@ -145,7 +136,13 @@ impl<DB: Database> Distributor<DB> {
     }
 
     pub async fn run_recovery(&mut self, includer_queue: Arc<Queue>, ingestor_queue: Arc<Queue>) {
-        let recovery_settings = self.recovery_settings.clone().unwrap();
+        let recovery_settings = match &self.recovery_settings {
+            Some(settings) => settings.clone(),
+            None => {
+                warn!("No recovery settings configured; skipping recovery loop.");
+                return;
+            }
+        };
         loop {
             info!("Distributor is recovering.");
             let work_res = self
