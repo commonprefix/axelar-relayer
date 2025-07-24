@@ -174,17 +174,11 @@ pub fn parse_gas_fee_amount(
     Ok(gas_fee_amount)
 }
 
-pub fn extract_memo(memos: &Option<Vec<Memo>>, memo_type: &str) -> Result<String, IngestorError> {
-    extract_from_xrpl_memo(memos.clone(), memo_type).map_err(|e| {
-        IngestorError::GenericError(format!("Failed to extract {} from memos: {}", memo_type, e))
-    })
-}
-
 pub fn extract_and_decode_memo(
     memos: &Option<Vec<Memo>>,
     memo_type: &str,
 ) -> Result<String, anyhow::Error> {
-    let hex_str = extract_memo(memos, memo_type)?;
+    let hex_str = extract_from_xrpl_memo(memos.clone(), memo_type)?;
     let bytes =
         hex::decode(&hex_str).with_context(|| format!("Failed to hex-decode memo {}", hex_str))?;
     String::from_utf8(bytes).with_context(|| format!("Invalid UTF-8 in memo {}", hex_str))
@@ -222,6 +216,7 @@ pub fn parse_payment_amount(
     }
 }
 
+// Should this be moved to the xrpl client?
 pub async fn xrpl_tx_from_hash(
     tx_hash: HexTxHash,
     client: &xrpl_http_client::Client,
@@ -313,17 +308,39 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
-    use std::time::Duration;
-    use redis::Client;
+    use std::{
+        collections::{BTreeMap, HashMap},
+        fs,
+        time::Duration,
+    };
+
     use crate::{database::MockDatabase, price_view::MockPriceView};
+    use redis::Client;
     use testcontainers::{
         core::{IntoContainerPort, WaitFor},
         runners::AsyncRunner,
         GenericImage,
     };
+    use xrpl_amplifier_types::types::{XRPLAccountId, XRPLCurrency};
+    use xrpl_api::IssuedAmount;
 
     use super::*;
+
+    fn test_valid_task_parsing<T>(task_json_str: &str)
+    where
+        T: DeserializeOwned + serde::Serialize,
+    {
+        let task_json: serde_json::Value = serde_json::from_str(task_json_str).unwrap();
+        let actual_task: T = serde_json::from_value(task_json.clone()).unwrap();
+
+        let parse_result = parse_task(&task_json);
+        assert!(parse_result.is_ok(), "Expected successful parsing");
+
+        let serialized_task = serde_json::to_string(&actual_task).unwrap();
+        let reserialized_json: serde_json::Value = serde_json::from_str(&serialized_task).unwrap();
+
+        assert_eq!(reserialized_json, task_json);
+    }
 
     #[tokio::test]
     async fn test_convert_token_amount_to_drops_whole_number() {
@@ -478,6 +495,502 @@ mod tests {
         .await
         .unwrap();
         assert_eq!(result, "123456000");
+    }
+
+    #[test]
+    fn test_parse_all_valid_tasks() {
+        let valid_tasks_dir = "testdata/gmp_tasks/valid_tasks";
+        let entries = fs::read_dir(valid_tasks_dir).expect("Failed to read valid_tasks directory");
+
+        for entry in entries {
+            let entry = entry.expect("Failed to read directory entry");
+            let path = entry.path();
+
+            if path.extension().and_then(|s| s.to_str()) == Some("json") {
+                let file_name = path
+                    .file_stem()
+                    .and_then(|s| s.to_str())
+                    .expect("Failed to get file name");
+
+                let tasks_json = fs::read_to_string(&path)
+                    .expect(&format!("Failed to load tasks from {}", path.display()));
+
+                let tasks: Vec<serde_json::Value> = serde_json::from_str(&tasks_json).expect(
+                    &format!("Failed to parse tasks JSON from {}", path.display()),
+                );
+
+                for task_json in tasks {
+                    let task_json_str = serde_json::to_string(&task_json)
+                        .expect("Failed to serialize task back to string");
+
+                    match file_name {
+                        "VerifyTask" => test_valid_task_parsing::<VerifyTask>(&task_json_str),
+                        "ExecuteTask" => test_valid_task_parsing::<ExecuteTask>(&task_json_str),
+                        "GatewayTxTask" => test_valid_task_parsing::<GatewayTxTask>(&task_json_str),
+                        "ConstructProofTask" => {
+                            test_valid_task_parsing::<ConstructProofTask>(&task_json_str)
+                        }
+                        "ReactToWasmEventTask" => {
+                            test_valid_task_parsing::<ReactToWasmEventTask>(&task_json_str)
+                        }
+                        "RefundTask" => test_valid_task_parsing::<RefundTask>(&task_json_str),
+                        "ReactToRetriablePollTask" => {
+                            test_valid_task_parsing::<ReactToRetriablePollTask>(&task_json_str)
+                        }
+                        "ReactToExpiredSigningSessionTask" => {
+                            test_valid_task_parsing::<ReactToExpiredSigningSessionTask>(
+                                &task_json_str,
+                            )
+                        }
+                        _ => panic!(
+                            "Unknown task file: {} - filename should match the task type name",
+                            file_name
+                        ),
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_parse_invalid_tasks() {
+        let tasks_json =
+            std::fs::read_to_string("testdata/gmp_tasks/invalid_tasks/invalid_tasks.json")
+                .expect("Failed to load invalid tasks");
+
+        let tasks: Vec<serde_json::Value> =
+            serde_json::from_str(&tasks_json).expect("Failed to parse invalid tasks JSON");
+
+        for task_json in tasks {
+            let result = parse_task(&task_json);
+
+            assert!(matches!(result, Err(GmpApiError::InvalidResponse(_))));
+        }
+    }
+
+    #[test]
+    fn test_parse_unknown_tasks() {
+        let tasks_json =
+            std::fs::read_to_string("testdata/gmp_tasks/unknown_tasks/unknown_tasks.json")
+                .expect("Failed to load unknown tasks");
+
+        let tasks: Vec<serde_json::Value> =
+            serde_json::from_str(&tasks_json).expect("Failed to parse unknown tasks JSON");
+
+        for task_json in tasks {
+            let parse_result = parse_task(&task_json);
+            assert!(matches!(parse_result, Ok(Task::Unknown(_))));
+        }
+    }
+
+    #[test]
+    fn test_extract_from_xrpl_memo() {
+        let memos = vec![Memo {
+            memo_type: Some(hex::encode("test_type")),
+            memo_data: Some("test_data".to_string()),
+            memo_format: None,
+        }];
+        let maybe_memo_data = extract_from_xrpl_memo(Some(memos), "test_type");
+        let memo_data = maybe_memo_data.unwrap();
+        assert_eq!(memo_data, "test_data");
+    }
+
+    #[test]
+    fn test_extract_from_xrpl_memo_not_hex_type() {
+        let memos = vec![Memo {
+            memo_type: Some("test_type".to_string()),
+            memo_data: Some("test_data".to_string()),
+            memo_format: None,
+        }];
+        let maybe_memo_data = extract_from_xrpl_memo(Some(memos), "test_type");
+        assert!(maybe_memo_data.is_err());
+    }
+
+    #[test]
+    fn test_extract_from_xrpl_memo_not_found() {
+        let memos = vec![
+            Memo {
+                memo_type: None,
+                memo_data: None,
+                memo_format: None,
+            },
+            Memo {
+                memo_type: Some(hex::encode("test_type")),
+                memo_data: Some("test_data_2".to_string()),
+                memo_format: Some("hex".to_string()),
+            },
+        ];
+        let maybe_memo_data = extract_from_xrpl_memo(Some(memos), "test_type_2");
+        assert!(maybe_memo_data.is_err());
+    }
+
+    #[test]
+    fn test_extract_from_xrpl_memo_empty_list() {
+        let maybe_memo_data = extract_from_xrpl_memo(Some(vec![]), "test_type");
+        assert!(maybe_memo_data.is_err());
+    }
+
+    #[test]
+    fn test_extract_from_xrpl_memo_missing_data() {
+        let memos = vec![Memo {
+            memo_type: Some(hex::encode("test_type")),
+            memo_data: None,
+            memo_format: None,
+        }];
+        let maybe_memo_data = extract_from_xrpl_memo(Some(memos), "test_type");
+        assert!(maybe_memo_data.is_err());
+    }
+
+    #[test]
+    fn test_extract_from_xrpl_memo_none() {
+        let maybe_memo_data = extract_from_xrpl_memo(None, "test_type");
+        assert!(maybe_memo_data.is_err());
+    }
+
+    #[test]
+    fn test_extract_hex_xrpl_memo() {
+        let memos = vec![Memo {
+            memo_type: Some(hex::encode("test_type")),
+            memo_data: Some(hex::encode("test_data")),
+            memo_format: Some("hex".to_string()),
+        }];
+        let maybe_memo_hex = extract_hex_xrpl_memo(Some(memos), "test_type");
+        let memo_hex = maybe_memo_hex.unwrap();
+        assert_eq!(memo_hex, "test_data");
+    }
+
+    #[test]
+    fn test_extract_hex_xrpl_memo_no_hex_format() {
+        let memos = vec![Memo {
+            memo_type: Some("test_type".to_string()),
+            memo_data: Some("test_data".to_string()),
+            memo_format: None,
+        }];
+        let maybe_memo_hex = extract_hex_xrpl_memo(Some(memos), "test_type");
+        assert!(maybe_memo_hex.is_err());
+    }
+
+    #[test]
+    fn test_event_attribute() {
+        let events_json = std::fs::read_to_string("testdata/wasm_events/events.json")
+            .expect("Failed to load events.json");
+
+        let events: Vec<serde_json::Value> =
+            serde_json::from_str(&events_json).expect("Failed to parse events.json");
+
+        for event_json in events {
+            let maybe_event: Result<WasmEvent, serde_json::Error> =
+                serde_json::from_value(event_json.clone());
+            assert!(maybe_event.is_ok());
+            let actual_event = maybe_event.unwrap();
+            let maybe_attribute = event_attribute(&actual_event, "poll_id");
+            let attribute = maybe_attribute.unwrap();
+            assert_eq!(
+                attribute,
+                event_json.get("attributes").unwrap()[2]
+                    .get("value")
+                    .unwrap()
+                    .as_str()
+                    .unwrap()
+            );
+
+            let maybe_attribute = event_attribute(&actual_event, "status");
+            let attribute = maybe_attribute.unwrap();
+            assert_eq!(
+                attribute,
+                event_json.get("attributes").unwrap()[3]
+                    .get("value")
+                    .unwrap()
+                    .as_str()
+                    .unwrap()
+            );
+        }
+    }
+
+    #[test]
+    fn test_event_attribute_not_found() {
+        let events_json = std::fs::read_to_string("testdata/wasm_events/events.json")
+            .expect("Failed to load events.json");
+
+        let events: Vec<serde_json::Value> =
+            serde_json::from_str(&events_json).expect("Failed to parse events.json");
+
+        for event_json in events {
+            let maybe_event: Result<WasmEvent, serde_json::Error> =
+                serde_json::from_value(event_json.clone());
+            assert!(maybe_event.is_ok());
+            let actual_event = maybe_event.unwrap();
+            let maybe_attribute = event_attribute(&actual_event, "random_key");
+            assert!(maybe_attribute.is_none());
+        }
+    }
+
+    #[test]
+    fn test_event_attribute_invalid_event() {
+        let events_json = std::fs::read_to_string("testdata/wasm_events/invalid_events.json")
+            .expect("Failed to load events.json");
+
+        let events: Vec<serde_json::Value> =
+            serde_json::from_str(&events_json).expect("Failed to parse events.json");
+
+        for event_json in events {
+            let maybe_event: Result<WasmEvent, serde_json::Error> =
+                serde_json::from_value(event_json.clone());
+            assert!(maybe_event.is_err());
+        }
+    }
+
+    #[test]
+    fn test_parse_gas_fee_amount_drops() {
+        let payment_amount = XRPLPaymentAmount::Drops(10);
+
+        let result = parse_gas_fee_amount(&payment_amount, "500000".to_string());
+        assert!(matches!(result, Ok(XRPLPaymentAmount::Drops(500000))));
+
+        let result = parse_gas_fee_amount(&payment_amount, "invalid".to_string());
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_gas_fee_amount_issued() {
+        let token = XRPLToken {
+            issuer: XRPLAccountId::from_str("rPT1Sjq2YGrBMTttX4GZHjKu9dyfzbpAYe").unwrap(),
+            currency: XRPLCurrency::new("USD").unwrap(),
+        };
+        let payment_amount =
+            XRPLPaymentAmount::Issued(token.clone(), XRPLTokenAmount::from_str("100.0").unwrap());
+
+        let gas_fee_amount = parse_gas_fee_amount(&payment_amount, "50.0".to_string())
+            .expect("Valid gas fee amount for issued tokens");
+        assert_eq!(
+            gas_fee_amount,
+            XRPLPaymentAmount::Issued(token, XRPLTokenAmount::from_str("50.0").unwrap())
+        );
+
+        let err = parse_gas_fee_amount(&payment_amount, "invalid_amount".to_string());
+        assert!(
+            err.is_err(),
+            "Expected error parsing invalid issued gas fee amount"
+        );
+    }
+
+    #[test]
+    fn test_extract_and_decode_memo() {
+        let memos = vec![Memo {
+            memo_type: Some(hex::encode("test_type")),
+            memo_data: Some(hex::encode("test_data")),
+            memo_format: Some("hex".to_string()),
+        }];
+        let memo_data = extract_and_decode_memo(&Some(memos), "test_type");
+        let memo_data = memo_data.unwrap();
+        assert_eq!(memo_data, "test_data");
+    }
+
+    #[test]
+    fn test_extract_and_decode_memo_not_hex_format() {
+        let memos = vec![Memo {
+            memo_type: Some(hex::encode("test_type")),
+            memo_data: Some("test_data".to_string()),
+            memo_format: None,
+        }];
+        let memo_data = extract_and_decode_memo(&Some(memos), "test_type");
+        assert!(memo_data.is_err());
+    }
+
+    #[test]
+    fn test_extract_and_decode_memo_not_found() {
+        let memos = vec![];
+        let memo_data = extract_and_decode_memo(&Some(memos), "test_type");
+        assert!(memo_data.is_err());
+    }
+
+    #[test]
+    fn test_extract_and_decode_memo_invalid_utf8() {
+        let memos = vec![Memo {
+            memo_type: Some(hex::encode("test_type")),
+            memo_data: Some("fffe".to_string()),
+            memo_format: Some("hex".to_string()),
+        }];
+        let memo_data = extract_and_decode_memo(&Some(memos), "test_type");
+        assert!(memo_data
+            .err()
+            .unwrap()
+            .to_string()
+            .contains("Invalid UTF-8"));
+    }
+
+    #[test]
+    fn test_parse_payment_amount_drops() {
+        let payment = PaymentTransaction {
+            amount: xrpl_api::Amount::Drops("100".to_string()),
+            ..Default::default()
+        };
+        let payment_amount = parse_payment_amount(&payment);
+        assert!(matches!(payment_amount, Ok(XRPLPaymentAmount::Drops(100))));
+    }
+
+    #[test]
+    fn test_parse_payment_amount_drops_invalid_amount() {
+        let payment = PaymentTransaction {
+            amount: xrpl_api::Amount::Drops("invalid".to_string()),
+            ..Default::default()
+        };
+        let payment_amount = parse_payment_amount(&payment);
+        assert!(payment_amount.is_err());
+
+        let payment = PaymentTransaction {
+            amount: xrpl_api::Amount::Drops("-100".to_string()),
+            ..Default::default()
+        };
+        let payment_amount = parse_payment_amount(&payment);
+        assert!(payment_amount.is_err());
+    }
+
+    #[test]
+    fn test_parse_payment_amount_issued() {
+        let payment = PaymentTransaction {
+            amount: xrpl_api::Amount::Issued(IssuedAmount {
+                value: "100.0".to_string(),
+                currency: "USD".to_string(),
+                issuer: "rPT1Sjq2YGrBMTttX4GZHjKu9dyfzbpAYe".to_string(),
+            }),
+            ..Default::default()
+        };
+        let payment_amount = parse_payment_amount(&payment);
+        assert!(matches!(
+            payment_amount,
+            Ok(XRPLPaymentAmount::Issued(token, amount)) if amount == XRPLTokenAmount::from_str("100.0").unwrap() && token.issuer == XRPLAccountId::from_str("rPT1Sjq2YGrBMTttX4GZHjKu9dyfzbpAYe").unwrap() && token.currency == XRPLCurrency::new("USD").unwrap()
+        ));
+    }
+
+    #[test]
+    fn test_parse_payment_amount_issued_invalid_amount() {
+        let payment = PaymentTransaction {
+            amount: xrpl_api::Amount::Issued(IssuedAmount {
+                value: "invalid".to_string(),
+                currency: "USD".to_string(),
+                issuer: "rPT1Sjq2YGrBMTttX4GZHjKu9dyfzbpAYe".to_string(),
+            }),
+            ..Default::default()
+        };
+        let payment_amount = parse_payment_amount(&payment);
+        assert!(payment_amount.is_err());
+    }
+
+    #[test]
+    fn test_parse_payment_amount_issued_invalid_issuer() {
+        let payment = PaymentTransaction {
+            amount: xrpl_api::Amount::Issued(IssuedAmount {
+                value: "100".to_string(),
+                currency: "USD".to_string(),
+                issuer: "random".to_string(),
+            }),
+            ..Default::default()
+        };
+        let payment_amount = parse_payment_amount(&payment);
+        assert!(payment_amount.is_err());
+    }
+
+    #[test]
+    fn test_parse_payment_amount_issued_invalid_currency() {
+        let payment = PaymentTransaction {
+            amount: xrpl_api::Amount::Issued(IssuedAmount {
+                value: "100".to_string(),
+                currency: "NONEXISTENT".to_string(),
+                issuer: "rPT1Sjq2YGrBMTttX4GZHjKu9dyfzbpAYe".to_string(),
+            }),
+            ..Default::default()
+        };
+        let payment_amount = parse_payment_amount(&payment);
+        assert!(payment_amount.is_err());
+    }
+
+    #[test]
+    fn test_parse_payment_amount_default() {
+        // Default amount is 0 drops
+        let payment = PaymentTransaction {
+            ..Default::default()
+        };
+        let payment_amount = parse_payment_amount(&payment);
+        assert!(matches!(payment_amount, Ok(XRPLPaymentAmount::Drops(0))));
+    }
+
+    #[test]
+    fn test_parse_message_from_context() {
+        let dummy_message : XRPLMessage = serde_json::from_str(r#"
+        {
+            "prover_message": {
+                "tx_id": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+                "unsigned_tx_hash": "fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210"
+            }
+        }"#).unwrap();
+        let metadata = TaskMetadata {
+            source_context: Some(BTreeMap::from([(
+                "xrpl_message".to_string(),
+                serde_json::to_string(&dummy_message).unwrap(),
+            )])),
+            ..Default::default()
+        };
+        let message_result = parse_message_from_context(&Some(metadata));
+        assert!(matches!(message_result, Ok(message) if message == dummy_message));
+    }
+
+    #[test]
+    fn test_parse_message_from_context_missing_source_context() {
+        let metadata = TaskMetadata {
+            source_context: None,
+            ..Default::default()
+        };
+        let message_result = parse_message_from_context(&Some(metadata));
+        assert!(message_result.is_err());
+        assert!(message_result
+            .err()
+            .unwrap()
+            .to_string()
+            .contains("Verify task missing source_context field"));
+    }
+
+    #[test]
+    fn test_parse_message_from_context_missing_prover_message() {
+        let dummy_message : XRPLMessage = serde_json::from_str(r#"
+        {
+            "prover_message": {
+                "tx_id": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+                "unsigned_tx_hash": "fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210"
+            }
+        }"#).unwrap();
+        let metadata = TaskMetadata {
+            source_context: Some(BTreeMap::from([(
+                "prover_message".to_string(),
+                serde_json::to_string(&dummy_message).unwrap(),
+            )])),
+            ..Default::default()
+        };
+        let message_result = parse_message_from_context(&Some(metadata));
+        assert!(message_result.is_err());
+        assert!(message_result
+            .err()
+            .unwrap()
+            .to_string()
+            .contains("Verify task missing xrpl_message in source_context"));
+    }
+
+    #[test]
+    fn test_parse_message_from_context_failed_parsing() {
+        let metadata = TaskMetadata {
+            source_context: Some(BTreeMap::from([(
+                "xrpl_message".to_string(),
+                "invalid".to_string(),
+            )])),
+            ..Default::default()
+        };
+        let message_result = parse_message_from_context(&Some(metadata));
+        assert!(message_result.is_err());
+        assert!(message_result
+            .err()
+            .unwrap()
+            .to_string()
+            .contains("Failed to parse xrpl_message"));
     }
 
     #[tokio::test]

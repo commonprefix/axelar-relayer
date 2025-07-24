@@ -2,11 +2,9 @@ use std::sync::Arc;
 
 use tracing::{debug, error, info};
 
-use relayer_base::{
-    gmp_api::{gmp_types::BroadcastRequest, GmpApi},
-};
-use xrpl_multisig_prover;
 use crate::config::XRPLConfig;
+use relayer_base::gmp_api::{gmp_types::BroadcastRequest, GmpApi};
+use xrpl_multisig_prover;
 
 pub struct XrplTicketCreator {
     gmp_api: Arc<GmpApi>,
@@ -19,14 +17,26 @@ impl XrplTicketCreator {
     }
 
     async fn work(&self) {
-        let request = BroadcastRequest::Generic(
-            serde_json::to_value(xrpl_multisig_prover::msg::ExecuteMsg::TicketCreate).unwrap(),
-        );
+        let ticket_create_msg =
+            serde_json::to_value(xrpl_multisig_prover::msg::ExecuteMsg::TicketCreate);
+        if ticket_create_msg.is_err() {
+            error!(
+                "Failed to serialize TicketCreate message: {:?}",
+                ticket_create_msg.err()
+            );
+            return;
+        }
+
+        let request = BroadcastRequest::Generic(ticket_create_msg.unwrap());
 
         let res = self
             .gmp_api
             .post_broadcast(
-                self.config.common_config.axelar_contracts.chain_multisig_prover.clone(),
+                self.config
+                    .common_config
+                    .axelar_contracts
+                    .chain_multisig_prover
+                    .clone(),
                 &request,
             )
             .await;

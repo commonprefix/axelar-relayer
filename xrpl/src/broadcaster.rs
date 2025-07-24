@@ -178,9 +178,19 @@ impl<QM: QueuedTransactionsModel, X: XRPLClientTrait> Broadcaster for XRPLBroadc
         })?;
         if response.engine_result == TransactionResult::tesSUCCESS {
             Ok(tx_hash.clone())
+        } else if response.engine_result == TransactionResult::terQUEUED {
+            debug!("Refund transaction {} is queued (terQUEUED)", tx_hash);
+
+            if let Err(e) = self.handle_queued_tx(&tx, tx_hash).await {
+                error!("Failed to store queued refund transaction: {:?}", e);
+            } else {
+                debug!("Successfully stored queued refund transaction");
+            }
+
+            Ok(tx_hash.clone())
         } else {
             Err(BroadcasterError::RPCCallFailed(format!(
-                "Transaction failed: {:?}: {}",
+                "Refund transaction failed: {:?}: {}",
                 response.engine_result, response.engine_result_message
             )))
         }

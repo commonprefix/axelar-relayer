@@ -49,7 +49,10 @@ impl<DB: Database> ProofRetrier<DB> {
             }
         };
 
-        let mut redis_conn = self.redis_pool.get().unwrap();
+        let mut redis_conn = self
+            .redis_pool
+            .get()
+            .map_err(|e| anyhow::anyhow!("Failed to get Redis connection: {}", e))?;
         let redis_key = format!("failed_proof:{}", cc_id);
         let redis_value: Option<i64> = redis_conn
             .get(redis_key.clone())
@@ -63,8 +66,14 @@ impl<DB: Database> ProofRetrier<DB> {
             ));
         }
 
-        let source_chain = cc_id.split('_').next().unwrap();
-        let message_id = cc_id.split('_').nth(1).unwrap();
+        let source_chain = cc_id
+            .split('_')
+            .next()
+            .ok_or(anyhow::anyhow!("Failed to get source chain"))?;
+        let message_id = cc_id
+            .split('_')
+            .nth(1)
+            .ok_or(anyhow::anyhow!("Failed to get message id"))?;
         let cc_id = CrossChainId::new(source_chain, message_id)
             .map_err(|e| anyhow::anyhow!("Failed to parse CrossChainId: {}", e))?;
         let payload_cache_value = self
@@ -116,7 +125,8 @@ impl<DB: Database> ProofRetrier<DB> {
         loop {
             match consumer.next().await {
                 Some(Ok(delivery)) => {
-                    let item = serde_json::from_slice::<QueueItem>(&delivery.data).unwrap();
+                    let item = serde_json::from_slice::<QueueItem>(&delivery.data)
+                        .map_err(|e| anyhow::anyhow!("Failed to deserialize QueueItem: {}", e))?;
                     match item {
                         QueueItem::RetryConstructProof(_) => {
                             match self.process_delivery(&delivery).await {

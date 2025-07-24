@@ -1,0 +1,163 @@
+[
+  {
+    "id": "invalid_task",
+    "chain": "xrpl",
+    "timestamp": "2023-01-01T00:00:00Z",
+    "type": "VERIFY",
+    "meta": null,
+    "task": {
+      "message": {
+      }
+    }
+  },
+  {
+    "id": "incomplete_task"
+  },
+  {
+    "id": "null_type_test",
+    "chain": "xrpl",
+    "timestamp": "2023-01-01T00:00:00Z",
+    "type": null,
+    "meta": null
+  },
+  {
+    "id": "number_as_string_test",
+    "chain": "xrpl",
+    "timestamp": "2023-01-01T00:00:00Z",
+    "type": "REACT_TO_WASM_EVENT",
+    "meta": null,
+    "task": {
+      "event": {
+        "attributes": [
+          {"key": "message_id", "value": "msg_123"}
+        ],
+        "type": "MessageExecuted"
+      },
+      "height": "12345"
+    }
+  },
+  {
+    "id": "invalid_gateway_tx",
+    "chain": "xrpl",
+    "timestamp": "2023-01-01T00:00:00Z",
+    "type": "GATEWAY_TX",
+    "meta": null,
+    "task": {
+    }
+  },
+  {
+    "id": "invalid_refund",
+    "chain": "xrpl",
+    "timestamp": "2023-01-01T00:00:00Z",
+    "type": "REFUND",
+    "meta": null,
+    "task": {
+      "message": {
+        "messageID": "msg_refund",
+        "sourceChain": "binance",
+        "sourceAddress": "0xrefund",
+        "destinationAddress": "0xdest",
+        "payloadHash": "hash_refund"
+      },
+      "remainingGasBalance": {
+        "tokenID": null,
+        "amount": "500"
+      }
+    }
+  },
+  {
+    "id": "invalid_verify_task",
+    "chain": "xrpl",
+    "timestamp": "2023-01-01T00:00:00Z",
+    "type": "VERIFY",
+    "meta": null,
+    "task": {
+      "message": {
+        "messageID": "msg_123",
+        "sourceChain": "ethereum",
+        "sourceAddress": "0x123",
+        "destinationAddress": "0x456",
+        "payloadHash": "hash123"
+      }
+    }
+  },
+  {
+    "id": "invalid_execute_task",
+    "chain": "xrpl",
+    "timestamp": "2023-01-01T00:00:00Z",
+    "type": "EXECUTE",
+    "meta": null,
+    "task": {
+      "message": {
+        "messageID": "msg_456",
+        "sourceChain": "polygon",
+        "sourceAddress": "0x789",
+        "destinationAddress": "0xabc",
+        "payloadHash": "hash456"
+      },
+      "payload": "execute_payload"
+    }
+  },
+  {
+    "id": "invalid_construct_proof",
+    "chain": "xrpl",
+    "timestamp": "2023-01-01T00:00:00Z",
+    "type": "CONSTRUCT_PROOF",
+    "meta": null,
+    "task": {
+      "message": {
+        "messageID": "msg_789",
+        "sourceChain": "avalanche",
+        "sourceAddress": "0xdef",
+        "destinationAddress": "0xghi",
+        "payloadHash": "hash789"
+      }
+    }
+  },
+  {
+    "id": "invalid_wasm_event",
+    "chain": "xrpl",
+    "timestamp": "2023-01-01T00:00:00Z",
+    "type": "REACT_TO_WASM_EVENT",
+    "meta": null,
+    "task": {
+      "event": {
+        "attributes": [
+          {"key": "message_id", "value": "msg_123"},
+          {"key": "status", "value": "success"}
+        ],
+        "type": "MessageExecuted"
+      }
+    }
+  },
+  {
+    "id": "invalid_retriable_poll",
+    "chain": "xrpl",
+    "timestamp": "2023-01-01T00:00:00Z",
+    "type": "REACT_TO_RETRIABLE_POLL",
+    "meta": null,
+    "task": {
+      "broadcastID": "broadcast_123",
+      "invokedContractAddress": "0xcontract",
+      "requestPayload": "request_data",
+      "quorumReachedEvents": [
+        {
+          "status": "succeeded_on_source_chain",
+          "content": {"key": "value"}
+        }
+      ]
+    }
+  },
+  {
+    "id": "invalid_expired_session",
+    "chain": "xrpl",
+    "timestamp": "2023-01-01T00:00:00Z",
+    "type": "REACT_TO_EXPIRED_SIGNING_SESSION",
+    "meta": null,
+    "task": {
+      "broadcastID": "broadcast_expired",
+      "invokedContractAddress": "0xexpired_contract",
+      "requestPayload": "expired_request"
+    }
+  }
+] 

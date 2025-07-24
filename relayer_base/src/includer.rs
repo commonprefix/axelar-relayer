@@ -95,7 +95,9 @@ where
                 let maybe_task = serde_json::from_slice::<QueueItem>(&data);
                 if maybe_task.is_err() {
                     error!("Failed to parse task: {:?}", maybe_task.unwrap_err());
-                    delivery.ack(BasicAckOptions::default()).await.expect("ack");
+                    if let Err(e) = delivery.ack(BasicAckOptions::default()).await {
+                        error!("Failed to ack message: {:?}", e);
+                    }
                     return;
                 }
 
@@ -104,7 +106,9 @@ where
                 match consume_res {
                     Ok(_) => {
                         info!("Successfully consumed delivery");
-                        delivery.ack(BasicAckOptions::default()).await.expect("ack");
+                        if let Err(e) = delivery.ack(BasicAckOptions::default()).await {
+                            error!("Failed to ack message: {:?}", e);
+                        }
                     }
                     Err(e) => {
                         let mut force_requeue = false;
@@ -234,7 +238,10 @@ where
                                 .publish(QueueItem::RetryConstructProof(cross_chain_id.to_string()))
                                 .await;
 
-                            let mut redis_conn = self.redis_pool.get().unwrap();
+                            let mut redis_conn = self
+                                .redis_pool
+                                .get()
+                                .map_err(|e| IncluderError::ConsumerError(e.to_string()))?;
                             let redis_key = format!("failed_proof:{}", cross_chain_id);
                             let _: i64 = redis_conn
                                 .incr(redis_key.clone(), 1)

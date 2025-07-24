@@ -1,3 +1,6 @@
+use crate::config::XRPLConfig;
+use crate::utils::message_id_from_retry_task;
+use crate::xrpl_transaction::{PgXrplTransactionModel, XrplTransaction, XrplTransactionStatus};
 use axelar_wasm_std::{msg_id::HexTxHash, nonempty};
 use base64::prelude::*;
 use interchain_token_service::TokenId;
@@ -6,6 +9,7 @@ use relayer_base::gmp_api::gmp_types::{CannotExecuteMessageReason, RetryTask, Ve
 use relayer_base::ingestor::IngestorTrait;
 use relayer_base::models::task_retries::{PgTaskRetriesModel, TaskRetries};
 use relayer_base::subscriber::ChainTransaction;
+use relayer_base::utils::extract_from_xrpl_memo;
 use relayer_base::{
     database::Database,
     error::{ITSTranslationError, IngestorError},
@@ -22,7 +26,7 @@ use relayer_base::{
     price_view::PriceView,
     utils::{
         convert_token_amount_to_drops, event_attribute, extract_and_decode_memo,
-        extract_hex_xrpl_memo, extract_memo, parse_gas_fee_amount, parse_message_from_context,
+        extract_hex_xrpl_memo, parse_gas_fee_amount, parse_message_from_context,
         parse_payment_amount, xrpl_tx_from_hash,
     },
 };
@@ -44,9 +48,6 @@ use xrpl_api::Transaction;
 use xrpl_api::{Memo, PaymentTransaction};
 use xrpl_gateway::msg::{CallContract, InterchainTransfer, MessageWithPayload};
 use relayer_base::payload_cache::PayloadCacheTrait;
-use crate::config::XRPLConfig;
-use crate::utils::message_id_from_retry_task;
-use crate::xrpl_transaction::{PgXrplTransactionModel, XrplTransaction, XrplTransactionStatus};
 
 const MAX_TASK_RETRIES: i32 = 5;
 
@@ -166,7 +167,14 @@ impl<DB: Database> XrplIngestor<DB> {
 
         let verify_tx_hash = self
             .gmp_api
-            .post_broadcast(self.config.common_config.axelar_contracts.chain_gateway.clone(), &request)
+            .post_broadcast(
+                self.config
+                    .common_config
+                    .axelar_contracts
+                    .chain_gateway
+                    .clone(),
+                &request,
+            )
             .await
             .map_err(|e| IngestorError::GenericError(e.to_string()))?;
 
@@ -275,7 +283,14 @@ impl<DB: Database> XrplIngestor<DB> {
 
                 let response_body = self
                     .gmp_api
-                    .post_query(self.config.common_config.axelar_contracts.chain_gateway.clone(), &request)
+                    .post_query(
+                        self.config
+                            .common_config
+                            .axelar_contracts
+                            .chain_gateway
+                            .clone(),
+                        &request,
+                    )
                     .await
                     .map_err(|e| {
                         IngestorError::GenericError(format!("Failed to get token id: {}", e))
@@ -327,7 +342,14 @@ impl<DB: Database> XrplIngestor<DB> {
 
         let response_body = self
             .gmp_api
-            .post_query(self.config.common_config.axelar_contracts.chain_gateway.clone(), &request)
+            .post_query(
+                self.config
+                    .common_config
+                    .axelar_contracts
+                    .chain_gateway
+                    .clone(),
+                &request,
+            )
             .await
             .map_err(|e| ITSTranslationError::RequestError(e.to_string()))?;
 
@@ -373,7 +395,9 @@ impl<DB: Database> XrplIngestor<DB> {
 
         let source_context = HashMap::from([(
             "xrpl_message".to_owned(),
-            serde_json::to_string(&xrpl_message).unwrap(),
+            serde_json::to_string(&xrpl_message).map_err(|e| {
+                IngestorError::GenericError(format!("Failed to serialize xrpl_message: {}", e))
+            })?,
         )]);
 
         let translation_result = self
@@ -632,7 +656,14 @@ impl<DB: Database> XrplIngestor<DB> {
                     e
                 ))
             })?);
-        Ok((self.config.common_config.axelar_contracts.chain_gateway.clone(), request))
+        Ok((
+            self.config
+                .common_config
+                .axelar_contracts
+                .chain_gateway
+                .clone(),
+            request,
+        ))
     }
 
     pub async fn confirm_add_reserves_message_request(
@@ -650,7 +681,11 @@ impl<DB: Database> XrplIngestor<DB> {
                 ))
             })?);
         Ok((
-            self.config.common_config.axelar_contracts.chain_multisig_prover.clone(),
+            self.config
+                .common_config
+                .axelar_contracts
+                .chain_multisig_prover
+                .clone(),
             request,
         ))
     }
@@ -696,7 +731,11 @@ impl<DB: Database> XrplIngestor<DB> {
                 IngestorError::GenericError(format!("Failed to serialize ConfirmTxStatus: {}", e))
             })?);
         Ok((
-            self.config.common_config.axelar_contracts.chain_multisig_prover.clone(),
+            self.config
+                .common_config
+                .axelar_contracts
+                .chain_multisig_prover
+                .clone(),
             request,
         ))
     }
@@ -724,8 +763,15 @@ impl<DB: Database> XrplIngestor<DB> {
                 .map_err(|e| {
                     IngestorError::GenericError(format!("Failed to get payload from cache: {}", e))
                 })?;
-            let payload_bytes = hex::decode(payload_string).unwrap();
-            payload = Some(payload_bytes.try_into().unwrap());
+            let payload_bytes = hex::decode(payload_string).map_err(|e| {
+                IngestorError::GenericError(format!("Failed to decode payload: {}", e))
+            })?;
+            payload = Some(payload_bytes.try_into().map_err(|e| {
+                IngestorError::GenericError(format!(
+                    "Failed to convert payload bytes to array: {}",
+                    e
+                ))
+            })?);
         }
         let execute_msg = xrpl_gateway::msg::ExecuteMsg::RouteIncomingMessages(vec![WithPayload {
             message: xrpl_message.clone(),
@@ -738,7 +784,14 @@ impl<DB: Database> XrplIngestor<DB> {
                     e
                 ))
             })?);
-        Ok((self.config.common_config.axelar_contracts.chain_gateway.clone(), request))
+        Ok((
+            self.config
+                .common_config
+                .axelar_contracts
+                .chain_gateway
+                .clone(),
+            request,
+        ))
     }
 
     pub async fn handle_successful_routing(
@@ -858,8 +911,8 @@ impl<DB: Database> XrplIngestor<DB> {
         &self,
         memos: &Option<Vec<Memo>>,
     ) -> Result<(Option<String>, Option<String>), IngestorError> {
-        let payload_hash_memo = extract_memo(memos, "payload_hash");
-        let payload_memo = extract_memo(memos, "payload");
+        let payload_hash_memo = extract_from_xrpl_memo(memos.clone(), "payload_hash");
+        let payload_memo = extract_from_xrpl_memo(memos.clone(), "payload");
 
         // Payment transaction must not contain both 'payload' and 'payload_hash' memos.
         if payload_memo.is_ok() && payload_hash_memo.is_ok() {
@@ -1132,7 +1185,12 @@ impl<DB: Database> IngestorTrait for XrplIngestor<DB> {
                     self.handle_prover_tx(tx).await
                 } else {
                     Err(IngestorError::UnsupportedTransaction(
-                        serde_json::to_string(&payment).unwrap(),
+                        serde_json::to_string(&payment).map_err(|e| {
+                            IngestorError::GenericError(format!(
+                                "Failed to serialize payment: {}",
+                                e
+                            ))
+                        })?,
                     ))
                 }
             }
@@ -1147,7 +1205,12 @@ impl<DB: Database> IngestorTrait for XrplIngestor<DB> {
             tx => {
                 warn!(
                     "Unsupported transaction type: {}",
-                    serde_json::to_string(&tx).unwrap()
+                    serde_json::to_string(&tx).map_err(|e| {
+                        IngestorError::GenericError(format!(
+                            "Failed to serialize transaction: {}",
+                            e
+                        ))
+                    })?
                 );
                 Ok(vec![])
             }
@@ -1351,7 +1414,11 @@ impl<DB: Database> IngestorTrait for XrplIngestor<DB> {
         let maybe_construct_proof_tx_hash = self
             .gmp_api
             .post_broadcast(
-                self.config.common_config.axelar_contracts.chain_multisig_prover.clone(),
+                self.config
+                    .common_config
+                    .axelar_contracts
+                    .chain_multisig_prover
+                    .clone(),
                 &request,
             )
             .await

@@ -1,0 +1,44 @@
+[{
+    "id": "verify_task_123",
+    "chain": "xrpl",
+    "timestamp": "2023-01-01T00:00:00Z",
+    "type": "VERIFY",
+    "meta": null,
+    "task": {
+        "message": {
+            "messageID": "msg_123",
+            "sourceChain": "ethereum",
+            "sourceAddress": "0x123",
+            "destinationAddress": "0x456",
+            "payloadHash": "hash123"
+        },
+        "payload": "payload_data"
+    }
+} ,
+{
+    "id": "verify_task_with_meta",
+    "chain": "xrpl",
+    "timestamp": "2023-01-01T00:00:00Z",
+    "type": "VERIFY",
+    "meta": {
+        "txID": "tx_123",
+        "fromAddress": "0xfrom",
+        "finalized": true,
+        "sourceContext": {
+            "key1": "value1",
+            "key2": "value2"
+         },
+        "scopedMessages": null
+    },
+    "task": {
+        "message": {
+            "messageID": "msg_meta",
+            "sourceChain": "ethereum",
+            "sourceAddress": "0x123",
+            "destinationAddress": "0x456",
+            "payloadHash": "hash_meta"
+        },
+        "payload": "payload_with_meta"
+    }
+} 
+]
