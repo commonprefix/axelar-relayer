@@ -64,10 +64,11 @@ testcontainers-modules = { version = "0.12.1", features = ["postgres"] }
 [workspace.lints.clippy]
 uninlined_format_args = "allow"
 unwrap_used = "allow"
-expect_used = "allow"
-panic = "allow"
+
 indexing_slicing = "allow"
 clone_on_ref_ptr = "allow"
 redundant_clone = "allow"
 unnecessary_box_returns = "allow"
+
+# TODO: See if we can seperate warnings on tests
 
