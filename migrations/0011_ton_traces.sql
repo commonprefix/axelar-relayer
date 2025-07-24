@@ -1,4 +1,4 @@
-CREATE TABLE ton_traces (
+CREATE TABLE IF NOT EXISTS ton_traces (
         trace_id TEXT PRIMARY KEY,
         is_incomplete BOOLEAN,
         start_lt BIGINT,

@@ -1,5 +1,5 @@
 [workspace]
-members = ["relayer_base", "recovery_tools", "xrpl", "ton", "ton_types"]
+members = ["relayer_base", "recovery_tools", "xrpl", "ton"]
 resolver = "2"
 
 [workspace.dependencies]

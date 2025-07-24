@@ -1,0 +1,98 @@
+version: '3.8'
+
+x-common-env: &common-env
+  volumes:
+    - ./config:/app/config
+  deploy:
+    mode: replicated
+    replicas: 1
+  env_file:
+    - .env
+
+x-common-build: &common-build
+  context: .
+
+
+
+services:
+  ingestor:
+    container_name: ton_ingestor
+    <<: *common-env
+    build:
+      <<: *common-build
+      args:
+        BINARY_NAME: ton_ingestor
+
+  subscriber:
+    container_name: ton_subscriber
+    <<: *common-env
+    build:
+      <<: *common-build
+      args:
+        BINARY_NAME: ton_subscriber
+
+  includer:
+    container_name: ton_includer
+    <<: *common-env
+    build:
+      <<: *common-build
+      args:
+        BINARY_NAME: ton_includer
+
+  distributor:
+    container_name: ton_distributor
+    <<: *common-env
+    build:
+      <<: *common-build
+      args:
+        BINARY_NAME: ton_distributor
+
+  price_feed:
+    container_name: price_feed
+    <<: *common-env
+    build:
+      <<: *common-build
+      args:
+        BINARY_NAME: price_feed
+
+
+  redis:
+    image: redis:alpine
+    container_name: relayer_redis
+    ports:
+      - "6384:6379"
+    volumes:
+      - redis_data:/data
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: relayer_rabbitmq
+    environment:
+      RABBITMQ_PLUGINS: "rabbitmq_prometheus rabbitmq_management"
+    ports:
+      - "5677:5672"
+      - "15677:15672"
+      - "15697:15692"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+
+  postgres:
+    image: postgres:16
+    container_name: relayer_postgres
+    ports:
+      - "5437:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    command: >
+      -c max_connections=300
+      -c shared_buffers=512MB
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d
+
+volumes:
+  redis_data:
+  rabbitmq_data:
+  postgres_data:

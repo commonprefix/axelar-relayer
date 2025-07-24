@@ -19,9 +19,11 @@ COPY Cargo.lock ./
 COPY relayer_base/Cargo.toml ./relayer_base/
 COPY recovery_tools/Cargo.toml ./recovery_tools/
 COPY xrpl/Cargo.toml ./xrpl/
+COPY ton_types/Cargo.toml ./ton_types/
+COPY ton/Cargo.toml ./ton/
 
 # Create dummy files for each workspace member to cache dependencies
-RUN mkdir -p relayer_base/src/bin/scripts recovery_tools/src/bin xrpl/src/bin/recovery && \
+RUN mkdir -p relayer_base/src/bin/scripts recovery_tools/src/bin xrpl/src/bin/recovery ton/src/bin && \
     echo 'fn main() {}' > recovery_tools/src/bin/proof_retrier.rs && \
     echo 'fn main() {}' > recovery_tools/src/bin/dlq_recovery.rs && \
     echo 'fn main() {}' > relayer_base/src/bin/price_feed.rs && \
@@ -36,18 +38,25 @@ RUN mkdir -p relayer_base/src/bin/scripts recovery_tools/src/bin xrpl/src/bin/re
     echo 'fn main() {}' > xrpl/src/bin/xrpl_queued_tx_monitor.rs && \
     echo 'fn main() {}' > xrpl/src/bin/recovery/xrpl_subscriber_recovery.rs && \
     echo 'fn main() {}' > xrpl/src/bin/recovery/xrpl_task_recovery.rs && \
-    echo 'fn main() {}' > xrpl/src/bin/xrpl_heartbeat_monitor.rs
+    echo 'fn main() {}' > xrpl/src/bin/xrpl_heartbeat_monitor.rs && \
+    echo 'fn main() {}' > ton/src/bin/ton_ingestor.rs && \
+    echo 'fn main() {}' > ton/src/bin/ton_distributor.rs && \
+    echo 'fn main() {}' > ton/src/bin/ton_subscriber.rs && \
+    echo 'fn main() {}' > ton/src/bin/ton_includer.rs
+
+COPY ton_types/src/ ./ton_types/src/
 
 # Build dependencies (this will cache them)
 RUN cargo build --release
 
 # Remove the dummy files
-RUN rm -rf recovery_tools/src relayer_base/src xrpl/src
+RUN rm -rf recovery_tools/src relayer_base/src xrpl/src ton_types/src ton/src
 
 # Now copy the actual source code
 COPY relayer_base/src/ ./relayer_base/src/
 COPY recovery_tools/src/ ./recovery_tools/src/
 COPY xrpl/src/ ./xrpl/src/
+COPY ton_types/src/ ./ton_types/src/
 
 # Build the project with actual source code
 RUN if [ "${BINARY_NAME}" = "proof_retrier" ]; then \
