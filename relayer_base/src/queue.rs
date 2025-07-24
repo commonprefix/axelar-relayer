@@ -452,14 +452,18 @@ impl Queue {
             let mut ticker = time::interval(Duration::from_secs(5));
             ticker.tick().await; // throw away the immediate tick
 
-            tokio::select! {
-                _ = processor.handle.unwrap()=> {
-                    info!("Buffer processor closed");
+            if let Some(handle) = processor.handle {
+                tokio::select! {
+                    _ = handle => {
+                        info!("Buffer processor closed");
+                    }
+                    _ = ticker.tick() => {
+                        warn!("Force closing buffer processor after 5 seconds");
+                        processor.cancellation_token.cancel();
+                    }
                 }
-                _ = ticker.tick() => {
-                    warn!("Force closing buffer processor after 5 seconds");
-                    processor.cancellation_token.cancel();
-                }
+            } else {
+                warn!("No handle found for buffer processor");
             }
         }
     }

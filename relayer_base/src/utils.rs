@@ -8,7 +8,7 @@ use sentry::ClientInitGuard;
 use sentry_tracing::{layer as sentry_layer, EventFilter};
 use serde::de::DeserializeOwned;
 use serde_json::Value;
-use tracing::{debug, level_filters::LevelFilter, warn, Level};
+use tracing::{debug, error, info, level_filters::LevelFilter, warn, Level};
 use tracing_subscriber::{fmt, prelude::*, Registry};
 use xrpl_amplifier_types::{
     msg::XRPLMessage,
@@ -255,8 +255,15 @@ pub fn parse_message_from_context(
 pub fn setup_heartbeat(service: String, redis_pool: r2d2::Pool<redis::Client>) {
     tokio::spawn(async move {
         loop {
-            tracing::info!("Writing heartbeat to DB");
-            let mut redis_conn = redis_pool.get().unwrap();
+            info!("Writing heartbeat to DB");
+            let mut redis_conn = match redis_pool.get() {
+                Ok(conn) => conn,
+                Err(e) => {
+                    error!("Failed to get Redis connection: {}", e);
+                    tokio::time::sleep(tokio::time::Duration::from_secs(15)).await;
+                    continue;
+                }
+            };
             let set_opts =
                 SetOptions::default().with_expiration(SetExpiry::EX(HEARTBEAT_EXPIRATION));
             let result: redis::RedisResult<()> =
