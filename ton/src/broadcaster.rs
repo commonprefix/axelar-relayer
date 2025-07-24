@@ -9,7 +9,6 @@ and broadcaster should potentially be returning a vector of BroadcastResults.
 
 */
 
-use std::cmp::min;
 use super::client::{RestClient, V3MessageResponse};
 use crate::boc::approve_message::ApproveMessages;
 use crate::boc::native_refund::NativeRefundMessage;
@@ -29,6 +28,7 @@ use relayer_base::{
     error::BroadcasterError,
     includer::{BroadcastResult, Broadcaster},
 };
+use std::cmp::min;
 use std::str::FromStr;
 use std::sync::Arc;
 use tonlib_core::tlb_types::block::out_action::OutAction;
@@ -124,7 +124,7 @@ impl<GE: GasEstimator> Broadcaster for TONBroadcaster<GE> {
         let approve_message_value: BigUint = BigUint::from(
             self.gas_estimator
                 .estimate_approve_messages(approve_messages.approve_messages.len())
-                .await
+                .await,
         );
         info!(
             "Sending approve message: message_id={}, source_chain={}",
@@ -198,7 +198,9 @@ impl<GE: GasEstimator> Broadcaster for TONBroadcaster<GE> {
             //"Execute message: message_id={}, source_chain={}, available_gas={}, required_gas={}",
             "Sending execute message: message_id={}, source_chain={}, available_gas={}",
             //message_id, source_chain, available_gas, required_gas
-            message_id, source_chain, available_gas
+            message_id,
+            source_chain,
+            available_gas
         );
         if available_gas < required_gas {
             return Ok(BroadcastResult {

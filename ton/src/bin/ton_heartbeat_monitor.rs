@@ -13,4 +13,3 @@ async fn main() -> anyhow::Result<()> {
 
     heartbeats_loop(&common_config).await
 }
-

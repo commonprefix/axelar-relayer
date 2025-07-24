@@ -4,8 +4,8 @@ use relayer_base::utils::setup_heartbeat;
 use relayer_base::{
     database::PostgresDB, gmp_api, payload_cache::PayloadCache, queue::Queue, utils::setup_logging,
 };
-use std::sync::Arc;
 use sqlx::PgPool;
+use std::sync::Arc;
 use tokio::signal::unix::{signal, SignalKind};
 use ton::config::TONConfig;
 use ton::high_load_query_id_db_wrapper::HighLoadQueryIdDbWrapper;
@@ -28,7 +28,7 @@ async fn main() -> anyhow::Result<()> {
     let redis_pool = r2d2::Pool::builder().build(redis_client)?;
     let postgres_db = PostgresDB::new(&config.common_config.postgres_url).await?;
     let payload_cache_for_includer = PayloadCache::new(postgres_db);
-    
+
     let pg_pool = PgPool::connect(&config.common_config.postgres_url).await?;
     let model = PgTONWalletQueryIdModel::new(pg_pool);
 

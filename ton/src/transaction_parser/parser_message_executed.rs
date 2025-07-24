@@ -66,7 +66,8 @@ impl Parser for ParserMessageExecuted {
 
         Ok(self
             .tx
-            .out_msgs.get(msg_idx)
+            .out_msgs
+            .get(msg_idx)
             .and_then(|out_msg| out_msg.opcode.as_ref())
             .map(|op| *op == OP_GATEWAY_EXECUTE)
             .unwrap_or(false))
@@ -187,7 +188,10 @@ mod tests {
                 assert_eq!(cost.token_id.as_deref(), None);
 
                 let meta = &common.meta.as_ref().unwrap();
-                assert_eq!(meta.common_meta.tx_id.as_deref(), Some("6yp4hEyN3u7JNKkbeKFrdgJI/VJqG4hY/roRvT7RNPw="));
+                assert_eq!(
+                    meta.common_meta.tx_id.as_deref(),
+                    Some("6yp4hEyN3u7JNKkbeKFrdgJI/VJqG4hY/roRvT7RNPw=")
+                );
                 assert_eq!(meta.revert_reason.as_deref(), None);
             }
             _ => panic!("Expected MessageExecuted event"),

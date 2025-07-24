@@ -223,9 +223,13 @@ impl RestClient for TONRpcClient {
         addresses: Vec<TonAddress>,
     ) -> Result<Vec<AccountState>, ClientError> {
         let url = format!("{}/api/v3/accountStates", self.url.trim_end_matches('/'));
-        let mut query_params: Vec<(String, String)> = vec![("include_boc".to_string(), "false".to_string())];
+        let mut query_params: Vec<(String, String)> =
+            vec![("include_boc".to_string(), "false".to_string())];
         for address in addresses {
-            query_params.push(("address".parse().unwrap(), address.to_string().as_str().parse().unwrap()))
+            query_params.push((
+                "address".parse().unwrap(),
+                address.to_string().as_str().parse().unwrap(),
+            ))
         }
 
         let response = self
@@ -499,8 +503,7 @@ mod tests {
         });
 
         server.mock(|when, then| {
-            when.method(GET)
-                .path("/api/v3/accountStates");
+            when.method(GET).path("/api/v3/accountStates");
             then.status(200)
                 .header("Content-Type", "application/json")
                 .json_body(mock_response);
@@ -512,7 +515,10 @@ mod tests {
 
         let result = client
             .get_account_states(vec![
-                "0:294D72EC421B930C60854F413478C162FDCEEC65746084EBACE25227182979A2".to_string().parse().unwrap(),
+                "0:294D72EC421B930C60854F413478C162FDCEEC65746084EBACE25227182979A2"
+                    .to_string()
+                    .parse()
+                    .unwrap(),
             ])
             .await;
 

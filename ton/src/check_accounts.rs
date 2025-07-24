@@ -33,7 +33,7 @@ pub async fn check_accounts(
     client: &dyn RestClient,
     addresses: Vec<TonAddress>,
     min_balance: u64,
-    forever: bool
+    forever: bool,
 ) {
     loop {
         match client.get_account_states(addresses.clone()).await {
@@ -73,7 +73,7 @@ pub async fn check_accounts(
         }
 
         if !forever {
-            break
+            break;
         }
         sleep(Duration::from_secs(45)).await;
     }
