@@ -39,7 +39,7 @@ impl<TP: TraceParserTrait> IngestorTrait for TONIngestor<TP> {
 
         let events = self
             .trace_parser
-            .parse_trace(trace)
+            .parse_trace(*trace)
             .await
             .map_err(|e| IngestorError::GenericError(e.to_string()))?;
 

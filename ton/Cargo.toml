@@ -24,12 +24,12 @@ reqwest-retry = { workspace = true }
 reqwest-middleware = { workspace = true, features = ["json"] }
 ton_types = { workspace = true }
 tonlib-core = { workspace = true }
+testcontainers = { workspace = true }
+testcontainers-modules = { workspace = true, features = ["postgres"] }
 
 nacl = "0.5.3"
 num-bigint = "0.4.6"
 async-trait = "0.1.88"
-testcontainers = "0.24.0"
-testcontainers-modules = { version = "0.12.1", features = ["postgres"] }
 httpmock = "0.7.0"
 tiny-keccak = {version = "2.0.2", features = ["keccak"]}
 primitive-types = "0.13.1"

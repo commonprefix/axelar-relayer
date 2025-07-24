@@ -36,7 +36,7 @@ impl<TM: Retriable + AtomicUpsert, CL: RestClient> TransactionPoller
     type Account = TonAddress;
 
     fn make_queue_item(&mut self, tx: Self::Transaction) -> ChainTransaction {
-        ChainTransaction::TON(tx)
+        ChainTransaction::TON(Box::new(tx))
     }
 
     async fn poll_account(

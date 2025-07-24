@@ -1148,7 +1148,7 @@ impl<DB: Database> IngestorTrait for XrplIngestor<DB> {
             XrplTransaction::from_native_transaction(&tx, &self.config.xrpl_multisig)
                 .map_err(|e| IngestorError::GenericError(e.to_string()))?;
 
-        match tx.clone() {
+        match *tx.clone() {
             Transaction::Payment(_)
             | Transaction::TicketCreate(_)
             | Transaction::SignerListSet(_)
@@ -1171,7 +1171,7 @@ impl<DB: Database> IngestorTrait for XrplIngestor<DB> {
             _ => {}
         }
 
-        match tx.clone() {
+        match *tx.clone() {
             Transaction::Payment(payment) => {
                 if payment.destination == self.config.xrpl_multisig {
                     if payment.common.memos.is_none() {
@@ -1182,7 +1182,7 @@ impl<DB: Database> IngestorTrait for XrplIngestor<DB> {
                     self.handle_payment(payment).await
                 } else if payment.common.account == self.config.xrpl_multisig {
                     // prover message
-                    self.handle_prover_tx(tx).await
+                    self.handle_prover_tx(*tx).await
                 } else {
                     Err(IngestorError::UnsupportedTransaction(
                         serde_json::to_string(&payment).map_err(|e| {
@@ -1194,14 +1194,14 @@ impl<DB: Database> IngestorTrait for XrplIngestor<DB> {
                     ))
                 }
             }
-            Transaction::TicketCreate(_) => self.handle_prover_tx(tx).await,
+            Transaction::TicketCreate(_) => self.handle_prover_tx(*tx).await,
             Transaction::TrustSet(trust_set) => {
                 if trust_set.common.account == self.config.xrpl_multisig {
-                    return self.handle_prover_tx(tx).await;
+                    return self.handle_prover_tx(*tx).await;
                 }
                 Ok(vec![])
             }
-            Transaction::SignerListSet(_) => self.handle_prover_tx(tx).await,
+            Transaction::SignerListSet(_) => self.handle_prover_tx(*tx).await,
             tx => {
                 warn!(
                     "Unsupported transaction type: {}",

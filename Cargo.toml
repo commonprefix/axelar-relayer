@@ -59,7 +59,6 @@ regex = "1.11.1"
 mockall = "0.13.1"
 mockito = "1.6.1"
 testcontainers = "0.24.0"
-async-trait = "0.1.88"
 testcontainers-modules = { version = "0.12.1", features = ["postgres"] }
+async-trait = "0.1.88"
 tonlib-core = "0.26.0"
-getrandom = "0.3.3"
