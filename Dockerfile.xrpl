@@ -42,7 +42,9 @@ RUN mkdir -p relayer_base/src/bin/scripts recovery_tools/src/bin xrpl/src/bin/re
     echo 'fn main() {}' > ton/src/bin/ton_ingestor.rs && \
     echo 'fn main() {}' > ton/src/bin/ton_distributor.rs && \
     echo 'fn main() {}' > ton/src/bin/ton_subscriber.rs && \
-    echo 'fn main() {}' > ton/src/bin/ton_includer.rs
+    echo 'fn main() {}' > ton/src/bin/ton_includer.rs && \
+    echo 'fn main() {}' > ton/src/bin/ton_heartbeat_monitor.rs && \
+    echo 'fn main() {}' > ton/src/bin/ton_account_checker.rs
 
 COPY ton_types/src/ ./ton_types/src/
 
@@ -56,6 +58,7 @@ RUN rm -rf recovery_tools/src relayer_base/src xrpl/src ton/src
 COPY relayer_base/src/ ./relayer_base/src/
 COPY recovery_tools/src/ ./recovery_tools/src/
 COPY xrpl/src/ ./xrpl/src/
+COPY ton/src/ ./ton/src/
 
 # Build the project with actual source code
 RUN if [ "${BINARY_NAME}" = "proof_retrier" ]; then \

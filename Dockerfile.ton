@@ -42,7 +42,11 @@ RUN mkdir -p relayer_base/src/bin/scripts recovery_tools/src/bin xrpl/src/bin/re
     echo 'fn main() {}' > ton/src/bin/ton_ingestor.rs && \
     echo 'fn main() {}' > ton/src/bin/ton_distributor.rs && \
     echo 'fn main() {}' > ton/src/bin/ton_subscriber.rs && \
-    echo 'fn main() {}' > ton/src/bin/ton_includer.rs
+    echo 'fn main() {}' > ton/src/bin/ton_includer.rs && \
+    echo 'fn main() {}' > ton/src/bin/ton_heartbeat_monitor.rs && \
+    echo 'fn main() {}' > ton/src/bin/ton_account_checker.rs
+
+
 
 COPY ton_types/src/ ./ton_types/src/
 

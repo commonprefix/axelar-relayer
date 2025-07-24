@@ -13,3 +13,4 @@ pub mod proof_retrier;
 pub mod queue;
 pub mod subscriber;
 pub mod utils;
+pub mod heartbeat;
