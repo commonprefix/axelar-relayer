@@ -307,7 +307,7 @@ where
                     )
                 })?,
                 None => {
-                    return Err(db_err.into());
+                    return Err(db_err);
                 }
             }
         }
