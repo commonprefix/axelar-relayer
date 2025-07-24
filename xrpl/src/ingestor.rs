@@ -1201,7 +1201,7 @@ impl<DB: Database> IngestorTrait for XrplIngestor<DB> {
             }
             Transaction::SignerListSet(_) => self.handle_prover_tx(tx).await,
             tx => {
-                warn!(
+                info!(
                     "Unsupported transaction type: {}",
                     serde_json::to_string(&tx).map_err(|e| {
                         IngestorError::GenericError(format!(
