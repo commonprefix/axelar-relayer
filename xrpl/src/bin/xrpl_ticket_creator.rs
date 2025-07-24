@@ -22,7 +22,10 @@ async fn main() -> anyhow::Result<()> {
 
     setup_heartbeat("heartbeat:ticket_creator".to_owned(), redis_pool);
 
-    let gmp_api = Arc::new(gmp_api::GmpApi::new(&config.common_config, false).unwrap());
+    let gmp_api = Arc::new(
+        gmp_api::GmpApi::new(&config.common_config, false)
+            .map_err(|e| anyhow::anyhow!("Failed to create GmpApi: {}", e))?,
+    );
     let ticket_creator = XrplTicketCreator::new(gmp_api.clone(), config.clone());
     ticket_creator.run().await;
 
