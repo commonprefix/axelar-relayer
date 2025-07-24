@@ -9,6 +9,7 @@ and broadcaster should potentially be returning a vector of BroadcastResults.
 
 */
 
+use std::cmp::min;
 use super::client::{RestClient, V3MessageResponse};
 use crate::boc::approve_message::ApproveMessages;
 use crate::boc::native_refund::NativeRefundMessage;
@@ -34,8 +35,6 @@ use tonlib_core::tlb_types::block::out_action::OutAction;
 use tonlib_core::tlb_types::tlb::TLB;
 use tonlib_core::{TonAddress, TonHash};
 use tracing::{debug, error, info};
-
-const REFUNDABLE_MESSAGE_MULTIPLIER: u8 = 2;
 
 pub struct TONBroadcaster<GE> {
     wallet_manager: Arc<WalletManager>,
@@ -126,7 +125,10 @@ impl<GE: GasEstimator> Broadcaster for TONBroadcaster<GE> {
             self.gas_estimator
                 .estimate_approve_messages(approve_messages.approve_messages.len())
                 .await
-                * REFUNDABLE_MESSAGE_MULTIPLIER as u64,
+        );
+        info!(
+            "Sending approve message: message_id={}, source_chain={}",
+            message.message_id, message.source_chain
         );
 
         let actions: Vec<OutAction> = vec![out_action(
@@ -193,8 +195,10 @@ impl<GE: GasEstimator> Broadcaster for TONBroadcaster<GE> {
             .await;
 
         info!(
-            "Execute message: message_id={}, source_chain={}, available_gas={}, required_gas={}",
-            message_id, source_chain, available_gas, required_gas
+            //"Execute message: message_id={}, source_chain={}, available_gas={}, required_gas={}",
+            "Sending execute message: message_id={}, source_chain={}, available_gas={}",
+            //message_id, source_chain, available_gas, required_gas
+            message_id, source_chain, available_gas
         );
         if available_gas < required_gas {
             return Ok(BroadcastResult {
@@ -235,7 +239,7 @@ impl<GE: GasEstimator> Broadcaster for TONBroadcaster<GE> {
                     ))
                 })?;
 
-            let execute_message_value: BigUint = BigUint::from(available_gas);
+            let execute_message_value: BigUint = BigUint::from(min(available_gas, required_gas));
 
             let actions: Vec<OutAction> = vec![out_action(
                 &boc,
@@ -298,7 +302,13 @@ impl<GE: GasEstimator> Broadcaster for TONBroadcaster<GE> {
 
         let amount = original_amount - BigUint::from(gas_estimate);
 
+        info!(
+            "Sending refund message: message_id={}, address={}, amount={}",
+            refund_task.message.message_id, address, amount
+        );
+
         let native_refund = NativeRefundMessage::new(tx_hash, address, amount);
+
         let boc = native_refund
             .to_cell()
             .map_err(|e| BroadcasterError::GenericError(e.to_string()))?

@@ -43,11 +43,13 @@ impl GasEstimator for TONGasEstimator {
         self.config.highload_wallet_per_action * num_actions as u64
     }
 
-    async fn estimate_approve_messages(&self, num_messages: usize) -> u64 {
-        self.config.approve_fixed
-            + self.config.approve_fixed_storage_slippage
-            + self.config.approve_per_message * num_messages as u64
-            + self.config.approve_per_message_storage_slippage
+    async fn estimate_approve_messages(&self, _num_messages: usize) -> u64 {
+        // While working on estimates, we'll keep this logic
+        500000000u64
+        // self.config.approve_fixed
+        //     + self.config.approve_fixed_storage_slippage
+        //     + self.config.approve_per_message * num_messages as u64
+        //     + self.config.approve_per_message_storage_slippage
     }
 }
 
@@ -120,7 +122,7 @@ mod tests {
 
         let estimator = TONGasEstimator::new(config);
         let approve = estimator.estimate_approve_messages(3usize).await;
-        assert_eq!(approve, 621);
+        assert_eq!(approve, 500000000);
     }
 
     #[tokio::test]
@@ -167,7 +169,7 @@ mod tests {
         let highload_wallet = estimator.estimate_highload_wallet(5usize).await;
         assert_eq!(refund, 0);
         assert_eq!(execute, 0);
-        assert_eq!(approve, 0);
+        assert_eq!(approve, 500000000);
         assert_eq!(highload_wallet, 0);
     }
 }

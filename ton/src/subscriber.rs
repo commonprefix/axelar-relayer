@@ -85,6 +85,8 @@ impl<DB: Database, TM: AtomicUpsert, CL: RestClient> TransactionPoller
             .get_traces_for_account(Some(account_id.clone()), None, start_lt)
             .await?;
 
+        info!("Got {} traces for account {}", traces.len(), account_id);
+        
         let max_lt = traces.iter().map(|trace| trace.end_lt).max();
 
         if max_lt.is_some() {

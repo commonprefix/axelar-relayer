@@ -30,7 +30,7 @@ use serde_json::json;
 use std::time::Duration;
 use ton_types::ton_types::{Trace, TracesResponse, TracesResponseRest};
 use tonlib_core::TonAddress;
-use tracing::{debug, error};
+use tracing::{error, info};
 
 #[derive(Clone)]
 pub struct TONRpcClient {
@@ -164,7 +164,7 @@ impl RestClient for TONRpcClient {
             query_params.push(("start_lt", (lt_min_val + 1).to_string()));
         }
 
-        debug!("Fetching TON traces from: {:?} {:?}", url, query_params);
+        info!("Fetching TON traces from: {:?} {:?}", url, query_params);
 
         let response = self
             .client
@@ -318,7 +318,7 @@ mod tests {
         );
 
         let traces = result.unwrap();
-        assert_eq!(traces.len(), 17);
+        assert_eq!(traces.len(), 18);
 
         let txs = &traces[0].transactions;
         assert_eq!(txs.len(), 6);

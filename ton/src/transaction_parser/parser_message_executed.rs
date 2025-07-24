@@ -52,14 +52,21 @@ impl Parser for ParserMessageExecuted {
             return Ok(false);
         }
 
-        if !is_log_emmitted(&self.tx, OP_NULLIFIED_SUCCESSFULLY, 1)? {
+        let mut msg_idx = 1usize;
+        let mut second_log = false;
+        let first_log = is_log_emmitted(&self.tx, OP_NULLIFIED_SUCCESSFULLY, 0)?;
+        if !first_log {
+            second_log = is_log_emmitted(&self.tx, OP_NULLIFIED_SUCCESSFULLY, 1)?;
+            msg_idx = 0;
+        }
+
+        if !second_log && !first_log {
             return Ok(false);
         }
 
         Ok(self
             .tx
-            .out_msgs
-            .first()
+            .out_msgs.get(msg_idx)
             .and_then(|out_msg| out_msg.opcode.as_ref())
             .map(|op| *op == OP_GATEWAY_EXECUTE)
             .unwrap_or(false))
@@ -145,6 +152,42 @@ mod tests {
 
                 let meta = &common.meta.as_ref().unwrap();
                 assert_eq!(meta.common_meta.tx_id.as_deref(), Some("aa4"));
+                assert_eq!(meta.revert_reason.as_deref(), None);
+            }
+            _ => panic!("Expected MessageExecuted event"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_parser_b() {
+        let traces = fixture_traces();
+
+        let tx = traces[17].transactions[4].clone();
+        let address = tx.clone().account;
+
+        let mut parser = ParserMessageExecuted::new(tx, address).await.unwrap();
+        assert!(parser.is_match().await.unwrap());
+        parser.parse().await.unwrap();
+        let event = parser.event(None).await.unwrap();
+        match event {
+            Event::MessageExecuted {
+                common,
+                message_id,
+                source_chain,
+                status,
+                cost,
+            } => {
+                assert_eq!(
+                    message_id,
+                    "0x78e6b50757198db577c8a1d1f8c33ed039417be7ec176070a61f2e72387a8610-1"
+                );
+                assert_eq!(source_chain, "avalanche-fuji");
+                assert_eq!(status, MessageExecutionStatus::SUCCESSFUL);
+                assert_eq!(cost.amount, "0");
+                assert_eq!(cost.token_id.as_deref(), None);
+
+                let meta = &common.meta.as_ref().unwrap();
+                assert_eq!(meta.common_meta.tx_id.as_deref(), Some("6yp4hEyN3u7JNKkbeKFrdgJI/VJqG4hY/roRvT7RNPw="));
                 assert_eq!(meta.revert_reason.as_deref(), None);
             }
             _ => panic!("Expected MessageExecuted event"),
