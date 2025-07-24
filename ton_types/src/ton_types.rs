@@ -66,8 +66,8 @@ pub struct Transaction {
     pub block_ref: BlockRef,
     pub in_msg: Option<TransactionMessage>,
     pub out_msgs: Vec<TransactionMessage>,
-    pub account_state_before: AccountState,
-    pub account_state_after: AccountState,
+    pub account_state_before: AccountStateBalance,
+    pub account_state_after: AccountStateBalance,
     pub emulated: bool,
 }
 
@@ -182,7 +182,7 @@ pub struct MessageContent {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct AccountState {
+pub struct AccountStateBalance {
     pub hash: String,
     pub balance: Option<String>,
     pub extra_currencies: Option<ExtraCurrencies>,
@@ -191,6 +191,22 @@ pub struct AccountState {
     pub data_hash: Option<String>,
     pub code_hash: Option<String>,
 }
+
+#[serde_as]
+#[derive(Debug, Deserialize, Clone)]
+pub struct AccountState {
+    #[serde_as(as = "DisplayFromStr")]
+    pub address: TonAddress,
+    pub account_state_hash: String,
+    pub balance: String,
+    pub status: String,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct AccountStatesResponse {
+    pub accounts: Vec<AccountState>,
+}
+
 
 impl From<TracesResponseRest> for TracesResponse {
     fn from(rest: TracesResponseRest) -> Self {

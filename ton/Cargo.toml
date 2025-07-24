@@ -38,6 +38,7 @@ rust_decimal = { workspace = true }
 [dev-dependencies]
 relayer-base = { workspace = true, features = ["mocks"] }
 mockall = { workspace = true }
+tracing-test = "0.2.5"
 
 [[bin]]
 name = "ton_includer"

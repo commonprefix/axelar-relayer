@@ -28,7 +28,9 @@ use reqwest_retry::{policies::ExponentialBackoff, RetryTransientMiddleware};
 use serde::Deserialize;
 use serde_json::json;
 use std::time::Duration;
-use ton_types::ton_types::{Trace, TracesResponse, TracesResponseRest};
+pub(crate) use ton_types::ton_types::{
+    AccountState, AccountStatesResponse, Trace, TracesResponse, TracesResponseRest,
+};
 use tonlib_core::TonAddress;
 use tracing::{error, info};
 
@@ -61,12 +63,10 @@ pub trait RestClient: Send + Sync {
         trace_ids: Option<Vec<String>>,
         start_lt: Option<i64>,
     ) -> Result<Vec<Trace>, ClientError>;
-    fn handle_non_success_response(
+    async fn get_account_states(
         &self,
-        status: reqwest::StatusCode,
-        text: &str,
-        context: &str,
-    ) -> ClientError;
+        addresses: Vec<TonAddress>,
+    ) -> Result<Vec<AccountState>, ClientError>;
 }
 
 impl TONRpcClient {
@@ -97,6 +97,26 @@ impl TONRpcClient {
             client,
             api_key,
         })
+    }
+
+    fn handle_non_success_response(
+        &self,
+        status: reqwest::StatusCode,
+        text: &str,
+        context: &str,
+    ) -> ClientError {
+        error!(
+            "TON RPC request failed: {}: {}, (sent {})",
+            status, text, context
+        );
+        if status.as_u16() == 400 {
+            match serde_json::from_str::<V3ErrorResponse>(text) {
+                Ok(err_body) => BadRequest(err_body.error),
+                Err(err) => BadResponse(format!("Invalid 400 body: {err}")),
+            }
+        } else {
+            BadResponse(format!("Unexpected status {}: {}", status, text))
+        }
     }
 }
 
@@ -198,23 +218,37 @@ impl RestClient for TONRpcClient {
         }
     }
 
-    fn handle_non_success_response(
+    async fn get_account_states(
         &self,
-        status: reqwest::StatusCode,
-        text: &str,
-        context: &str,
-    ) -> ClientError {
-        error!(
-            "TON RPC request failed: {}: {}, (sent {})",
-            status, text, context
-        );
-        if status.as_u16() == 400 {
-            match serde_json::from_str::<V3ErrorResponse>(text) {
-                Ok(err_body) => BadRequest(err_body.error),
-                Err(err) => BadResponse(format!("Invalid 400 body: {err}")),
-            }
+        addresses: Vec<TonAddress>,
+    ) -> Result<Vec<AccountState>, ClientError> {
+        let url = format!("{}/api/v3/accountStates", self.url.trim_end_matches('/'));
+        let mut query_params: Vec<(String, String)> = vec![("include_boc".to_string(), "false".to_string())];
+        for address in addresses {
+            query_params.push(("address".parse().unwrap(), address.to_string().as_str().parse().unwrap()))
+        }
+
+        let response = self
+            .client
+            .get(url)
+            .query(&query_params)
+            .header("X-API-Key", &self.api_key)
+            .send()
+            .await
+            .map_err(|err| ConnectionFailed(err.to_string()))?;
+
+        let status = response.status();
+        let text = response
+            .text()
+            .await
+            .map_err(|err| BadResponse(err.to_string()))?;
+
+        if status.is_success() {
+            serde_json::from_str::<AccountStatesResponse>(&text)
+                .map(|res| res.accounts)
+                .map_err(|err| BadResponse(format!("Failed to parse account states: {err}")))
         } else {
-            BadResponse(format!("Unexpected status {}: {}", status, text))
+            Err(self.handle_non_success_response(status, &text, "get_account_states"))
         }
     }
 }
@@ -447,5 +481,52 @@ mod tests {
             "Expected request to timeout and retry, but got: {result:?}"
         );
         mock.assert_hits(max_retries as usize + 1);
+    }
+
+    #[tokio::test]
+    async fn test_get_account_states() {
+        let server = MockServer::start();
+
+        let mock_response = json!({
+            "accounts": [
+                {
+                    "address": "0:294D72EC421B930C60854F413478C162FDCEEC65746084EBACE25227182979A2",
+                    "account_state_hash": "FeIPUrTpygkiYmgmMtcKR7waymJgT0rBFmvUZdSfK2A=",
+                    "balance": "327063115",
+                    "status": "active"
+                }
+            ]
+        });
+
+        server.mock(|when, then| {
+            when.method(GET)
+                .path("/api/v3/accountStates");
+            then.status(200)
+                .header("Content-Type", "application/json")
+                .json_body(mock_response);
+        });
+
+        let client = TONRpcClient::new(server.base_url(), "test".to_string(), 3, 5, 10)
+            .await
+            .unwrap();
+
+        let result = client
+            .get_account_states(vec![
+                "0:294D72EC421B930C60854F413478C162FDCEEC65746084EBACE25227182979A2".to_string().parse().unwrap(),
+            ])
+            .await;
+
+        assert!(result.is_ok());
+        let accounts = result.unwrap();
+        assert_eq!(accounts.len(), 1);
+        assert_eq!(
+            accounts[0].address,
+            TonAddress::from_str(
+                "0:294D72EC421B930C60854F413478C162FDCEEC65746084EBACE25227182979A2"
+            )
+            .unwrap()
+        );
+        assert_eq!(accounts[0].balance, "327063115");
+        assert_eq!(accounts[0].status, "active");
     }
 }
