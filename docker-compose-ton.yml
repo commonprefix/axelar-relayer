@@ -1,75 +1,56 @@
-version: '3.8'
-
 x-common-env: &common-env
+  image: relayer
   volumes:
-    - ./config:/app/config
+    - ./config:/app/relayer_base/config
+    - ./certs:/app/relayer_base/certs
   deploy:
     mode: replicated
     replicas: 1
   env_file:
     - .env
 
-x-common-build: &common-build
-  dockerfile: Dockerfile.ton
-  context: .
-
 services:
+  relayer:
+    build:
+      dockerfile: Dockerfile.ton
+      context: .
+    image: relayer
+    command: ["true"]
+
   ingestor:
     container_name: ton_ingestor
     <<: *common-env
-    build:
-      <<: *common-build
-      args:
-        BINARY_NAME: ton_ingestor
+    command: ton_ingestor
 
   subscriber:
     container_name: ton_subscriber
     <<: *common-env
-    build:
-      <<: *common-build
-      args:
-        BINARY_NAME: ton_subscriber
+    command: ton_subscriber
 
   includer:
     container_name: ton_includer
     <<: *common-env
-    build:
-      <<: *common-build
-      args:
-        BINARY_NAME: ton_includer
+    command: ton_includer
 
   distributor:
     container_name: ton_distributor
     <<: *common-env
-    build:
-      <<: *common-build
-      args:
-        BINARY_NAME: ton_distributor
+    command: ton_distributor
 
   price_feed:
     container_name: price_feed
     <<: *common-env
-    build:
-      <<: *common-build
-      args:
-        BINARY_NAME: price_feed
+    command: price_feed
 
   heartbeat_monitor:
     container_name: heartbeat_monitor
     <<: *common-env
-    build:
-      <<: *common-build
-      args:
-        BINARY_NAME: heartbeat_monitor
+    command: heartbeat_monitor
 
   account_checker:
     container_name: account_checker
     <<: *common-env
-    build:
-      <<: *common-build
-      args:
-        BINARY_NAME: account_checker
-
+    command: account_checker
 
   redis:
     image: redis:alpine
