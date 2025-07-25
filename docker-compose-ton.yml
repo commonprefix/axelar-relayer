@@ -45,12 +45,12 @@ services:
   heartbeat_monitor:
     container_name: heartbeat_monitor
     <<: *common-env
-    command: heartbeat_monitor
+    command: ton_heartbeat_monitor
 
   account_checker:
     container_name: account_checker
     <<: *common-env
-    command: account_checker
+    command: ton_account_checker
 
   redis:
     image: redis:alpine
