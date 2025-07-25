@@ -54,6 +54,22 @@ services:
       args:
         BINARY_NAME: price_feed
 
+  heartbeat_monitor:
+    container_name: heartbeat_monitor
+    <<: *common-env
+    build:
+      <<: *common-build
+      args:
+        BINARY_NAME: heartbeat_monitor
+
+  account_checker:
+    container_name: account_checker
+    <<: *common-env
+    build:
+      <<: *common-build
+      args:
+        BINARY_NAME: account_checker
+
 
   redis:
     image: redis:alpine
