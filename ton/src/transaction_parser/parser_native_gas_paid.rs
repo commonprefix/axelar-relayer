@@ -1,6 +1,6 @@
 use crate::boc::native_gas_paid::NativeGasPaidMessage;
 use crate::error::TransactionParsingError;
-use crate::ton_constants::OP_PAY_NATIVE_GAS_FOR_CONTRACT_CALL;
+use crate::ton_constants::{OP_PAY_GAS, OP_PAY_NATIVE_GAS_FOR_CONTRACT_CALL};
 use crate::transaction_parser::common::is_log_emmitted;
 use crate::transaction_parser::message_matching_key::MessageMatchingKey;
 use crate::transaction_parser::parser::Parser;
@@ -45,7 +45,11 @@ impl Parser for ParserNativeGasPaid {
             return Ok(false);
         }
 
-        is_log_emmitted(&self.tx, OP_PAY_NATIVE_GAS_FOR_CONTRACT_CALL, 0)
+        if is_log_emmitted(&self.tx, OP_PAY_NATIVE_GAS_FOR_CONTRACT_CALL, 0)? {
+            return Ok(true);
+        }
+
+        is_log_emmitted(&self.tx, OP_PAY_GAS, 0)
     }
 
     async fn key(&self) -> Result<MessageMatchingKey, TransactionParsingError> {
@@ -110,7 +114,7 @@ mod tests {
     use crate::transaction_parser::parser_native_gas_paid::ParserNativeGasPaid;
 
     #[tokio::test]
-    async fn test_parser() {
+    async fn test_parser_native_gas_paid_for_contract_call() {
         let traces = fixture_traces();
 
         let tx = traces[4].transactions[2].clone();
@@ -139,6 +143,42 @@ mod tests {
                 assert_eq!(
                     meta.tx_id.as_deref(),
                     Some("Ptv+ldOh9sTQOvwx23nPD8t6iGmm2RZVgUBXBk/jyrU=")
+                );
+            }
+            _ => panic!("Expected GasCredit event"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_parser_gas_paid() {
+        let traces = fixture_traces();
+
+        let tx = traces[18].transactions[1].clone();
+        let address = tx.clone().account;
+
+        let mut parser = ParserNativeGasPaid::new(tx, address).await.unwrap();
+        assert!(parser.is_match().await.unwrap());
+        assert_eq!(parser.message_id().await.is_ok(), true);
+        parser.parse().await.unwrap();
+        let event = parser.event(Some("foo".to_string())).await.unwrap();
+        match event {
+            Event::GasCredit {
+                common,
+                message_id,
+                refund_address,
+                payment,
+            } => {
+                assert_eq!(message_id, "foo");
+                assert_eq!(
+                    refund_address,
+                    "0:e1e633eb701b118b44297716cee7069ee847b56db88c497efea681ed14b2d2c7"
+                );
+                assert_eq!(payment.amount, "198639200");
+
+                let meta = &common.meta.as_ref().unwrap();
+                assert_eq!(
+                    meta.tx_id.as_deref(),
+                    Some("PzeZlujUPePAMw0Fz/eYeCRz11/X/f5YzUjfYXomzS8=")
                 );
             }
             _ => panic!("Expected GasCredit event"),
