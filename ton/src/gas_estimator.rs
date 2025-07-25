@@ -19,37 +19,37 @@ impl TONGasEstimator {
 
 #[cfg_attr(test, mockall::automock)]
 pub trait GasEstimator {
-    fn estimate_native_gas_refund(&self) -> impl Future<Output = u64>;
-    fn estimate_execute(&self, payload: usize) -> impl Future<Output = u64>;
-    fn estimate_approve_messages(&self, num_message: usize) -> impl Future<Output = u64>;
-    fn estimate_highload_wallet(&self, num_actions: usize) -> impl Future<Output = u64>;
+    fn native_gas_refund_estimate(&self) -> impl Future<Output = u64>;
+    fn execute_send(&self, payload: usize) -> impl Future<Output = u64>;
+    fn execute_estimate(&self, payload: usize) -> impl Future<Output = u64>;
+    fn approve_send(&self, num_message: usize) -> impl Future<Output = u64>;
+    fn highload_wallet_send(&self, num_actions: usize) -> impl Future<Output = u64>;
 }
 
 impl GasEstimator for TONGasEstimator {
-    async fn estimate_native_gas_refund(&self) -> u64 {
+    async fn native_gas_refund_estimate(&self) -> u64 {
         self.config.native_gas_refund + self.config.native_gas_refund_storage_slippage
     }
 
-    async fn estimate_execute(&self, payload: usize) -> u64 {
+    async fn execute_estimate(&self, payload: usize) -> u64 {
+        self.config.execute_base
+            + self.config.execute_payload * payload as u64
+            + self.config.execute_storage_slippage
+    }
+
+    async fn execute_send(&self, payload: usize) -> u64 {
         std::cmp::max(
-            self.config.execute,
-            self.config.execute_base
-                + self.config.execute_payload * payload as u64
-                + self.config.execute_storage_slippage,
+            self.config.execute_send_min,
+            self.execute_estimate(payload).await,
         )
     }
 
-    async fn estimate_highload_wallet(&self, num_actions: usize) -> u64 {
-        self.config.highload_wallet_per_action * num_actions as u64
+    async fn highload_wallet_send(&self, num_actions: usize) -> u64 {
+        self.config.highload_wallet_send * num_actions as u64
     }
 
-    async fn estimate_approve_messages(&self, _num_messages: usize) -> u64 {
-        // While working on estimates, we'll keep this logic
-        500000000u64
-        // self.config.approve_fixed
-        //     + self.config.approve_fixed_storage_slippage
-        //     + self.config.approve_per_message * num_messages as u64
-        //     + self.config.approve_per_message_storage_slippage
+    async fn approve_send(&self, _num_messages: usize) -> u64 {
+        self.config.approve_send
     }
 }
 
@@ -59,49 +59,43 @@ mod tests {
     use crate::config::GasEstimates;
 
     #[tokio::test]
-    async fn test_estimate_native_gas_refund() {
+    async fn test_native_gas_refund_estimate() {
         let config = GasEstimates {
             native_gas_refund: 100,
             native_gas_refund_storage_slippage: 20,
-            execute: 1,
+            execute_send_min: 1,
             execute_base: 0,
             execute_payload: 0,
             execute_storage_slippage: 1,
-            approve_fixed: 1,
-            approve_fixed_storage_slippage: 1,
-            approve_per_message: 1,
-            approve_per_message_storage_slippage: 1,
-            highload_wallet_per_action: 1,
+            approve_send: 500000000,
+            highload_wallet_send: 1,
         };
 
         let estimator = TONGasEstimator::new(config);
-        let refund = estimator.estimate_native_gas_refund().await;
+        let refund = estimator.native_gas_refund_estimate().await;
         assert_eq!(refund, 120);
     }
 
     #[tokio::test]
-    async fn test_estimate_execute() {
+    async fn test_execute_estimate() {
         let config = GasEstimates {
             native_gas_refund: 1,
             native_gas_refund_storage_slippage: 1,
-            execute: 310000000,
+            execute_send_min: 310000000,
             execute_base: 40000000,
             execute_payload: 21000,
             execute_storage_slippage: 0,
-            approve_fixed: 1,
-            approve_fixed_storage_slippage: 1,
-            approve_per_message: 1,
-            approve_per_message_storage_slippage: 1,
-            highload_wallet_per_action: 1,
+            approve_send: 500000000,
+            highload_wallet_send: 1,
         };
 
         let estimator = TONGasEstimator::new(config);
 
-        let execute = estimator.estimate_execute(3842usize).await;
-        assert_eq!(execute, 310000000);
+        let execute = estimator.execute_estimate(3842usize).await;
+        assert_eq!(execute, 120682000);
 
-        let execute = estimator.estimate_execute(8000usize).await;
-        assert_eq!(execute, 310000000);
+        let execute = estimator.execute_estimate(8000usize).await;
+        assert_eq!(execute, 208000000);
     }
 
     #[tokio::test]
@@ -109,40 +103,34 @@ mod tests {
         let config = GasEstimates {
             native_gas_refund: 1,
             native_gas_refund_storage_slippage: 1,
-            execute: 1,
+            execute_send_min: 1,
             execute_base: 0,
             execute_payload: 0,
             execute_storage_slippage: 1,
-            approve_fixed: 200,
-            approve_fixed_storage_slippage: 300,
-            approve_per_message: 33,
-            approve_per_message_storage_slippage: 22,
-            highload_wallet_per_action: 1,
+            highload_wallet_send: 1,
+            approve_send: 500000000,
         };
 
         let estimator = TONGasEstimator::new(config);
-        let approve = estimator.estimate_approve_messages(3usize).await;
+        let approve = estimator.approve_send(3usize).await;
         assert_eq!(approve, 500000000);
     }
 
     #[tokio::test]
-    async fn test_estimate_highload_wallet() {
+    async fn test_highload_wallet_send() {
         let config = GasEstimates {
             native_gas_refund: 1,
             native_gas_refund_storage_slippage: 1,
-            execute: 1,
+            execute_send_min: 1,
             execute_base: 0,
             execute_payload: 0,
             execute_storage_slippage: 1,
-            approve_fixed: 1,
-            approve_fixed_storage_slippage: 1,
-            approve_per_message: 1,
-            approve_per_message_storage_slippage: 1,
-            highload_wallet_per_action: 42,
+            approve_send: 500000000,
+            highload_wallet_send: 42,
         };
 
         let estimator = TONGasEstimator::new(config);
-        let approve = estimator.estimate_highload_wallet(3usize).await;
+        let approve = estimator.highload_wallet_send(3usize).await;
         assert_eq!(approve, 126);
     }
 
@@ -151,25 +139,46 @@ mod tests {
         let config = GasEstimates {
             native_gas_refund: 0,
             native_gas_refund_storage_slippage: 0,
-            execute: 0,
+            execute_send_min: 0,
             execute_base: 0,
             execute_payload: 0,
             execute_storage_slippage: 0,
-            approve_fixed: 0,
-            approve_fixed_storage_slippage: 0,
-            approve_per_message: 0,
-            approve_per_message_storage_slippage: 0,
-            highload_wallet_per_action: 0,
+            highload_wallet_send: 0,
+            approve_send: 0,
         };
 
         let estimator = TONGasEstimator::new(config);
-        let refund = estimator.estimate_native_gas_refund().await;
-        let execute = estimator.estimate_execute(0).await;
-        let approve = estimator.estimate_approve_messages(5usize).await;
-        let highload_wallet = estimator.estimate_highload_wallet(5usize).await;
+        let refund = estimator.native_gas_refund_estimate().await;
+        let execute = estimator.execute_estimate(0).await;
+        let approve = estimator.approve_send(5usize).await;
+        let highload_wallet = estimator.highload_wallet_send(5usize).await;
         assert_eq!(refund, 0);
         assert_eq!(execute, 0);
-        assert_eq!(approve, 500000000);
+        assert_eq!(approve, 0);
         assert_eq!(highload_wallet, 0);
+    }
+
+    #[tokio::test]
+    async fn test_execute_send() {
+        let config = GasEstimates {
+            native_gas_refund: 0,
+            native_gas_refund_storage_slippage: 0,
+            execute_send_min: 100000,
+            execute_base: 50000,
+            execute_payload: 1000,
+            execute_storage_slippage: 0,
+            approve_send: 500000000,
+            highload_wallet_send: 0,
+        };
+
+        let estimator = TONGasEstimator::new(config);
+
+        // Estimated = 50000 + 1000 * 10 = 60000 < execute_send_min, should return execute_send_min
+        let result = estimator.execute_send(10).await;
+        assert_eq!(result, 100000);
+
+        // Estimated = 50000 + 1000 * 200 = 250000 > execute_send_min, should return estimated
+        let result = estimator.execute_send(200).await;
+        assert_eq!(result, 250000);
     }
 }

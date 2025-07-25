@@ -280,13 +280,15 @@ where
                 Task::Refund(refund_task) => {
                     info!("Consuming task: {:?}", refund_task);
                     if !self.refund_manager.is_refund_manager_managed() {
-                        self
+                        return match self
                             .broadcaster
                             .broadcast_refund_message(refund_task.task)
                             .await
-                            .map_err(|e| IncluderError::GenericError(e.to_string()))?;
-
-                        return Ok(());
+                        {
+                            Ok(_) => Ok(()),
+                            Err(BroadcasterError::InsufficientGas(_)) => Ok(()),
+                            Err(e) => Err(IncluderError::GenericError(e.to_string())),
+                        }
                     }
 
                     if self

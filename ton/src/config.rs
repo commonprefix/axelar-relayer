@@ -14,15 +14,14 @@ pub struct WalletConfig {
 pub struct GasEstimates {
     pub native_gas_refund: u64,
     pub native_gas_refund_storage_slippage: u64,
-    pub execute: u64,
+    // Do not send less than this (even if the cost is smaller, because we'll be refunded)
+    pub execute_send_min: u64,
     pub execute_base: u64,
     pub execute_payload: u64,
     pub execute_storage_slippage: u64,
-    pub approve_fixed: u64,
-    pub approve_fixed_storage_slippage: u64,
-    pub approve_per_message: u64,
-    pub approve_per_message_storage_slippage: u64,
-    pub highload_wallet_per_action: u64,
+    // Approve will always be refunded to us, and theoretical maximum is 0.5 ton
+    pub approve_send: u64,
+    pub highload_wallet_send: u64,
 }
 
 #[derive(Debug, Clone, Deserialize, Default)]

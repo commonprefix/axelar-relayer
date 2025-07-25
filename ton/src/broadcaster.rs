@@ -28,7 +28,6 @@ use relayer_base::{
     error::BroadcasterError,
     includer::{BroadcastResult, Broadcaster},
 };
-use std::cmp::min;
 use std::str::FromStr;
 use std::sync::Arc;
 use tonlib_core::tlb_types::block::out_action::OutAction;
@@ -84,11 +83,7 @@ impl<GE: GasEstimator> TONBroadcaster<GE> {
             .outgoing_message(
                 &actions,
                 query_id.query_id().await,
-                BigUint::from(
-                    self.gas_estimator
-                        .estimate_highload_wallet(actions.len())
-                        .await,
-                ),
+                BigUint::from(self.gas_estimator.highload_wallet_send(actions.len()).await),
             )
             .map_err(|e| BroadcasterError::GenericError(e.to_string()))?;
 
@@ -123,7 +118,7 @@ impl<GE: GasEstimator> Broadcaster for TONBroadcaster<GE> {
         let message = &approve_messages.approve_messages[0];
         let approve_message_value: BigUint = BigUint::from(
             self.gas_estimator
-                .estimate_approve_messages(approve_messages.approve_messages.len())
+                .approve_send(approve_messages.approve_messages.len())
                 .await,
         );
         info!(
@@ -183,24 +178,19 @@ impl<GE: GasEstimator> Broadcaster for TONBroadcaster<GE> {
                 BroadcasterError::GenericError(format!("Failed decoding payload: {:?}", e))
             })?;
 
-        let hex_payload = hex::encode(decoded_bytes);
+        let payload_len = decoded_bytes.len();
+
+        let hex_payload = hex::encode(decoded_bytes.clone());
 
         let message_id = message.message.message_id;
         let source_chain = message.message.source_chain;
 
         let available_gas = u64::from_str(&message.available_gas_balance.amount).unwrap_or(0);
-        let required_gas = self
-            .gas_estimator
-            .estimate_execute(message.payload.len())
-            .await;
+        let required_gas = self.gas_estimator.execute_estimate(payload_len).await;
 
         info!(
-            //"Execute message: message_id={}, source_chain={}, available_gas={}, required_gas={}",
-            "Sending execute message: message_id={}, source_chain={}, available_gas={}",
-            //message_id, source_chain, available_gas, required_gas
-            message_id,
-            source_chain,
-            available_gas
+            "Considering execute message: message_id={}, source_chain={}, available_gas={}, required_gas={}, payload_len={}",
+            message_id, source_chain, available_gas, required_gas, payload_len
         );
         if available_gas < required_gas {
             return Ok(BroadcastResult {
@@ -241,7 +231,8 @@ impl<GE: GasEstimator> Broadcaster for TONBroadcaster<GE> {
                     ))
                 })?;
 
-            let execute_message_value: BigUint = BigUint::from(min(available_gas, required_gas));
+            let execute_message_value: BigUint =
+                BigUint::from(self.gas_estimator.execute_send(payload_len).await);
 
             let actions: Vec<OutAction> = vec![out_action(
                 &boc,
@@ -294,20 +285,24 @@ impl<GE: GasEstimator> Broadcaster for TONBroadcaster<GE> {
 
         let original_amount = BigUint::from_str(&refund_task.remaining_gas_balance.amount)
             .map_err(|err| BroadcasterError::GenericError(err.to_string()))?;
-        let gas_estimate = self.gas_estimator.estimate_native_gas_refund().await;
+        let gas_estimate = self.gas_estimator.native_gas_refund_estimate().await;
+
+        info!(
+            "Considering refund message: message_id={}, address={}, original_amount={}, gas_estimate={}",
+            refund_task.message.message_id, address, refund_task.remaining_gas_balance.amount, gas_estimate
+        );
 
         if original_amount < BigUint::from(gas_estimate) {
-            return Err(BroadcasterError::GenericError(
+            info!(
+                "Not enough balance to cover gas for refund: message_id={}",
+                refund_task.message.message_id
+            );
+            return Err(BroadcasterError::InsufficientGas(
                 "Not enough balance to cover gas for refund".to_string(),
             ));
         }
 
         let amount = original_amount - BigUint::from(gas_estimate);
-
-        info!(
-            "Sending refund message: message_id={}, address={}, amount={}",
-            refund_task.message.message_id, address, amount
-        );
 
         let native_refund = NativeRefundMessage::new(tx_hash, address, amount);
 
@@ -414,10 +409,10 @@ mod tests {
 
         let mut gas_estimator = MockGasEstimator::new();
         gas_estimator
-            .expect_estimate_approve_messages()
+            .expect_approve_send()
             .returning(|_| Box::pin(async { 42u64 }));
         gas_estimator
-            .expect_estimate_highload_wallet()
+            .expect_highload_wallet_send()
             .returning(|_| Box::pin(async { 1024u64 }));
 
         let broadcaster = TONBroadcaster {
@@ -529,10 +524,13 @@ mod tests {
 
         let mut gas_estimator = MockGasEstimator::new();
         gas_estimator
-            .expect_estimate_execute()
+            .expect_execute_estimate()
             .returning(|_| Box::pin(async { 42u64 }));
         gas_estimator
-            .expect_estimate_highload_wallet()
+            .expect_execute_send()
+            .returning(|_| Box::pin(async { 42u64 }));
+        gas_estimator
+            .expect_highload_wallet_send()
             .returning(|_| Box::pin(async { 1024u64 }));
 
         let broadcaster = TONBroadcaster {
@@ -601,10 +599,10 @@ mod tests {
 
         let mut gas_estimator = MockGasEstimator::new();
         gas_estimator
-            .expect_estimate_execute()
+            .expect_execute_estimate()
             .returning(|_| Box::pin(async { 42u64 }));
         gas_estimator
-            .expect_estimate_highload_wallet()
+            .expect_highload_wallet_send()
             .returning(|_| Box::pin(async { 1024u64 }));
 
         let broadcaster = TONBroadcaster {
@@ -670,10 +668,10 @@ mod tests {
 
         let mut gas_estimator = MockGasEstimator::new();
         gas_estimator
-            .expect_estimate_native_gas_refund()
+            .expect_native_gas_refund_estimate()
             .returning(|| Box::pin(async { 42u64 }));
         gas_estimator
-            .expect_estimate_highload_wallet()
+            .expect_highload_wallet_send()
             .returning(|_| Box::pin(async { 1024u64 }));
 
         let broadcaster = TONBroadcaster {
@@ -713,10 +711,10 @@ mod tests {
 
         let mut gas_estimator = MockGasEstimator::new();
         gas_estimator
-            .expect_estimate_native_gas_refund()
+            .expect_native_gas_refund_estimate()
             .returning(|| Box::pin(async { 1000u64 }));
         gas_estimator
-            .expect_estimate_highload_wallet()
+            .expect_highload_wallet_send()
             .returning(|_| Box::pin(async { 1000u64 }));
 
         let broadcaster = TONBroadcaster {
