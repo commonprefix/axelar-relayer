@@ -47,6 +47,7 @@ use xrpl_amplifier_types::{
 use xrpl_api::Transaction;
 use xrpl_api::{Memo, PaymentTransaction};
 use xrpl_gateway::msg::{CallContract, InterchainTransfer, MessageWithPayload};
+use relayer_base::gmp_api::GmpApiTrait;
 use relayer_base::payload_cache::PayloadCacheTrait;
 
 const MAX_TASK_RETRIES: i32 = 5;

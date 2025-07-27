@@ -10,6 +10,7 @@ use std::{
     path::PathBuf,
     time::Duration,
 };
+use std::future::Future;
 use tracing::{debug, info, warn};
 use xrpl_amplifier_types::msg::XRPLMessage;
 
@@ -65,33 +66,6 @@ fn identity_from_config(config: &Config) -> Result<Identity, GmpApiError> {
 }
 
 impl GmpApi {
-    pub fn new(config: &Config, connection_pooling: bool) -> Result<Self, GmpApiError> {
-        let mut client_builder = reqwest::ClientBuilder::new()
-            .connect_timeout(Duration::from_secs(5))
-            .timeout(Duration::from_secs(30))
-            .identity(identity_from_config(config)?);
-        if connection_pooling {
-            client_builder = client_builder.pool_idle_timeout(Some(Duration::from_secs(300)));
-        } else {
-            client_builder = client_builder.pool_max_idle_per_host(0);
-        }
-
-        let retry_policy = ExponentialBackoff::builder().build_with_max_retries(3);
-        let client = ClientBuilder::new(
-            client_builder
-                .build()
-                .map_err(|e| GmpApiError::ConnectionFailed(e.to_string()))?,
-        )
-        .with(RetryTransientMiddleware::new_with_policy(retry_policy))
-        .build();
-
-        Ok(Self {
-            rpc_url: config.gmp_api_url.to_owned(),
-            client,
-            chain: config.chain_name.to_owned(),
-        })
-    }
-
     async fn request_bytes_if_success(
         request: reqwest_middleware::RequestBuilder,
     ) -> Result<Vec<u8>, GmpApiError> {
@@ -157,57 +131,10 @@ impl GmpApi {
             .await
             .map_err(|e| GmpApiError::InvalidResponse(e.to_string()))
     }
+}
 
-    pub async fn get_tasks_action(&self, after: Option<String>) -> Result<Vec<Task>, GmpApiError> {
-        let request_url = format!("{}/chains/{}/tasks", self.rpc_url, self.chain);
-        let mut request = self.client.get(&request_url);
-
-        if let Some(after) = after {
-            request = request.query(&[("after", &after)]);
-            debug!("Requesting tasks after: {}", after);
-        }
-
-        let response: HashMap<String, Vec<Value>> = GmpApi::request_json(request).await?;
-        debug!("Response from {}: {:?}", request_url, response);
-
-        let tasks_json = response
-            .get("tasks")
-            .ok_or_else(|| GmpApiError::InvalidResponse("Missing 'tasks' field".to_string()))?;
-
-        Ok(tasks_json
-            .iter()
-            .filter_map(|task_json| match parse_task(task_json) {
-                Ok(task) => Some(task),
-                Err(e) => {
-                    warn!("Failed to parse task: {:?}", e);
-                    None
-                }
-            })
-            .collect::<Vec<_>>())
-    }
-
-    pub async fn post_events(
-        &self,
-        events: Vec<Event>,
-    ) -> Result<Vec<PostEventResult>, GmpApiError> {
-        let mut map = HashMap::new();
-        map.insert("events", events);
-
-        debug!("Posting events: {:?}", map);
-
-        let url = format!("{}/chains/{}/events", self.rpc_url, self.chain);
-        let request = self
-            .client
-            .post(&url)
-            .header("Content-Type", "application/json")
-            .body(serde_json::to_string(&map).unwrap());
-
-        let response: PostEventResponse = GmpApi::request_json(request).await?;
-        info!("Response from POST: {:?}", response);
-        Ok(response.results)
-    }
-
-    pub async fn post_broadcast(
+impl GmpApiTrait for GmpApi {
+    async fn post_broadcast(
         &self,
         contract_address: String,
         data: &BroadcastRequest,
@@ -273,8 +200,7 @@ impl GmpApi {
         }
         response
     }
-
-    pub async fn get_broadcast_result(
+    async fn get_broadcast_result(
         &self,
         contract_address: String,
         broadcast_id: String,
@@ -302,7 +228,7 @@ impl GmpApi {
                         tokio::time::sleep(Duration::from_secs(
                             BROADCAST_POLL_INTERVAL_SECONDS as u64,
                         ))
-                        .await;
+                            .await;
                         continue;
                     }
                     Some("SUCCESS") => {
@@ -353,8 +279,7 @@ impl GmpApi {
             }
         }
     }
-
-    pub async fn post_query(
+    async fn post_query(
         &self,
         contract_address: String,
         data: &QueryRequest,
@@ -371,8 +296,7 @@ impl GmpApi {
 
         GmpApi::request_text_if_success(request).await
     }
-
-    pub async fn post_payload(&self, payload: &[u8]) -> Result<String, GmpApiError> {
+    async fn post_payload(&self, payload: &[u8]) -> Result<String, GmpApiError> {
         let url = format!("{}/payloads", self.rpc_url);
         let request = self
             .client
@@ -383,15 +307,13 @@ impl GmpApi {
         let response: StorePayloadResult = GmpApi::request_json(request).await?;
         Ok(response.keccak256.trim_start_matches("0x").to_string())
     }
-
-    pub async fn get_payload(&self, hash: &str) -> Result<String, GmpApiError> {
+    async fn get_payload(&self, hash: &str) -> Result<String, GmpApiError> {
         let url = format!("{}/payloads/0x{}", self.rpc_url, hash.to_lowercase());
         let request = self.client.get(&url);
         let response = GmpApi::request_bytes_if_success(request).await?;
         Ok(hex::encode(response))
     }
-
-    pub async fn cannot_execute_message(
+    async fn cannot_execute_message(
         &self,
         id: String,
         message_id: String,
@@ -415,8 +337,7 @@ impl GmpApi {
 
         Ok(())
     }
-
-    pub async fn its_interchain_transfer(
+    async fn its_interchain_transfer(
         &self,
         xrpl_message: XRPLMessage,
     ) -> Result<(), GmpApiError> {
@@ -449,6 +370,120 @@ impl GmpApi {
 
         Ok(())
     }
+
+    fn new(config: &Config, connection_pooling: bool) -> Result<Self, GmpApiError> {
+        let mut client_builder = reqwest::ClientBuilder::new()
+            .connect_timeout(Duration::from_secs(5))
+            .timeout(Duration::from_secs(30))
+            .identity(identity_from_config(config)?);
+        if connection_pooling {
+            client_builder = client_builder.pool_idle_timeout(Some(Duration::from_secs(300)));
+        } else {
+            client_builder = client_builder.pool_max_idle_per_host(0);
+        }
+
+        let retry_policy = ExponentialBackoff::builder().build_with_max_retries(3);
+        let client = ClientBuilder::new(
+            client_builder
+                .build()
+                .map_err(|e| GmpApiError::ConnectionFailed(e.to_string()))?,
+        )
+            .with(RetryTransientMiddleware::new_with_policy(retry_policy))
+            .build();
+
+        Ok(Self {
+            rpc_url: config.gmp_api_url.to_owned(),
+            client,
+            chain: config.chain_name.to_owned(),
+        })
+    }
+
+    async fn get_tasks_action(&self, after: Option<String>) -> Result<Vec<Task>, GmpApiError> {
+        let request_url = format!("{}/chains/{}/tasks", self.rpc_url, self.chain);
+        let mut request = self.client.get(&request_url);
+
+        if let Some(after) = after {
+            request = request.query(&[("after", &after)]);
+            debug!("Requesting tasks after: {}", after);
+        }
+
+        let response: HashMap<String, Vec<Value>> = GmpApi::request_json(request).await?;
+        debug!("Response from {}: {:?}", request_url, response);
+
+        let tasks_json = response
+            .get("tasks")
+            .ok_or_else(|| GmpApiError::InvalidResponse("Missing 'tasks' field".to_string()))?;
+
+        Ok(tasks_json
+            .iter()
+            .filter_map(|task_json| match parse_task(task_json) {
+                Ok(task) => Some(task),
+                Err(e) => {
+                    warn!("Failed to parse task: {:?}", e);
+                    None
+                }
+            })
+            .collect::<Vec<_>>())
+    }
+
+    async fn post_events(
+        &self,
+        events: Vec<Event>,
+    ) -> Result<Vec<PostEventResult>, GmpApiError> {
+        let mut map = HashMap::new();
+        map.insert("events", events);
+
+        debug!("Posting events: {:?}", map);
+
+        let url = format!("{}/chains/{}/events", self.rpc_url, self.chain);
+        let request = self
+            .client
+            .post(&url)
+            .header("Content-Type", "application/json")
+            .body(serde_json::to_string(&map).unwrap());
+
+        let response: PostEventResponse = GmpApi::request_json(request).await?;
+        info!("Response from POST: {:?}", response);
+        Ok(response.results)
+    }
+}
+
+pub trait GmpApiTrait {
+    fn new(config: &Config, connection_pooling: bool) -> Result<Self, GmpApiError> where Self: Sized;
+    fn get_tasks_action(&self, after: Option<String>) -> impl Future<Output = Result<Vec<Task>, GmpApiError>>;
+    fn post_events(
+        &self,
+        events: Vec<Event>,
+    ) -> impl Future<Output = Result<Vec<PostEventResult>, GmpApiError>>;
+    fn post_broadcast(
+        &self,
+        contract_address: String,
+        data: &BroadcastRequest,
+    ) -> impl Future<Output = Result<String, GmpApiError>>;
+    fn get_broadcast_result(
+        &self,
+        contract_address: String,
+        broadcast_id: String,
+    ) -> impl Future<Output = Result<String, GmpApiError>>;
+    fn post_query(
+        &self,
+        contract_address: String,
+        data: &QueryRequest,
+    ) -> impl Future<Output = Result<String, GmpApiError>>;
+    fn post_payload(&self, payload: &[u8]) -> impl Future<Output = Result<String, GmpApiError>>;
+    fn get_payload(&self, hash: &str) -> impl Future<Output = Result<String, GmpApiError>>;
+    fn cannot_execute_message(
+        &self,
+        id: String,
+        message_id: String,
+        source_chain: String,
+        details: String,
+        reason: CannotExecuteMessageReason,
+    ) -> impl Future<Output = Result<(), GmpApiError>>;
+    fn its_interchain_transfer(
+        &self,
+        xrpl_message: XRPLMessage,
+    ) -> impl Future<Output = Result<(), GmpApiError>>;
 }
 
 #[cfg(test)]

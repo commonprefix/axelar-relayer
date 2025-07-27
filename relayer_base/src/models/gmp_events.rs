@@ -6,7 +6,8 @@ use std::future::Future;
 const PG_TABLE_NAME: &str = "gmp_events";
 
 pub struct EventModel {
-    pub id: String,
+    pub _id: i64, // We want to keep a serial ID in case multiple tasks come with same event_id
+    pub event_id: String,
     pub message_id: Option<String>,
     pub event_type: String,
     pub event: Json<Event>,
@@ -17,7 +18,7 @@ pub struct EventModel {
 
 impl EventModel {
     pub fn from_event(event: Event) -> Self {
-        let (id, event_type, message_id) = match &event {
+        let (event_id, event_type, message_id) = match &event {
             Event::GasRefunded { common, message_id, .. }
             | Event::GasCredit { common, message_id, .. }
             | Event::CannotExecuteMessageV2 { common, message_id, .. }
@@ -44,7 +45,8 @@ impl EventModel {
         };
 
         Self {
-            id,
+            _id: 0,
+            event_id,
             message_id,
             event_type,
             event: Json(event),
@@ -74,13 +76,13 @@ pub trait GMPAudit {
 impl GMPAudit for PgGMPEvents {
     async fn insert_event(&self, event: EventModel) -> anyhow::Result<()> {
         let query = format!(
-            "INSERT INTO {} (id, message_id, event_type, event)
+            "INSERT INTO {} (event_id, message_id, event_type, event)
                 VALUES ($1, $2, $3, $4)",
             PG_TABLE_NAME
         );
 
         sqlx::query(&query)
-            .bind(event.id)
+            .bind(event.event_id)
             .bind(event.message_id)
             .bind(event.event_type)
             .bind(event.event)
@@ -90,15 +92,15 @@ impl GMPAudit for PgGMPEvents {
         Ok(())
     }
 
-    async fn update_event_response(&self, id: String, response: Json<PostEventResult>) -> anyhow::Result<()> {
+    async fn update_event_response(&self, event_id: String, response: Json<PostEventResult>) -> anyhow::Result<()> {
         let query = format!(
-            "UPDATE {} SET response = $1, updated_at = NOW() WHERE id = $2",
+            "UPDATE {} SET response = $1, updated_at = NOW() WHERE event_id = $2",
             PG_TABLE_NAME
         );
 
         sqlx::query(&query)
             .bind(response)
-            .bind(id)
+            .bind(event_id)
             .execute(&self.pool)
             .await?;
 
@@ -123,7 +125,7 @@ mod tests {
 
         let model = EventModel::from_event(event);
 
-        assert_eq!(model.id, event_id);
+        assert_eq!(model.event_id, event_id);
         assert_eq!(model.event_type, event_type);
         assert_eq!(model.message_id, Some(message_id));
     }
@@ -137,7 +139,7 @@ mod tests {
 
         let model = EventModel::from_event(event);
 
-        assert_eq!(model.id, event_id);
+        assert_eq!(model.event_id, event_id);
         assert_eq!(model.event_type, event_type);
         assert_eq!(model.message_id, Some(message_id));
     }
@@ -151,7 +153,7 @@ mod tests {
 
         let model = EventModel::from_event(event);
 
-        assert_eq!(model.id, event_id);
+        assert_eq!(model.event_id, event_id);
         assert_eq!(model.event_type, event_type);
         assert_eq!(model.message_id, Some(message_id));
     }
@@ -165,7 +167,7 @@ mod tests {
 
         let model = EventModel::from_event(event);
 
-        assert_eq!(model.id, event_id);
+        assert_eq!(model.event_id, event_id);
         assert_eq!(model.event_type, event_type);
         assert_eq!(model.message_id, Some(message_id));
     }
@@ -179,7 +181,7 @@ mod tests {
 
         let model = EventModel::from_event(event);
 
-        assert_eq!(model.id, event_id);
+        assert_eq!(model.event_id, event_id);
         assert_eq!(model.event_type, event_type);
         assert_eq!(model.message_id, Some(message_id));
     }
@@ -193,7 +195,7 @@ mod tests {
 
         let model = EventModel::from_event(event);
 
-        assert_eq!(model.id, event_id);
+        assert_eq!(model.event_id, event_id);
         assert_eq!(model.event_type, event_type);
         assert_eq!(model.message_id, Some(message_id));
     }
@@ -207,7 +209,7 @@ mod tests {
 
         let model = EventModel::from_event(event);
 
-        assert_eq!(model.id, event_id);
+        assert_eq!(model.event_id, event_id);
         assert_eq!(model.event_type, event_type);
         assert_eq!(model.message_id, Some(message_id));
     }
@@ -239,17 +241,17 @@ mod tests {
 
         model.insert_event(event_model).await.unwrap();
 
-        let row = sqlx::query("SELECT id, message_id, event_type FROM gmp_events WHERE id = $1")
+        let row = sqlx::query("SELECT event_id, message_id, event_type FROM gmp_events WHERE event_id = $1")
             .bind("event123")
             .fetch_one(&pool)
             .await
             .unwrap();
 
-        let id: String = row.get("id");
+        let event_id: String = row.get("event_id");
         let message_id: String = row.get("message_id");
         let event_type: String = row.get("event_type");
 
-        assert_eq!(id, "event123");
+        assert_eq!(event_id, "event123");
         assert_eq!(message_id, "message123");
         assert_eq!(event_type, "GAS_REFUNDED");
 
@@ -262,7 +264,7 @@ mod tests {
 
         model.update_event_response("event123".to_string(), Json(response.clone())).await.unwrap();
 
-        let row = sqlx::query("SELECT response FROM gmp_events WHERE id = $1")
+        let row = sqlx::query("SELECT response FROM gmp_events WHERE event_id = $1")
             .bind("event123")
             .fetch_one(&pool)
             .await

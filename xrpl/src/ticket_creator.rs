@@ -3,7 +3,7 @@ use std::sync::Arc;
 use tracing::{debug, error, info};
 
 use crate::config::XRPLConfig;
-use relayer_base::gmp_api::{gmp_types::BroadcastRequest, GmpApi};
+use relayer_base::gmp_api::{gmp_types::BroadcastRequest, GmpApi, GmpApiTrait};
 use xrpl_multisig_prover;
 
 pub struct XrplTicketCreator {

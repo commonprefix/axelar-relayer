@@ -11,6 +11,7 @@ use relayer_base::{
     queue::Queue,
     utils::{setup_heartbeat, setup_logging},
 };
+use relayer_base::gmp_api::GmpApiTrait;
 use ton::config::TONConfig;
 
 #[tokio::main]

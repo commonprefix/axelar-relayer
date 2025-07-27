@@ -14,6 +14,7 @@ use crate::{
     queue::{Queue, QueueItem},
     subscriber::ChainTransaction,
 };
+use crate::gmp_api::GmpApiTrait;
 
 pub struct Ingestor<I: IngestorTrait> {
     gmp_api: Arc<GmpApi>,

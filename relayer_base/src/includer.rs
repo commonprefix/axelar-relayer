@@ -17,6 +17,7 @@ use crate::{
     queue::{Queue, QueueItem},
 };
 use crate::gmp_api::gmp_types::{ExecuteTaskFields, RefundTaskFields};
+use crate::gmp_api::GmpApiTrait;
 use crate::payload_cache::PayloadCacheTrait;
 
 pub trait RefundManager {

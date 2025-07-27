@@ -7,6 +7,7 @@ use crate::{
     gmp_api::{gmp_types::TaskKind, GmpApi},
     queue::{Queue, QueueItem},
 };
+use crate::gmp_api::GmpApiTrait;
 
 #[derive(Clone)]
 pub struct RecoverySettings {
