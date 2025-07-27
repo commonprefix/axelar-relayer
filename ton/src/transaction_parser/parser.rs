@@ -59,6 +59,7 @@ impl<PV: PriceViewTrait> TraceParserTrait for TraceParser<PV> {
 
         let (total_gas_used, refund_gas_used) = self.gas_used(&trace)?;
 
+        let trace_id = trace.trace_id.clone();
         let message_approved_count = self
             .create_parsers(
                 trace,
@@ -68,6 +69,18 @@ impl<PV: PriceViewTrait> TraceParserTrait for TraceParser<PV> {
                 self.chain_name.clone(),
             )
             .await?;
+
+        info!(
+            "Parsing results: trace_id={} parsers={}, call_contract={}, gas_credit_map={}",
+            trace_id,
+            parsers.len(),
+            call_contract.len(),
+            gas_credit_map.len()
+        );
+
+        if (parsers.len() + call_contract.len() + gas_credit_map.len()) == 0 {
+            warn!("Trace did not produce any parsers: trace_id={}", trace_id);
+        }
 
         for cc in call_contract {
             let cc_key = cc.key().await?;
@@ -289,11 +302,6 @@ impl<PV: PriceViewTrait> TraceParser<PV> {
                 parsers.push(Box::new(parser));
                 continue;
             }
-
-            warn!(
-                "Trace did not match any parsers, trace_id={}",
-                trace.trace_id
-            );
         }
         Ok(message_approved_count)
     }

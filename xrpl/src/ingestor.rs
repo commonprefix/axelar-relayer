@@ -19,7 +19,6 @@ use relayer_base::{
             EventMetadata, GatewayV2Message, MessageExecutedEventMetadata, MessageExecutionStatus,
             QueryRequest, ReactToWasmEventTask, VerifyTask,
         },
-        GmpApi,
     },
     models::Model,
     payload_cache::{PayloadCache, PayloadCacheValue},

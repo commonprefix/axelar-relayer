@@ -3,7 +3,6 @@ use relayer_base::config::config_from_yaml;
 use relayer_base::utils::setup_heartbeat;
 use relayer_base::{
     database::PostgresDB, gmp_api, payload_cache::PayloadCache, queue::Queue, utils::setup_logging,
-    models::gmp_tasks::PgGMPTasks, models::gmp_events::PgGMPEvents,
 };
 use sqlx::PgPool;
 use std::sync::Arc;

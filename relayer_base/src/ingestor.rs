@@ -8,7 +8,6 @@ use crate::{
     error::IngestorError,
     gmp_api::{
         gmp_types::{ConstructProofTask, Event, ReactToWasmEventTask, RetryTask, Task, VerifyTask},
-        GmpApi,
     },
     models::task_retries::PgTaskRetriesModel,
     queue::{Queue, QueueItem},

@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use relayer_base::{
-    database::Database, error::BroadcasterError, gmp_api::{GmpApi, GmpApiTrait}, includer::Includer,
+    database::Database, error::BroadcasterError, gmp_api::{GmpApiTrait}, includer::Includer,
     payload_cache::PayloadCache, queue::Queue,
 };
 

@@ -13,7 +13,6 @@ use relayer_base::{
     models::gmp_tasks::PgGMPTasks,
     models::gmp_events::PgGMPEvents,
 };
-use relayer_base::gmp_api::GmpApiTrait;
 use xrpl::{
     client::XRPLClient, config::XRPLConfig, includer::XrplIncluder,
     models::queued_transactions::PgQueuedTransactionsModel,

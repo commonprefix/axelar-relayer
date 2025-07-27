@@ -11,7 +11,6 @@ use crate::{
     error::{BroadcasterError, IncluderError, RefundManagerError},
     gmp_api::{
         gmp_types::{Amount, CommonEventFields, Event, RefundTask, Task},
-        GmpApi,
     },
     payload_cache::PayloadCache,
     queue::{Queue, QueueItem},

@@ -4,7 +4,7 @@ use tracing::{info, warn};
 use crate::{
     database::Database,
     error::DistributorError,
-    gmp_api::{gmp_types::TaskKind, GmpApi},
+    gmp_api::{gmp_types::TaskKind},
     queue::{Queue, QueueItem},
 };
 use crate::gmp_api::GmpApiTrait;

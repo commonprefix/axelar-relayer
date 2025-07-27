@@ -1,5 +1,4 @@
 use dotenv::dotenv;
-use std::sync::Arc;
 use tokio::signal::unix::{signal, SignalKind};
 use sqlx::PgPool;
 
@@ -25,7 +24,7 @@ async fn main() -> anyhow::Result<()> {
     let ingestor_tasks_queue = Queue::new(&config.common_config.queue_address, "ingestor_tasks").await;
     let postgres_db = PostgresDB::new(&config.common_config.postgres_url).await.unwrap();
 
-    let pg_pool = PgPool::connect(&config.common_config.postgres_url).await.unwrap();
+    let pg_pool = PgPool::connect(&config.common_config.postgres_url).await?;
     let gmp_api = gmp_api::construct_gmp_api(pg_pool, &config.common_config, true).unwrap();
 
     let mut distributor = Distributor::new(

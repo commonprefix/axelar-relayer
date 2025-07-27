@@ -1,5 +1,4 @@
 use dotenv::dotenv;
-use std::sync::Arc;
 use tokio::signal::unix::{signal, SignalKind};
 use sqlx::PgPool;
 
@@ -9,8 +8,6 @@ use relayer_base::{
     gmp_api::{self, gmp_types::TaskKind},
     queue::Queue,
     utils::setup_logging,
-    models::gmp_tasks::PgGMPTasks,
-    models::gmp_events::PgGMPEvents,
 };
 use relayer_base::config::{config_from_yaml};
 use xrpl::config::XRPLConfig;

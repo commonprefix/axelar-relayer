@@ -6,7 +6,7 @@ use crate::high_load_query_id_db_wrapper::HighLoadQueryIdDbWrapper;
 use crate::lock_manager::RedisLockManager;
 use crate::wallet_manager::WalletManager;
 use relayer_base::{
-    database::Database, error::BroadcasterError, gmp_api::{GmpApi, GmpApiTrait}, includer::Includer,
+    database::Database, error::BroadcasterError, gmp_api::GmpApiTrait, includer::Includer,
     payload_cache::PayloadCache, queue::Queue,
 };
 use std::sync::Arc;
