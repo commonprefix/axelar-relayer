@@ -13,6 +13,7 @@ use ton::config::TONConfig;
 use ton::gas_calculator::GasCalculator;
 use ton::ingestor::TONIngestor;
 use ton::parser::TraceParser;
+use ton::ton_trace::PgTONTraceModel;
 use tonlib_core::TonAddress;
 
 #[tokio::main]
@@ -33,7 +34,7 @@ async fn main() -> anyhow::Result<()> {
         .await
         .unwrap();
 
-    let gmp_api = gmp_api::construct_gmp_api(pg_pool, &config.common_config, true).unwrap();
+    let gmp_api = gmp_api::construct_gmp_api(pg_pool.clone(), &config.common_config, true).unwrap();
     let price_view = PriceView::new(postgres_db.clone());
 
     let mut our_addresses = vec![];
@@ -55,7 +56,8 @@ async fn main() -> anyhow::Result<()> {
         config.common_config.chain_name,
     );
 
-    let ton_ingestor = TONIngestor::new(parser);
+    let ton_trace_model = PgTONTraceModel::new(pg_pool.clone());
+    let ton_ingestor = TONIngestor::new(parser, ton_trace_model);
     let ingestor = Ingestor::new(gmp_api, ton_ingestor);
 
     let redis_client = redis::Client::open(config.common_config.redis_server.clone())?;

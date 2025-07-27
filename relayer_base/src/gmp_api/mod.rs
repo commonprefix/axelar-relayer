@@ -398,7 +398,7 @@ impl GmpApiTrait for GmpApi {
     }
 
     fn map_cannot_execute_message_to_event(&self, id: String, message_id: String, source_chain: String, details: String, reason: CannotExecuteMessageReason) -> Event {
-        let cannot_execute_message_event = Event::CannotExecuteMessageV2 {
+        Event::CannotExecuteMessageV2 {
             common: CommonEventFields {
                 r#type: "CANNOT_EXECUTE_MESSAGE/V2".to_owned(),
                 event_id: format!("cannot-execute-task-v{}-{}", 2, id),
@@ -408,8 +408,7 @@ impl GmpApiTrait for GmpApi {
             source_chain,
             reason,
             details,
-        };
-        cannot_execute_message_event
+        }
     }
 
     async fn cannot_execute_message(
