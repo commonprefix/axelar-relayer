@@ -1,5 +1,6 @@
 pub mod gmp_types;
 pub mod gmp_api_db_audit_decorator;
+pub use gmp_api_db_audit_decorator::GmpApiDbAuditDecorator;
 
 use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
 use reqwest_retry::{policies::ExponentialBackoff, RetryTransientMiddleware};

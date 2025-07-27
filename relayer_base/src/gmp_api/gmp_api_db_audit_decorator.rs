@@ -1,3 +1,35 @@
+/*! # GMP API Database Audit Decorator
+
+Decorator pattern for the GMP API that adds database auditing.
+The `GmpApiDbAuditDecorator` wraps a GMP API implementation and adds database logging.
+
+# Example
+
+```rust
+use relayer_base::gmp_api::{GmpApiDbAuditDecorator, GmpApiTrait, GmpApi};
+use relayer_base::models::gmp_events::{GMPAudit, PgGMPEvents};
+use relayer_base::models::gmp_tasks::{GMPTaskAudit, PgGMPTasks};
+use relayer_base::config::Config;
+use sqlx::PgPool;
+
+async fn setup_gmp_api(config: &Config, pg_pool: PgPool) -> anyhow::Result<impl GmpApiTrait> {
+    // Create the GMP API
+    let gmp_api = GmpApi::new(config, true)?;
+
+    // Create both models using the provided PgPool
+    let gmp_tasks = PgGMPTasks::new(pg_pool.clone());
+    let gmp_events = PgGMPEvents::new(pg_pool);
+
+    // Create a decorated GMP API with database auditing
+    let decorated_api = GmpApiDbAuditDecorator::new(gmp_api, gmp_tasks, gmp_events);
+
+    // Now you can use decorated_api as a regular GmpApiTrait implementation
+    // with automatic database auditing for tasks and events 
+    Ok(decorated_api)
+}
+```
+*/
+
 use crate::error::GmpApiError;
 use crate::gmp_api::gmp_types::{
     BroadcastRequest, CannotExecuteMessageReason, Event, PostEventResult, QueryRequest, Task,
