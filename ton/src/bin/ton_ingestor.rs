@@ -8,7 +8,6 @@ use relayer_base::queue::Queue;
 use relayer_base::utils::{setup_heartbeat, setup_logging};
 use sqlx::PgPool;
 use std::str::FromStr;
-use std::sync::Arc;
 use tokio::signal::unix::{signal, SignalKind};
 use ton::config::TONConfig;
 use ton::gas_calculator::GasCalculator;
@@ -26,13 +25,15 @@ async fn main() -> anyhow::Result<()> {
 
     let tasks_queue = Queue::new(&config.common_config.queue_address, "ingestor_tasks").await;
     let events_queue = Queue::new(&config.common_config.queue_address, "events").await;
-    let gmp_api = Arc::new(gmp_api::GmpApi::new(&config.common_config, true).unwrap());
     let postgres_db = PostgresDB::new(&config.common_config.postgres_url)
         .await
         .unwrap();
-    let _pg_pool = PgPool::connect(&config.common_config.postgres_url)
+
+    let pg_pool = PgPool::connect(&config.common_config.postgres_url)
         .await
         .unwrap();
+
+    let gmp_api = gmp_api::construct_gmp_api(pg_pool, &config.common_config, true).unwrap();
     let price_view = PriceView::new(postgres_db.clone());
 
     let mut our_addresses = vec![];

@@ -10,6 +10,8 @@ use relayer_base::{
     payload_cache::PayloadCache,
     queue::Queue,
     utils::{setup_heartbeat, setup_logging},
+    models::gmp_tasks::PgGMPTasks,
+    models::gmp_events::PgGMPEvents,
 };
 use relayer_base::gmp_api::GmpApiTrait;
 use xrpl::{
@@ -28,7 +30,6 @@ async fn main() -> anyhow::Result<()> {
     let tasks_queue = Queue::new(&config.common_config.queue_address, "includer_tasks").await;
     let construct_proof_queue =
         Queue::new(&config.common_config.queue_address, "construct_proof").await;
-    let gmp_api = Arc::new(gmp_api::GmpApi::new(&config.common_config, true).unwrap());
     let redis_client = redis::Client::open(config.common_config.redis_server.clone()).unwrap();
     let redis_pool = r2d2::Pool::builder().build(redis_client).unwrap();
     let postgres_db = PostgresDB::new(&config.common_config.postgres_url)
@@ -39,8 +40,11 @@ async fn main() -> anyhow::Result<()> {
     let pg_pool = PgPool::connect(&config.common_config.postgres_url)
         .await
         .unwrap();
+
+    let gmp_api = gmp_api::construct_gmp_api(pg_pool.clone(), &config.common_config, true).unwrap();
+
     let queued_tx_model = PgQueuedTransactionsModel::new(pg_pool.clone());
-    let xrpl_includer = XrplIncluder::new::<XRPLClient, PostgresDB, PgQueuedTransactionsModel>(
+    let xrpl_includer = XrplIncluder::new::<XRPLClient, PostgresDB, PgQueuedTransactionsModel, gmp_api::GmpApiDbAuditDecorator<gmp_api::GmpApi, PgGMPTasks, PgGMPEvents>>(
         config.clone(),
         gmp_api,
         redis_pool.clone(),

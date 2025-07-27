@@ -6,13 +6,13 @@ use crate::config::XRPLConfig;
 use relayer_base::gmp_api::{gmp_types::BroadcastRequest, GmpApi, GmpApiTrait};
 use xrpl_multisig_prover;
 
-pub struct XrplTicketCreator {
-    gmp_api: Arc<GmpApi>,
+pub struct XrplTicketCreator<G: GmpApiTrait + Send + Sync + 'static> {
+    gmp_api: Arc<G>,
     config: XRPLConfig,
 }
 
-impl XrplTicketCreator {
-    pub fn new(gmp_api: Arc<GmpApi>, config: XRPLConfig) -> Self {
+impl<G: GmpApiTrait + Send + Sync + 'static> XrplTicketCreator<G> {
+    pub fn new(gmp_api: Arc<G>, config: XRPLConfig) -> Self {
         Self { gmp_api, config }
     }
 

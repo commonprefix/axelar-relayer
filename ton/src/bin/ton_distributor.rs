@@ -1,6 +1,7 @@
 use dotenv::dotenv;
 use std::sync::Arc;
 use tokio::signal::unix::{signal, SignalKind};
+use sqlx::PgPool;
 
 use relayer_base::config::config_from_yaml;
 use relayer_base::gmp_api::gmp_types::TaskKind;
@@ -25,10 +26,12 @@ async fn main() -> anyhow::Result<()> {
         Queue::new(&config.common_config.queue_address, "includer_tasks").await;
     let ingestor_tasks_queue =
         Queue::new(&config.common_config.queue_address, "ingestor_tasks").await;
-    let gmp_api = Arc::new(gmp_api::GmpApi::new(&config.common_config, true).unwrap());
     let postgres_db = PostgresDB::new(&config.common_config.postgres_url)
         .await
         .unwrap();
+
+    let pg_pool = PgPool::connect(&config.common_config.postgres_url).await.unwrap();
+    let gmp_api = gmp_api::construct_gmp_api(pg_pool, &config.common_config, true).unwrap();
 
     let mut distributor = Distributor::new(
         postgres_db,

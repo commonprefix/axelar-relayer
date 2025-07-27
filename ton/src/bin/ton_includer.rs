@@ -3,6 +3,7 @@ use relayer_base::config::config_from_yaml;
 use relayer_base::utils::setup_heartbeat;
 use relayer_base::{
     database::PostgresDB, gmp_api, payload_cache::PayloadCache, queue::Queue, utils::setup_logging,
+    models::gmp_tasks::PgGMPTasks, models::gmp_events::PgGMPEvents,
 };
 use sqlx::PgPool;
 use std::sync::Arc;
@@ -23,14 +24,14 @@ async fn main() -> anyhow::Result<()> {
     let tasks_queue = Queue::new(&config.common_config.queue_address, "includer_tasks").await;
     let construct_proof_queue =
         Queue::new(&config.common_config.queue_address, "construct_proof").await;
-    let gmp_api = Arc::new(gmp_api::GmpApi::new(&config.common_config, true)?);
     let redis_client = redis::Client::open(config.common_config.redis_server.clone())?;
     let redis_pool = r2d2::Pool::builder().build(redis_client)?;
     let postgres_db = PostgresDB::new(&config.common_config.postgres_url).await?;
     let payload_cache_for_includer = PayloadCache::new(postgres_db);
 
     let pg_pool = PgPool::connect(&config.common_config.postgres_url).await?;
-    let model = PgTONWalletQueryIdModel::new(pg_pool);
+    let model = PgTONWalletQueryIdModel::new(pg_pool.clone());
+    let gmp_api = gmp_api::construct_gmp_api(pg_pool.clone(), &config.common_config, true)?;
 
     let high_load_query_id_wrapper = HighLoadQueryIdDbWrapper::new(model).await;
     let ton_includer = TONIncluder::new(

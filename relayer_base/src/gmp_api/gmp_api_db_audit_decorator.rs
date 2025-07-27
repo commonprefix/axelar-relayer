@@ -3,16 +3,21 @@
 Decorator pattern for the GMP API that adds database auditing.
 The `GmpApiDbAuditDecorator` wraps a GMP API implementation and adds database logging.
 
+It's best to use the convenience function `construct_gmp_api` to create a `GmpApiDbAuditDecorator`.
+
+Otherwise, you can do it like so:
+
 # Example
 
 ```rust
-use relayer_base::gmp_api::{GmpApiDbAuditDecorator, GmpApiTrait, GmpApi};
+use relayer_base::gmp_api::{GmpApiDbAuditDecorator, GmpApiTrait, GmpApi, construct_gmp_api};
 use relayer_base::models::gmp_events::{GMPAudit, PgGMPEvents};
 use relayer_base::models::gmp_tasks::{GMPTaskAudit, PgGMPTasks};
 use relayer_base::config::Config;
 use sqlx::PgPool;
+use std::sync::Arc;
 
-async fn setup_gmp_api(config: &Config, pg_pool: PgPool) -> anyhow::Result<impl GmpApiTrait> {
+async fn create(config: &Config, pg_pool: PgPool) -> anyhow::Result<impl GmpApiTrait> {
     // Create the GMP API
     let gmp_api = GmpApi::new(config, true)?;
 
@@ -34,10 +39,12 @@ use crate::error::GmpApiError;
 use crate::gmp_api::gmp_types::{
     BroadcastRequest, CannotExecuteMessageReason, Event, PostEventResult, QueryRequest, Task,
 };
-use crate::gmp_api::GmpApiTrait;
-use crate::models::gmp_events::{EventModel, GMPAudit};
-use crate::models::gmp_tasks::{GMPTaskAudit, TaskModel};
-use sqlx::types::Json;
+use crate::gmp_api::{GmpApi, GmpApiTrait};
+use crate::models::gmp_events::{EventModel, GMPAudit, PgGMPEvents};
+use crate::models::gmp_tasks::{GMPTaskAudit, TaskModel, PgGMPTasks};
+use crate::config::Config;
+use sqlx::{types::Json, PgPool};
+use std::sync::Arc;
 use tracing::error;
 use xrpl_amplifier_types::msg::XRPLMessage;
 
@@ -57,9 +64,42 @@ impl<T: GmpApiTrait, U: GMPTaskAudit, V: GMPAudit> GmpApiDbAuditDecorator<T, U, 
     }
 }
 
+/// Constructs a GmpApiDbAuditDecorator with GmpApi, PgGMPTasks, and PgGMPEvents
+///
+/// # Arguments
+/// 
+/// * `pg_pool` - A PostgreSQL connection pool
+/// * `config` - The configuration for the GmpApi
+/// * `connection_pooling` - Whether to enable connection pooling for the GmpApi
+/// 
+/// # Returns
+/// 
+/// A Result containing an Arc-wrapped GmpApiDbAuditDecorator or a GmpApiError
+pub fn construct_gmp_api(
+    pg_pool: PgPool,
+    config: &Config,
+    connection_pooling: bool,
+) -> Result<Arc<GmpApiDbAuditDecorator<GmpApi, PgGMPTasks, PgGMPEvents>>, GmpApiError> {
+    let gmp_tasks = PgGMPTasks::new(pg_pool.clone());
+    let gmp_events = PgGMPEvents::new(pg_pool);
+
+    let gmp_api_base = GmpApi::new(config, connection_pooling)?;
+    let gmp_api = Arc::new(GmpApiDbAuditDecorator::new(
+        gmp_api_base,
+        gmp_tasks,
+        gmp_events,
+    ));
+
+    Ok(gmp_api)
+}
+
 impl<T: GmpApiTrait + Send + Sync, U: GMPTaskAudit + Send + Sync, V: GMPAudit + Send + Sync>
     GmpApiTrait for GmpApiDbAuditDecorator<T, U, V>
 {
+    fn get_chain(&self) -> &str {
+        self.gmp_api.get_chain()
+    }
+
     async fn get_tasks_action(&self, after: Option<String>) -> Result<Vec<Task>, GmpApiError> {
         let tasks = self.gmp_api.get_tasks_action(after).await?;
 

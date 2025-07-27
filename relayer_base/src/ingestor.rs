@@ -16,8 +16,8 @@ use crate::{
 };
 use crate::gmp_api::GmpApiTrait;
 
-pub struct Ingestor<I: IngestorTrait> {
-    gmp_api: Arc<GmpApi>,
+pub struct Ingestor<I: IngestorTrait, G: GmpApiTrait + Send + Sync + 'static> {
+    gmp_api: Arc<G>,
     ingestor: I,
 }
 
@@ -45,8 +45,8 @@ pub trait IngestorTrait {
     ) -> impl Future<Output = Result<(), IngestorError>>;
 }
 
-impl<I: IngestorTrait> Ingestor<I> {
-    pub fn new(gmp_api: Arc<GmpApi>, ingestor: I) -> Self {
+impl<I: IngestorTrait, G: GmpApiTrait + Send + Sync + 'static> Ingestor<I, G> {
+    pub fn new(gmp_api: Arc<G>, ingestor: I) -> Self {
         Self { gmp_api, ingestor }
     }
 
@@ -138,7 +138,7 @@ impl<I: IngestorTrait> Ingestor<I> {
             .post_events(events)
             .await
             .map_err(|e| IngestorError::PostEventError(e.to_string()))?;
-        
+
         for event_response in response {
             if event_response.status != "ACCEPTED" {
                 error!("Posting event failed: {:?}", event_response.error.clone());

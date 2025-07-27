@@ -6,7 +6,7 @@ use crate::high_load_query_id_db_wrapper::HighLoadQueryIdDbWrapper;
 use crate::lock_manager::RedisLockManager;
 use crate::wallet_manager::WalletManager;
 use relayer_base::{
-    database::Database, error::BroadcasterError, gmp_api::GmpApi, includer::Includer,
+    database::Database, error::BroadcasterError, gmp_api::{GmpApi, GmpApiTrait}, includer::Includer,
     payload_cache::PayloadCache, queue::Queue,
 };
 use std::sync::Arc;
@@ -16,15 +16,15 @@ pub struct TONIncluder {}
 
 impl TONIncluder {
     #[allow(clippy::new_ret_no_self)]
-    pub async fn new<DB: Database>(
+    pub async fn new<DB: Database, G: GmpApiTrait + Send + Sync + 'static>(
         config: TONConfig,
-        gmp_api: Arc<GmpApi>,
+        gmp_api: Arc<G>,
         redis_pool: r2d2::Pool<redis::Client>,
         payload_cache_for_includer: PayloadCache<DB>,
         construct_proof_queue: Arc<Queue>,
         high_load_query_id_db_wrapper: Arc<HighLoadQueryIdDbWrapper>,
     ) -> error_stack::Result<
-        Includer<TONBroadcaster<TONGasEstimator>, Arc<dyn RestClient>, TONRefundManager, DB>,
+        Includer<TONBroadcaster<TONGasEstimator>, Arc<dyn RestClient>, TONRefundManager, DB, G>,
         BroadcasterError,
     > {
         let config_for_refund_manager = config.clone();

@@ -68,26 +68,28 @@ pub trait Broadcaster {
     fn broadcast_refund_message(&self, refund_task: RefundTaskFields) -> impl Future<Output = Result<String, BroadcasterError>>;
 }
 
-pub struct Includer<B, C, R, DB>
+pub struct Includer<B, C, R, DB, G>
 where
     B: Broadcaster,
     R: RefundManager,
     DB: Database,
+    G: GmpApiTrait + Send + Sync + 'static,
 {
     pub chain_client: C,
     pub broadcaster: B,
     pub refund_manager: R,
-    pub gmp_api: Arc<GmpApi>,
+    pub gmp_api: Arc<G>,
     pub payload_cache: PayloadCache<DB>,
     pub construct_proof_queue: Arc<Queue>,
     pub redis_pool: r2d2::Pool<redis::Client>,
 }
 
-impl<B, C, R, DB> Includer<B, C, R, DB>
+impl<B, C, R, DB, G> Includer<B, C, R, DB, G>
 where
     B: Broadcaster,
     R: RefundManager,
     DB: Database,
+    G: GmpApiTrait + Send + Sync + 'static,
 {
     async fn work(&self, consumer: &mut Consumer, queue: Arc<Queue>) {
         match consumer.next().await {
@@ -202,7 +204,7 @@ where
                             .await
                             .map_err(|e| IncluderError::ConsumerError(e.to_string()))?;
                     }
-                    
+
                     if !retry {
                         return Ok(());
                     }

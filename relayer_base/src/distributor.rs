@@ -16,21 +16,21 @@ pub struct RecoverySettings {
     pub tasks_filter: Option<Vec<TaskKind>>,
 }
 
-pub struct Distributor<DB: Database> {
+pub struct Distributor<DB: Database, G: GmpApiTrait + Send + Sync + 'static> {
     db: DB,
     last_task_id: Option<String>,
     context: String,
     recovery_settings: Option<RecoverySettings>,
-    gmp_api: Arc<GmpApi>,
+    gmp_api: Arc<G>,
     refunds_enabled: bool,
     supported_includer_tasks: Vec<TaskKind>,
     supported_ingestor_tasks: Vec<TaskKind>,
 }
 
-impl<DB: Database> Distributor<DB> {
-    pub async fn new(db: DB, context: String, gmp_api: Arc<GmpApi>, refunds_enabled: bool) -> Self {
+impl<DB: Database, G: GmpApiTrait + Send + Sync + 'static> Distributor<DB, G> {
+    pub async fn new(db: DB, context: String, gmp_api: Arc<G>, refunds_enabled: bool) -> Self {
         let last_task_id = db
-            .get_latest_task_id(&gmp_api.chain, &context)
+            .get_latest_task_id(gmp_api.get_chain(), &context)
             .await
             .expect("Failed to get latest task id");
 
@@ -63,7 +63,7 @@ impl<DB: Database> Distributor<DB> {
     pub async fn new_with_recovery_settings(
         db: DB,
         context: String,
-        gmp_api: Arc<GmpApi>,
+        gmp_api: Arc<G>,
         recovery_settings: RecoverySettings,
         refunds_enabled: bool,
     ) -> Self {
@@ -81,7 +81,7 @@ impl<DB: Database> Distributor<DB> {
 
         self.db
             .store_latest_task_id(
-                &self.gmp_api.chain,
+                self.gmp_api.get_chain(),
                 &self.context,
                 &self.last_task_id.clone().unwrap(),
             )
@@ -175,7 +175,7 @@ impl<DB: Database> Distributor<DB> {
             tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
         }
     }
-    
+
     pub fn set_supported_includer_tasks(&mut self, tasks: Vec<TaskKind>) {
         self.supported_includer_tasks = tasks;
     }

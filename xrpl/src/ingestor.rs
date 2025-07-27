@@ -57,18 +57,18 @@ pub struct XrplIngestorModels {
     pub task_retries: PgTaskRetriesModel,
 }
 
-pub struct XrplIngestor<DB: Database> {
+pub struct XrplIngestor<DB: Database, G: GmpApiTrait + Send + Sync + 'static> {
     client: xrpl_http_client::Client,
-    gmp_api: Arc<GmpApi>,
+    gmp_api: Arc<G>,
     config: XRPLConfig,
     price_view: PriceView<DB>,
     payload_cache: PayloadCache<DB>,
     models: XrplIngestorModels,
 }
 
-impl<DB: Database> XrplIngestor<DB> {
+impl<DB: Database, G: GmpApiTrait + Send + Sync + 'static> XrplIngestor<DB, G> {
     pub fn new(
-        gmp_api: Arc<GmpApi>,
+        gmp_api: Arc<G>,
         config: XRPLConfig,
         price_view: PriceView<DB>,
         payload_cache: PayloadCache<DB>,
@@ -1139,12 +1139,12 @@ impl<DB: Database> XrplIngestor<DB> {
     }
 }
 
-impl<DB: Database> IngestorTrait for XrplIngestor<DB> {
+impl<DB: Database, G: GmpApiTrait + Send + Sync + 'static> IngestorTrait for XrplIngestor<DB, G> {
     async fn handle_transaction(&self, tx: ChainTransaction) -> Result<Vec<Event>, IngestorError> {
         let ChainTransaction::Xrpl(tx) = tx else {
             return Err(IngestorError::UnexpectedChainTransactionType(format!("{:?}", tx)))
         };
-        
+
         let xrpl_transaction =
             XrplTransaction::from_native_transaction(&tx, &self.config.xrpl_multisig)
                 .map_err(|e| IngestorError::GenericError(e.to_string()))?;

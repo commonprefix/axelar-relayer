@@ -1,6 +1,7 @@
 pub mod gmp_types;
 pub mod gmp_api_db_audit_decorator;
 pub use gmp_api_db_audit_decorator::GmpApiDbAuditDecorator;
+pub use gmp_api_db_audit_decorator::construct_gmp_api;
 
 use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
 use reqwest_retry::{policies::ExponentialBackoff, RetryTransientMiddleware};
@@ -164,6 +165,57 @@ impl GmpApi {
 
 #[cfg_attr(test, mockall::automock)]
 impl GmpApiTrait for GmpApi {
+    fn get_chain(&self) -> &str {
+        &self.chain
+    }
+
+    async fn get_tasks_action(&self, after: Option<String>) -> Result<Vec<Task>, GmpApiError> {
+        let request_url = format!("{}/chains/{}/tasks", self.rpc_url, self.chain);
+        let mut request = self.client.get(&request_url);
+
+        if let Some(after) = after {
+            request = request.query(&[("after", &after)]);
+            debug!("Requesting tasks after: {}", after);
+        }
+
+        let response: HashMap<String, Vec<Value>> = GmpApi::request_json(request).await?;
+        debug!("Response from {}: {:?}", request_url, response);
+
+        let tasks_json = response
+            .get("tasks")
+            .ok_or_else(|| GmpApiError::InvalidResponse("Missing 'tasks' field".to_string()))?;
+
+        Ok(tasks_json
+            .iter()
+            .filter_map(|task_json| match parse_task(task_json) {
+                Ok(task) => Some(task),
+                Err(e) => {
+                    warn!("Failed to parse task: {:?}", e);
+                    None
+                }
+            })
+            .collect::<Vec<_>>())
+    }
+    async fn post_events(
+        &self,
+        events: Vec<Event>,
+    ) -> Result<Vec<PostEventResult>, GmpApiError> {
+        let mut map = HashMap::new();
+        map.insert("events", events);
+
+        debug!("Posting events: {:?}", map);
+
+        let url = format!("{}/chains/{}/events", self.rpc_url, self.chain);
+        let request = self
+            .client
+            .post(&url)
+            .header("Content-Type", "application/json")
+            .body(serde_json::to_string(&map).unwrap());
+
+        let response: PostEventResponse = GmpApi::request_json(request).await?;
+        info!("Response from POST: {:?}", response);
+        Ok(response.results)
+    }
     async fn post_broadcast(
         &self,
         contract_address: String,
@@ -343,6 +395,7 @@ impl GmpApiTrait for GmpApi {
         let response = GmpApi::request_bytes_if_success(request).await?;
         Ok(hex::encode(response))
     }
+
     async fn cannot_execute_message(
         &self,
         id: String,
@@ -367,6 +420,7 @@ impl GmpApiTrait for GmpApi {
 
         Ok(())
     }
+
     async fn its_interchain_transfer(
         &self,
         xrpl_message: XRPLMessage,
@@ -400,59 +454,11 @@ impl GmpApiTrait for GmpApi {
 
         Ok(())
     }
-
-    async fn get_tasks_action(&self, after: Option<String>) -> Result<Vec<Task>, GmpApiError> {
-        let request_url = format!("{}/chains/{}/tasks", self.rpc_url, self.chain);
-        let mut request = self.client.get(&request_url);
-
-        if let Some(after) = after {
-            request = request.query(&[("after", &after)]);
-            debug!("Requesting tasks after: {}", after);
-        }
-
-        let response: HashMap<String, Vec<Value>> = GmpApi::request_json(request).await?;
-        debug!("Response from {}: {:?}", request_url, response);
-
-        let tasks_json = response
-            .get("tasks")
-            .ok_or_else(|| GmpApiError::InvalidResponse("Missing 'tasks' field".to_string()))?;
-
-        Ok(tasks_json
-            .iter()
-            .filter_map(|task_json| match parse_task(task_json) {
-                Ok(task) => Some(task),
-                Err(e) => {
-                    warn!("Failed to parse task: {:?}", e);
-                    None
-                }
-            })
-            .collect::<Vec<_>>())
-    }
-
-    async fn post_events(
-        &self,
-        events: Vec<Event>,
-    ) -> Result<Vec<PostEventResult>, GmpApiError> {
-        let mut map = HashMap::new();
-        map.insert("events", events);
-
-        debug!("Posting events: {:?}", map);
-
-        let url = format!("{}/chains/{}/events", self.rpc_url, self.chain);
-        let request = self
-            .client
-            .post(&url)
-            .header("Content-Type", "application/json")
-            .body(serde_json::to_string(&map).unwrap());
-
-        let response: PostEventResponse = GmpApi::request_json(request).await?;
-        info!("Response from POST: {:?}", response);
-        Ok(response.results)
-    }
 }
 
 #[cfg_attr(test, mockall::automock)]
 pub trait GmpApiTrait {
+    fn get_chain(&self) -> &str;
     fn get_tasks_action(&self, after: Option<String>) -> impl Future<Output = Result<Vec<Task>, GmpApiError>>;
     fn post_events(
         &self,
