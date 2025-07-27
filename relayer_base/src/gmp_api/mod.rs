@@ -66,6 +66,33 @@ fn identity_from_config(config: &Config) -> Result<Identity, GmpApiError> {
 }
 
 impl GmpApi {
+    fn new(config: &Config, connection_pooling: bool) -> Result<Self, GmpApiError> {
+        let mut client_builder = reqwest::ClientBuilder::new()
+            .connect_timeout(Duration::from_secs(5))
+            .timeout(Duration::from_secs(30))
+            .identity(identity_from_config(config)?);
+        if connection_pooling {
+            client_builder = client_builder.pool_idle_timeout(Some(Duration::from_secs(300)));
+        } else {
+            client_builder = client_builder.pool_max_idle_per_host(0);
+        }
+
+        let retry_policy = ExponentialBackoff::builder().build_with_max_retries(3);
+        let client = ClientBuilder::new(
+            client_builder
+                .build()
+                .map_err(|e| GmpApiError::ConnectionFailed(e.to_string()))?,
+        )
+            .with(RetryTransientMiddleware::new_with_policy(retry_policy))
+            .build();
+
+        Ok(Self {
+            rpc_url: config.gmp_api_url.to_owned(),
+            client,
+            chain: config.chain_name.to_owned(),
+        })
+    }
+
     async fn request_bytes_if_success(
         request: reqwest_middleware::RequestBuilder,
     ) -> Result<Vec<u8>, GmpApiError> {
@@ -371,33 +398,6 @@ impl GmpApiTrait for GmpApi {
         Ok(())
     }
 
-    fn new(config: &Config, connection_pooling: bool) -> Result<Self, GmpApiError> {
-        let mut client_builder = reqwest::ClientBuilder::new()
-            .connect_timeout(Duration::from_secs(5))
-            .timeout(Duration::from_secs(30))
-            .identity(identity_from_config(config)?);
-        if connection_pooling {
-            client_builder = client_builder.pool_idle_timeout(Some(Duration::from_secs(300)));
-        } else {
-            client_builder = client_builder.pool_max_idle_per_host(0);
-        }
-
-        let retry_policy = ExponentialBackoff::builder().build_with_max_retries(3);
-        let client = ClientBuilder::new(
-            client_builder
-                .build()
-                .map_err(|e| GmpApiError::ConnectionFailed(e.to_string()))?,
-        )
-            .with(RetryTransientMiddleware::new_with_policy(retry_policy))
-            .build();
-
-        Ok(Self {
-            rpc_url: config.gmp_api_url.to_owned(),
-            client,
-            chain: config.chain_name.to_owned(),
-        })
-    }
-
     async fn get_tasks_action(&self, after: Option<String>) -> Result<Vec<Task>, GmpApiError> {
         let request_url = format!("{}/chains/{}/tasks", self.rpc_url, self.chain);
         let mut request = self.client.get(&request_url);
@@ -449,7 +449,6 @@ impl GmpApiTrait for GmpApi {
 }
 
 pub trait GmpApiTrait {
-    fn new(config: &Config, connection_pooling: bool) -> Result<Self, GmpApiError> where Self: Sized;
     fn get_tasks_action(&self, after: Option<String>) -> impl Future<Output = Result<Vec<Task>, GmpApiError>>;
     fn post_events(
         &self,
