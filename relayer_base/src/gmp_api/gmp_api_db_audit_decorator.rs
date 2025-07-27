@@ -225,7 +225,8 @@ mod tests {
 
         mock_gmp_tasks
             .expect_insert_task()
-            .returning(|_| Box::pin(async { Ok(()) }));
+            .returning(|_| Box::pin(async { Ok(()) }))
+            .times(1);
 
         let decorator = GmpApiDbAuditDecorator::new(mock_gmp_api, mock_gmp_tasks, mock_gmp_events);
 
