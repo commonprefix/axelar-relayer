@@ -20,6 +20,7 @@ use std::future::Future;
 use std::str::FromStr;
 use ton_types::ton_types::Trace;
 use tonlib_core::TonAddress;
+use tracing::{info, warn};
 
 #[async_trait]
 pub trait Parser {
@@ -197,19 +198,23 @@ impl<PV: PriceViewTrait> TraceParser<PV> {
         chain_name: String,
     ) -> Result<u64, TransactionParsingError> {
         let mut message_approved_count = 0u64;
-        let trace_copy = trace.clone();
+
+        let mut parser = ParserExecuteInsufficientGas::new(
+            trace.clone(),
+            self.gateway_address.clone(),
+            chain_name.clone(),
+        )
+        .await?;
+        if parser.is_match().await? {
+            info!(
+                "ParserExecuteInsufficientGas matched, trace_id={}",
+                trace.trace_id
+            );
+            parser.parse().await?;
+            parsers.push(Box::new(parser));
+        }
+
         for tx in trace.transactions {
-            let mut parser = ParserExecuteInsufficientGas::new(
-                trace_copy.clone(), // Surely this can be optimized!
-                self.gateway_address.clone(),
-                chain_name.clone(),
-            )
-            .await?;
-            if parser.is_match().await? {
-                parser.parse().await?;
-                parsers.push(Box::new(parser));
-                continue;
-            }
             let mut parser = ParserCallContract::new(
                 tx.clone(),
                 self.gateway_address.clone(),
@@ -217,6 +222,7 @@ impl<PV: PriceViewTrait> TraceParser<PV> {
             )
             .await?;
             if parser.is_match().await? {
+                info!("ParserCallContract matched, trace_id={}", trace.trace_id);
                 parser.parse().await?;
                 call_contract.push(Box::new(parser));
                 continue;
@@ -224,6 +230,7 @@ impl<PV: PriceViewTrait> TraceParser<PV> {
             let mut parser =
                 ParserMessageExecuted::new(tx.clone(), self.gateway_address.clone()).await?;
             if parser.is_match().await? {
+                info!("ParserMessageExecuted matched, trace_id={}", trace.trace_id);
                 parser.parse().await?;
                 parsers.push(Box::new(parser));
                 continue;
@@ -231,6 +238,7 @@ impl<PV: PriceViewTrait> TraceParser<PV> {
             let mut parser =
                 ParserMessageApproved::new(tx.clone(), self.gateway_address.clone()).await?;
             if parser.is_match().await? {
+                info!("ParserMessageApproved matched, trace_id={}", trace.trace_id);
                 parser.parse().await?;
                 parsers.push(Box::new(parser));
                 message_approved_count += 1;
@@ -239,6 +247,7 @@ impl<PV: PriceViewTrait> TraceParser<PV> {
             let mut parser =
                 ParserNativeGasPaid::new(tx.clone(), self.gas_service_address.clone()).await?;
             if parser.is_match().await? {
+                info!("ParserNativeGasPaid matched, trace_id={}", trace.trace_id);
                 parser.parse().await?;
                 let key = parser.key().await?;
                 gas_credit_map.insert(key, Box::new(parser));
@@ -247,6 +256,7 @@ impl<PV: PriceViewTrait> TraceParser<PV> {
             let mut parser =
                 ParserNativeGasAdded::new(tx.clone(), self.gas_service_address.clone()).await?;
             if parser.is_match().await? {
+                info!("ParserNativeGasAdded matched, trace_id={}", trace.trace_id);
                 parser.parse().await?;
                 parsers.push(Box::new(parser));
                 continue;
@@ -254,6 +264,7 @@ impl<PV: PriceViewTrait> TraceParser<PV> {
             let mut parser =
                 ParserJettonGasAdded::new(tx.clone(), self.gas_service_address.clone()).await?;
             if parser.is_match().await? {
+                info!("ParserJettonGasAdded matched, trace_id={}", trace.trace_id);
                 parser.parse().await?;
                 parsers.push(Box::new(parser));
                 continue;
@@ -261,6 +272,7 @@ impl<PV: PriceViewTrait> TraceParser<PV> {
             let mut parser =
                 ParserJettonGasPaid::new(tx.clone(), self.gas_service_address.clone()).await?;
             if parser.is_match().await? {
+                info!("ParserJettonGasPaid matched, trace_id={}", trace.trace_id);
                 parser.parse().await?;
                 let key = parser.key().await?;
                 gas_credit_map.insert(key, Box::new(parser));
@@ -269,10 +281,19 @@ impl<PV: PriceViewTrait> TraceParser<PV> {
             let mut parser =
                 ParserNativeGasRefunded::new(tx.clone(), self.gas_service_address.clone()).await?;
             if parser.is_match().await? {
+                info!(
+                    "ParserNativeGasRefunded matched, trace_id={}",
+                    trace.trace_id
+                );
                 parser.parse().await?;
                 parsers.push(Box::new(parser));
                 continue;
             }
+
+            warn!(
+                "Trace did not match any parsers, trace_id={}",
+                trace.trace_id
+            );
         }
         Ok(message_approved_count)
     }
