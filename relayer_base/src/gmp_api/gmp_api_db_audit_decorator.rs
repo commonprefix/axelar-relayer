@@ -4,7 +4,9 @@ Decorator pattern for the GMP API that adds database auditing.
 The `GmpApiDbAuditDecorator` wraps a GMP API implementation and adds database logging.
 
 * get_tasks_action spawns a new tokio task to insert the task into the database, so the DB write can be lost
-* post_events awaits for the event to be written to the database, but spawns the new task to write the response
+* post_events awaits for the event to be written to the database, but spawns the new task to write the response.
+
+The idea is that when posting_events, we want them in the database for inspection in case they never reach GMP API.
 
 It's best to use the convenience function `construct_gmp_api` to create a `GmpApiDbAuditDecorator`.
 
