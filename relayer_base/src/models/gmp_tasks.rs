@@ -5,6 +5,7 @@ use std::future::Future;
 
 const PG_TABLE_NAME: &str = "gmp_tasks";
 
+#[derive(Debug, Clone, PartialEq)]
 pub struct TaskModel {
     pub _id: i64, // We want to keep a serial ID in case multiple tasks come with same task_id
     pub task_id: String,
@@ -85,6 +86,7 @@ impl PgGMPTasks {
     }
 }
 
+#[cfg_attr(test, mockall::automock)]
 pub trait GMPTaskAudit {
     fn insert_task(&self, task: TaskModel) -> impl Future<Output=anyhow::Result<()>>;
 }

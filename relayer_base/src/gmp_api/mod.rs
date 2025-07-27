@@ -1,4 +1,5 @@
 pub mod gmp_types;
+pub mod gmp_api_db_audit_decorator;
 
 use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
 use reqwest_retry::{policies::ExponentialBackoff, RetryTransientMiddleware};
@@ -66,7 +67,7 @@ fn identity_from_config(config: &Config) -> Result<Identity, GmpApiError> {
 }
 
 impl GmpApi {
-    fn new(config: &Config, connection_pooling: bool) -> Result<Self, GmpApiError> {
+    pub fn new(config: &Config, connection_pooling: bool) -> Result<Self, GmpApiError> {
         let mut client_builder = reqwest::ClientBuilder::new()
             .connect_timeout(Duration::from_secs(5))
             .timeout(Duration::from_secs(30))
@@ -160,6 +161,7 @@ impl GmpApi {
     }
 }
 
+#[cfg_attr(test, mockall::automock)]
 impl GmpApiTrait for GmpApi {
     async fn post_broadcast(
         &self,
@@ -448,6 +450,7 @@ impl GmpApiTrait for GmpApi {
     }
 }
 
+#[cfg_attr(test, mockall::automock)]
 pub trait GmpApiTrait {
     fn get_tasks_action(&self, after: Option<String>) -> impl Future<Output = Result<Vec<Task>, GmpApiError>>;
     fn post_events(

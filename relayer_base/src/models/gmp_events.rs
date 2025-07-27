@@ -5,6 +5,7 @@ use std::future::Future;
 
 const PG_TABLE_NAME: &str = "gmp_events";
 
+#[derive(Debug, Clone, PartialEq)]
 pub struct EventModel {
     pub _id: i64, // We want to keep a serial ID in case multiple tasks come with same event_id
     pub event_id: String,
@@ -68,6 +69,7 @@ impl PgGMPEvents {
     }
 }
 
+#[cfg_attr(test, mockall::automock)]
 pub trait GMPAudit {
     fn insert_event(&self, event: EventModel) -> impl Future<Output=anyhow::Result<()>>;
     fn update_event_response(&self, event_id: String, response: Json<PostEventResult>) -> impl Future<Output=anyhow::Result<()>>;

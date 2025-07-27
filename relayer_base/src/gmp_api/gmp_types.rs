@@ -266,7 +266,7 @@ impl Task {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct CommonEventFields<T> {
     pub r#type: String,
     #[serde(rename = "eventID")]
@@ -299,7 +299,7 @@ pub struct EventMetadata {
     pub timestamp: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct MessageApprovedEventMetadata {
     #[serde(flatten)]
     pub common_meta: EventMetadata,
@@ -308,7 +308,7 @@ pub struct MessageApprovedEventMetadata {
 }
 
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct MessageExecutedEventMetadata {
     #[serde(flatten)]
     pub common_meta: EventMetadata,
@@ -328,7 +328,7 @@ pub struct ScopedMessage {
     pub source_chain: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum CannotExecuteMessageReason {
     InsufficientGas,
@@ -360,7 +360,7 @@ pub enum VerificationStatus {
     Unknown,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[serde(untagged)]
 pub enum Event {
     Call {

@@ -10,7 +10,6 @@ use relayer_base::{
     utils::setup_logging,
 };
 use relayer_base::config::{config_from_yaml};
-use relayer_base::gmp_api::GmpApiTrait;
 use xrpl::config::XRPLConfig;
 
 #[tokio::main]

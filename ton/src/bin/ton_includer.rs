@@ -7,7 +7,6 @@ use relayer_base::{
 use sqlx::PgPool;
 use std::sync::Arc;
 use tokio::signal::unix::{signal, SignalKind};
-use relayer_base::gmp_api::GmpApiTrait;
 use ton::config::TONConfig;
 use ton::high_load_query_id_db_wrapper::HighLoadQueryIdDbWrapper;
 use ton::includer::TONIncluder;

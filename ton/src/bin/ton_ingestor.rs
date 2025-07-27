@@ -15,7 +15,6 @@ use ton::gas_calculator::GasCalculator;
 use ton::ingestor::TONIngestor;
 use ton::parser::TraceParser;
 use tonlib_core::TonAddress;
-use relayer_base::gmp_api::GmpApiTrait;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
