@@ -161,6 +161,7 @@ impl GmpApi {
             .await
             .map_err(|e| GmpApiError::InvalidResponse(e.to_string()))
     }
+
 }
 
 #[cfg_attr(test, mockall::automock)]
@@ -396,14 +397,7 @@ impl GmpApiTrait for GmpApi {
         Ok(hex::encode(response))
     }
 
-    async fn cannot_execute_message(
-        &self,
-        id: String,
-        message_id: String,
-        source_chain: String,
-        details: String,
-        reason: CannotExecuteMessageReason,
-    ) -> Result<(), GmpApiError> {
+    fn map_cannot_execute_message_to_event(&self, id: String, message_id: String, source_chain: String, details: String, reason: CannotExecuteMessageReason) -> Event {
         let cannot_execute_message_event = Event::CannotExecuteMessageV2 {
             common: CommonEventFields {
                 r#type: "CANNOT_EXECUTE_MESSAGE/V2".to_owned(),
@@ -415,6 +409,25 @@ impl GmpApiTrait for GmpApi {
             reason,
             details,
         };
+        cannot_execute_message_event
+    }
+
+    async fn cannot_execute_message(
+        &self,
+        id: String,
+        message_id: String,
+        source_chain: String,
+        details: String,
+        reason: CannotExecuteMessageReason,
+    ) -> Result<(), GmpApiError> {
+        let cannot_execute_message_event =
+            self.map_cannot_execute_message_to_event(
+                id,
+                message_id,
+                source_chain,
+                details,
+                reason
+            );
 
         self.post_events(vec![cannot_execute_message_event]).await?;
 
@@ -493,6 +506,15 @@ pub trait GmpApiTrait {
         &self,
         xrpl_message: XRPLMessage,
     ) -> impl Future<Output = Result<(), GmpApiError>>;
+
+    fn map_cannot_execute_message_to_event(
+        &self,
+        id: String,
+        message_id: String,
+        source_chain: String,
+        details: String,
+        reason: CannotExecuteMessageReason
+    ) -> Event;
 }
 
 #[cfg(test)]

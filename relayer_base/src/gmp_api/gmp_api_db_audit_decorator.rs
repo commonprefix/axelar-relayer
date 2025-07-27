@@ -5,6 +5,7 @@ The `GmpApiDbAuditDecorator` wraps a GMP API implementation and adds database lo
 
 * get_tasks_action spawns a new tokio task to insert the task into the database, so the DB write can be lost
 * post_events awaits for the event to be written to the database, but spawns the new task to write the response.
+* cannot_execute_message is a bit of a special case, since it doesn't accept or return any events. We should avoid constructing events in the GMP API class and this function should be deprecated.
 
 The idea is that when posting_events, we want them in the database for inspection in case they never reach GMP API.
 
@@ -40,18 +41,18 @@ async fn create(config: &Config, pg_pool: PgPool) -> anyhow::Result<impl GmpApiT
 ```
 */
 
+use crate::config::Config;
 use crate::error::GmpApiError;
 use crate::gmp_api::gmp_types::{
     BroadcastRequest, CannotExecuteMessageReason, Event, PostEventResult, QueryRequest, Task,
 };
 use crate::gmp_api::{GmpApi, GmpApiTrait};
 use crate::models::gmp_events::{EventModel, GMPAudit, PgGMPEvents};
-use crate::models::gmp_tasks::{GMPTaskAudit, TaskModel, PgGMPTasks};
-use crate::config::Config;
+use crate::models::gmp_tasks::{GMPTaskAudit, PgGMPTasks, TaskModel};
 use sqlx::{types::Json, PgPool};
 use std::sync::Arc;
-use tracing::error;
 use tokio::spawn;
+use tracing::error;
 use xrpl_amplifier_types::msg::XRPLMessage;
 
 pub struct GmpApiDbAuditDecorator<T: GmpApiTrait, U: GMPTaskAudit, V: GMPAudit> {
@@ -194,13 +195,26 @@ impl<T: GmpApiTrait + Send + Sync + 'static, U: GMPTaskAudit + Send + Sync + 'st
         details: String,
         reason: CannotExecuteMessageReason,
     ) -> Result<(), GmpApiError> {
-        self.gmp_api
-            .cannot_execute_message(id, message_id, source_chain, details, reason)
-            .await
+        let cannot_execute_message_event =
+            self.gmp_api.map_cannot_execute_message_to_event(
+                id,
+                message_id,
+                source_chain,
+                details,
+                reason,
+            );
+
+        self.post_events(vec![cannot_execute_message_event]).await?;
+
+        Ok(())
     }
 
     async fn its_interchain_transfer(&self, xrpl_message: XRPLMessage) -> Result<(), GmpApiError> {
         self.gmp_api.its_interchain_transfer(xrpl_message).await
+    }
+
+    fn map_cannot_execute_message_to_event(&self, _id: String, _message_id: String, _source_chain: String, _details: String, _reason: CannotExecuteMessageReason) -> Event {
+        unimplemented!()
     }
 }
 
@@ -208,6 +222,7 @@ impl<T: GmpApiTrait + Send + Sync + 'static, U: GMPTaskAudit + Send + Sync + 'st
 mod tests {
     use super::*;
     use crate::test_utils::fixtures;
+    use crate::gmp_api::gmp_types::{CommonEventFields, EventMetadata};
     use mockall::predicate::*;
     #[tokio::test]
     async fn test_get_tasks_action() {
@@ -466,7 +481,7 @@ mod tests {
     async fn test_delegation_methods() {
         let mut mock_gmp_api = crate::gmp_api::MockGmpApiTrait::new();
         let mock_gmp_tasks = crate::models::gmp_tasks::MockGMPTaskAudit::new();
-        let mock_gmp_events = crate::models::gmp_events::MockGMPAudit::new();
+        let mut mock_gmp_events = crate::models::gmp_events::MockGMPAudit::new();
 
         mock_gmp_api
             .expect_post_broadcast()
@@ -511,6 +526,56 @@ mod tests {
             .expect_its_interchain_transfer()
             .with(always())
             .returning(|_| Box::pin(async { Ok(()) }));
+
+        mock_gmp_events
+            .expect_insert_event()
+            .returning(|_| Box::pin(async { Ok(()) }));
+
+        mock_gmp_events
+            .expect_update_event_response()
+            .returning(|_, _| Box::pin(async { Ok(()) }));
+
+        mock_gmp_api
+            .expect_post_events()
+            .returning(|_events| {
+                Box::pin(async move {
+                    Ok(vec![crate::gmp_api::gmp_types::PostEventResult {
+                        status: "success".to_string(),
+                        index: 0,
+                        error: None,
+                        retriable: None,
+                    }])
+                })
+            });
+
+        mock_gmp_api
+            .expect_map_cannot_execute_message_to_event()
+            .with(
+                eq("id123".to_string()),
+                eq("message123".to_string()),
+                eq("source123".to_string()),
+                eq("details123".to_string()),
+                eq(CannotExecuteMessageReason::InsufficientGas),
+            )
+            .returning(|id, message_id, source_chain, details, reason| {
+                Event::CannotExecuteMessageV2 {
+                    common: CommonEventFields {
+                        r#type: "CANNOT_EXECUTE_MESSAGE_V2".to_string(),
+                        event_id: id,
+                        meta: Some(EventMetadata {
+                            tx_id: Some("tx123".to_string()),
+                            from_address: None,
+                            finalized: Some(true),
+                            source_context: None,
+                            timestamp: "2023-01-01T00:00:00Z".to_string(),
+                        }),
+                    },
+                    message_id,
+                    source_chain,
+                    reason,
+                    details,
+                }
+            });
 
         let decorator = GmpApiDbAuditDecorator::new(mock_gmp_api, mock_gmp_tasks, mock_gmp_events);
 
