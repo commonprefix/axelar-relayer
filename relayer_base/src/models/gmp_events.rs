@@ -71,8 +71,8 @@ impl PgGMPEvents {
 
 #[cfg_attr(test, mockall::automock)]
 pub trait GMPAudit {
-    fn insert_event(&self, event: EventModel) -> impl Future<Output=anyhow::Result<()>>;
-    fn update_event_response(&self, event_id: String, response: Json<PostEventResult>) -> impl Future<Output=anyhow::Result<()>>;
+    fn insert_event(&self, event: EventModel) -> impl Future<Output=anyhow::Result<()>> + Send;
+    fn update_event_response(&self, event_id: String, response: Json<PostEventResult>) -> impl Future<Output=anyhow::Result<()>> + Send;
 }
 
 impl GMPAudit for PgGMPEvents {

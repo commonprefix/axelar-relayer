@@ -3,6 +3,9 @@
 Decorator pattern for the GMP API that adds database auditing.
 The `GmpApiDbAuditDecorator` wraps a GMP API implementation and adds database logging.
 
+* get_tasks_action spawns a new tokio task to insert the task into the database, so the DB write can be lost
+* post_events awaits for the event to be written to the database, but spawns the new task to write the response
+
 It's best to use the convenience function `construct_gmp_api` to create a `GmpApiDbAuditDecorator`.
 
 Otherwise, you can do it like so:
@@ -46,20 +49,21 @@ use crate::config::Config;
 use sqlx::{types::Json, PgPool};
 use std::sync::Arc;
 use tracing::error;
+use tokio::spawn;
 use xrpl_amplifier_types::msg::XRPLMessage;
 
 pub struct GmpApiDbAuditDecorator<T: GmpApiTrait, U: GMPTaskAudit, V: GMPAudit> {
     gmp_api: T,
-    gmp_tasks: U,
-    gmp_events: V,
+    gmp_tasks: Arc<U>,
+    gmp_events: Arc<V>,
 }
 
 impl<T: GmpApiTrait, U: GMPTaskAudit, V: GMPAudit> GmpApiDbAuditDecorator<T, U, V> {
     pub fn new(gmp_api: T, gmp_tasks: U, gmp_events: V) -> Self {
         Self {
             gmp_api,
-            gmp_tasks,
-            gmp_events,
+            gmp_tasks: Arc::new(gmp_tasks),
+            gmp_events: Arc::new(gmp_events),
         }
     }
 }
@@ -93,7 +97,7 @@ pub fn construct_gmp_api(
     Ok(gmp_api)
 }
 
-impl<T: GmpApiTrait + Send + Sync, U: GMPTaskAudit + Send + Sync, V: GMPAudit + Send + Sync>
+impl<T: GmpApiTrait + Send + Sync + 'static, U: GMPTaskAudit + Send + Sync + 'static, V: GMPAudit + Send + Sync + 'static>
     GmpApiTrait for GmpApiDbAuditDecorator<T, U, V>
 {
     fn get_chain(&self) -> &str {
@@ -102,12 +106,17 @@ impl<T: GmpApiTrait + Send + Sync, U: GMPTaskAudit + Send + Sync, V: GMPAudit + 
 
     async fn get_tasks_action(&self, after: Option<String>) -> Result<Vec<Task>, GmpApiError> {
         let tasks = self.gmp_api.get_tasks_action(after).await?;
+        let gmp_tasks = Arc::clone(&self.gmp_tasks);
 
         for task in &tasks {
             let task_model = TaskModel::from_task(task.clone());
-            if let Err(e) = self.gmp_tasks.insert_task(task_model).await {
-                error!("Failed to save task to database: {:?}", e);
-            }
+            let gmp_tasks = Arc::clone(&gmp_tasks);
+            spawn(async move {
+                if let Err(e) = gmp_tasks.insert_task(task_model).await {
+                    error!("Failed to save task to database: {:?}", e);
+                }
+            });
+
         }
 
         Ok(tasks)
@@ -128,13 +137,13 @@ impl<T: GmpApiTrait + Send + Sync, U: GMPTaskAudit + Send + Sync, V: GMPAudit + 
         for (i, result) in results.iter().enumerate() {
             if i < event_models.len() {
                 let event_id = event_models[i].event_id.clone();
-                if let Err(e) = self
-                    .gmp_events
-                    .update_event_response(event_id, Json(result.clone()))
-                    .await
-                {
-                    error!("Failed to update event response in database: {:?}", e);
-                }
+                let gmp_events = Arc::clone(&self.gmp_events);
+                let result_clone = result.clone();
+                spawn(async move {
+                    if let Err(e) = gmp_events.update_event_response(event_id, Json(result_clone)).await {
+                        error!("Failed to update event response in database: {:?}", e);
+                    }
+                });
             }
         }
 

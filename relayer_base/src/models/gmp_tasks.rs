@@ -88,7 +88,7 @@ impl PgGMPTasks {
 
 #[cfg_attr(test, mockall::automock)]
 pub trait GMPTaskAudit {
-    fn insert_task(&self, task: TaskModel) -> impl Future<Output=anyhow::Result<()>>;
+    fn insert_task(&self, task: TaskModel) -> impl Future<Output=anyhow::Result<()>> + Send;
 }
 
 impl GMPTaskAudit for PgGMPTasks {
