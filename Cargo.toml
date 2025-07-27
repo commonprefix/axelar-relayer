@@ -62,3 +62,4 @@ testcontainers = "0.24.0"
 testcontainers-modules = { version = "0.12.1", features = ["postgres"] }
 async-trait = "0.1.88"
 tonlib-core = "0.26.0"
+httpmock = "0.7.0"

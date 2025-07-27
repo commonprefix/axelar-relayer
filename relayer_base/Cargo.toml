@@ -42,13 +42,15 @@ sqlx = { workspace = true }
 dotenv = { workspace = true }
 r2d2 = { workspace = true }
 mockall = { workspace = true, optional = true }
-testcontainers = { workspace = true }
 async-trait = { workspace = true }
 ton_types = { workspace = true }
 
 [dev-dependencies]
 mockall = { workspace = true }
 mockito = { workspace = true }
+httpmock = { workspace = true }
+testcontainers = { workspace = true }
+testcontainers-modules = { workspace = true, features = ["postgres"] }
 
 [[bin]]
 name = "price_feed"

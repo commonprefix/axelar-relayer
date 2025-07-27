@@ -450,3 +450,388 @@ impl GmpApi {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test_utils::fixtures;
+    use httpmock::prelude::*;
+    use httpmock::Method::{GET, POST};
+    use reqwest::Client;
+    use serde_json::json;
+    use std::fs;
+    use std::path::Path;
+
+    fn mock_gmp_api_client(mock_url: &str, chain: &str) -> GmpApi {
+        let client = ClientBuilder::new(Client::new())
+            .build();
+
+        GmpApi {
+            rpc_url: mock_url.to_string(),
+            client,
+            chain: chain.to_string(),
+        }
+    }
+
+    fn read_json_file(file_path: &str) -> serde_json::Value {
+        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join(file_path);
+        let json_content = fs::read_to_string(&path)
+            .unwrap_or_else(|e| panic!("Failed to read {}: {}", path.display(), e));
+        serde_json::from_str(&json_content)
+            .unwrap_or_else(|e| panic!("Failed to parse {}: {}", path.display(), e))
+    }
+
+    #[tokio::test]
+    async fn test_get_tasks_action_success() {
+        let server = MockServer::start();
+        let chain = "testchain";
+
+        let execute_tasks = read_json_file("testdata/gmp_tasks/valid_tasks/ExecuteTask.json");
+        let gateway_tx_tasks = read_json_file("testdata/gmp_tasks/valid_tasks/GatewayTxTask.json");
+
+        let tasks = vec![
+            execute_tasks[0].clone(),
+            gateway_tx_tasks[0].clone(),
+        ];
+
+        let mock = server.mock(|when, then| {
+            when.method(GET)
+                .path(format!("/chains/{}/tasks", chain));
+
+            then.status(200)
+                .header("Content-Type", "application/json")
+                .json_body(json!({
+                    "tasks": tasks
+                }));
+        });
+
+        let gmp_api = mock_gmp_api_client(&server.base_url(), chain);
+        let result = gmp_api.get_tasks_action(None).await;
+
+        mock.assert();
+
+        assert!(result.is_ok(), "Expected success, got: {:?}", result);
+        let tasks = result.unwrap();
+        assert_eq!(tasks.len(), 2);
+
+        match &tasks[0] {
+            Task::Execute(task) => {
+                assert_eq!(task.common.id, "execute_task_123");
+                assert_eq!(task.common.chain, "xrpl");
+                assert_eq!(task.common.r#type, "EXECUTE");
+                assert_eq!(task.task.message.message_id, "msg_456");
+                assert_eq!(task.task.message.source_chain, "polygon");
+                assert_eq!(task.task.payload, "execute_payload");
+            },
+            _ => panic!("Expected Execute task, got: {:?}", tasks[0]),
+        }
+
+        match &tasks[1] {
+            Task::GatewayTx(task) => {
+                assert_eq!(task.common.id, "gateway_tx_123");
+                assert_eq!(task.common.chain, "xrpl");
+                assert_eq!(task.common.r#type, "GATEWAY_TX");
+                assert_eq!(task.task.execute_data, "base64_encoded_data");
+            },
+            _ => panic!("Expected GatewayTx task, got: {:?}", tasks[1]),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_get_tasks_action_with_after_param() {
+        let server = MockServer::start();
+        let chain = "testchain";
+        let after = "last_task_id";
+
+        let construct_proof_tasks = read_json_file("testdata/gmp_tasks/valid_tasks/ConstructProofTask.json");
+
+        let mock = server.mock(|when, then| {
+            when.method(GET)
+                .path(format!("/chains/{}/tasks", chain))
+                .query_param("after", after);
+
+            then.status(200)
+                .header("Content-Type", "application/json")
+                .json_body(json!({
+                    "tasks": [construct_proof_tasks[0].clone()]
+                }));
+        });
+
+        let gmp_api = mock_gmp_api_client(&server.base_url(), chain);
+        let result = gmp_api.get_tasks_action(Some(after.to_string())).await;
+
+        mock.assert();
+
+        assert!(result.is_ok(), "Expected success, got: {:?}", result);
+        let tasks = result.unwrap();
+        assert_eq!(tasks.len(), 1);
+
+        match &tasks[0] {
+            Task::ConstructProof(task) => {
+                assert_eq!(task.common.r#type, "CONSTRUCT_PROOF");
+            },
+            _ => panic!("Expected ConstructProof task, got: {:?}", tasks[0]),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_get_tasks_action_error_response() {
+        let server = MockServer::start();
+        let chain = "testchain";
+
+        let mock = server.mock(|when, then| {
+            when.method(GET)
+                .path(format!("/chains/{}/tasks", chain));
+
+            then.status(400)
+                .header("Content-Type", "application/json")
+                .json_body(json!({
+                    "error": "Bad request"
+                }));
+        });
+
+        let gmp_api = mock_gmp_api_client(&server.base_url(), chain);
+        let result = gmp_api.get_tasks_action(None).await;
+
+        mock.assert();
+
+        assert!(result.is_err(), "Expected error, got: {:?}", result);
+        match result {
+            Err(GmpApiError::ErrorResponse(msg)) => {
+                assert!(msg.contains("400 Bad Request"), "Unexpected error message: {}", msg);
+            }
+            _ => panic!("Expected ErrorResponse, got: {:?}", result),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_get_tasks_action_invalid_response() {
+        let server = MockServer::start();
+        let chain = "testchain";
+
+        let mock = server.mock(|when, then| {
+            when.method(GET)
+                .path(format!("/chains/{}/tasks", chain));
+
+            then.status(200)
+                .header("Content-Type", "application/json")
+                .json_body(json!({
+                    "not_tasks": []
+                }));
+        });
+
+        let gmp_api = mock_gmp_api_client(&server.base_url(), chain);
+        let result = gmp_api.get_tasks_action(None).await;
+
+        mock.assert();
+
+        assert!(result.is_err(), "Expected error, got: {:?}", result);
+        match result {
+            Err(GmpApiError::InvalidResponse(msg)) => {
+                assert_eq!(msg, "Missing 'tasks' field");
+            }
+            _ => panic!("Expected InvalidResponse, got: {:?}", result),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_post_events_success() {
+        let server = MockServer::start();
+
+        let mock = server.mock(|when, then| {
+            when.method(POST)
+                .path("/chains/testchain/events")
+                .header("Content-Type", "application/json")
+                .json_body(json!({
+                    "events": [fixtures::gas_refunded_event()]
+                }));
+
+            then.status(200)
+                .header("Content-Type", "application/json")
+                .json_body(json!({
+                    "results": [
+                        {
+                            "status": "success",
+                            "index": 0,
+                            "error": null,
+                            "retriable": null
+                        }
+                    ]
+                }));
+        });
+
+        let gmp_api = mock_gmp_api_client(&server.base_url(), "testchain");
+
+        let events = vec![fixtures::gas_refunded_event()];
+        let result = gmp_api.post_events(events).await;
+
+        mock.assert();
+
+        assert!(result.is_ok(), "Expected success, got: {:?}", result);
+        let post_results = result.unwrap();
+        assert_eq!(post_results.len(), 1);
+        assert_eq!(post_results[0].status, "success");
+        assert_eq!(post_results[0].index, 0);
+        assert!(post_results[0].error.is_none());
+        assert!(post_results[0].retriable.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_post_events_error_response() {
+        let server = MockServer::start();
+
+        let mock = server.mock(|when, then| {
+            when.method(POST)
+                .path("/chains/testchain/events")
+                .header("Content-Type", "application/json")
+                .json_body(json!({
+                    "events": [fixtures::gas_refunded_event()]
+                }));
+
+            then.status(400)
+                .header("Content-Type", "application/json")
+                .json_body(json!({
+                    "error": "Bad request"
+                }));
+        });
+
+        let gmp_api = mock_gmp_api_client(&server.base_url(), "testchain");
+
+        let events = vec![fixtures::gas_refunded_event()];
+        let result = gmp_api.post_events(events).await;
+
+        mock.assert();
+
+        assert!(result.is_err(), "Expected error, got: {:?}", result);
+        match result {
+            Err(GmpApiError::ErrorResponse(msg)) => {
+                assert!(msg.contains("400 Bad Request"), "Unexpected error message: {}", msg);
+            }
+            _ => panic!("Expected ErrorResponse, got: {:?}", result),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_post_events_multiple() {
+        let server = MockServer::start();
+
+        let mock = server.mock(|when, then| {
+            when.method(POST)
+                .path("/chains/testchain/events")
+                .header("Content-Type", "application/json")
+                .json_body(json!({
+                    "events": [
+                        fixtures::gas_refunded_event(),
+                        fixtures::gas_credit_event(),
+                        fixtures::message_executed_event()
+                    ]
+                }));
+
+            then.status(200)
+                .header("Content-Type", "application/json")
+                .json_body(json!({
+                    "results": [
+                        {
+                            "status": "success",
+                            "index": 0,
+                            "error": null,
+                            "retriable": null
+                        },
+                        {
+                            "status": "success",
+                            "index": 1,
+                            "error": null,
+                            "retriable": null
+                        },
+                        {
+                            "status": "success",
+                            "index": 2,
+                            "error": null,
+                            "retriable": null
+                        }
+                    ]
+                }));
+        });
+
+        let gmp_api = mock_gmp_api_client(&server.base_url(), "testchain");
+
+        let events = vec![
+            fixtures::gas_refunded_event(),
+            fixtures::gas_credit_event(),
+            fixtures::message_executed_event()
+        ];
+        let result = gmp_api.post_events(events).await;
+
+        mock.assert();
+
+        assert!(result.is_ok(), "Expected success, got: {:?}", result);
+        let post_results = result.unwrap();
+        assert_eq!(post_results.len(), 3);
+        for (i, result) in post_results.iter().enumerate() {
+            assert_eq!(result.status, "success");
+            assert_eq!(result.index, i);
+            assert!(result.error.is_none());
+            assert!(result.retriable.is_none());
+        }
+    }
+
+    #[tokio::test]
+    async fn test_post_events_partial_success() {
+        let server = MockServer::start();
+
+        let mock = server.mock(|when, then| {
+            when.method(POST)
+                .path("/chains/testchain/events")
+                .header("Content-Type", "application/json")
+                .json_body(json!({
+                    "events": [
+                        fixtures::gas_refunded_event(),
+                        fixtures::gas_credit_event()
+                    ]
+                }));
+
+            then.status(200)
+                .header("Content-Type", "application/json")
+                .json_body(json!({
+                    "results": [
+                        {
+                            "status": "success",
+                            "index": 0,
+                            "error": null,
+                            "retriable": null
+                        },
+                        {
+                            "status": "error",
+                            "index": 1,
+                            "error": "Invalid event",
+                            "retriable": true
+                        }
+                    ]
+                }));
+        });
+
+        let gmp_api = mock_gmp_api_client(&server.base_url(), "testchain");
+
+        let events = vec![
+            fixtures::gas_refunded_event(),
+            fixtures::gas_credit_event()
+        ];
+        let result = gmp_api.post_events(events).await;
+
+        mock.assert();
+
+        assert!(result.is_ok(), "Expected success, got: {:?}", result);
+        let post_results = result.unwrap();
+        assert_eq!(post_results.len(), 2);
+
+        assert_eq!(post_results[0].status, "success");
+        assert_eq!(post_results[0].index, 0);
+        assert!(post_results[0].error.is_none());
+        assert!(post_results[0].retriable.is_none());
+
+        assert_eq!(post_results[1].status, "error");
+        assert_eq!(post_results[1].index, 1);
+        assert_eq!(post_results[1].error, Some("Invalid event".to_string()));
+        assert_eq!(post_results[1].retriable, Some(true));
+    }
+}
