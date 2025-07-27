@@ -2,10 +2,16 @@
 
 pub(crate) mod fixtures {
     use crate::gmp_api::gmp_types::{
-        Amount, CannotExecuteMessageReason, CommonEventFields, Event, EventMetadata,
-        GatewayV2Message, MessageApprovedEventMetadata, MessageExecutedEventMetadata,
-        MessageExecutionStatus,
+        Amount, CannotExecuteMessageReason, CommonEventFields, CommonTaskFields, ConstructProofTask,
+        ConstructProofTaskFields, Event, EventAttribute, EventMetadata, ExecuteTask, ExecuteTaskFields,
+        GatewayTxTask, GatewayTxTaskFields, GatewayV2Message, MessageApprovedEventMetadata,
+        MessageExecutedEventMetadata, MessageExecutionStatus, QuorumReachedEvent,
+        ReactToExpiredSigningSessionTask, ReactToExpiredSigningSessionTaskFields,
+        ReactToRetriablePollTask, ReactToRetriablePollTaskFields, ReactToWasmEventTask,
+        ReactToWasmEventTaskFields, RefundTask, RefundTaskFields, Task, UnknownTask, VerificationStatus,
+        VerifyTask, VerifyTaskFields, WasmEvent,
     };
+    use serde_json::json;
 
     pub fn gas_refunded_event() -> Event {
         let event_id = "event123".to_string();
@@ -227,5 +233,225 @@ pub(crate) mod fixtures {
                 token_id: Some("token".to_string()),
             },
         }
+    }
+
+    pub fn common_task_fields(task_type: &str) -> CommonTaskFields {
+        CommonTaskFields {
+            id: format!("{}_task_123", task_type.to_lowercase()),
+            chain: "ton".to_string(),
+            timestamp: "2023-01-01T00:00:00Z".to_string(),
+            r#type: task_type.to_string(),
+            meta: None,
+        }
+    }
+
+    pub fn gateway_message() -> GatewayV2Message {
+        GatewayV2Message {
+            message_id: "message123".to_string(),
+            source_chain: "ton".to_string(),
+            source_address: "0x123".to_string(),
+            destination_address: "0x456".to_string(),
+            payload_hash: "0x789".to_string(),
+        }
+    }
+
+    pub fn execute_task() -> Task {
+        let common_fields = common_task_fields("EXECUTE");
+        let message = gateway_message();
+
+        let execute_task_fields = ExecuteTaskFields {
+            message: message.clone(),
+            payload: "0xabcdef".to_string(),
+            available_gas_balance: Amount {
+                token_id: None,
+                amount: "1000000".to_string(),
+            },
+        };
+
+        let execute_task = ExecuteTask {
+            common: common_fields.clone(),
+            task: execute_task_fields,
+        };
+
+        Task::Execute(execute_task)
+    }
+
+    pub fn verify_task() -> Task {
+        let common_fields = common_task_fields("VERIFY");
+        let message = gateway_message();
+
+        let verify_task_fields = VerifyTaskFields {
+            message: message.clone(),
+            payload: "0xabcdef".to_string(),
+        };
+
+        let verify_task = VerifyTask {
+            common: common_fields.clone(),
+            task: verify_task_fields,
+        };
+
+        Task::Verify(verify_task)
+    }
+
+    pub fn construct_proof_task() -> Task {
+        let common_fields = common_task_fields("CONSTRUCT_PROOF");
+        let message = gateway_message();
+
+        let construct_proof_task_fields = ConstructProofTaskFields {
+            message: message.clone(),
+            payload: "0xabcdef".to_string(),
+        };
+
+        let construct_proof_task = ConstructProofTask {
+            common: common_fields.clone(),
+            task: construct_proof_task_fields,
+        };
+
+        Task::ConstructProof(construct_proof_task)
+    }
+
+    pub fn refund_task() -> Task {
+        let common_fields = common_task_fields("REFUND");
+        let message = gateway_message();
+
+        let refund_task_fields = RefundTaskFields {
+            message: message.clone(),
+            refund_recipient_address: "0x789".to_string(),
+            remaining_gas_balance: Amount {
+                token_id: None,
+                amount: "500000".to_string(),
+            },
+        };
+
+        let refund_task = RefundTask {
+            common: common_fields.clone(),
+            task: refund_task_fields,
+        };
+
+        Task::Refund(refund_task)
+    }
+
+    pub fn gateway_tx_task() -> Task {
+        let common_fields = common_task_fields("GATEWAY_TX");
+
+        let gateway_tx_task_fields = GatewayTxTaskFields {
+            execute_data: "base64_encoded_data".to_string(),
+        };
+
+        let gateway_tx_task = GatewayTxTask {
+            common: common_fields.clone(),
+            task: gateway_tx_task_fields,
+        };
+
+        Task::GatewayTx(gateway_tx_task)
+    }
+
+    pub fn react_to_wasm_event_task() -> Task {
+        let common_fields = common_task_fields("REACT_TO_WASM_EVENT");
+
+        let event_attributes = vec![
+            EventAttribute {
+                key: "key1".to_string(),
+                value: "value1".to_string(),
+            },
+            EventAttribute {
+                key: "key2".to_string(),
+                value: "value2".to_string(),
+            },
+        ];
+
+        let wasm_event = WasmEvent {
+            attributes: event_attributes,
+            r#type: "wasm_event_type".to_string(),
+        };
+
+        let react_to_wasm_event_task_fields = ReactToWasmEventTaskFields {
+            event: wasm_event,
+            height: 12345,
+        };
+
+        let react_to_wasm_event_task = ReactToWasmEventTask {
+            common: common_fields.clone(),
+            task: react_to_wasm_event_task_fields,
+        };
+
+        Task::ReactToWasmEvent(react_to_wasm_event_task)
+    }
+
+    pub fn react_to_expired_signing_session_task() -> Task {
+        let common_fields = common_task_fields("REACT_TO_EXPIRED_SIGNING_SESSION");
+
+        let react_to_expired_signing_session_task_fields = ReactToExpiredSigningSessionTaskFields {
+            session_id: 12345,
+            broadcast_id: "broadcast123".to_string(),
+            invoked_contract_address: "0xabc".to_string(),
+            request_payload: "request_payload_data".to_string(),
+        };
+
+        let react_to_expired_signing_session_task = ReactToExpiredSigningSessionTask {
+            common: common_fields.clone(),
+            task: react_to_expired_signing_session_task_fields,
+        };
+
+        Task::ReactToExpiredSigningSession(react_to_expired_signing_session_task)
+    }
+
+    pub fn react_to_retriable_poll_task() -> Task {
+        let common_fields = common_task_fields("REACT_TO_RETRIABLE_POLL");
+
+        let quorum_reached_events = vec![
+            QuorumReachedEvent {
+                status: VerificationStatus::SucceededOnSourceChain,
+                content: json!({"key": "value"}),
+            }
+        ];
+
+        let react_to_retriable_poll_task_fields = ReactToRetriablePollTaskFields {
+            poll_id: 12345,
+            broadcast_id: "broadcast123".to_string(),
+            invoked_contract_address: "0xabc".to_string(),
+            request_payload: "request_payload_data".to_string(),
+            quorum_reached_events: Some(quorum_reached_events),
+        };
+
+        let react_to_retriable_poll_task = ReactToRetriablePollTask {
+            common: common_fields.clone(),
+            task: react_to_retriable_poll_task_fields,
+        };
+
+        Task::ReactToRetriablePoll(react_to_retriable_poll_task)
+    }
+
+    pub fn unknown_task() -> Task {
+        let common_fields = common_task_fields("UNKNOWN");
+
+        let unknown_task = UnknownTask {
+            common: common_fields.clone(),
+        };
+
+        Task::Unknown(unknown_task)
+    }
+
+    pub fn execute_task_with_id(id: &str) -> Task {
+        let mut common_fields = common_task_fields("EXECUTE");
+        common_fields.id = id.to_string();
+
+        let message = gateway_message();
+
+        let execute_task_fields = ExecuteTaskFields {
+            message: message.clone(),
+            payload: "0xabcdef".to_string(),
+            available_gas_balance: Amount {
+                token_id: None,
+                amount: "1000000".to_string(),
+            },
+        };
+
+        let execute_task = ExecuteTask {
+            common: common_fields,
+            task: execute_task_fields,
+        };
+
+        Task::Execute(execute_task)
     }
 }

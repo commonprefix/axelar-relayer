@@ -1,6 +1,7 @@
 use anyhow::Result;
 pub mod task_retries;
 mod gmp_events;
+mod gmp_tasks;
 
 // E - entity, P - primary key
 #[cfg_attr(test, mockall::automock)]
