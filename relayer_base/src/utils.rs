@@ -103,7 +103,7 @@ pub fn extract_hex_xrpl_memo(
     memos: Option<Vec<Memo>>,
     memo_type: &str,
 ) -> Result<String, anyhow::Error> {
-    let hex_str = extract_from_xrpl_memo(memos.clone(), memo_type)?;
+    let hex_str = extract_from_xrpl_memo(memos, memo_type)?;
     let bytes = hex::decode(&hex_str)?;
     String::from_utf8(bytes).map_err(|e| e.into())
 }
@@ -115,7 +115,7 @@ pub fn setup_logging(config: &Config) -> ClientInitGuard {
         config.sentry_dsn.to_string(),
         sentry::ClientOptions {
             release: sentry::release_name!(),
-            environment: Some(std::borrow::Cow::Owned(environment.clone())),
+            environment: Some(std::borrow::Cow::Owned(environment)),
             traces_sample_rate: 1.0,
             ..Default::default()
         },

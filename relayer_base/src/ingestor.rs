@@ -152,12 +152,12 @@ impl<I: IngestorTrait> Ingestor<I> {
 
         for event_response in response {
             if event_response.status != "ACCEPTED" {
-                error!("Posting event failed: {:?}", event_response.error.clone());
+                error!("Posting event failed: {:?}", event_response.error);
                 if let Some(true) = event_response.retriable {
                     return Err(IngestorError::RetriableError(
                         // TODO: retry? Handle error responses for part of the batch
                         // Question: what happens if we send the same event multiple times?
-                        event_response.error.clone().unwrap_or_default(),
+                        event_response.error.unwrap_or_default(),
                     ));
                 }
             }

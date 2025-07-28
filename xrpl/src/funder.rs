@@ -40,8 +40,9 @@ impl<X: XRPLClientTrait> XRPLFunder<X> {
             Ok(resp) => {
                 let result: serde_json::Value =
                     resp.json().await.map_err(|e| anyhow::anyhow!(e))?;
-                let transaction_hash = result["transactionHash"]
-                    .as_str()
+                let transaction_hash = result
+                    .get("transactionHash")
+                    .and_then(|v| v.as_str())
                     .ok_or(anyhow::anyhow!("transactionHash not found in {:?}", result))?;
                 Ok(transaction_hash.to_string())
             }

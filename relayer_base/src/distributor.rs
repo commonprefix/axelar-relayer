@@ -33,8 +33,7 @@ impl<DB: Database> Distributor<DB> {
 
         info!(
             "Distributor: recovering last task id from {}: {:?}",
-            context,
-            last_task_id.clone()
+            context, last_task_id
         );
 
         Self {
