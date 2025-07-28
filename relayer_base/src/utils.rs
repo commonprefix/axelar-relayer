@@ -2,7 +2,8 @@ use std::str::FromStr;
 
 use anyhow::Context;
 use axelar_wasm_std::msg_id::HexTxHash;
-use redis::{Commands, SetExpiry, SetOptions};
+use redis::{AsyncTypedCommands, SetExpiry, SetOptions};
+use redis::aio::{ConnectionManager};
 use rust_decimal::{prelude::FromPrimitive, Decimal};
 use sentry::ClientInitGuard;
 use sentry_tracing::{layer as sentry_layer, EventFilter};
@@ -252,19 +253,21 @@ pub fn parse_message_from_context(
     })
 }
 
-pub fn setup_heartbeat(service: String, redis_pool: r2d2::Pool<redis::Client>) {
+pub fn setup_heartbeat(service: String, redis_conn: ConnectionManager) {
     tokio::spawn(async move {
+        let mut redis_conn = redis_conn;
         loop {
-            tracing::info!("Writing heartbeat to DB");
-            let mut redis_conn = redis_pool.get().unwrap();
+            tracing::info!("Writing heartbeat to Redis");
             let set_opts =
                 SetOptions::default().with_expiration(SetExpiry::EX(HEARTBEAT_EXPIRATION));
-            let result: redis::RedisResult<()> =
-                redis_conn.set_options(service.clone(), "1", set_opts);
+            let result =
+                redis_conn.set_options(service.clone(), 1, set_opts).await;
+
             if let Err(e) = result {
                 tracing::error!("Failed to write heartbeat: {}", e);
             }
-            tokio::time::sleep(tokio::time::Duration::from_secs(15)).await;
+            tracing::info!("Heartbeat sent to Redis");
+            tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
         }
     });
 }
@@ -311,11 +314,10 @@ mod tests {
     use std::{
         collections::{BTreeMap, HashMap},
         fs,
-        time::Duration,
     };
 
     use crate::{database::MockDatabase, price_view::MockPriceView};
-    use redis::Client;
+    use redis::{Client, Commands};
     use testcontainers::{
         core::{IntoContainerPort, WaitFor},
         runners::AsyncRunner,
@@ -1008,20 +1010,21 @@ mod tests {
         let url = format!("redis://{host}:{host_port}");
         let client = Client::open(url.as_ref()).unwrap();
 
-        let pool = r2d2::Pool::builder()
-            .connection_timeout(Duration::from_millis(1000))
-            .build(client)
-            .unwrap();
-        let mut conn = pool.get().unwrap();
+        // Multiplexed connection for the heartbeat
+        let multiplexed_conn = client.get_connection_manager().await.unwrap();
+
+        // Separate connection for verification
+        let mut conn = client.get_connection().unwrap();
+
         tokio::time::pause();
-        setup_heartbeat("test".to_string(), pool);
+        setup_heartbeat("test".to_string(), multiplexed_conn);
         let mut val: Option<String> = conn.get("test").unwrap();
         assert!(val.is_none());
 
-        // It may be misleading to think that moving the clock forwards by 15 seconds will complete
-        // the loop. In fact, advance will move the tokio loop forward and change the clock, so
-        // the loop needs to be run as many times as there are yield opportunities.
-        tokio::time::advance(Duration::from_secs(1)).await;
+        for _ in 0..4 {
+            tokio::task::yield_now().await;
+        }
+
         val = conn.get("test").unwrap();
         assert_eq!(val, Some("1".to_string()));
     }

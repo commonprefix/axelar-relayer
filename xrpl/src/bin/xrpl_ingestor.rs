@@ -18,6 +18,7 @@ use relayer_base::{
     queue::Queue,
     utils::{setup_heartbeat, setup_logging},
 };
+use relayer_base::redis::connection_manager;
 use xrpl::config::XRPLConfig;
 
 #[tokio::main]
@@ -58,9 +59,10 @@ async fn main() -> anyhow::Result<()> {
     let mut sigterm = signal(SignalKind::terminate())?;
 
     let redis_client = redis::Client::open(config.common_config.redis_server.clone())?;
-    let redis_pool = r2d2::Pool::builder().build(redis_client)?;
-
-    setup_heartbeat("heartbeat:ingestor".to_owned(), redis_pool);
+    let redis_conn = connection_manager(redis_client, None, None, None)
+        .await?;
+    
+    setup_heartbeat("heartbeat:ingestor".to_owned(), redis_conn);
 
     tokio::select! {
         _ = sigint.recv()  => {},

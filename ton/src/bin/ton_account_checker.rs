@@ -8,6 +8,7 @@ use ton::check_accounts::check_accounts;
 use ton::client::TONRpcClient;
 use ton::config::TONConfig;
 use tonlib_core::TonAddress;
+use relayer_base::redis::connection_manager;
 
 const MIN_BALANCE: u64 = 10_000_000_000;
 
@@ -23,9 +24,10 @@ async fn main() -> anyhow::Result<()> {
     let mut sigterm = signal(SignalKind::terminate())?;
 
     let redis_client = redis::Client::open(config.common_config.redis_server.clone())?;
-    let redis_pool = r2d2::Pool::builder().build(redis_client)?;
+    let redis_conn = connection_manager(redis_client, None, None, None)
+        .await?;
 
-    setup_heartbeat("heartbeat:account_checker".to_owned(), redis_pool);
+    setup_heartbeat("heartbeat:account_checker".to_owned(), redis_conn);
 
     let mut our_addresses = vec![];
     for wallet in config.wallets {

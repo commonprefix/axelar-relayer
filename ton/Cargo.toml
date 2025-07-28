@@ -10,9 +10,8 @@ tokio = { workspace = true }
 anyhow = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
-r2d2 = { workspace = true }
 error-stack = { workspace = true }
-redis = { workspace = true }
+redis = { workspace = true, features = ["tokio-rustls-comp"] }
 hex = { workspace = true }
 tracing = { workspace = true }
 thiserror = { workspace = true }

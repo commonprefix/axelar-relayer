@@ -14,6 +14,7 @@ use ton::retry_subscriber::RetryTONSubscriber;
 use ton::subscriber::TONSubscriber;
 use ton::ton_trace::PgTONTraceModel;
 use tonlib_core::TonAddress;
+use relayer_base::redis::connection_manager;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -35,9 +36,10 @@ async fn main() -> anyhow::Result<()> {
     let mut sigterm = signal(SignalKind::terminate())?;
 
     let redis_client = redis::Client::open(config.common_config.redis_server.clone())?;
-    let redis_pool = r2d2::Pool::builder().build(redis_client)?;
+    let redis_conn = connection_manager(redis_client, None, None, None)
+        .await?;
 
-    setup_heartbeat("heartbeat:subscriber".to_owned(), redis_pool);
+    setup_heartbeat("heartbeat:subscriber".to_owned(), redis_conn);
 
     let pg_pool = PgPool::connect(&config.common_config.postgres_url).await?;
 

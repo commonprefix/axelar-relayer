@@ -8,6 +8,7 @@ use relayer_base::{
     utils::{setup_heartbeat, setup_logging},
 };
 use tokio::signal::unix::{signal, SignalKind};
+use relayer_base::redis::connection_manager;
 use xrpl::{client::XRPLClient, config::XRPLConfig, subscriber::XrplSubscriber};
 
 #[tokio::main]
@@ -43,9 +44,10 @@ async fn main() -> anyhow::Result<()> {
     ];
 
     let redis_client = redis::Client::open(config.common_config.redis_server.clone()).unwrap();
-    let redis_pool = r2d2::Pool::builder().build(redis_client).unwrap();
+    let redis_conn = connection_manager(redis_client, None, None, None)
+        .await?;
 
-    setup_heartbeat("heartbeat:subscriber_recovery".to_owned(), redis_pool);
+    setup_heartbeat("heartbeat:subscriber_recovery".to_owned(), redis_conn);
 
     let mut sigint = signal(SignalKind::interrupt())?;
     let mut sigterm = signal(SignalKind::terminate())?;

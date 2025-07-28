@@ -10,6 +10,7 @@ use relayer_base::{
     payload_cache::PayloadCache, queue::Queue,
 };
 use std::sync::Arc;
+use redis::aio::ConnectionManager;
 use tonlib_core::TonAddress;
 
 pub struct TONIncluder {}
@@ -19,7 +20,7 @@ impl TONIncluder {
     pub async fn new<DB: Database, G: GmpApiTrait + Send + Sync + 'static>(
         config: TONConfig,
         gmp_api: Arc<G>,
-        redis_pool: r2d2::Pool<redis::Client>,
+        redis_conn: ConnectionManager,
         payload_cache_for_includer: PayloadCache<DB>,
         construct_proof_queue: Arc<Queue>,
         high_load_query_id_db_wrapper: Arc<HighLoadQueryIdDbWrapper>,
@@ -27,14 +28,13 @@ impl TONIncluder {
         Includer<TONBroadcaster<TONGasEstimator>, Arc<dyn RestClient>, TONRefundManager, DB, G>,
         BroadcasterError,
     > {
-        let config_for_refund_manager = config.clone();
         let ton_rpc = config.ton_rpc;
         let ton_api_key = config.ton_api_key;
         let wallets = config.wallets;
         let ton_gateway = config.ton_gateway;
         let ton_gas_service = config.ton_gas_service;
 
-        let lock_manager = Arc::new(RedisLockManager::new(redis_pool.clone()));
+        let lock_manager = Arc::new(RedisLockManager::new(redis_conn.clone()));
         let wallet_manager = Arc::new(WalletManager::new(wallets, lock_manager).await);
 
         let client: Arc<dyn RestClient> = Arc::new(
@@ -59,12 +59,8 @@ impl TONIncluder {
         )
         .map_err(|e| e.attach_printable("Failed to create TONBroadcaster"))?;
 
-        let refund_manager = TONRefundManager::new(
-            Arc::clone(&client),
-            config_for_refund_manager,
-            redis_pool.clone(),
-        )
-        .map_err(|e| error_stack::report!(BroadcasterError::GenericError(e.to_string())))?;
+        let refund_manager = TONRefundManager::new()
+            .map_err(|e| error_stack::report!(BroadcasterError::GenericError(e.to_string())))?;
 
         let includer = Includer {
             chain_client: client,
@@ -73,7 +69,7 @@ impl TONIncluder {
             gmp_api,
             payload_cache: payload_cache_for_includer,
             construct_proof_queue,
-            redis_pool: redis_pool.clone(),
+            redis_conn,
         };
 
         Ok(includer)

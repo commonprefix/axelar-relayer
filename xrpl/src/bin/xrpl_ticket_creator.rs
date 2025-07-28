@@ -6,6 +6,7 @@ use relayer_base::{
     utils::{setup_heartbeat, setup_logging},
 };
 use relayer_base::config::{config_from_yaml};
+use relayer_base::redis::connection_manager;
 use xrpl::config::XRPLConfig;
 use xrpl::ticket_creator::XrplTicketCreator;
 
@@ -18,9 +19,11 @@ async fn main() {
     let _guard = setup_logging(&config.common_config);
 
     let redis_client = redis::Client::open(config.common_config.redis_server.clone()).unwrap();
-    let redis_pool = r2d2::Pool::builder().build(redis_client).unwrap();
+    let redis_conn = connection_manager(redis_client, None, None, None)
+        .await
+        .unwrap();
 
-    setup_heartbeat("heartbeat:ticket_creator".to_owned(), redis_pool);
+    setup_heartbeat("heartbeat:ticket_creator".to_owned(), redis_conn);
 
     let pg_pool = PgPool::connect(&config.common_config.postgres_url)
         .await

@@ -5,6 +5,7 @@ use relayer_base::{
     utils::{setup_heartbeat, setup_logging},
 };
 use relayer_base::config::config_from_yaml;
+use relayer_base::redis::connection_manager;
 
 #[tokio::main]
 async fn main() {
@@ -18,9 +19,10 @@ async fn main() {
     let price_feeder = PriceFeeder::new(&config, db).await.unwrap();
 
     let redis_client = redis::Client::open(config.redis_server.clone()).unwrap();
-    let redis_pool = r2d2::Pool::builder().build(redis_client).unwrap();
-
-    setup_heartbeat("heartbeat:price_feed".to_owned(), redis_pool);
+    let redis_conn = connection_manager(redis_client, None, None, None)
+        .await
+        .unwrap();
+    setup_heartbeat("heartbeat:price_feed".to_owned(), redis_conn);
 
     price_feeder.run().await.unwrap();
 }

@@ -11,6 +11,7 @@ use relayer_base::{
     queue::Queue,
     utils::{setup_heartbeat, setup_logging},
 };
+use relayer_base::redis::connection_manager;
 use ton::config::TONConfig;
 
 #[tokio::main]
@@ -45,10 +46,11 @@ async fn main() -> anyhow::Result<()> {
         TaskKind::GatewayTx,
     ]);
 
-    let redis_client = redis::Client::open(config.common_config.redis_server.clone()).unwrap();
-    let redis_pool = r2d2::Pool::builder().build(redis_client).unwrap();
+    let redis_client = redis::Client::open(config.common_config.redis_server.clone())?;
+    let redis_conn = connection_manager(redis_client, None, None, None)
+        .await?;
 
-    setup_heartbeat("heartbeat:distributor".to_owned(), redis_pool);
+    setup_heartbeat("heartbeat:distributor".to_owned(), redis_conn);
 
     let mut sigint = signal(SignalKind::interrupt())?;
     let mut sigterm = signal(SignalKind::terminate())?;

@@ -15,6 +15,7 @@ use ton::ingestor::TONIngestor;
 use ton::parser::TraceParser;
 use ton::ton_trace::PgTONTraceModel;
 use tonlib_core::TonAddress;
+use relayer_base::redis::connection_manager;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -61,9 +62,10 @@ async fn main() -> anyhow::Result<()> {
     let ingestor = Ingestor::new(gmp_api, ton_ingestor);
 
     let redis_client = redis::Client::open(config.common_config.redis_server.clone())?;
-    let redis_pool = r2d2::Pool::builder().build(redis_client)?;
+    let redis_conn = connection_manager(redis_client, None, None, None)
+        .await?;
 
-    setup_heartbeat("heartbeat:ingestor".to_owned(), redis_pool);
+    setup_heartbeat("heartbeat:ingestor".to_owned(), redis_conn);
 
     let mut sigint = signal(SignalKind::interrupt())?;
     let mut sigterm = signal(SignalKind::terminate())?;

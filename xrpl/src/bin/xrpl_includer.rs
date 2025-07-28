@@ -13,6 +13,7 @@ use relayer_base::{
     models::gmp_tasks::PgGMPTasks,
     models::gmp_events::PgGMPEvents,
 };
+use relayer_base::redis::connection_manager;
 use xrpl::{
     client::XRPLClient, config::XRPLConfig, includer::XrplIncluder,
     models::queued_transactions::PgQueuedTransactionsModel,
@@ -30,7 +31,9 @@ async fn main() -> anyhow::Result<()> {
     let construct_proof_queue =
         Queue::new(&config.common_config.queue_address, "construct_proof").await;
     let redis_client = redis::Client::open(config.common_config.redis_server.clone()).unwrap();
-    let redis_pool = r2d2::Pool::builder().build(redis_client).unwrap();
+    let redis_conn = connection_manager(redis_client, None, None, None)
+        .await?;
+
     let postgres_db = PostgresDB::new(&config.common_config.postgres_url)
         .await
         .unwrap();
@@ -46,7 +49,7 @@ async fn main() -> anyhow::Result<()> {
     let xrpl_includer = XrplIncluder::new::<XRPLClient, PostgresDB, PgQueuedTransactionsModel, gmp_api::GmpApiDbAuditDecorator<gmp_api::GmpApi, PgGMPTasks, PgGMPEvents>>(
         config.clone(),
         gmp_api,
-        redis_pool.clone(),
+        redis_conn.clone(),
         payload_cache,
         construct_proof_queue.clone(),
         queued_tx_model.clone(),
@@ -58,7 +61,7 @@ async fn main() -> anyhow::Result<()> {
     let mut sigint = signal(SignalKind::interrupt())?;
     let mut sigterm = signal(SignalKind::terminate())?;
 
-    setup_heartbeat("heartbeat:includer".to_owned(), redis_pool);
+    setup_heartbeat("heartbeat:includer".to_owned(), redis_conn);
 
     tokio::select! {
         _ = sigint.recv()  => {},

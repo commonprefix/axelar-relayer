@@ -7,6 +7,7 @@ use relayer_base::{
 use sqlx::PgPool;
 use std::sync::Arc;
 use tokio::signal::unix::{signal, SignalKind};
+use relayer_base::redis::connection_manager;
 use ton::config::TONConfig;
 use ton::high_load_query_id_db_wrapper::HighLoadQueryIdDbWrapper;
 use ton::includer::TONIncluder;
@@ -24,7 +25,9 @@ async fn main() -> anyhow::Result<()> {
     let construct_proof_queue =
         Queue::new(&config.common_config.queue_address, "construct_proof").await;
     let redis_client = redis::Client::open(config.common_config.redis_server.clone())?;
-    let redis_pool = r2d2::Pool::builder().build(redis_client)?;
+    let redis_conn = connection_manager(redis_client.clone(), None, None, None)
+        .await?;
+
     let postgres_db = PostgresDB::new(&config.common_config.postgres_url).await?;
     let payload_cache_for_includer = PayloadCache::new(postgres_db);
 
@@ -36,17 +39,16 @@ async fn main() -> anyhow::Result<()> {
     let ton_includer = TONIncluder::new(
         config,
         gmp_api,
-        redis_pool.clone(),
+        redis_conn.clone(),
         payload_cache_for_includer,
         construct_proof_queue.clone(),
         Arc::new(high_load_query_id_wrapper),
     )
-    .await
-    .unwrap();
+    .await.expect("Failed to construct TONIncluder");
     let mut sigint = signal(SignalKind::interrupt())?;
     let mut sigterm = signal(SignalKind::terminate())?;
 
-    setup_heartbeat("heartbeat:includer".to_owned(), redis_pool);
+    setup_heartbeat("heartbeat:includer".to_owned(), redis_conn);
 
     tokio::select! {
         _ = sigint.recv()  => {},

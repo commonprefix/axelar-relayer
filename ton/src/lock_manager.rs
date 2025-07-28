@@ -6,11 +6,12 @@ Lock Manager with Redis implementation.
 ```rust,no_run
 #[tokio::main]
 async fn main() {
+    use relayer_base::redis::connection_manager;
     use ton::lock_manager::{LockManager, RedisLockManager};
 
     let client = redis::Client::open("redis://127.0.0.1/").unwrap();
-    let pool = r2d2::Pool::builder().build(client).unwrap();
-    let manager = RedisLockManager::new(pool);
+    let conn = connection_manager(client, None, None, None).await.unwrap();
+    let manager = RedisLockManager::new(conn);
 
     let lock = manager.lock("key").await;
     if lock {
@@ -29,9 +30,10 @@ functionality, maintaining our own will make it easier to customize the function
 
 */
 
+use redis::AsyncCommands;
 use async_trait::async_trait;
-use r2d2::{Pool, PooledConnection};
-use redis::{Client, Commands, ExistenceCheck, SetExpiry, SetOptions};
+use redis::{ExistenceCheck, SetExpiry, SetOptions};
+use redis::aio::ConnectionManager;
 use tracing::error;
 
 #[async_trait]
@@ -41,39 +43,29 @@ pub trait LockManager: Send + Sync {
 }
 
 pub struct RedisLockManager {
-    pool: Pool<Client>,
+    conn: ConnectionManager,
 }
 
 impl RedisLockManager {
-    pub fn new(pool: Pool<Client>) -> Self {
-        Self { pool }
+    pub fn new(conn: ConnectionManager) -> Self {
+        Self { conn }
     }
 
-    fn redis_connection(&self) -> Option<PooledConnection<Client>> {
-        match self.pool.get() {
-            Ok(conn) => Some(conn),
-            Err(e) => {
-                error!("Failed to get Redis connection: {}", e);
-                None
-            }
-        }
+    fn redis_connection(&self) -> ConnectionManager {
+        self.conn.clone()
     }
 }
 
 #[async_trait::async_trait]
 impl LockManager for RedisLockManager {
     async fn lock(&self, key: &str) -> bool {
-        let mut redis_conn = match self.redis_connection() {
-            Some(conn) => conn,
-            None => return false,
-        };
 
         let set_opts = SetOptions::default()
             .conditional_set(ExistenceCheck::NX)
             .with_expiration(SetExpiry::EX(60));
 
-        redis_conn
-            .set_options(format!("wallet_lock_{}", key), true, set_opts)
+        self.redis_connection()
+            .set_options(format!("wallet_lock_{}", key), true, set_opts).await
             .unwrap_or_else(|e| {
                 error!("Failed to set Redis lock: {}", e);
                 false
@@ -81,13 +73,8 @@ impl LockManager for RedisLockManager {
     }
 
     async fn unlock(&self, key: &str) {
-        let mut redis_conn = match self.redis_connection() {
-            Some(conn) => conn,
-            None => return,
-        };
-
-        redis_conn
-            .del(format!("wallet_lock_{}", key))
+        self.redis_connection()
+            .del(format!("wallet_lock_{}", key)).await
             .unwrap_or_else(|e| {
                 error!("Failed to set Redis lock: {}", e);
                 false
@@ -98,7 +85,6 @@ impl LockManager for RedisLockManager {
 #[cfg(test)]
 mod tests {
     use crate::lock_manager::{LockManager, RedisLockManager};
-    use r2d2::Pool;
     use redis::Client;
     use std::time::Duration;
     use testcontainers::{
@@ -106,6 +92,7 @@ mod tests {
         runners::AsyncRunner,
         GenericImage,
     };
+    use relayer_base::redis::connection_manager;
 
     async fn create_redis_lock_manager() -> (
         testcontainers::ContainerAsync<GenericImage>,
@@ -124,12 +111,8 @@ mod tests {
         let url = format!("redis://{host}:{host_port}");
         let client = Client::open(url.as_ref()).unwrap();
 
-        let pool = Pool::builder()
-            .connection_timeout(Duration::from_millis(1000)) // Tiny timeout
-            .build(client)
-            .unwrap();
-
-        let manager = RedisLockManager::new(pool);
+        let conn = connection_manager(client, Some(Duration::from_millis(100)), Some(Duration::from_millis(100)), Some(0)).await.unwrap();
+        let manager = RedisLockManager::new(conn);
 
         (container, manager)
     }
