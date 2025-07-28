@@ -9,6 +9,7 @@ use relayer_base::{
     queue::Queue,
     utils::{setup_heartbeat, setup_logging},
 };
+use std::sync::Arc;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -26,8 +27,8 @@ async fn main() -> anyhow::Result<()> {
     let redis_pool = r2d2::Pool::builder().build(redis_client)?;
     let proof_retrier = ProofRetrier::new(
         payload_cache,
-        construct_proof_queue.clone(),
-        tasks_queue.clone(),
+        Arc::clone(&construct_proof_queue),
+        Arc::clone(&tasks_queue),
         redis_pool.clone(),
     );
 

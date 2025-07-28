@@ -105,12 +105,12 @@ impl<DB: Database> Distributor<DB> {
             let task_item = &QueueItem::Task(Box::new(task.clone()));
             info!("Publishing task: {:?}", task);
             let queue = match task.kind() {
-                TaskKind::Refund | TaskKind::GatewayTx => includer_queue.clone(),
+                TaskKind::Refund | TaskKind::GatewayTx => Arc::clone(&includer_queue),
                 TaskKind::Verify
                 | TaskKind::ConstructProof
                 | TaskKind::ReactToWasmEvent
                 | TaskKind::ReactToRetriablePoll
-                | TaskKind::ReactToExpiredSigningSession => ingestor_queue.clone(),
+                | TaskKind::ReactToExpiredSigningSession => Arc::clone(&ingestor_queue),
                 TaskKind::Unknown | TaskKind::Execute => {
                     warn!("Dropping unsupported task: {:?}", task);
                     continue;
@@ -125,7 +125,11 @@ impl<DB: Database> Distributor<DB> {
         loop {
             info!("Distributor is alive.");
             let work_res = self
-                .work(includer_queue.clone(), ingestor_queue.clone(), None)
+                .work(
+                    Arc::clone(&includer_queue),
+                    Arc::clone(&ingestor_queue),
+                    None,
+                )
                 .await;
             if let Err(err) = work_res {
                 warn!("{:?}\nRetrying in 2 seconds", err);
@@ -146,8 +150,8 @@ impl<DB: Database> Distributor<DB> {
             info!("Distributor is recovering.");
             let work_res = self
                 .work(
-                    includer_queue.clone(),
-                    ingestor_queue.clone(),
+                    Arc::clone(&includer_queue),
+                    Arc::clone(&ingestor_queue),
                     recovery_settings.tasks_filter.clone(),
                 )
                 .await;

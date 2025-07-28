@@ -136,7 +136,7 @@ where
         if let Ok(mut consumer) = queue.consumer().await {
             loop {
                 info!("Includer is alive.");
-                self.work(&mut consumer, queue.clone()).await;
+                self.work(&mut consumer, Arc::clone(&queue)).await;
             }
         } else {
             error!("Failed to create consumer");

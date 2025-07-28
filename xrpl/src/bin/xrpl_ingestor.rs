@@ -42,7 +42,7 @@ async fn main() -> anyhow::Result<()> {
     };
     // make an xrpl ingestor
     let xrpl_ingestor = XrplIngestor::new(
-        gmp_api.clone(),
+        Arc::clone(&gmp_api),
         config.clone(),
         price_view,
         payload_cache,
@@ -61,7 +61,7 @@ async fn main() -> anyhow::Result<()> {
     tokio::select! {
         _ = sigint.recv()  => {},
         _ = sigterm.recv() => {},
-        _ = ingestor.run(events_queue.clone(), tasks_queue.clone()) => {},
+        _ = ingestor.run(Arc::clone(&events_queue), Arc::clone(&tasks_queue)) => {},
     }
 
     tasks_queue.close().await;

@@ -52,8 +52,8 @@ async fn main() -> anyhow::Result<()> {
         _ = sigint.recv()  => {},
         _ = sigterm.recv() => {},
         _ = distributor.run(
-            includer_tasks_queue.clone(),
-            ingestor_tasks_queue.clone(),
+            Arc::clone(&includer_tasks_queue),
+            Arc::clone(&ingestor_tasks_queue),
         ) => {},
     }
 

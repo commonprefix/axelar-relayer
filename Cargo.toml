@@ -65,7 +65,7 @@ testcontainers-modules = { version = "0.12.1", features = ["postgres"] }
 uninlined_format_args = "allow"
 unwrap_used = "warn"
 indexing_slicing = "warn"
-clone_on_ref_ptr = "allow"
+clone_on_ref_ptr = "warn"
 redundant_clone = "warn"
 unnecessary_box_returns = "warn"
 

@@ -81,7 +81,7 @@ where
 
     pub async fn run(&mut self, account: TP::Account, queue: Arc<Queue>) {
         loop {
-            self.work(account.clone(), queue.clone()).await;
+            self.work(account.clone(), Arc::clone(&queue)).await;
         }
     }
 

@@ -105,10 +105,10 @@ impl<I: IngestorTrait> Ingestor<I> {
         info!("Ingestor is alive.");
 
         select! {
-            _ = self.work(&mut events_consumer, events_queue.clone()) => {
+            _ = self.work(&mut events_consumer, Arc::clone(&events_queue)) => {
                 warn!("Events consumer ended");
             },
-            _ = self.work(&mut tasks_consumer, tasks_queue.clone()) => {
+            _ = self.work(&mut tasks_consumer, Arc::clone(&tasks_queue)) => {
                 warn!("Tasks consumer ended");
             }
         };

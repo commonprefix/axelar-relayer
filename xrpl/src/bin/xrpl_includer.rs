@@ -40,7 +40,7 @@ async fn main() -> anyhow::Result<()> {
         gmp_api,
         redis_pool.clone(),
         payload_cache,
-        construct_proof_queue.clone(),
+        Arc::clone(&construct_proof_queue),
         queued_tx_model.clone(),
         Arc::new(xrpl_client),
     )
@@ -55,7 +55,7 @@ async fn main() -> anyhow::Result<()> {
     tokio::select! {
         _ = sigint.recv()  => {},
         _ = sigterm.recv() => {},
-        _ = xrpl_includer.run(tasks_queue.clone()) => {},
+        _ = xrpl_includer.run(Arc::clone(&tasks_queue)) => {},
     }
 
     tasks_queue.close().await;

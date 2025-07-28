@@ -7,6 +7,7 @@ use relayer_base::{
     subscriber::Subscriber,
     utils::{setup_heartbeat, setup_logging},
 };
+use std::sync::Arc;
 use tokio::signal::unix::{signal, SignalKind};
 use xrpl::{client::XRPLClient, config::XRPLConfig, subscriber::XrplSubscriber};
 use xrpl_types::AccountId;
@@ -39,7 +40,7 @@ async fn main() -> anyhow::Result<()> {
     tokio::select! {
         _ = sigint.recv()  => {},
         _ = sigterm.recv() => {},
-        _ = subscriber.run(account, events_queue.clone()) => {},
+        _ = subscriber.run(account, Arc::clone(&events_queue)) => {},
     }
 
     events_queue.close().await;

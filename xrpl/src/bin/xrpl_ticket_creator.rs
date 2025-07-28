@@ -26,7 +26,7 @@ async fn main() -> anyhow::Result<()> {
         gmp_api::GmpApi::new(&config.common_config, false)
             .map_err(|e| anyhow::anyhow!("Failed to create GmpApi: {}", e))?,
     );
-    let ticket_creator = XrplTicketCreator::new(gmp_api.clone(), config.clone());
+    let ticket_creator = XrplTicketCreator::new(Arc::clone(&gmp_api), config.clone());
     ticket_creator.run().await;
 
     Ok(())

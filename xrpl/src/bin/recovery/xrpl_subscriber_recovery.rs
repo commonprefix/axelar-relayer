@@ -7,6 +7,7 @@ use relayer_base::{
     subscriber::Subscriber,
     utils::{setup_heartbeat, setup_logging},
 };
+use std::sync::Arc;
 use tokio::signal::unix::{signal, SignalKind};
 use xrpl::{client::XRPLClient, config::XRPLConfig, subscriber::XrplSubscriber};
 
@@ -55,7 +56,7 @@ async fn main() -> anyhow::Result<()> {
         _ = sigterm.recv() => {},
         _ = subscriber.recover_txs(
             txs.into_iter().map(|s| s.to_string()).collect(),
-            events_queue.clone(),
+            Arc::clone(&events_queue),
         ) => {},
 
     }
