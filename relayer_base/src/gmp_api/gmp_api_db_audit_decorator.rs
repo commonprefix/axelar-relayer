@@ -137,9 +137,10 @@ impl<T: GmpApiTrait + Send + Sync + 'static, U: GMPTaskAudit + Send + Sync + 'st
 
         let results = self.gmp_api.post_events(events).await?;
 
-        for (i, result) in results.iter().enumerate() {
-            if i < event_models.len() {
-                let event_id = event_models[i].event_id.clone();
+        for result in &results {
+            let index = result.index;
+            if index < event_models.len() {
+                let event_id = event_models[index].event_id.clone();
                 let gmp_events = Arc::clone(&self.gmp_events);
                 let result_clone = result.clone();
                 spawn(async move {
@@ -147,6 +148,8 @@ impl<T: GmpApiTrait + Send + Sync + 'static, U: GMPTaskAudit + Send + Sync + 'st
                         error!("Failed to update event response in database: {:?}", e);
                     }
                 });
+            } else { 
+                error!("Index in PostEventResult out of bounds: {:?}", results);
             }
         }
 
@@ -367,13 +370,13 @@ mod tests {
         let results = vec![
             PostEventResult {
                 status: "success".to_string(),
-                index: 0,
+                index: 1,
                 error: None,
                 retriable: None,
             },
             PostEventResult {
                 status: "success".to_string(),
-                index: 1,
+                index: 0,
                 error: None,
                 retriable: None,
             },
@@ -389,12 +392,13 @@ mod tests {
             Box::pin(async move { Ok(results) })
         });
 
-        for (i, event) in events.iter().enumerate() {
+        for result in &results {
+            let index = result.index;
+            let event = &events[index];
             let event_model = EventModel::from_event(event.clone());
-            let result = results[i].clone();
             mock_gmp_events
                 .expect_update_event_response()
-                .with(eq(event_model.event_id), eq(Json(result)))
+                .with(eq(event_model.event_id), eq(Json(result.clone())))
                 .returning(|_, _| Box::pin(async { Ok(()) }));
         }
 
