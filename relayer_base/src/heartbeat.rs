@@ -20,11 +20,7 @@ pub async fn heartbeats_loop(common_config: &Config) -> ! {
         for (key, url) in common_config.heartbeats.iter() {
             let redis_key = format!("heartbeat:{}", key);
             let res: Option<String> = redis_conn.get(redis_key.as_str()).await.unwrap_or(None);
-            let value: u8 = match res.as_deref() {
-                Some("1") => 1,
-                Some("0") => 0,
-                _ => 0,
-            };
+            let value: u8 = res.and_then(|v| v.parse::<u8>().ok()).unwrap_or(0);
 
             if value == 1 {
                 match client.get(url).send().await {
