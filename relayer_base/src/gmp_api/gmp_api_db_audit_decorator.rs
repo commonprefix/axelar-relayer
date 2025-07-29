@@ -35,7 +35,7 @@ async fn create(config: &Config, pg_pool: PgPool) -> anyhow::Result<impl GmpApiT
     let decorated_api = GmpApiDbAuditDecorator::new(gmp_api, gmp_tasks, gmp_events);
 
     // Now you can use decorated_api as a regular GmpApiTrait implementation
-    // with automatic database auditing for tasks and events 
+    // with automatic database auditing for tasks and events
     Ok(decorated_api)
 }
 ```
@@ -74,13 +74,13 @@ impl<T: GmpApiTrait, U: GMPTaskAudit, V: GMPAudit> GmpApiDbAuditDecorator<T, U, 
 /// Constructs a GmpApiDbAuditDecorator with GmpApi, PgGMPTasks, and PgGMPEvents
 ///
 /// # Arguments
-/// 
+///
 /// * `pg_pool` - A PostgreSQL connection pool
 /// * `config` - The configuration for the GmpApi
 /// * `connection_pooling` - Whether to enable connection pooling for the GmpApi
-/// 
+///
 /// # Returns
-/// 
+///
 /// A Result containing an Arc-wrapped GmpApiDbAuditDecorator or a GmpApiError
 pub fn construct_gmp_api(
     pg_pool: PgPool,
@@ -100,8 +100,11 @@ pub fn construct_gmp_api(
     Ok(gmp_api)
 }
 
-impl<T: GmpApiTrait + Send + Sync + 'static, U: GMPTaskAudit + Send + Sync + 'static, V: GMPAudit + Send + Sync + 'static>
-    GmpApiTrait for GmpApiDbAuditDecorator<T, U, V>
+impl<
+        T: GmpApiTrait + Send + Sync + 'static,
+        U: GMPTaskAudit + Send + Sync + 'static,
+        V: GMPAudit + Send + Sync + 'static,
+    > GmpApiTrait for GmpApiDbAuditDecorator<T, U, V>
 {
     fn get_chain(&self) -> &str {
         self.gmp_api.get_chain()
@@ -119,7 +122,6 @@ impl<T: GmpApiTrait + Send + Sync + 'static, U: GMPTaskAudit + Send + Sync + 'st
                     error!("Failed to save task to database: {:?}", e);
                 }
             });
-
         }
 
         Ok(tasks)
@@ -138,18 +140,23 @@ impl<T: GmpApiTrait + Send + Sync + 'static, U: GMPTaskAudit + Send + Sync + 'st
         let results = self.gmp_api.post_events(events).await?;
 
         for result in &results {
-            let index = result.index;
-            if index < event_models.len() {
-                let event_id = event_models[index].event_id.clone();
-                let gmp_events = Arc::clone(&self.gmp_events);
-                let result_clone = result.clone();
-                spawn(async move {
-                    if let Err(e) = gmp_events.update_event_response(event_id, Json(result_clone)).await {
-                        error!("Failed to update event response in database: {:?}", e);
-                    }
-                });
-            } else { 
-                error!("Index in PostEventResult out of bounds: {:?}", results);
+            match event_models.get(result.index) {
+                Some(event) => {
+                    let event_id = event.event_id.clone();
+                    let gmp_events = Arc::clone(&self.gmp_events);
+                    let result_clone = result.clone();
+                    spawn(async move {
+                        if let Err(e) = gmp_events
+                            .update_event_response(event_id, Json(result_clone))
+                            .await
+                        {
+                            error!("Failed to update event response in database: {:?}", e);
+                        }
+                    });
+                }
+                None => {
+                    error!("Index in PostEventResult out of bounds: {:?}", results);
+                }
             }
         }
 
@@ -198,14 +205,13 @@ impl<T: GmpApiTrait + Send + Sync + 'static, U: GMPTaskAudit + Send + Sync + 'st
         details: String,
         reason: CannotExecuteMessageReason,
     ) -> Result<(), GmpApiError> {
-        let cannot_execute_message_event =
-            self.gmp_api.map_cannot_execute_message_to_event(
-                id,
-                message_id,
-                source_chain,
-                details,
-                reason,
-            );
+        let cannot_execute_message_event = self.gmp_api.map_cannot_execute_message_to_event(
+            id,
+            message_id,
+            source_chain,
+            details,
+            reason,
+        );
 
         self.post_events(vec![cannot_execute_message_event]).await?;
 
@@ -216,7 +222,14 @@ impl<T: GmpApiTrait + Send + Sync + 'static, U: GMPTaskAudit + Send + Sync + 'st
         self.gmp_api.its_interchain_transfer(xrpl_message).await
     }
 
-    fn map_cannot_execute_message_to_event(&self, _id: String, _message_id: String, _source_chain: String, _details: String, _reason: CannotExecuteMessageReason) -> Event {
+    fn map_cannot_execute_message_to_event(
+        &self,
+        _id: String,
+        _message_id: String,
+        _source_chain: String,
+        _details: String,
+        _reason: CannotExecuteMessageReason,
+    ) -> Event {
         unimplemented!()
     }
 }
@@ -224,8 +237,8 @@ impl<T: GmpApiTrait + Send + Sync + 'static, U: GMPTaskAudit + Send + Sync + 'st
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_utils::fixtures;
     use crate::gmp_api::gmp_types::{CommonEventFields, EventMetadata};
+    use crate::test_utils::fixtures;
     use mockall::predicate::*;
     #[tokio::test]
     async fn test_get_tasks_action() {
@@ -539,18 +552,16 @@ mod tests {
             .expect_update_event_response()
             .returning(|_, _| Box::pin(async { Ok(()) }));
 
-        mock_gmp_api
-            .expect_post_events()
-            .returning(|_events| {
-                Box::pin(async move {
-                    Ok(vec![crate::gmp_api::gmp_types::PostEventResult {
-                        status: "success".to_string(),
-                        index: 0,
-                        error: None,
-                        retriable: None,
-                    }])
-                })
-            });
+        mock_gmp_api.expect_post_events().returning(|_events| {
+            Box::pin(async move {
+                Ok(vec![crate::gmp_api::gmp_types::PostEventResult {
+                    status: "success".to_string(),
+                    index: 0,
+                    error: None,
+                    retriable: None,
+                }])
+            })
+        });
 
         mock_gmp_api
             .expect_map_cannot_execute_message_to_event()
