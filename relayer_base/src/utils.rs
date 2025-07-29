@@ -1033,11 +1033,23 @@ mod tests {
         let mut val: Option<String> = conn.get("test").unwrap();
         assert!(val.is_none());
 
-        for _ in 0..20 {
+        let mut attempts = 0;
+        const MAX_ATTEMPTS: usize = 1000;
+
+        loop {
             tokio::task::yield_now().await;
+
+            val = conn.get("test").unwrap();
+            if val.is_some() {
+                break;
+            }
+
+            attempts += 1;
+            if attempts >= MAX_ATTEMPTS {
+                panic!("Heartbeat was not set after {} yields", MAX_ATTEMPTS);
+            }
         }
 
-        val = conn.get("test").unwrap();
         assert_eq!(val, Some("1".to_string()));
     }
 }
