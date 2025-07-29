@@ -11,12 +11,13 @@ use relayer_base::{
 };
 use std::sync::Arc;
 use tonlib_core::TonAddress;
+use relayer_base::utils::ThreadSafe;
 
 pub struct TONIncluder {}
 
 impl TONIncluder {
     #[allow(clippy::new_ret_no_self)]
-    pub async fn new<DB: Database, G: GmpApiTrait + Send + Sync + 'static>(
+    pub async fn new<DB: Database, G: GmpApiTrait + ThreadSafe>(
         config: TONConfig,
         gmp_api: Arc<G>,
         redis_pool: r2d2::Pool<redis::Client>,

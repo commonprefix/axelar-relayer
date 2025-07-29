@@ -18,6 +18,7 @@ use crate::{
 use crate::gmp_api::gmp_types::{ExecuteTaskFields, RefundTaskFields};
 use crate::gmp_api::GmpApiTrait;
 use crate::payload_cache::PayloadCacheTrait;
+use crate::utils::ThreadSafe;
 
 pub trait RefundManager {
     type Wallet;
@@ -72,7 +73,7 @@ where
     B: Broadcaster,
     R: RefundManager,
     DB: Database,
-    G: GmpApiTrait + Send + Sync + 'static,
+    G: GmpApiTrait + ThreadSafe,
 {
     pub chain_client: C,
     pub broadcaster: B,
@@ -88,7 +89,7 @@ where
     B: Broadcaster,
     R: RefundManager,
     DB: Database,
-    G: GmpApiTrait + Send + Sync + 'static,
+    G: GmpApiTrait + ThreadSafe,
 {
     async fn work(&self, consumer: &mut Consumer, queue: Arc<Queue>) {
         match consumer.next().await {

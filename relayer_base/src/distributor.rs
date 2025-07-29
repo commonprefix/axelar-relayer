@@ -8,6 +8,7 @@ use crate::{
     queue::{Queue, QueueItem},
 };
 use crate::gmp_api::GmpApiTrait;
+use crate::utils::ThreadSafe;
 
 #[derive(Clone)]
 pub struct RecoverySettings {
@@ -16,7 +17,7 @@ pub struct RecoverySettings {
     pub tasks_filter: Option<Vec<TaskKind>>,
 }
 
-pub struct Distributor<DB: Database, G: GmpApiTrait + Send + Sync + 'static> {
+pub struct Distributor<DB: Database, G: GmpApiTrait + ThreadSafe> {
     db: DB,
     last_task_id: Option<String>,
     context: String,
@@ -27,7 +28,11 @@ pub struct Distributor<DB: Database, G: GmpApiTrait + Send + Sync + 'static> {
     supported_ingestor_tasks: Vec<TaskKind>,
 }
 
-impl<DB: Database, G: GmpApiTrait + Send + Sync + 'static> Distributor<DB, G> {
+impl<DB, G> Distributor<DB, G>
+where
+    DB: Database,
+    G: GmpApiTrait + ThreadSafe
+{
     pub async fn new(db: DB, context: String, gmp_api: Arc<G>, refunds_enabled: bool) -> Self {
         let last_task_id = db
             .get_latest_task_id(gmp_api.get_chain(), &context)

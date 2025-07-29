@@ -9,7 +9,7 @@ use relayer_base::gmp_api::gmp_types::{CannotExecuteMessageReason, RetryTask, Ve
 use relayer_base::ingestor::IngestorTrait;
 use relayer_base::models::task_retries::{PgTaskRetriesModel, TaskRetries};
 use relayer_base::subscriber::ChainTransaction;
-use relayer_base::utils::extract_from_xrpl_memo;
+use relayer_base::utils::{extract_from_xrpl_memo, ThreadSafe};
 use relayer_base::{
     database::Database,
     error::{ITSTranslationError, IngestorError},
@@ -56,7 +56,7 @@ pub struct XrplIngestorModels {
     pub task_retries: PgTaskRetriesModel,
 }
 
-pub struct XrplIngestor<DB: Database, G: GmpApiTrait + Send + Sync + 'static> {
+pub struct XrplIngestor<DB: Database, G: GmpApiTrait + ThreadSafe> {
     client: xrpl_http_client::Client,
     gmp_api: Arc<G>,
     config: XRPLConfig,
@@ -65,7 +65,11 @@ pub struct XrplIngestor<DB: Database, G: GmpApiTrait + Send + Sync + 'static> {
     models: XrplIngestorModels,
 }
 
-impl<DB: Database, G: GmpApiTrait + Send + Sync + 'static> XrplIngestor<DB, G> {
+impl<DB, G> XrplIngestor<DB, G>
+where
+    DB: Database,
+    G: GmpApiTrait + ThreadSafe
+{
     pub fn new(
         gmp_api: Arc<G>,
         config: XRPLConfig,
@@ -1138,7 +1142,11 @@ impl<DB: Database, G: GmpApiTrait + Send + Sync + 'static> XrplIngestor<DB, G> {
     }
 }
 
-impl<DB: Database, G: GmpApiTrait + Send + Sync + 'static> IngestorTrait for XrplIngestor<DB, G> {
+impl<DB, G> IngestorTrait for XrplIngestor<DB, G>
+where
+    DB: Database,
+    G: GmpApiTrait + ThreadSafe
+{
     async fn handle_transaction(&self, tx: ChainTransaction) -> Result<Vec<Event>, IngestorError> {
         let ChainTransaction::Xrpl(tx) = tx else {
             return Err(IngestorError::UnexpectedChainTransactionType(format!("{:?}", tx)))

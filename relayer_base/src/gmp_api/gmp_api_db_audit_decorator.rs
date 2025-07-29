@@ -54,6 +54,7 @@ use std::sync::Arc;
 use tokio::spawn;
 use tracing::error;
 use xrpl_amplifier_types::msg::XRPLMessage;
+use crate::utils::ThreadSafe;
 
 pub struct GmpApiDbAuditDecorator<T: GmpApiTrait, U: GMPTaskAudit, V: GMPAudit> {
     gmp_api: T,
@@ -100,11 +101,11 @@ pub fn construct_gmp_api(
     Ok(gmp_api)
 }
 
-impl<
-        T: GmpApiTrait + Send + Sync + 'static,
-        U: GMPTaskAudit + Send + Sync + 'static,
-        V: GMPAudit + Send + Sync + 'static,
-    > GmpApiTrait for GmpApiDbAuditDecorator<T, U, V>
+impl<T, U, V> GmpApiTrait for GmpApiDbAuditDecorator<T, U, V>
+where
+    T: GmpApiTrait + ThreadSafe,
+    U: GMPTaskAudit + ThreadSafe,
+    V: GMPAudit + ThreadSafe,
 {
     fn get_chain(&self) -> &str {
         self.gmp_api.get_chain()

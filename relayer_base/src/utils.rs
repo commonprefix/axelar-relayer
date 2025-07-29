@@ -29,6 +29,9 @@ use crate::{
 
 const HEARTBEAT_EXPIRATION: u64 = 30;
 
+pub trait ThreadSafe: Send + Sync + 'static {}
+impl<T: Send + Sync + 'static> ThreadSafe for T {}
+
 fn parse_as<T: DeserializeOwned>(value: &Value) -> Result<T, GmpApiError> {
     serde_json::from_value(value.clone()).map_err(|e| GmpApiError::InvalidResponse(e.to_string()))
 }

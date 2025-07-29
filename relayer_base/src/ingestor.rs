@@ -14,8 +14,9 @@ use crate::{
     subscriber::ChainTransaction,
 };
 use crate::gmp_api::GmpApiTrait;
+use crate::utils::ThreadSafe;
 
-pub struct Ingestor<I: IngestorTrait, G: GmpApiTrait + Send + Sync + 'static> {
+pub struct Ingestor<I: IngestorTrait, G: GmpApiTrait + ThreadSafe> {
     gmp_api: Arc<G>,
     ingestor: I,
 }
@@ -44,7 +45,11 @@ pub trait IngestorTrait {
     ) -> impl Future<Output = Result<(), IngestorError>>;
 }
 
-impl<I: IngestorTrait, G: GmpApiTrait + Send + Sync + 'static> Ingestor<I, G> {
+impl<I, G> Ingestor<I, G>
+where
+    I: IngestorTrait,
+    G: GmpApiTrait + ThreadSafe
+{
     pub fn new(gmp_api: Arc<G>, ingestor: I) -> Self {
         Self { gmp_api, ingestor }
     }
