@@ -751,7 +751,7 @@ mod tests {
     }
 
     fn refund_task() -> RefundTaskFields {
-        let refund_task = RefundTaskFields {
+        RefundTaskFields {
             message: GatewayV2Message {
                 message_id: "0xf38d2a646e4b60e37bc16d54bb9163739372594dc96bab954a85b4a170f49e58"
                     .to_string(),
@@ -767,7 +767,6 @@ mod tests {
                 token_id: None,
                 amount: "42".to_string(),
             },
-        };
-        refund_task
+        }
     }
 }

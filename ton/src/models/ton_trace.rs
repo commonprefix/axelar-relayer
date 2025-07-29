@@ -200,14 +200,14 @@ mod tests {
         assert_eq!(saved.transactions.len(), transactions.len());
         assert_eq!(saved.start_lt, 123);
         assert_eq!(saved.end_lt, 321);
-        assert_eq!(saved.is_incomplete, false);
+        assert!(!saved.is_incomplete);
 
         assert_eq!(ret.trace_id, "123");
         assert_eq!(ret.transactions[0].hash, "aa1");
         assert_eq!(ret.transactions.len(), transactions.len());
         assert_eq!(ret.start_lt, 123);
         assert_eq!(ret.end_lt, 321);
-        assert_eq!(ret.is_incomplete, false);
+        assert!(!ret.is_incomplete);
 
         let ret = model
             .upsert_and_return_if_changed(trace.clone())
@@ -231,7 +231,7 @@ mod tests {
             .await
             .unwrap();
         assert!(ret.is_some());
-        assert_eq!(ret.unwrap().is_incomplete, true);
+        assert!(ret.unwrap().is_incomplete);
 
         model.delete(trace).await.unwrap();
         let saved = model.find("123".to_string()).await.unwrap();

@@ -89,7 +89,7 @@ mod tests {
         assert_eq!(
             res.refund_address,
             TonAddress::from_str(
-                &"0:e1e633eb701b118b44297716cee7069ee847b56db88c497efea681ed14b2d2c7"
+                "0:e1e633eb701b118b44297716cee7069ee847b56db88c497efea681ed14b2d2c7"
             )
             .unwrap()
         );
