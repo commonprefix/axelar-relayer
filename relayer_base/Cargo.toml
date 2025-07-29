@@ -62,3 +62,6 @@ path = "src/bin/scripts/queue_migration.rs"
 
 [features]
 mocks = ["dep:mockall"]
+
+[lints]
+workspace = true

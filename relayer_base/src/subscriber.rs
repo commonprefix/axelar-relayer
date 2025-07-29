@@ -8,7 +8,10 @@ pub trait TransactionListener {
     type Transaction;
     type Account;
 
-    fn subscribe(&mut self, account: Self::Account) -> impl Future<Output = Result<(), anyhow::Error>>;
+    fn subscribe(
+        &mut self,
+        account: Self::Account,
+    ) -> impl Future<Output = Result<(), anyhow::Error>>;
 
     fn unsubscribe(
         &mut self,
@@ -48,7 +51,8 @@ pub enum ChainTransaction {
 }
 
 impl<TP: TransactionPoller> Subscriber<TP>
-where TP::Account: Clone
+where
+    TP::Account: Clone,
 {
     pub fn new(transaction_poller: TP) -> Self {
         Self { transaction_poller }
@@ -56,15 +60,12 @@ where TP::Account: Clone
 
     async fn work(&mut self, account: TP::Account, queue: Arc<Queue>) {
         // no match, just call poll_account
-        let res = self
-            .transaction_poller
-            .poll_account(account)
-            .await;
+        let res = self.transaction_poller.poll_account(account).await;
         match res {
             Ok(txs) => {
                 for tx in txs {
                     let chain_transaction = self.transaction_poller.make_queue_item(tx);
-                    let item = &QueueItem::Transaction(chain_transaction.clone());
+                    let item = &QueueItem::Transaction(Box::new(chain_transaction.clone()));
                     info!("Publishing transaction: {:?}", chain_transaction);
                     queue.publish(item.clone()).await;
                     debug!("Published tx: {:?}", item);
@@ -80,7 +81,7 @@ where TP::Account: Clone
 
     pub async fn run(&mut self, account: TP::Account, queue: Arc<Queue>) {
         loop {
-            self.work(account.clone(), queue.clone()).await;
+            self.work(account.clone(), Arc::clone(&queue)).await;
         }
     }
 
@@ -90,7 +91,7 @@ where TP::Account: Clone
             match res {
                 Ok(tx) => {
                     let chain_transaction = self.transaction_poller.make_queue_item(tx);
-                    let item = &QueueItem::Transaction(chain_transaction.clone());
+                    let item = &QueueItem::Transaction(Box::new(chain_transaction.clone()));
                     info!("Publishing transaction: {:?}", chain_transaction);
                     queue.publish(item.clone()).await;
                     debug!("Published tx: {:?}", item);

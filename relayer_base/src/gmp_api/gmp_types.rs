@@ -199,7 +199,7 @@ pub struct RefundTask {
 
 impl fmt::Display for VerificationStatus {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:?}", serde_json::to_string(self).unwrap())
+        write!(f, "{:?}", serde_json::to_string(self).unwrap_or_default())
     }
 }
 

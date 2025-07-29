@@ -30,7 +30,7 @@ where G: GmpApiTrait + ThreadSafe
             return;
         }
 
-        let request = BroadcastRequest::Generic(ticket_create_msg.unwrap());
+        let request = BroadcastRequest::Generic(ticket_create_msg.unwrap_or_default());
 
         let res = self
             .gmp_api
@@ -54,7 +54,7 @@ where G: GmpApiTrait + ThreadSafe
                 error!("Failed to broadcast XRPL Ticket Create request: {:?}", e);
             }
         } else {
-            info!("Ticket create submitted: {}", res.unwrap());
+            info!("Ticket create submitted: {}", res.unwrap_or_default());
             sleep_duration = 60; // that's usually how long it takes for the tickets to be confirmed
         }
 

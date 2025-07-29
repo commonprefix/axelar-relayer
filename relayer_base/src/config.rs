@@ -72,7 +72,8 @@ pub struct Config {
     pub axelar_contracts: AxelarContracts,
 }
 
-pub fn config_from_yaml<T> (path: &str) -> Result<T> where
+pub fn config_from_yaml<T>(path: &str) -> Result<T>
+where
     T: for<'de> Deserialize<'de>,
 {
     let base_path = env::var("BASE_PATH").ok();
@@ -106,7 +107,6 @@ mod tests {
 
     #[derive(Debug, Clone, Deserialize, Default)]
     struct ChainConfig {
-
         #[serde(flatten)]
         pub common_config: Config,
 
@@ -153,16 +153,18 @@ price_feed:
 "#;
 
         let mut file = File::create(&file_path).expect("Failed to create YAML config file");
-        file.write_all(yaml_content.as_bytes()).expect("Failed to write config");
+        file.write_all(yaml_content.as_bytes())
+            .expect("Failed to write config");
 
         env::set_var("BASE_PATH", "/tmp");
 
-        let config: ChainConfig = config_from_yaml("test_config.yaml").expect("Failed to load config");
+        let config: ChainConfig =
+            config_from_yaml("test_config.yaml").expect("Failed to load config");
         fs::remove_file(file_path).ok();
 
         assert_eq!(config.chain_foo, "foo");
         assert_eq!(config.chain_bar, "bar");
-        assert_eq!(config.chain_baz, true);
+        assert!(config.chain_baz);
         assert_eq!(config.common_config.chain_name, "mainnet");
         assert!(config.common_config.price_feed.pairs.is_empty());
     }

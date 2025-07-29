@@ -70,7 +70,9 @@ impl<DB: Database, X: XRPLClientTrait> TransactionPoller for XrplSubscriber<DB, 
             .map(|tx| tx.common().ledger_index.unwrap_or(0))
             .max();
         if max_response_ledger.is_some() {
-            self.latest_ledger = max_response_ledger.unwrap().into();
+            self.latest_ledger = max_response_ledger
+                .ok_or(anyhow!("Max response ledger is None"))?
+                .into();
             if let Err(err) = self.store_latest_ledger().await {
                 warn!("{:?}", err);
             }
