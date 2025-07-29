@@ -756,7 +756,9 @@ impl<DB: Database> XrplIngestor<DB> {
         if payload_hash.is_some() {
             let payload_string = self
                 .gmp_api
-                .get_payload(&hex::encode(payload_hash.unwrap()))
+                .get_payload(&hex::encode(payload_hash.ok_or(
+                    IngestorError::GenericError("Payload hash is None".to_owned()),
+                )?))
                 .await
                 .map_err(|e| {
                     IngestorError::GenericError(format!("Failed to get payload from cache: {}", e))
@@ -800,7 +802,9 @@ impl<DB: Database> XrplIngestor<DB> {
     ) -> Result<(), IngestorError> {
         match xrpl_message {
             XRPLMessage::ProverMessage(_) => {
-                match prover_tx.unwrap() {
+                match prover_tx.ok_or(IngestorError::GenericError(
+                    "Prover transaction is None".to_owned(),
+                ))? {
                     Transaction::Payment(tx) => {
                         let tx_status: String = serde_json::from_str(
                             event_attribute(&task.task.event, "status")
@@ -924,7 +928,9 @@ impl<DB: Database> XrplIngestor<DB> {
             // If we have 'payload', store it in the cache and receive the payload_hash.
             let hash = self
                 .gmp_api
-                .post_payload(&hex::decode(payload_str.clone()).unwrap())
+                .post_payload(&hex::decode(payload_str.clone()).map_err(|e| {
+                    IngestorError::GenericError(format!("Failed to decode payload: {}", e))
+                })?)
                 .await
                 .map_err(|e| {
                     IngestorError::GenericError(format!("Failed to store payload in cache: {}", e))
@@ -1018,11 +1024,18 @@ impl<DB: Database> XrplIngestor<DB> {
                             payload_hash: if payload_hash.is_some() {
                                 Some(
                                     std::convert::TryInto::<[u8; 32]>::try_into(
-                                        hex::decode(payload_hash.unwrap()).map_err(|_| {
+                                        hex::decode(payload_hash.ok_or(
                                             IngestorError::GenericError(
-                                                "Failed to hex-decode payload_hash".into(),
-                                            )
-                                        })?,
+                                                "Payload hash is None".to_owned(),
+                                            ),
+                                        )?)
+                                        .map_err(
+                                            |_| {
+                                                IngestorError::GenericError(
+                                                    "Failed to hex-decode payload_hash".into(),
+                                                )
+                                            },
+                                        )?,
                                     )
                                     .map_err(|_| {
                                         IngestorError::GenericError(
@@ -1089,8 +1102,18 @@ impl<DB: Database> XrplIngestor<DB> {
                 let mut message_with_payload = WithPayload::new(message, None);
 
                 if payload.is_some() {
-                    let payload_bytes = hex::decode(payload.unwrap()).unwrap();
-                    message_with_payload.payload = Some(payload_bytes.try_into().unwrap());
+                    let payload_bytes = hex::decode(
+                        payload.ok_or(IngestorError::GenericError("Payload is None".to_owned()))?,
+                    )
+                    .map_err(|e| {
+                        IngestorError::GenericError(format!("Failed to decode payload: {}", e))
+                    })?;
+                    message_with_payload.payload = Some(payload_bytes.try_into().map_err(|e| {
+                        IngestorError::GenericError(format!(
+                            "Failed to convert payload to HexBinary: {}",
+                            e
+                        ))
+                    })?);
                 }
                 Ok(message_with_payload)
             }
@@ -1138,6 +1161,7 @@ impl<DB: Database> XrplIngestor<DB> {
 
 impl<DB: Database> IngestorTrait for XrplIngestor<DB> {
     async fn handle_transaction(&self, tx: ChainTransaction) -> Result<Vec<Event>, IngestorError> {
+        #[allow(clippy::infallible_destructuring_match)]
         let tx = match tx {
             ChainTransaction::Xrpl(tx) => tx,
         };
@@ -1309,8 +1333,10 @@ impl<DB: Database> IngestorTrait for XrplIngestor<DB> {
                         let tx =
                             xrpl_tx_from_hash(prover_message.tx_id.clone(), &self.client).await?;
                         prover_tx = Some(tx);
-                        self.confirm_prover_message_request(prover_tx.as_ref().unwrap())
-                            .await?
+                        self.confirm_prover_message_request(prover_tx.as_ref().ok_or(
+                            IngestorError::GenericError("Prover transaction is None".to_owned()),
+                        )?)
+                        .await?
                     }
                     XRPLMessage::AddGasMessage(msg) => {
                         self.confirm_add_gas_message_request(msg).await?
@@ -1426,7 +1452,9 @@ impl<DB: Database> IngestorTrait for XrplIngestor<DB> {
                 info!("ConstructProof({}) transaction hash: {}", cc_id, tx_hash);
             }
             Err(e) => {
-                let re = Regex::new(r"(payment for .*? already succeeded)").unwrap();
+                let re = Regex::new(r"(payment for .*? already succeeded)").map_err(|e| {
+                    IngestorError::GenericError(format!("Failed to create regex: {}", e))
+                })?;
 
                 if re.is_match(&e.to_string()) {
                     info!("Payment for {} already succeeded", cc_id);

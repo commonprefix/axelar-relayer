@@ -1,14 +1,12 @@
 use dotenv::dotenv;
 
-use relayer_base::{
-    utils::{setup_heartbeat, setup_logging},
-};
+use relayer_base::config::config_from_yaml;
+use relayer_base::utils::{setup_heartbeat, setup_logging};
 use tracing::{debug, error};
 use xrpl::client::{XRPLClient, XRPLClientTrait};
+use xrpl::config::XRPLConfig;
 use xrpl_api::Ticket;
 use xrpl_types::AccountId;
-use relayer_base::config::{config_from_yaml};
-use xrpl::config::XRPLConfig;
 
 const RETRIES: u8 = 4;
 const THRESHOLD: u8 = 150;
@@ -22,7 +20,7 @@ async fn main() -> anyhow::Result<()> {
     let _guard = setup_logging(&config.common_config);
 
     let client = XRPLClient::new(&config.xrpl_rpc, RETRIES as usize)?;
-    let account = AccountId::from_address(&config.xrpl_multisig).unwrap();
+    let account = AccountId::from_address(&config.xrpl_multisig)?;
 
     let redis_client = redis::Client::open(config.common_config.redis_server.clone())?;
     let redis_pool = r2d2::Pool::builder().build(redis_client)?;

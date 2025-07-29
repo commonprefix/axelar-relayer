@@ -93,7 +93,7 @@ impl<QM: QueuedTransactionsModel, X: XRPLClientTrait> Broadcaster for XRPLBroadc
                     .map_err(|e| BroadcasterError::GenericError(e.to_string()))?,
             );
             source_chain = Some(
-                extract_hex_xrpl_memo(memos.clone(), "source_chain")
+                extract_hex_xrpl_memo(memos, "source_chain")
                     .map_err(|e| BroadcasterError::GenericError(e.to_string()))?,
             );
         }
@@ -319,7 +319,7 @@ mod tests {
         // We need to check that handle_queued_tx is called instead
         mock_queued_tx_model
             .expect_store_queued_transaction()
-            .withf(move |h, a, s| h == tx_hash && a == account && *s == sequence as i64)
+            .withf(move |h, a, s| h == tx_hash && a == account && *s == sequence)
             .times(1)
             .returning(|_, _, _| Box::pin(async { Ok(()) }));
 

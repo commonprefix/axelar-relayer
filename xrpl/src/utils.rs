@@ -6,7 +6,11 @@ pub fn message_id_from_retry_task(task: RetryTask) -> Result<Option<String>, any
             let message: xrpl_gateway::msg::ExecuteMsg =
                 serde_json::from_str(&task.task.request_payload)?;
             if let xrpl_gateway::msg::ExecuteMsg::VerifyMessages(messages) = message {
-                let tx_id = messages[0].tx_id().tx_hash_as_hex_no_prefix();
+                let tx_id = messages
+                    .first()
+                    .ok_or_else(|| anyhow::anyhow!("No messages found in VerifyMessages payload"))?
+                    .tx_id()
+                    .tx_hash_as_hex_no_prefix();
                 Ok(Some(tx_id.to_string()))
             } else {
                 Err(anyhow::anyhow!("Unknown payload: {:?}", message))

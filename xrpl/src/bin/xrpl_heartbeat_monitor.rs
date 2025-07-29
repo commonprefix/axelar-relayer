@@ -1,9 +1,9 @@
 use dotenv::dotenv;
 
 use redis::Commands;
-use relayer_base::{utils::setup_logging};
+use relayer_base::config::config_from_yaml;
+use relayer_base::utils::setup_logging;
 use tracing::{debug, error};
-use relayer_base::config::{config_from_yaml};
 use xrpl::config::XRPLConfig;
 
 #[tokio::main]
@@ -24,7 +24,7 @@ async fn main() -> anyhow::Result<()> {
 
         for (key, url) in config.common_config.heartbeats.iter() {
             let redis_key = format!("heartbeat:{}", key);
-            let mut redis_conn = redis_pool.get().unwrap();
+            let mut redis_conn = redis_pool.get()?;
             if redis_conn.get(redis_key).unwrap_or(0) == 1 {
                 match client.get(url).send().await {
                     Ok(response) => {
