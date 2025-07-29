@@ -1,19 +1,19 @@
-pub mod gmp_types;
 pub mod gmp_api_db_audit_decorator;
-pub use gmp_api_db_audit_decorator::GmpApiDbAuditDecorator;
+pub mod gmp_types;
 pub use gmp_api_db_audit_decorator::construct_gmp_api;
+pub use gmp_api_db_audit_decorator::GmpApiDbAuditDecorator;
 
 use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
 use reqwest_retry::{policies::ExponentialBackoff, RetryTransientMiddleware};
 use serde::de::DeserializeOwned;
 use serde_json::Value;
+use std::future::Future;
 use std::{
     collections::HashMap,
     fs::{self},
     path::PathBuf,
     time::Duration,
 };
-use std::future::Future;
 use tracing::{debug, info, warn};
 use xrpl_amplifier_types::msg::XRPLMessage;
 
@@ -86,8 +86,8 @@ impl GmpApi {
                 .build()
                 .map_err(|e| GmpApiError::ConnectionFailed(e.to_string()))?,
         )
-            .with(RetryTransientMiddleware::new_with_policy(retry_policy))
-            .build();
+        .with(RetryTransientMiddleware::new_with_policy(retry_policy))
+        .build();
 
         Ok(Self {
             rpc_url: config.gmp_api_url.to_owned(),
@@ -161,7 +161,6 @@ impl GmpApi {
             .await
             .map_err(|e| GmpApiError::InvalidResponse(e.to_string()))
     }
-
 }
 
 #[cfg_attr(test, mockall::automock)]
@@ -197,10 +196,7 @@ impl GmpApiTrait for GmpApi {
             })
             .collect::<Vec<_>>())
     }
-    async fn post_events(
-        &self,
-        events: Vec<Event>,
-    ) -> Result<Vec<PostEventResult>, GmpApiError> {
+    async fn post_events(&self, events: Vec<Event>) -> Result<Vec<PostEventResult>, GmpApiError> {
         let mut map = HashMap::new();
         map.insert("events", events);
 
@@ -304,7 +300,7 @@ impl GmpApiTrait for GmpApi {
                         tokio::time::sleep(Duration::from_secs(
                             BROADCAST_POLL_INTERVAL_SECONDS as u64,
                         ))
-                            .await;
+                        .await;
                         continue;
                     }
                     Some("SUCCESS") => {
@@ -399,7 +395,14 @@ impl GmpApiTrait for GmpApi {
         Ok(hex::encode(response))
     }
 
-    fn map_cannot_execute_message_to_event(&self, id: String, message_id: String, source_chain: String, details: String, reason: CannotExecuteMessageReason) -> Event {
+    fn map_cannot_execute_message_to_event(
+        &self,
+        id: String,
+        message_id: String,
+        source_chain: String,
+        details: String,
+        reason: CannotExecuteMessageReason,
+    ) -> Event {
         Event::CannotExecuteMessageV2 {
             common: CommonEventFields {
                 r#type: "CANNOT_EXECUTE_MESSAGE/V2".to_owned(),
@@ -422,23 +425,14 @@ impl GmpApiTrait for GmpApi {
         reason: CannotExecuteMessageReason,
     ) -> Result<(), GmpApiError> {
         let cannot_execute_message_event =
-            self.map_cannot_execute_message_to_event(
-                id,
-                message_id,
-                source_chain,
-                details,
-                reason
-            );
+            self.map_cannot_execute_message_to_event(id, message_id, source_chain, details, reason);
 
         self.post_events(vec![cannot_execute_message_event]).await?;
 
         Ok(())
     }
 
-    async fn its_interchain_transfer(
-        &self,
-        xrpl_message: XRPLMessage,
-    ) -> Result<(), GmpApiError> {
+    async fn its_interchain_transfer(&self, xrpl_message: XRPLMessage) -> Result<(), GmpApiError> {
         let event = match xrpl_message {
             XRPLMessage::InterchainTransferMessage(message) => Event::ITSInterchainTransfer {
                 common: CommonEventFields {
@@ -473,7 +467,10 @@ impl GmpApiTrait for GmpApi {
 #[cfg_attr(test, mockall::automock)]
 pub trait GmpApiTrait {
     fn get_chain(&self) -> &str;
-    fn get_tasks_action(&self, after: Option<String>) -> impl Future<Output = Result<Vec<Task>, GmpApiError>>;
+    fn get_tasks_action(
+        &self,
+        after: Option<String>,
+    ) -> impl Future<Output = Result<Vec<Task>, GmpApiError>>;
     fn post_events(
         &self,
         events: Vec<Event>,
@@ -514,7 +511,7 @@ pub trait GmpApiTrait {
         message_id: String,
         source_chain: String,
         details: String,
-        reason: CannotExecuteMessageReason
+        reason: CannotExecuteMessageReason,
     ) -> Event;
 }
 
@@ -530,8 +527,7 @@ mod tests {
     use std::path::Path;
 
     fn mock_gmp_api_client(mock_url: &str, chain: &str) -> GmpApi {
-        let client = ClientBuilder::new(Client::new())
-            .build();
+        let client = ClientBuilder::new(Client::new()).build();
 
         GmpApi {
             rpc_url: mock_url.to_string(),
@@ -556,14 +552,10 @@ mod tests {
         let execute_tasks = read_json_file("testdata/gmp_tasks/valid_tasks/ExecuteTask.json");
         let gateway_tx_tasks = read_json_file("testdata/gmp_tasks/valid_tasks/GatewayTxTask.json");
 
-        let tasks = vec![
-            execute_tasks[0].clone(),
-            gateway_tx_tasks[0].clone(),
-        ];
+        let tasks = vec![execute_tasks[0].clone(), gateway_tx_tasks[0].clone()];
 
         let mock = server.mock(|when, then| {
-            when.method(GET)
-                .path(format!("/chains/{}/tasks", chain));
+            when.method(GET).path(format!("/chains/{}/tasks", chain));
 
             then.status(200)
                 .header("Content-Type", "application/json")
@@ -589,7 +581,7 @@ mod tests {
                 assert_eq!(task.task.message.message_id, "msg_456");
                 assert_eq!(task.task.message.source_chain, "polygon");
                 assert_eq!(task.task.payload, "execute_payload");
-            },
+            }
             _ => panic!("Expected Execute task, got: {:?}", tasks[0]),
         }
 
@@ -599,7 +591,7 @@ mod tests {
                 assert_eq!(task.common.chain, "xrpl");
                 assert_eq!(task.common.r#type, "GATEWAY_TX");
                 assert_eq!(task.task.execute_data, "base64_encoded_data");
-            },
+            }
             _ => panic!("Expected GatewayTx task, got: {:?}", tasks[1]),
         }
     }
@@ -610,7 +602,8 @@ mod tests {
         let chain = "testchain";
         let after = "last_task_id";
 
-        let construct_proof_tasks = read_json_file("testdata/gmp_tasks/valid_tasks/ConstructProofTask.json");
+        let construct_proof_tasks =
+            read_json_file("testdata/gmp_tasks/valid_tasks/ConstructProofTask.json");
 
         let mock = server.mock(|when, then| {
             when.method(GET)
@@ -636,7 +629,7 @@ mod tests {
         match &tasks[0] {
             Task::ConstructProof(task) => {
                 assert_eq!(task.common.r#type, "CONSTRUCT_PROOF");
-            },
+            }
             _ => panic!("Expected ConstructProof task, got: {:?}", tasks[0]),
         }
     }
@@ -647,8 +640,7 @@ mod tests {
         let chain = "testchain";
 
         let mock = server.mock(|when, then| {
-            when.method(GET)
-                .path(format!("/chains/{}/tasks", chain));
+            when.method(GET).path(format!("/chains/{}/tasks", chain));
 
             then.status(400)
                 .header("Content-Type", "application/json")
@@ -665,7 +657,11 @@ mod tests {
         assert!(result.is_err(), "Expected error, got: {:?}", result);
         match result {
             Err(GmpApiError::ErrorResponse(msg)) => {
-                assert!(msg.contains("400 Bad Request"), "Unexpected error message: {}", msg);
+                assert!(
+                    msg.contains("400 Bad Request"),
+                    "Unexpected error message: {}",
+                    msg
+                );
             }
             _ => panic!("Expected ErrorResponse, got: {:?}", result),
         }
@@ -677,8 +673,7 @@ mod tests {
         let chain = "testchain";
 
         let mock = server.mock(|when, then| {
-            when.method(GET)
-                .path(format!("/chains/{}/tasks", chain));
+            when.method(GET).path(format!("/chains/{}/tasks", chain));
 
             then.status(200)
                 .header("Content-Type", "application/json")
@@ -772,7 +767,11 @@ mod tests {
         assert!(result.is_err(), "Expected error, got: {:?}", result);
         match result {
             Err(GmpApiError::ErrorResponse(msg)) => {
-                assert!(msg.contains("400 Bad Request"), "Unexpected error message: {}", msg);
+                assert!(
+                    msg.contains("400 Bad Request"),
+                    "Unexpected error message: {}",
+                    msg
+                );
             }
             _ => panic!("Expected ErrorResponse, got: {:?}", result),
         }
@@ -825,7 +824,7 @@ mod tests {
         let events = vec![
             fixtures::gas_refunded_event(),
             fixtures::gas_credit_event(),
-            fixtures::message_executed_event()
+            fixtures::message_executed_event(),
         ];
         let result = gmp_api.post_events(events).await;
 
@@ -879,10 +878,7 @@ mod tests {
 
         let gmp_api = mock_gmp_api_client(&server.base_url(), "testchain");
 
-        let events = vec![
-            fixtures::gas_refunded_event(),
-            fixtures::gas_credit_event()
-        ];
+        let events = vec![fixtures::gas_refunded_event(), fixtures::gas_credit_event()];
         let result = gmp_api.post_events(events).await;
 
         mock.assert();

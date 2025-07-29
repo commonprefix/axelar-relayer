@@ -6,19 +6,19 @@ use base64::prelude::*;
 use interchain_token_service::TokenId;
 use regex::Regex;
 use relayer_base::gmp_api::gmp_types::{CannotExecuteMessageReason, RetryTask, VerificationStatus};
+use relayer_base::gmp_api::GmpApiTrait;
 use relayer_base::ingestor::IngestorTrait;
 use relayer_base::models::task_retries::{PgTaskRetriesModel, TaskRetries};
+use relayer_base::payload_cache::PayloadCacheTrait;
 use relayer_base::subscriber::ChainTransaction;
 use relayer_base::utils::{extract_from_xrpl_memo, ThreadSafe};
 use relayer_base::{
     database::Database,
     error::{ITSTranslationError, IngestorError},
-    gmp_api::{
-        gmp_types::{
-            self, Amount, BroadcastRequest, CommonEventFields, ConstructProofTask, Event,
-            EventMetadata, GatewayV2Message, MessageExecutedEventMetadata, MessageExecutionStatus,
-            QueryRequest, ReactToWasmEventTask, VerifyTask,
-        },
+    gmp_api::gmp_types::{
+        self, Amount, BroadcastRequest, CommonEventFields, ConstructProofTask, Event,
+        EventMetadata, GatewayV2Message, MessageExecutedEventMetadata, MessageExecutionStatus,
+        QueryRequest, ReactToWasmEventTask, VerifyTask,
     },
     models::Model,
     payload_cache::{PayloadCache, PayloadCacheValue},
@@ -46,8 +46,6 @@ use xrpl_amplifier_types::{
 use xrpl_api::Transaction;
 use xrpl_api::{Memo, PaymentTransaction};
 use xrpl_gateway::msg::{CallContract, InterchainTransfer, MessageWithPayload};
-use relayer_base::gmp_api::GmpApiTrait;
-use relayer_base::payload_cache::PayloadCacheTrait;
 
 const MAX_TASK_RETRIES: i32 = 5;
 
@@ -68,7 +66,7 @@ pub struct XrplIngestor<DB: Database, G: GmpApiTrait + ThreadSafe> {
 impl<DB, G> XrplIngestor<DB, G>
 where
     DB: Database,
-    G: GmpApiTrait + ThreadSafe
+    G: GmpApiTrait + ThreadSafe,
 {
     pub fn new(
         gmp_api: Arc<G>,
@@ -118,7 +116,6 @@ where
         &self,
         xrpl_message_with_payload: &WithPayload<XRPLMessage>,
     ) -> Result<Vec<Event>, IngestorError> {
-
         let mut events = vec![];
 
         events.push(
@@ -1168,11 +1165,14 @@ where
 impl<DB, G> IngestorTrait for XrplIngestor<DB, G>
 where
     DB: Database,
-    G: GmpApiTrait + ThreadSafe
+    G: GmpApiTrait + ThreadSafe,
 {
     async fn handle_transaction(&self, tx: ChainTransaction) -> Result<Vec<Event>, IngestorError> {
         let ChainTransaction::Xrpl(tx) = tx else {
-            return Err(IngestorError::UnexpectedChainTransactionType(format!("{:?}", tx)))
+            return Err(IngestorError::UnexpectedChainTransactionType(format!(
+                "{:?}",
+                tx
+            )));
         };
 
         let xrpl_transaction =
@@ -1477,7 +1477,7 @@ where
                         task.task.message.message_id.clone(),
                         task.task.message.source_chain.clone(),
                         e.to_string(),
-                        CannotExecuteMessageReason::Error
+                        CannotExecuteMessageReason::Error,
                     )
                     .await
                     .map_err(|e| IngestorError::GenericError(e.to_string()))?;

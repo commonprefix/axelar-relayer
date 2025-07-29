@@ -3,11 +3,11 @@ use sqlx::PgPool;
 use std::sync::Arc;
 use tokio::signal::unix::{signal, SignalKind};
 
+use relayer_base::redis::connection_manager;
 use relayer_base::{
     config::config_from_yaml,
     utils::{setup_heartbeat, setup_logging},
 };
-use relayer_base::redis::connection_manager;
 use xrpl::{
     client::XRPLClient, config::XRPLConfig, models::queued_transactions::PgQueuedTransactionsModel,
     queued_tx_monitor::XrplQueuedTxMonitor,
@@ -28,8 +28,7 @@ async fn main() -> anyhow::Result<()> {
     let xrpl_tx_monitor = XrplQueuedTxMonitor::new(xrpl_client, queued_tx_model);
 
     let redis_client = redis::Client::open(config.common_config.redis_server.clone())?;
-    let redis_conn = connection_manager(redis_client, None, None, None)
-        .await?;
+    let redis_conn = connection_manager(redis_client, None, None, None).await?;
     setup_heartbeat("heartbeat:queued_tx_monitor".to_owned(), redis_conn);
 
     let mut sigint = signal(SignalKind::interrupt())?;

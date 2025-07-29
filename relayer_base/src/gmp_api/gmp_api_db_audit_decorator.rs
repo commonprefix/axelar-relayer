@@ -49,12 +49,12 @@ use crate::gmp_api::gmp_types::{
 use crate::gmp_api::{GmpApi, GmpApiTrait};
 use crate::models::gmp_events::{EventModel, GMPAudit, PgGMPEvents};
 use crate::models::gmp_tasks::{GMPTaskAudit, PgGMPTasks, TaskModel};
+use crate::utils::ThreadSafe;
 use sqlx::{types::Json, PgPool};
 use std::sync::Arc;
 use tokio::spawn;
 use tracing::error;
 use xrpl_amplifier_types::msg::XRPLMessage;
-use crate::utils::ThreadSafe;
 
 pub struct GmpApiDbAuditDecorator<T: GmpApiTrait, U: GMPTaskAudit, V: GMPAudit> {
     gmp_api: T,

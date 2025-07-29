@@ -150,7 +150,6 @@ pub struct BlockRef {
     pub seqno: u32,
 }
 
-
 #[serde_as]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct TransactionMessage {
@@ -207,7 +206,6 @@ pub struct AccountStatesResponse {
     pub accounts: Vec<AccountState>,
 }
 
-
 impl From<TracesResponseRest> for TracesResponse {
     fn from(rest: TracesResponseRest) -> Self {
         let traces = rest
@@ -258,7 +256,9 @@ where
             .as_u64()
             .map(|n| Some(n as u32))
             .ok_or_else(|| serde::de::Error::custom("Expected u64 number")),
-        Some(_) => Err(serde::de::Error::custom("Expected string or number for opcode")),
+        Some(_) => Err(serde::de::Error::custom(
+            "Expected string or number for opcode",
+        )),
         None => Ok(None),
     }
 }

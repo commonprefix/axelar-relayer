@@ -1,8 +1,8 @@
 use crate::config::Config;
-use crate::utils::setup_logging;
-use redis::{AsyncTypedCommands};
-use tracing::{debug, error};
 use crate::redis::connection_manager;
+use crate::utils::setup_logging;
+use redis::AsyncTypedCommands;
+use tracing::{debug, error};
 
 pub async fn heartbeats_loop(common_config: &Config) -> ! {
     let _guard = setup_logging(common_config);

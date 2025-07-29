@@ -4,8 +4,8 @@ use tracing::{debug, error, info};
 
 use crate::config::XRPLConfig;
 use relayer_base::gmp_api::{gmp_types::BroadcastRequest, GmpApiTrait};
-use xrpl_multisig_prover;
 use relayer_base::utils::ThreadSafe;
+use xrpl_multisig_prover;
 
 pub struct XrplTicketCreator<G: GmpApiTrait + ThreadSafe> {
     gmp_api: Arc<G>,
@@ -13,7 +13,8 @@ pub struct XrplTicketCreator<G: GmpApiTrait + ThreadSafe> {
 }
 
 impl<G> XrplTicketCreator<G>
-where G: GmpApiTrait + ThreadSafe
+where
+    G: GmpApiTrait + ThreadSafe,
 {
     pub fn new(gmp_api: Arc<G>, config: XRPLConfig) -> Self {
         Self { gmp_api, config }

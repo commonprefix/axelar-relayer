@@ -41,7 +41,14 @@ mod tests {
 
         let url = format!("redis://{host}:{host_port}");
         let client = Client::open(url.as_ref()).unwrap();
-        let mut conn = connection_manager(client, Some(Duration::from_millis(100)), Some(Duration::from_millis(100)), Some(2)).await.unwrap();
+        let mut conn = connection_manager(
+            client,
+            Some(Duration::from_millis(100)),
+            Some(Duration::from_millis(100)),
+            Some(2),
+        )
+        .await
+        .unwrap();
 
         // Redis is running
         conn.set("foo", "bar").await.unwrap();

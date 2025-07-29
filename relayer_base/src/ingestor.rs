@@ -4,17 +4,17 @@ use std::{future::Future, sync::Arc};
 use tokio::select;
 use tracing::{debug, error, info, warn};
 
+use crate::gmp_api::GmpApiTrait;
+use crate::utils::ThreadSafe;
 use crate::{
     error::IngestorError,
-    gmp_api::{
-        gmp_types::{ConstructProofTask, Event, ReactToWasmEventTask, RetryTask, Task, VerifyTask},
+    gmp_api::gmp_types::{
+        ConstructProofTask, Event, ReactToWasmEventTask, RetryTask, Task, VerifyTask,
     },
     models::task_retries::PgTaskRetriesModel,
     queue::{Queue, QueueItem},
     subscriber::ChainTransaction,
 };
-use crate::gmp_api::GmpApiTrait;
-use crate::utils::ThreadSafe;
 
 pub struct Ingestor<I: IngestorTrait, G: GmpApiTrait + ThreadSafe> {
     gmp_api: Arc<G>,
@@ -48,7 +48,7 @@ pub trait IngestorTrait {
 impl<I, G> Ingestor<I, G>
 where
     I: IngestorTrait,
-    G: GmpApiTrait + ThreadSafe
+    G: GmpApiTrait + ThreadSafe,
 {
     pub fn new(gmp_api: Arc<G>, ingestor: I) -> Self {
         Self { gmp_api, ingestor }

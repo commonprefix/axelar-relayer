@@ -1,25 +1,23 @@
-use redis::AsyncCommands;
 use base64::{prelude::BASE64_STANDARD, Engine};
 use futures::StreamExt;
 use lapin::{options::BasicAckOptions, Consumer};
+use redis::aio::ConnectionManager;
+use redis::AsyncCommands;
 use router_api::CrossChainId;
 use std::{future::Future, sync::Arc};
-use redis::aio::ConnectionManager;
 use tracing::{debug, error, info, warn};
 
-use crate::{
-    database::Database,
-    error::{BroadcasterError, IncluderError, RefundManagerError},
-    gmp_api::{
-        gmp_types::{Amount, CommonEventFields, Event, RefundTask, Task},
-    },
-    payload_cache::PayloadCache,
-    queue::{Queue, QueueItem},
-};
 use crate::gmp_api::gmp_types::{ExecuteTaskFields, RefundTaskFields};
 use crate::gmp_api::GmpApiTrait;
 use crate::payload_cache::PayloadCacheTrait;
 use crate::utils::ThreadSafe;
+use crate::{
+    database::Database,
+    error::{BroadcasterError, IncluderError, RefundManagerError},
+    gmp_api::gmp_types::{Amount, CommonEventFields, Event, RefundTask, Task},
+    payload_cache::PayloadCache,
+    queue::{Queue, QueueItem},
+};
 
 pub trait RefundManager {
     type Wallet;
@@ -38,8 +36,10 @@ pub trait RefundManager {
         refund_id: &str,
     ) -> impl Future<Output = Result<bool, RefundManagerError>>;
     fn get_wallet_lock(&self) -> impl Future<Output = Result<Self::Wallet, RefundManagerError>>;
-    fn release_wallet_lock(&self, wallet: Self::Wallet) 
-        -> impl Future<Output = Result<(), RefundManagerError>>;
+    fn release_wallet_lock(
+        &self,
+        wallet: Self::Wallet,
+    ) -> impl Future<Output = Result<(), RefundManagerError>>;
 }
 
 #[derive(PartialEq, Debug)]
@@ -65,9 +65,12 @@ pub trait Broadcaster {
     ) -> impl Future<Output = Result<String, BroadcasterError>>;
     fn broadcast_execute_message(
         &self,
-        message: ExecuteTaskFields
+        message: ExecuteTaskFields,
     ) -> impl Future<Output = Result<BroadcastResult<Self::Transaction>, BroadcasterError>>;
-    fn broadcast_refund_message(&self, refund_task: RefundTaskFields) -> impl Future<Output = Result<String, BroadcasterError>>;
+    fn broadcast_refund_message(
+        &self,
+        refund_task: RefundTaskFields,
+    ) -> impl Future<Output = Result<String, BroadcasterError>>;
 }
 
 pub struct Includer<B, C, R, DB, G>
@@ -215,7 +218,7 @@ where
                                 message_id,
                                 source_chain,
                                 err.to_string(),
-                                gmp_error
+                                gmp_error,
                             )
                             .await
                             .map_err(|e| IncluderError::ConsumerError(e.to_string()))?;
@@ -243,8 +246,7 @@ where
                         broadcast_result.tx_hash
                     );
 
-                    if Self::broadcast_result_has_message(&broadcast_result)
-                    {
+                    if Self::broadcast_result_has_message(&broadcast_result) {
                         let message_id = broadcast_result.message_id.ok_or_else(|| {
                             IncluderError::ConsumerError("Message ID is missing".to_string())
                         })?;
@@ -261,14 +263,15 @@ where
                                 .publish(QueueItem::RetryConstructProof(cross_chain_id.to_string()))
                                 .await;
 
-                            let mut redis_conn = self
-                                .redis_conn.clone();
+                            let mut redis_conn = self.redis_conn.clone();
                             let redis_key = format!("failed_proof:{}", cross_chain_id);
                             let _: i64 = redis_conn
-                                .incr(redis_key.clone(), 1).await
+                                .incr(redis_key.clone(), 1)
+                                .await
                                 .map_err(|e| IncluderError::GenericError(e.to_string()))?;
                             redis_conn
-                                .expire::<_, ()>(redis_key.clone(), 60 * 60 * 12).await // 12 hours
+                                .expire::<_, ()>(redis_key.clone(), 60 * 60 * 12)
+                                .await // 12 hours
                                 .map_err(|e| IncluderError::GenericError(e.to_string()))?;
 
                             self.gmp_api
@@ -277,7 +280,7 @@ where
                                     message_id,
                                     source_chain,
                                     e.to_string(),
-                                    crate::gmp_api::gmp_types::CannotExecuteMessageReason::Error
+                                    crate::gmp_api::gmp_types::CannotExecuteMessageReason::Error,
                                 )
                                 .await
                                 .map_err(|e| IncluderError::ConsumerError(e.to_string()))?;
@@ -309,7 +312,7 @@ where
                             Ok(_) => Ok(()),
                             Err(BroadcasterError::InsufficientGas(_)) => Ok(()),
                             Err(e) => Err(IncluderError::GenericError(e.to_string())),
-                        }
+                        };
                     }
 
                     if self
@@ -330,7 +333,8 @@ where
 
                     let wallet = self
                         .refund_manager
-                        .get_wallet_lock().await
+                        .get_wallet_lock()
+                        .await
                         .map_err(|e| IncluderError::ConsumerError(e.to_string()))?;
 
                     let refund_info = self
@@ -355,7 +359,8 @@ where
                             Err(err) => {
                                 // …or on error, release the lock and return
                                 self.refund_manager
-                                    .release_wallet_lock(wallet).await
+                                    .release_wallet_lock(wallet)
+                                    .await
                                     .map_err(|e| IncluderError::ConsumerError(e.to_string()))?;
                                 return Err(err);
                             }
@@ -388,7 +393,8 @@ where
                         warn!("Refund not executed: refund amount is not enough to cover tx fees");
                     }
                     self.refund_manager
-                        .release_wallet_lock(wallet).await
+                        .release_wallet_lock(wallet)
+                        .await
                         .map_err(|e| IncluderError::ConsumerError(e.to_string()))?;
                     Ok(())
                 }
@@ -400,8 +406,9 @@ where
         }
     }
 
-    fn broadcast_result_has_message(broadcast_result: &BroadcastResult<<B as Broadcaster>::Transaction>) -> bool {
-        broadcast_result.message_id.is_some()
-            && broadcast_result.source_chain.is_some()
+    fn broadcast_result_has_message(
+        broadcast_result: &BroadcastResult<<B as Broadcaster>::Transaction>,
+    ) -> bool {
+        broadcast_result.message_id.is_some() && broadcast_result.source_chain.is_some()
     }
 }

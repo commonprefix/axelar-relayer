@@ -1,14 +1,14 @@
 use std::sync::Arc;
 use tracing::{info, warn};
 
+use crate::gmp_api::GmpApiTrait;
+use crate::utils::ThreadSafe;
 use crate::{
     database::Database,
     error::DistributorError,
-    gmp_api::{gmp_types::TaskKind},
+    gmp_api::gmp_types::TaskKind,
     queue::{Queue, QueueItem},
 };
-use crate::gmp_api::GmpApiTrait;
-use crate::utils::ThreadSafe;
 
 #[derive(Clone)]
 pub struct RecoverySettings {
@@ -31,7 +31,7 @@ pub struct Distributor<DB: Database, G: GmpApiTrait + ThreadSafe> {
 impl<DB, G> Distributor<DB, G>
 where
     DB: Database,
-    G: GmpApiTrait + ThreadSafe
+    G: GmpApiTrait + ThreadSafe,
 {
     pub async fn new(db: DB, context: String, gmp_api: Arc<G>, refunds_enabled: bool) -> Self {
         let last_task_id = db
@@ -52,13 +52,14 @@ where
             gmp_api,
             refunds_enabled,
             // Sane default as it's the minimum required for the relayer to work
-            supported_includer_tasks: vec![TaskKind::Refund, 
-                                           TaskKind::GatewayTx],
-            supported_ingestor_tasks: vec![TaskKind::Verify, 
-                                           TaskKind::ConstructProof, 
-                                           TaskKind::ReactToWasmEvent, 
-                                           TaskKind::ReactToRetriablePoll, 
-                                           TaskKind::ReactToExpiredSigningSession]
+            supported_includer_tasks: vec![TaskKind::Refund, TaskKind::GatewayTx],
+            supported_ingestor_tasks: vec![
+                TaskKind::Verify,
+                TaskKind::ConstructProof,
+                TaskKind::ReactToWasmEvent,
+                TaskKind::ReactToRetriablePoll,
+                TaskKind::ReactToExpiredSigningSession,
+            ],
         }
     }
 
@@ -79,11 +80,7 @@ where
     pub async fn store_last_task_id(&mut self) -> Result<(), DistributorError> {
         if let Some(task_id) = &self.last_task_id {
             self.db
-                .store_latest_task_id(
-                    self.gmp_api.get_chain(),
-                    &self.context,
-                    task_id,
-                )
+                .store_latest_task_id(self.gmp_api.get_chain(), &self.context, task_id)
                 .await
                 .map_err(|e| {
                     DistributorError::GenericError(format!("Failed to store last_task_id: {}", e))
@@ -193,5 +190,4 @@ where
     pub fn set_supported_ingestor_tasks(&mut self, tasks: Vec<TaskKind>) {
         self.supported_ingestor_tasks = tasks;
     }
-
 }

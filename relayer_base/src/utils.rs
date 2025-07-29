@@ -2,8 +2,8 @@ use std::str::FromStr;
 
 use anyhow::Context;
 use axelar_wasm_std::msg_id::HexTxHash;
+use redis::aio::ConnectionManager;
 use redis::{AsyncTypedCommands, SetExpiry, SetOptions};
-use redis::aio::{ConnectionManager};
 use rust_decimal::{prelude::FromPrimitive, Decimal};
 use sentry::ClientInitGuard;
 use sentry_tracing::{layer as sentry_layer, EventFilter};
@@ -263,8 +263,7 @@ pub fn setup_heartbeat(service: String, redis_conn: ConnectionManager) {
             info!("Writing heartbeat to Redis");
             let set_opts =
                 SetOptions::default().with_expiration(SetExpiry::EX(HEARTBEAT_EXPIRATION));
-            let result =
-                redis_conn.set_options(service.clone(), 1, set_opts).await;
+            let result = redis_conn.set_options(service.clone(), 1, set_opts).await;
 
             if let Err(e) = result {
                 error!("Failed to write heartbeat: {}", e);
@@ -274,7 +273,6 @@ pub fn setup_heartbeat(service: String, redis_conn: ConnectionManager) {
         }
     });
 }
-
 
 pub async fn convert_token_amount_to_drops<T>(
     config: &Config,

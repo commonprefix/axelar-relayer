@@ -3,8 +3,8 @@ use std::sync::Arc;
 
 use libsecp256k1::{PublicKey, SecretKey};
 use rand::seq::SliceRandom;
-use redis::{ExistenceCheck, SetExpiry, SetOptions};
 use redis::aio::ConnectionManager;
+use redis::{ExistenceCheck, SetExpiry, SetOptions};
 use relayer_base::{
     error::RefundManagerError,
     gmp_api::gmp_types::RefundTask,
@@ -106,7 +106,7 @@ impl<X: XRPLClientTrait> XRPLRefundManager<X> {
 
 impl<X: XRPLClientTrait> RefundManager for XRPLRefundManager<X> {
     type Wallet = (SecretKey, PublicKey, AccountId);
-    
+
     fn is_refund_manager_managed(&self) -> bool {
         true
     }
@@ -132,7 +132,8 @@ impl<X: XRPLClientTrait> RefundManager for XRPLRefundManager<X> {
                     format!("includer_{}", account_id.to_address()),
                     true,
                     set_opts,
-                ).await
+                )
+                .await
                 .map_err(|e| RefundManagerError::GenericError(e.to_string()))?;
 
             if !wallet_lock {
@@ -164,7 +165,8 @@ impl<X: XRPLClientTrait> RefundManager for XRPLRefundManager<X> {
         let mut redis_conn = self.redis_conn.clone();
 
         let _: () = redis_conn
-            .del(format!("includer_{}", address)).await
+            .del(format!("includer_{}", address))
+            .await
             .map_err(|e| RefundManagerError::GenericError(e.to_string()))?;
 
         debug!("Released wallet lock for {}", address);

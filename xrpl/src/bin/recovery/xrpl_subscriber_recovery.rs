@@ -1,6 +1,7 @@
 use dotenv::dotenv;
 
 use relayer_base::config::config_from_yaml;
+use relayer_base::redis::connection_manager;
 use relayer_base::{
     database::PostgresDB,
     queue::Queue,
@@ -9,7 +10,6 @@ use relayer_base::{
 };
 use std::sync::Arc;
 use tokio::signal::unix::{signal, SignalKind};
-use relayer_base::redis::connection_manager;
 use xrpl::{client::XRPLClient, config::XRPLConfig, subscriber::XrplSubscriber};
 
 #[tokio::main]

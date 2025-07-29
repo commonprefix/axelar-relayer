@@ -53,7 +53,8 @@ impl<DB: Database> ProofRetrier<DB> {
         let mut redis_conn = self.redis_conn.clone();
         let redis_key = format!("failed_proof:{}", cc_id);
         let redis_value = redis_conn
-            .get(redis_key.clone()).await
+            .get(redis_key.clone())
+            .await
             .map_err(|e| anyhow::anyhow!("Failed to get Redis key: {}", e))?
             .and_then(|s| s.parse::<i64>().ok());
 

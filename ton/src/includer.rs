@@ -5,14 +5,14 @@ use crate::gas_estimator::TONGasEstimator;
 use crate::high_load_query_id_db_wrapper::HighLoadQueryIdDbWrapper;
 use crate::lock_manager::RedisLockManager;
 use crate::wallet_manager::WalletManager;
+use redis::aio::ConnectionManager;
+use relayer_base::utils::ThreadSafe;
 use relayer_base::{
     database::Database, error::BroadcasterError, gmp_api::GmpApiTrait, includer::Includer,
     payload_cache::PayloadCache, queue::Queue,
 };
 use std::sync::Arc;
-use redis::aio::ConnectionManager;
 use tonlib_core::TonAddress;
-use relayer_base::utils::ThreadSafe;
 
 pub struct TONIncluder {}
 

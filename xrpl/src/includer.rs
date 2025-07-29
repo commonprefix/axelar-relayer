@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use relayer_base::{
-    database::Database, error::BroadcasterError, gmp_api::{GmpApiTrait}, includer::Includer,
+    database::Database, error::BroadcasterError, gmp_api::GmpApiTrait, includer::Includer,
     payload_cache::PayloadCache, queue::Queue,
 };
 
@@ -18,7 +18,12 @@ pub struct XrplIncluder {}
 
 impl XrplIncluder {
     #[allow(clippy::new_ret_no_self)]
-    pub async fn new<X: XRPLClientTrait, DB: Database, QM: QueuedTransactionsModel, G: GmpApiTrait + ThreadSafe>(
+    pub async fn new<
+        X: XRPLClientTrait,
+        DB: Database,
+        QM: QueuedTransactionsModel,
+        G: GmpApiTrait + ThreadSafe,
+    >(
         config: XRPLConfig,
         gmp_api: Arc<G>,
         redis_conn: ConnectionManager,

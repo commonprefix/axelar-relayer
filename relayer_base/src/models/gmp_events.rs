@@ -1,6 +1,6 @@
 use crate::gmp_api::gmp_types::{Event, PostEventResult};
 use sqlx::types::Json;
-use sqlx::{PgPool};
+use sqlx::PgPool;
 use std::future::Future;
 
 const PG_TABLE_NAME: &str = "gmp_events";
@@ -20,25 +20,39 @@ pub struct EventModel {
 impl EventModel {
     pub fn from_event(event: Event) -> Self {
         let (event_id, event_type, message_id) = match &event {
-            Event::GasRefunded { common, message_id, .. }
-            | Event::GasCredit { common, message_id, .. }
-            | Event::CannotExecuteMessageV2 { common, message_id, .. }
-            | Event::ITSInterchainTransfer { common, message_id, .. } => (
+            Event::GasRefunded {
+                common, message_id, ..
+            }
+            | Event::GasCredit {
+                common, message_id, ..
+            }
+            | Event::CannotExecuteMessageV2 {
+                common, message_id, ..
+            }
+            | Event::ITSInterchainTransfer {
+                common, message_id, ..
+            } => (
                 common.event_id.clone(),
                 common.r#type.clone(),
                 Some(message_id.clone()),
             ),
-            Event::MessageExecuted { common, message_id, .. } => (
+            Event::MessageExecuted {
+                common, message_id, ..
+            } => (
                 common.event_id.clone(),
                 common.r#type.clone(),
                 Some(message_id.clone()),
             ),
-            Event::Call { common, message, .. } => (
+            Event::Call {
+                common, message, ..
+            } => (
                 common.event_id.clone(),
                 common.r#type.clone(),
                 Some(message.message_id.clone()),
             ),
-            Event::MessageApproved { common, message, .. } => (
+            Event::MessageApproved {
+                common, message, ..
+            } => (
                 common.event_id.clone(),
                 common.r#type.clone(),
                 Some(message.message_id.clone()),
@@ -71,8 +85,12 @@ impl PgGMPEvents {
 
 #[cfg_attr(test, mockall::automock)]
 pub trait GMPAudit {
-    fn insert_event(&self, event: EventModel) -> impl Future<Output=anyhow::Result<()>> + Send;
-    fn update_event_response(&self, event_id: String, response: Json<PostEventResult>) -> impl Future<Output=anyhow::Result<()>> + Send;
+    fn insert_event(&self, event: EventModel) -> impl Future<Output = anyhow::Result<()>> + Send;
+    fn update_event_response(
+        &self,
+        event_id: String,
+        response: Json<PostEventResult>,
+    ) -> impl Future<Output = anyhow::Result<()>> + Send;
 }
 
 impl GMPAudit for PgGMPEvents {
@@ -94,7 +112,11 @@ impl GMPAudit for PgGMPEvents {
         Ok(())
     }
 
-    async fn update_event_response(&self, event_id: String, response: Json<PostEventResult>) -> anyhow::Result<()> {
+    async fn update_event_response(
+        &self,
+        event_id: String,
+        response: Json<PostEventResult>,
+    ) -> anyhow::Result<()> {
         let query = format!(
             "UPDATE {} SET response = $1, updated_at = NOW() WHERE event_id = $2",
             PG_TABLE_NAME
@@ -234,7 +256,6 @@ mod tests {
         );
         let pool = sqlx::PgPool::connect(&connection_string).await.unwrap();
 
-
         let model = PgGMPEvents::new(pool.clone());
 
         let event = fixtures::gas_refunded_event();
@@ -242,11 +263,13 @@ mod tests {
 
         model.insert_event(event_model).await.unwrap();
 
-        let row = sqlx::query("SELECT event_id, message_id, event_type FROM gmp_events WHERE event_id = $1")
-            .bind("event123")
-            .fetch_one(&pool)
-            .await
-            .unwrap();
+        let row = sqlx::query(
+            "SELECT event_id, message_id, event_type FROM gmp_events WHERE event_id = $1",
+        )
+        .bind("event123")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
 
         let event_id: String = row.get("event_id");
         let message_id: String = row.get("message_id");
@@ -263,7 +286,10 @@ mod tests {
             retriable: None,
         };
 
-        model.update_event_response("event123".to_string(), Json(response.clone())).await.unwrap();
+        model
+            .update_event_response("event123".to_string(), Json(response.clone()))
+            .await
+            .unwrap();
 
         let row = sqlx::query("SELECT response FROM gmp_events WHERE event_id = $1")
             .bind("event123")

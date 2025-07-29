@@ -30,10 +30,10 @@ functionality, maintaining our own will make it easier to customize the function
 
 */
 
-use redis::AsyncCommands;
 use async_trait::async_trait;
-use redis::{ExistenceCheck, SetExpiry, SetOptions};
 use redis::aio::ConnectionManager;
+use redis::AsyncCommands;
+use redis::{ExistenceCheck, SetExpiry, SetOptions};
 use tracing::error;
 
 #[async_trait]
@@ -59,13 +59,13 @@ impl RedisLockManager {
 #[async_trait::async_trait]
 impl LockManager for RedisLockManager {
     async fn lock(&self, key: &str) -> bool {
-
         let set_opts = SetOptions::default()
             .conditional_set(ExistenceCheck::NX)
             .with_expiration(SetExpiry::EX(60));
 
         self.redis_connection()
-            .set_options(format!("wallet_lock_{}", key), true, set_opts).await
+            .set_options(format!("wallet_lock_{}", key), true, set_opts)
+            .await
             .unwrap_or_else(|e| {
                 error!("Failed to set Redis lock: {}", e);
                 false
@@ -74,7 +74,8 @@ impl LockManager for RedisLockManager {
 
     async fn unlock(&self, key: &str) {
         self.redis_connection()
-            .del(format!("wallet_lock_{}", key)).await
+            .del(format!("wallet_lock_{}", key))
+            .await
             .unwrap_or_else(|e| {
                 error!("Failed to set Redis lock: {}", e);
                 false
@@ -86,13 +87,13 @@ impl LockManager for RedisLockManager {
 mod tests {
     use crate::lock_manager::{LockManager, RedisLockManager};
     use redis::Client;
+    use relayer_base::redis::connection_manager;
     use std::time::Duration;
     use testcontainers::{
         core::{IntoContainerPort, WaitFor},
         runners::AsyncRunner,
         GenericImage,
     };
-    use relayer_base::redis::connection_manager;
 
     async fn create_redis_lock_manager() -> (
         testcontainers::ContainerAsync<GenericImage>,
@@ -111,7 +112,14 @@ mod tests {
         let url = format!("redis://{host}:{host_port}");
         let client = Client::open(url.as_ref()).unwrap();
 
-        let conn = connection_manager(client, Some(Duration::from_millis(100)), Some(Duration::from_millis(100)), Some(0)).await.unwrap();
+        let conn = connection_manager(
+            client,
+            Some(Duration::from_millis(100)),
+            Some(Duration::from_millis(100)),
+            Some(0),
+        )
+        .await
+        .unwrap();
         let manager = RedisLockManager::new(conn);
 
         (container, manager)

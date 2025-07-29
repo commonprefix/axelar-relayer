@@ -1,5 +1,6 @@
 use dotenv::dotenv;
 use relayer_base::config::config_from_yaml;
+use relayer_base::redis::connection_manager;
 use relayer_base::utils::setup_heartbeat;
 use relayer_base::{
     database::PostgresDB, gmp_api, payload_cache::PayloadCache, queue::Queue, utils::setup_logging,
@@ -7,7 +8,6 @@ use relayer_base::{
 use sqlx::PgPool;
 use std::sync::Arc;
 use tokio::signal::unix::{signal, SignalKind};
-use relayer_base::redis::connection_manager;
 use ton::config::TONConfig;
 use ton::high_load_query_id_db_wrapper::HighLoadQueryIdDbWrapper;
 use ton::includer::TONIncluder;
@@ -25,8 +25,7 @@ async fn main() -> anyhow::Result<()> {
     let construct_proof_queue =
         Queue::new(&config.common_config.queue_address, "construct_proof").await;
     let redis_client = redis::Client::open(config.common_config.redis_server.clone())?;
-    let redis_conn = connection_manager(redis_client.clone(), None, None, None)
-        .await?;
+    let redis_conn = connection_manager(redis_client.clone(), None, None, None).await?;
 
     let postgres_db = PostgresDB::new(&config.common_config.postgres_url).await?;
     let payload_cache_for_includer = PayloadCache::new(postgres_db);
@@ -44,7 +43,8 @@ async fn main() -> anyhow::Result<()> {
         construct_proof_queue.clone(),
         Arc::new(high_load_query_id_wrapper),
     )
-    .await.expect("Failed to construct TONIncluder");
+    .await
+    .expect("Failed to construct TONIncluder");
     let mut sigint = signal(SignalKind::interrupt())?;
     let mut sigterm = signal(SignalKind::terminate())?;
 
