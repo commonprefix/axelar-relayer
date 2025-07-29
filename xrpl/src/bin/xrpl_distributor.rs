@@ -15,9 +15,6 @@ use xrpl::config::XRPLConfig;
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     dotenv().ok();
-
-    // test to see that the job fails
-    let unused_value = 3;
     let network = std::env::var("NETWORK").expect("NETWORK must be set");
     let config: XRPLConfig = config_from_yaml(&format!("config.{}.yaml", network))?;
 

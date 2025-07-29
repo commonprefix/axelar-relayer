@@ -87,9 +87,8 @@ mod tests {
             message_id_from_retry_task(RetryTask::ReactToExpiredSigningSession(task));
         assert!(maybe_message_id.is_ok());
         let actual_source_chain = "axelar";
-        // changed to see that the test CI fails
         let actual_message_id =
-            "0x054e170d88e181b39f638cd5da6f3c76d1a5c4f0945a4540ffddc5e13965444b-150693963";
+            "0x054e170d88e181b39f638cd5da6f3c76d1a5c4f0945a4540ffddc5e13965444b-150693962";
         let actual_cc_id = CrossChainId::new(actual_source_chain, actual_message_id).unwrap();
 
         assert_eq!(maybe_message_id.unwrap(), Some(actual_cc_id.to_string()));
