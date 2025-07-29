@@ -168,18 +168,15 @@ mod tests {
             TonAddress::from_str(
                 "0:0000000000000000000000000000000000000000000000000000000000000000",
             )
-            .unwrap()
-            .clone(),
+            .unwrap(),
             TonAddress::from_str(
                 "0:00000000000000000000000000000000000000000000000000000000000000ff",
             )
-            .unwrap()
-            .clone(),
+            .unwrap(),
             TonAddress::from_str(
                 "0:000000000000000000000000000000000000000000000000000000000000ffff",
             )
-            .unwrap()
-            .clone(),
+            .unwrap(),
         ];
 
         let expected_accounts = vec![

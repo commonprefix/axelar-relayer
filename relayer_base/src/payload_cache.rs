@@ -98,7 +98,7 @@ mod tests {
             payload_hash: "payload hash".to_string(),
         };
         let value = PayloadCacheValue {
-            message: message.clone(),
+            message,
             payload: "test_payload".into(),
         };
         (cc_id, value)

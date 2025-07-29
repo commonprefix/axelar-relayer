@@ -47,7 +47,7 @@ impl NullifiedSuccessfullyMessage {
         let op_code = parser
             .load_bits(32)
             .map_err(|err| BocParsingError(err.to_string()))?;
-        if hex::encode(&op_code) != format!("{:08X}", OP_NULLIFIED_SUCCESSFULLY) {
+        if hex::encode(&op_code) != format!("{OP_NULLIFIED_SUCCESSFULLY:08X}") {
             return Err(InvalidOpCode(format!(
                 "Expected {:?}, got {:?}",
                 OP_NULLIFIED_SUCCESSFULLY,

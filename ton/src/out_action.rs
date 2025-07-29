@@ -36,15 +36,15 @@ pub fn out_action(
         bounce: true,
         bounced: false,
         src: TonAddress::NULL,
-        dest: destination.clone(),
-        value: value.clone(),
+        dest: destination,
+        value,
         ihr_fee: BigUint::from(0u8),
         fwd_fee: BigUint::from(0u8),
         created_lt: 0,
         created_at: 0,
     });
 
-    let tm = TransferMessage::new(common.clone(), body).build()?.to_arc();
+    let tm = TransferMessage::new(common, body).build()?.to_arc();
 
     Ok(OutAction::SendMsg(OutActionSendMsg {
         mode: SEND_MODE_IGNORE_ERRORS,

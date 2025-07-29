@@ -182,16 +182,14 @@ impl<T: TimeProvider> TonWalletHighLoadV3<T> {
             self.internal_transfer_body(actions, query_id)
                 .map_err(|e| {
                     BocError::BocEncodingError(format!(
-                        "Failed constructing internal transfer body: {}",
-                        e
+                        "Failed constructing internal transfer body: {e}"
                     ))
                 })?;
         let internal_transfer = self
             .internal_transfer_message_cell(internal_transfer_body, internal_message_value)
             .map_err(|e| {
                 BocError::BocEncodingError(format!(
-                    "Failed constructing internal transfer message: {}",
-                    e
+                    "Failed constructing internal transfer message: {e}"
                 ))
             })?;
 
@@ -206,15 +204,15 @@ impl<T: TimeProvider> TonWalletHighLoadV3<T> {
                 self.timeout,
             )
             .map_err(|e| {
-                BocError::BocEncodingError(format!("Failed constructing inner message: {}", e))
+                BocError::BocEncodingError(format!("Failed constructing inner message: {e}"))
             })?;
         let signed_body = self.sign_external_body(&message_inner).map_err(|e| {
-            BocError::BocEncodingError(format!("Failed signing external body: {}", e))
+            BocError::BocEncodingError(format!("Failed signing external body: {e}"))
         })?;
 
-        let wrapped_signed_body = self.wrap_signed_body(signed_body).map_err(|e| {
-            BocError::BocEncodingError(format!("Failed wrapping signed body: {}", e))
-        })?;
+        let wrapped_signed_body = self
+            .wrap_signed_body(signed_body)
+            .map_err(|e| BocError::BocEncodingError(format!("Failed wrapping signed body: {e}")))?;
         Ok(BagOfCells::from_root(wrapped_signed_body))
     }
 
@@ -378,7 +376,7 @@ mod tests {
             mock_time,
         );
         let boc = wallet
-            .outgoing_message(&vec![mock_out_action()], 42, BigUint::from(999u32))
+            .outgoing_message(&[mock_out_action()], 42, BigUint::from(999u32))
             .unwrap();
         assert_eq!(boc.root(0).unwrap().to_boc_b64(true).unwrap(), "te6cckEBCQEA6wABxYgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA2yfwHuviGA2kiylZKUJynwaF0GS1SvjlC3unXxNyS7PWw2k6gOe0jA3Jzud9ccztHLk2jhJ1h9qRwU0LtrYgfAEBJQAAAUECAABUAAAAAAADDTAAD6QCASEgID5wAAAAAAAAAAAAAAAAAwMBGK5C5aQAAAAAAAAAKgQCCg7DyG0BBQYAAAFoMgB//////////////////////////////////////////6O5rKAAAAAAAAAAAAAAAAAAAQcBCAAAACgIAAIqFPptJQ==");
     }

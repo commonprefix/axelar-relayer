@@ -115,7 +115,7 @@ impl TONRpcClient {
                 Err(err) => BadResponse(format!("Invalid 400 body: {err}")),
             }
         } else {
-            BadResponse(format!("Unexpected status {}: {}", status, text))
+            BadResponse(format!("Unexpected status {status}: {text}"))
         }
     }
 }
@@ -213,7 +213,7 @@ impl RestClient for TONRpcClient {
             Err(self.handle_non_success_response(
                 status,
                 &clean_text,
-                format!("{:?}", query_params).as_str(),
+                format!("{query_params:?}").as_str(),
             ))
         }
     }
@@ -308,7 +308,7 @@ mod tests {
             Err(BadRequest(msg)) => {
                 assert_eq!(msg, "Invalid BOC format");
             }
-            _ => panic!("Expected BadRequest error, got {:?}", result),
+            _ => panic!("Expected BadRequest error, got {result:?}"),
         }
     }
 

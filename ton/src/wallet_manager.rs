@@ -227,15 +227,15 @@ pub(crate) mod wallet_manager_tests {
             .acquire()
             .await
             .expect("Should acquire wallet 1");
-        wallet_manager.release(&w1).await;
+        wallet_manager.release(w1).await;
         let w2 = wallet_manager.acquire().await.expect("wallet 2 ok");
         let w3 = wallet_manager.acquire().await.expect("wallet 3 ok");
         let _w4 = wallet_manager.acquire().await.expect("wallet 4 ok");
-        wallet_manager.release(&w2).await;
+        wallet_manager.release(w2).await;
         let _w5 = wallet_manager.acquire().await.expect("wallet 5 ok");
         let result = wallet_manager.acquire().await;
         assert!(matches!(result, Err(WalletManagerError::NoAvailableWallet)));
-        wallet_manager.release(&w3).await;
+        wallet_manager.release(w3).await;
         let _w6 = wallet_manager.acquire().await.expect("wallet 6 ok");
     }
 }

@@ -37,7 +37,7 @@ pub async fn convert_jetton_to_native<PV>(
 where
     PV: PriceViewTrait,
 {
-    let coin_pair = format!("{}/USD", minter);
+    let coin_pair = format!("{minter}/USD");
     let coin_to_usd = price_view
         .get_price(&coin_pair)
         .await
@@ -48,7 +48,7 @@ where
         .map_err(|err| GasError::ConversionError(err.to_string()))?;
 
     let amount = Decimal::from_str(&amount.to_string())
-        .map_err(|e| GasError::ConversionError(format!("Invalid amount: {}", e)))?;
+        .map_err(|e| GasError::ConversionError(format!("Invalid amount: {e}")))?;
     let result = amount * coin_to_usd / ton_to_usd;
     let result = result.round();
 

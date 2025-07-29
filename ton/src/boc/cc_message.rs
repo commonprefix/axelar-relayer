@@ -80,7 +80,6 @@ impl TonCCMessage {
             .cell_to_buffer()?;
 
         let hash_part: TonHash = destination_address
-            .clone()
             .try_into()
             .map_err(|_| "Invalid hash length")
             .map_err(|err| BocParsingError(err.to_string()))?;

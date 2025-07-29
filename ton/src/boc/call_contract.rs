@@ -100,7 +100,7 @@ mod tests {
         );
         assert_eq!(
             res.source_address,
-            TonAddress::from_str(&"EQDh5jPrcBsRi0QpdxbO5wae6Ee1bbiMSX7-poHtFLLSxyuC").unwrap()
+            TonAddress::from_str("EQDh5jPrcBsRi0QpdxbO5wae6Ee1bbiMSX7-poHtFLLSxyuC").unwrap()
         );
         assert_eq!(res.payload, "0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000001348656c6c6f2066726f6d2052656c617965722100000000000000000000000000");
         let payload_hash = format!("{:?}", H256::from(res.payload_hash));

@@ -88,7 +88,7 @@ impl RelayerExecuteMessage {
         let destination_address =
             buffer_to_cell::buffer_to_cell(&self.destination_address.hash_part.to_vec())?;
         let payload_bytes = hex::decode(&self.payload)
-            .map_err(|e| BocParsingError(format!("Invalid hex payload: {}", e)))?;
+            .map_err(|e| BocParsingError(format!("Invalid hex payload: {e}")))?;
 
         let payload_hash = Self::payload_hash(&payload_bytes);
         let payload = buffer_to_cell::buffer_to_cell(&payload_bytes)?;
@@ -155,11 +155,11 @@ mod tests {
             0, 0, 0, 0, 0, 19, 72, 101, 108, 108, 111, 32, 102, 114, 111, 109, 32, 114, 101, 108,
             97, 121, 101, 114, 33, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         ];
-        let hash = super::RelayerExecuteMessage::payload_hash(&payload.to_vec());
+        let hash = super::RelayerExecuteMessage::payload_hash(payload.as_ref());
         assert_eq!(
             hash,
             BigUint::from_str(
-                &"71468550630404048420691790219403539000788302635511547374558478410759778184983"
+                "71468550630404048420691790219403539000788302635511547374558478410759778184983"
             )
             .unwrap()
         );

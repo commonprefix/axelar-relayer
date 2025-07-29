@@ -45,7 +45,7 @@ impl ApproveMessages {
         let op_code = parser
             .load_bits(32)
             .map_err(|err| BocParsingError(err.to_string()))?;
-        if hex::encode(&op_code) != format!("{:08X}", OP_APPROVE_MESSAGES) {
+        if hex::encode(&op_code) != format!("{OP_APPROVE_MESSAGES:08X}") {
             return Err(InvalidOpCode(format!(
                 "Expected {:?}, got {:?}",
                 OP_APPROVE_MESSAGES,
