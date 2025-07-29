@@ -64,7 +64,7 @@ async fn main() -> anyhow::Result<()> {
     tokio::select! {
         _ = sigint.recv()  => {},
         _ = sigterm.recv() => {},
-        _ = ingestor.run(events_queue.clone(), tasks_queue.clone()) => {},
+        _ = ingestor.run(Arc::clone(&events_queue), Arc::clone(&tasks_queue)) => {},
     }
 
     tasks_queue.close().await;

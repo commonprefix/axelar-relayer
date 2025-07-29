@@ -6,6 +6,7 @@ use relayer_base::queue::Queue;
 use relayer_base::subscriber::Subscriber;
 use relayer_base::utils::{setup_heartbeat, setup_logging};
 use sqlx::PgPool;
+use std::sync::Arc;
 use tokio::signal::unix::{signal, SignalKind};
 use tokio::task::JoinHandle;
 use ton::client::TONRpcClient;
@@ -61,7 +62,7 @@ async fn main() -> anyhow::Result<()> {
         .await?;
 
         let mut sub = Subscriber::new(ton_sub);
-        let queue_clone = events_queue.clone();
+        let queue_clone = Arc::clone(&events_queue);
         let handle = tokio::spawn(async move {
             sub.run(acct, queue_clone).await;
         });
@@ -70,9 +71,9 @@ async fn main() -> anyhow::Result<()> {
 
     let retry_subscriber = RetryTONSubscriber::new(client.clone(), ton_traces.clone()).await?;
     let mut sub = Subscriber::new(retry_subscriber);
-    let events_queue_clone = events_queue.clone();
+    let events_clone = Arc::clone(&events_queue);
     let handle = tokio::spawn(async move {
-        sub.run(gateway_account, events_queue_clone).await;
+        sub.run(gateway_account, events_clone).await;
     });
     handles.push(handle);
 

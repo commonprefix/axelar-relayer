@@ -103,7 +103,7 @@ impl Parser for ParserMessageExecuted {
                 }),
             },
             message_id: log.message_id.clone(),
-            source_chain: log.clone().source_chain,
+            source_chain: log.source_chain,
             status: MessageExecutionStatus::SUCCESSFUL,
             cost: Amount {
                 token_id: None,

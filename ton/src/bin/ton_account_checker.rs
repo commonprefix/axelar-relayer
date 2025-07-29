@@ -39,7 +39,7 @@ async fn main() -> anyhow::Result<()> {
     let client = TONRpcClient::new(config.ton_rpc.clone(), config.ton_api_key.clone(), 5, 5, 30)
         .await
         .map_err(|e| error_stack::report!(SubscriberError::GenericError(e.to_string())))
-        .unwrap();
+        .expect("Failed to create TonRpcClient");
 
     tokio::select! {
     _ = sigint.recv()  => {},

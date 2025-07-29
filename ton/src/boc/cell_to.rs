@@ -47,12 +47,19 @@ impl CellTo for Arc<Cell> {
 
         while let Some(cell) = current_cell {
             let mut parser = cell.parser();
+
             for _ in 0..BYTES_PER_CELL {
                 match parser.load_uint(8) {
-                    Ok(val) => u8_vec.push(val.to_bytes_be()[0]),
+                    Ok(val) => {
+                        let bytes = val.to_bytes_be();
+                        if let Some(byte) = bytes.last() {
+                            u8_vec.push(*byte);
+                        }
+                    }
                     Err(_) => break, // no more bytes
                 }
             }
+
             current_cell = parser.next_reference().ok();
         }
 

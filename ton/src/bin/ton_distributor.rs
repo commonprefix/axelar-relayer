@@ -26,9 +26,7 @@ async fn main() -> anyhow::Result<()> {
     let ingestor_tasks_queue =
         Queue::new(&config.common_config.queue_address, "ingestor_tasks").await;
     let gmp_api = Arc::new(gmp_api::GmpApi::new(&config.common_config, true)?);
-    let postgres_db = PostgresDB::new(&config.common_config.postgres_url)
-        .await
-        .unwrap();
+    let postgres_db = PostgresDB::new(&config.common_config.postgres_url).await?;
 
     let mut distributor = Distributor::new(
         postgres_db,
@@ -43,8 +41,8 @@ async fn main() -> anyhow::Result<()> {
         TaskKind::GatewayTx,
     ]);
 
-    let redis_client = redis::Client::open(config.common_config.redis_server.clone()).unwrap();
-    let redis_pool = r2d2::Pool::builder().build(redis_client).unwrap();
+    let redis_client = redis::Client::open(config.common_config.redis_server.clone())?;
+    let redis_pool = r2d2::Pool::builder().build(redis_client)?;
 
     setup_heartbeat("heartbeat:distributor".to_owned(), redis_pool);
 
@@ -55,8 +53,8 @@ async fn main() -> anyhow::Result<()> {
         _ = sigint.recv()  => {},
         _ = sigterm.recv() => {},
         _ = distributor.run(
-            includer_tasks_queue.clone(),
-            ingestor_tasks_queue.clone(),
+            Arc::clone(&includer_tasks_queue),
+            Arc::clone(&ingestor_tasks_queue),
         ) => {},
     }
 

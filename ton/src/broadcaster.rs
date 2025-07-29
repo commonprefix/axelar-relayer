@@ -115,7 +115,14 @@ impl<GE: GasEstimator> Broadcaster for TONBroadcaster<GE> {
         let approve_messages = ApproveMessages::from_boc_hex(&tx_blob)
             .map_err(|e| BroadcasterError::GenericError(e.to_string()))?;
 
-        let message = &approve_messages.approve_messages[0];
+        let message =
+            approve_messages
+                .approve_messages
+                .first()
+                .ok_or(BroadcasterError::GenericError(
+                    "Missing approved message".to_string(),
+                ))?;
+
         let approve_message_value: BigUint = BigUint::from(
             self.gas_estimator
                 .approve_send(approve_messages.approve_messages.len())

@@ -38,11 +38,11 @@ async fn main() -> anyhow::Result<()> {
         gmp_api,
         redis_pool.clone(),
         payload_cache_for_includer,
-        construct_proof_queue.clone(),
+        Arc::clone(&construct_proof_queue),
         Arc::new(high_load_query_id_wrapper),
     )
     .await
-    .unwrap();
+    .expect("Failed to create TonIncluder");
     let mut sigint = signal(SignalKind::interrupt())?;
     let mut sigterm = signal(SignalKind::terminate())?;
 
@@ -51,7 +51,7 @@ async fn main() -> anyhow::Result<()> {
     tokio::select! {
         _ = sigint.recv()  => {},
         _ = sigterm.recv() => {},
-        _ = ton_includer.run(tasks_queue.clone()) => {},
+        _ = ton_includer.run(Arc::clone(&tasks_queue)) => {},
     }
 
     tasks_queue.close().await;
