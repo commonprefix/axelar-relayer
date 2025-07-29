@@ -1,7 +1,7 @@
 use dotenv::dotenv;
 
-use relayer_base::heartbeat::heartbeats_loop;
 use relayer_base::config::config_from_yaml;
+use relayer_base::heartbeat::heartbeats_loop;
 use xrpl::config::XRPLConfig;
 
 #[tokio::main]

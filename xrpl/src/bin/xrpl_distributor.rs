@@ -1,7 +1,7 @@
-use std::sync::Arc;
 use dotenv::dotenv;
-use tokio::signal::unix::{signal, SignalKind};
 use sqlx::PgPool;
+use std::sync::Arc;
+use tokio::signal::unix::{signal, SignalKind};
 
 use relayer_base::config::config_from_yaml;
 use relayer_base::{

@@ -1,6 +1,6 @@
-use crate::gmp_api::gmp_types::{Task};
+use crate::gmp_api::gmp_types::Task;
 use sqlx::types::Json;
-use sqlx::{PgPool};
+use sqlx::PgPool;
 use std::future::Future;
 
 const PG_TABLE_NAME: &str = "gmp_tasks";
@@ -26,34 +26,24 @@ impl TaskModel {
             Task::Execute(t) => {
                 let message_id = Some(t.task.message.message_id.clone());
                 (t.common, message_id)
-            },
+            }
             Task::Verify(t) => {
                 let message_id = Some(t.task.message.message_id.clone());
                 (t.common, message_id)
-            },
+            }
             Task::ConstructProof(t) => {
                 let message_id = Some(t.task.message.message_id.clone());
                 (t.common, message_id)
-            },
+            }
             Task::Refund(t) => {
                 let message_id = Some(t.task.message.message_id.clone());
                 (t.common, message_id)
-            },
-            Task::GatewayTx(t) => {
-                (t.common, None)
-            },
-            Task::ReactToWasmEvent(t) => {
-                (t.common, None)
-            },
-            Task::ReactToExpiredSigningSession(t) => {
-                (t.common, None)
-            },
-            Task::ReactToRetriablePoll(t) => {
-                (t.common, None)
-            },
-            Task::Unknown(t) => {
-                (t.common, None)
-            },
+            }
+            Task::GatewayTx(t) => (t.common, None),
+            Task::ReactToWasmEvent(t) => (t.common, None),
+            Task::ReactToExpiredSigningSession(t) => (t.common, None),
+            Task::ReactToRetriablePoll(t) => (t.common, None),
+            Task::Unknown(t) => (t.common, None),
         };
 
         let timestamp = chrono::DateTime::parse_from_rfc3339(&common.timestamp)
@@ -72,7 +62,6 @@ impl TaskModel {
             _updated_at: None,
         }
     }
-
 }
 
 #[derive(Debug, Clone)]
@@ -88,7 +77,7 @@ impl PgGMPTasks {
 
 #[cfg_attr(test, mockall::automock)]
 pub trait GMPTaskAudit {
-    fn insert_task(&self, task: TaskModel) -> impl Future<Output=anyhow::Result<()>> + Send;
+    fn insert_task(&self, task: TaskModel) -> impl Future<Output = anyhow::Result<()>> + Send;
 }
 
 impl GMPTaskAudit for PgGMPTasks {
@@ -242,7 +231,10 @@ mod tests {
 
         let task_model = TaskModel::from_task(task);
 
-        assert_eq!(task_model.task_id, "react_to_expired_signing_session_task_123");
+        assert_eq!(
+            task_model.task_id,
+            "react_to_expired_signing_session_task_123"
+        );
         assert_eq!(task_model.chain, "ton");
         assert_eq!(task_model.task_type, "REACT_TO_EXPIRED_SIGNING_SESSION");
         assert_eq!(task_model.message_id, None);

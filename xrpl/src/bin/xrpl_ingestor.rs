@@ -1,6 +1,6 @@
-use std::sync::Arc;
 use dotenv::dotenv;
 use sqlx::PgPool;
+use std::sync::Arc;
 use tokio::signal::unix::{signal, SignalKind};
 
 use xrpl::{

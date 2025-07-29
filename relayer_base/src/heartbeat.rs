@@ -7,7 +7,8 @@ pub async fn heartbeats_loop(common_config: &Config) -> ! {
     let _guard = setup_logging(common_config);
     let redis_client = redis::Client::open(common_config.redis_server.clone())
         .expect("Failed to connect to redis server");
-    let redis_pool = r2d2::Pool::builder().build(redis_client)
+    let redis_pool = r2d2::Pool::builder()
+        .build(redis_client)
         .expect("Failed to create redis pool");
     let client = reqwest::Client::new();
     loop {

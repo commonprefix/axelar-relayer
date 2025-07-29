@@ -1,6 +1,6 @@
-use std::sync::Arc;
 use dotenv::dotenv;
 use sqlx::PgPool;
+use std::sync::Arc;
 
 use relayer_base::config::config_from_yaml;
 use relayer_base::{
@@ -23,8 +23,7 @@ async fn main() -> anyhow::Result<()> {
 
     setup_heartbeat("heartbeat:ticket_creator".to_owned(), redis_pool);
 
-    let pg_pool = PgPool::connect(&config.common_config.postgres_url)
-        .await?;
+    let pg_pool = PgPool::connect(&config.common_config.postgres_url).await?;
     let gmp_api = gmp_api::construct_gmp_api(pg_pool, &config.common_config, false)?;
 
     let ticket_creator = XrplTicketCreator::new(Arc::clone(&gmp_api), config.clone());

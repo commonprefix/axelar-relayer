@@ -2,14 +2,15 @@
 
 pub(crate) mod fixtures {
     use crate::gmp_api::gmp_types::{
-        Amount, CannotExecuteMessageReason, CommonEventFields, CommonTaskFields, ConstructProofTask,
-        ConstructProofTaskFields, Event, EventAttribute, EventMetadata, ExecuteTask, ExecuteTaskFields,
-        GatewayTxTask, GatewayTxTaskFields, GatewayV2Message, MessageApprovedEventMetadata,
-        MessageExecutedEventMetadata, MessageExecutionStatus, QuorumReachedEvent,
-        ReactToExpiredSigningSessionTask, ReactToExpiredSigningSessionTaskFields,
-        ReactToRetriablePollTask, ReactToRetriablePollTaskFields, ReactToWasmEventTask,
-        ReactToWasmEventTaskFields, RefundTask, RefundTaskFields, Task, UnknownTask, VerificationStatus,
-        VerifyTask, VerifyTaskFields, WasmEvent,
+        Amount, CannotExecuteMessageReason, CommonEventFields, CommonTaskFields,
+        ConstructProofTask, ConstructProofTaskFields, Event, EventAttribute, EventMetadata,
+        ExecuteTask, ExecuteTaskFields, GatewayTxTask, GatewayTxTaskFields, GatewayV2Message,
+        MessageApprovedEventMetadata, MessageExecutedEventMetadata, MessageExecutionStatus,
+        QuorumReachedEvent, ReactToExpiredSigningSessionTask,
+        ReactToExpiredSigningSessionTaskFields, ReactToRetriablePollTask,
+        ReactToRetriablePollTaskFields, ReactToWasmEventTask, ReactToWasmEventTaskFields,
+        RefundTask, RefundTaskFields, Task, UnknownTask, VerificationStatus, VerifyTask,
+        VerifyTaskFields, WasmEvent,
     };
     use serde_json::json;
 
@@ -399,12 +400,10 @@ pub(crate) mod fixtures {
     pub fn react_to_retriable_poll_task() -> Task {
         let common_fields = common_task_fields("REACT_TO_RETRIABLE_POLL");
 
-        let quorum_reached_events = vec![
-            QuorumReachedEvent {
-                status: VerificationStatus::SucceededOnSourceChain,
-                content: json!({"key": "value"}),
-            }
-        ];
+        let quorum_reached_events = vec![QuorumReachedEvent {
+            status: VerificationStatus::SucceededOnSourceChain,
+            content: json!({"key": "value"}),
+        }];
 
         let react_to_retriable_poll_task_fields = ReactToRetriablePollTaskFields {
             poll_id: 12345,

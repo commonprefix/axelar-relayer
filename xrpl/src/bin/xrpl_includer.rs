@@ -7,11 +7,11 @@ use relayer_base::config::config_from_yaml;
 use relayer_base::{
     database::PostgresDB,
     gmp_api,
+    models::gmp_events::PgGMPEvents,
+    models::gmp_tasks::PgGMPTasks,
     payload_cache::PayloadCache,
     queue::Queue,
     utils::{setup_heartbeat, setup_logging},
-    models::gmp_tasks::PgGMPTasks,
-    models::gmp_events::PgGMPEvents,
 };
 use xrpl::{
     client::XRPLClient, config::XRPLConfig, includer::XrplIncluder,
@@ -38,7 +38,12 @@ async fn main() -> anyhow::Result<()> {
     let gmp_api = gmp_api::construct_gmp_api(pg_pool.clone(), &config.common_config, true)?;
 
     let queued_tx_model = PgQueuedTransactionsModel::new(pg_pool.clone());
-    let xrpl_includer = XrplIncluder::new::<XRPLClient, PostgresDB, PgQueuedTransactionsModel, gmp_api::GmpApiDbAuditDecorator<gmp_api::GmpApi, PgGMPTasks, PgGMPEvents>>(
+    let xrpl_includer = XrplIncluder::new::<
+        XRPLClient,
+        PostgresDB,
+        PgQueuedTransactionsModel,
+        gmp_api::GmpApiDbAuditDecorator<gmp_api::GmpApi, PgGMPTasks, PgGMPEvents>,
+    >(
         config.clone(),
         gmp_api,
         redis_pool.clone(),
