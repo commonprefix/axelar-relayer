@@ -76,8 +76,7 @@ impl AtomicUpsert for PgTONTraceModel {
                     ton_traces.is_incomplete IS DISTINCT FROM EXCLUDED.is_incomplete OR
                     ton_traces.start_lt IS DISTINCT FROM EXCLUDED.start_lt OR
                     ton_traces.end_lt IS DISTINCT FROM EXCLUDED.end_lt OR
-                    ton_traces.transactions IS DISTINCT FROM EXCLUDED.transactions OR
-                    ton_traces.updated_at IS DISTINCT FROM EXCLUDED.updated_at
+                    ton_traces.transactions IS DISTINCT FROM EXCLUDED.transactions
                 RETURNING *;",
             PG_TABLE_NAME
         );
