@@ -73,7 +73,7 @@ impl LockManager for RedisLockManager {
             .with_expiration(SetExpiry::EX(60));
 
         redis_conn
-            .set_options(format!("wallet_lock_{}", key), true, set_opts)
+            .set_options(format!("wallet_lock_{key}"), true, set_opts)
             .unwrap_or_else(|e| {
                 error!("Failed to set Redis lock: {}", e);
                 false
@@ -87,7 +87,7 @@ impl LockManager for RedisLockManager {
         };
 
         redis_conn
-            .del(format!("wallet_lock_{}", key))
+            .del(format!("wallet_lock_{key}"))
             .unwrap_or_else(|e| {
                 error!("Failed to set Redis lock: {}", e);
                 false

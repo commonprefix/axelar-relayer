@@ -17,7 +17,7 @@ use ton::config::TONConfig;
 async fn main() -> anyhow::Result<()> {
     dotenv().ok();
     let network = std::env::var("NETWORK").expect("NETWORK must be set");
-    let config: TONConfig = config_from_yaml(&format!("config.{}.yaml", network)).unwrap();
+    let config: TONConfig = config_from_yaml(&format!("config.{network}.yaml"))?;
 
     let _guard = setup_logging(&config.common_config);
 
@@ -25,7 +25,7 @@ async fn main() -> anyhow::Result<()> {
         Queue::new(&config.common_config.queue_address, "includer_tasks").await;
     let ingestor_tasks_queue =
         Queue::new(&config.common_config.queue_address, "ingestor_tasks").await;
-    let gmp_api = Arc::new(gmp_api::GmpApi::new(&config.common_config, true).unwrap());
+    let gmp_api = Arc::new(gmp_api::GmpApi::new(&config.common_config, true)?);
     let postgres_db = PostgresDB::new(&config.common_config.postgres_url)
         .await
         .unwrap();

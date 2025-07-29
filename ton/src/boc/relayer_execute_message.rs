@@ -88,7 +88,7 @@ impl RelayerExecuteMessage {
         let destination_address =
             buffer_to_cell::buffer_to_cell(&self.destination_address.hash_part.to_vec())?;
         let payload_bytes = hex::decode(&self.payload)
-            .map_err(|e| BocParsingError(format!("Invalid hex payload: {}", e)))?;
+            .map_err(|e| BocParsingError(format!("Invalid hex payload: {e}")))?;
 
         let payload_hash = Self::payload_hash(&payload_bytes);
         let payload = buffer_to_cell::buffer_to_cell(&payload_bytes)?;

@@ -76,7 +76,7 @@ impl<GE: GasEstimator> TONBroadcaster<GE> {
             .next(wallet.address.to_string().as_str(), wallet.timeout)
             .await
             .map_err(|e| {
-                BroadcasterError::GenericError(format!("Query Id acquiring failed: {:?}", e))
+                BroadcasterError::GenericError(format!("Query Id acquiring failed: {e:?}"))
             })?;
 
         let outgoing_message = wallet
@@ -133,9 +133,10 @@ impl<GE: GasEstimator> Broadcaster for TONBroadcaster<GE> {
         )
         .map_err(|e| BroadcasterError::GenericError(e.to_string()))?];
 
-        let wallet = self.wallet_manager.acquire().await.map_err(|e| {
-            BroadcasterError::GenericError(format!("Wallet acquire failed: {:?}", e))
-        })?;
+        let wallet =
+            self.wallet_manager.acquire().await.map_err(|e| {
+                BroadcasterError::GenericError(format!("Wallet acquire failed: {e:?}"))
+            })?;
 
         let result = async {
             let res = self.send_to_chain(wallet, actions.clone()).await;
@@ -169,13 +170,13 @@ impl<GE: GasEstimator> Broadcaster for TONBroadcaster<GE> {
     ) -> Result<BroadcastResult<Self::Transaction>, BroadcasterError> {
         let destination_address: TonAddress =
             message.message.destination_address.parse().map_err(|e| {
-                BroadcasterError::GenericError(format!("TonAddressParseError: {:?}", e))
+                BroadcasterError::GenericError(format!("TonAddressParseError: {e:?}"))
             })?;
 
         let decoded_bytes = general_purpose::STANDARD
             .decode(message.payload.clone())
             .map_err(|e| {
-                BroadcasterError::GenericError(format!("Failed decoding payload: {:?}", e))
+                BroadcasterError::GenericError(format!("Failed decoding payload: {e:?}"))
             })?;
 
         let payload_len = decoded_bytes.len();
@@ -206,7 +207,7 @@ impl<GE: GasEstimator> Broadcaster for TONBroadcaster<GE> {
 
         let wallet = self.wallet_manager.acquire().await.map_err(|e| {
             error!("Error acquiring wallet: {:?}", e);
-            BroadcasterError::GenericError(format!("Wallet acquire failed: {:?}", e))
+            BroadcasterError::GenericError(format!("Wallet acquire failed: {e:?}"))
         })?;
 
         let result = async {
@@ -226,8 +227,7 @@ impl<GE: GasEstimator> Broadcaster for TONBroadcaster<GE> {
                 .to_boc_hex(true)
                 .map_err(|e| {
                     BroadcasterError::GenericError(format!(
-                        "Failed to serialize relayer execute message: {:?}",
-                        e
+                        "Failed to serialize relayer execute message: {e:?}"
                     ))
                 })?;
 
@@ -312,14 +312,13 @@ impl<GE: GasEstimator> Broadcaster for TONBroadcaster<GE> {
             .to_boc_hex(true)
             .map_err(|e| {
                 BroadcasterError::GenericError(format!(
-                    "Failed to serialize relayer execute message: {:?}",
-                    e
+                    "Failed to serialize relayer execute message: {e:?}"
                 ))
             })?;
 
         let wallet = self.wallet_manager.acquire().await.map_err(|e| {
-            error!("Error acquiring wallet: {:?}", e);
-            BroadcasterError::GenericError(format!("Wallet acquire failed: {:?}", e))
+            error!("Error acquiring wallet: {e:?}");
+            BroadcasterError::GenericError(format!("Wallet acquire failed: {e:?}"))
         })?;
 
         let result = async {
@@ -493,8 +492,7 @@ mod tests {
             Err(BroadcasterError::GenericError(e)) => {
                 assert!(
                     e.contains("BocParsingError") || e.contains("BoC deserialization error"),
-                    "Expected BoC deserialization error, got: {}",
-                    e
+                    "Expected BoC deserialization error, got: {e}",
                 );
             }
             _other => panic!("Expected GenericError with BoC parsing issue"),

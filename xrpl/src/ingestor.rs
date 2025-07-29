@@ -441,7 +441,7 @@ impl<DB: Database> XrplIngestor<DB> {
 
         let b64_payload = BASE64_STANDARD.encode(
             hex::decode(message_with_payload.payload.to_string()).map_err(|e| {
-                IngestorError::GenericError(format!("Failed to decode payload: {}", e))
+                IngestorError::GenericError(format!("Failed to decode payload: {e}"))
             })?,
         );
 
@@ -1164,8 +1164,7 @@ impl<DB: Database> IngestorTrait for XrplIngestor<DB> {
     async fn handle_transaction(&self, tx: ChainTransaction) -> Result<Vec<Event>, IngestorError> {
         let ChainTransaction::Xrpl(tx) = tx else {
             return Err(IngestorError::UnexpectedChainTransactionType(format!(
-                "{:?}",
-                tx
+                "{tx:?}"
             )));
         };
 

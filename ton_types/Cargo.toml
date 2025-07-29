@@ -9,3 +9,6 @@ serde_json = { workspace = true }
 tonlib-core = { workspace = true }
 tracing = { workspace = true }
 serde_with = "3.14.0"
+
+[lints]
+workspace = true

@@ -182,16 +182,14 @@ impl<T: TimeProvider> TonWalletHighLoadV3<T> {
             self.internal_transfer_body(actions, query_id)
                 .map_err(|e| {
                     BocError::BocEncodingError(format!(
-                        "Failed constructing internal transfer body: {}",
-                        e
+                        "Failed constructing internal transfer body: {e}"
                     ))
                 })?;
         let internal_transfer = self
             .internal_transfer_message_cell(internal_transfer_body, internal_message_value)
             .map_err(|e| {
                 BocError::BocEncodingError(format!(
-                    "Failed constructing internal transfer message: {}",
-                    e
+                    "Failed constructing internal transfer message: {e}"
                 ))
             })?;
 
@@ -206,15 +204,15 @@ impl<T: TimeProvider> TonWalletHighLoadV3<T> {
                 self.timeout,
             )
             .map_err(|e| {
-                BocError::BocEncodingError(format!("Failed constructing inner message: {}", e))
+                BocError::BocEncodingError(format!("Failed constructing inner message: {e}"))
             })?;
         let signed_body = self.sign_external_body(&message_inner).map_err(|e| {
-            BocError::BocEncodingError(format!("Failed signing external body: {}", e))
+            BocError::BocEncodingError(format!("Failed signing external body: {e}"))
         })?;
 
-        let wrapped_signed_body = self.wrap_signed_body(signed_body).map_err(|e| {
-            BocError::BocEncodingError(format!("Failed wrapping signed body: {}", e))
-        })?;
+        let wrapped_signed_body = self
+            .wrap_signed_body(signed_body)
+            .map_err(|e| BocError::BocEncodingError(format!("Failed wrapping signed body: {e}")))?;
         Ok(BagOfCells::from_root(wrapped_signed_body))
     }
 

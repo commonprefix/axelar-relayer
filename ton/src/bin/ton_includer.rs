@@ -16,7 +16,7 @@ use ton::ton_wallet_query_id::PgTONWalletQueryIdModel;
 async fn main() -> anyhow::Result<()> {
     dotenv().ok();
     let network = std::env::var("NETWORK").expect("NETWORK must be set");
-    let config: TONConfig = config_from_yaml(&format!("config.{}.yaml", network)).unwrap();
+    let config: TONConfig = config_from_yaml(&format!("config.{network}.yaml"))?;
 
     let _guard = setup_logging(&config.common_config);
 

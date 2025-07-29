@@ -32,8 +32,7 @@ impl<TP: TraceParserTrait> IngestorTrait for TONIngestor<TP> {
     ) -> Result<Vec<Event>, IngestorError> {
         let ChainTransaction::TON(trace) = trace else {
             return Err(IngestorError::UnexpectedChainTransactionType(format!(
-                "{:?}",
-                trace
+                "{trace:?}"
             )));
         };
 
