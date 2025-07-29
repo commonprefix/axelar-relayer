@@ -93,15 +93,18 @@ where
             Some(Ok(delivery)) => {
                 let data = delivery.data.clone();
                 let maybe_task = serde_json::from_slice::<QueueItem>(&data);
-                if maybe_task.is_err() {
-                    error!("Failed to parse task: {:?}", maybe_task.unwrap_err());
-                    if let Err(e) = delivery.ack(BasicAckOptions::default()).await {
-                        error!("Failed to ack message: {:?}", e);
-                    }
-                    return;
-                }
 
-                let task = maybe_task.unwrap(); // unwrap is safe because we checked for errors above
+                let task = match maybe_task {
+                    Ok(task) => task,
+                    Err(e) => {
+                        error!("Failed to parse task: {:?}", e);
+                        if let Err(e) = delivery.ack(BasicAckOptions::default()).await {
+                            error!("Failed to ack message: {:?}", e);
+                        }
+                        return;
+                    }
+                };
+
                 let consume_res = self.consume(task).await;
                 match consume_res {
                     Ok(_) => {
@@ -138,16 +141,19 @@ where
     }
 
     pub async fn run(&self, queue: Arc<Queue>) {
-        let mut consumer = queue.consumer().await.unwrap();
-        loop {
-            info!("Includer is alive.");
-            self.work(&mut consumer, queue.clone()).await;
+        if let Ok(mut consumer) = queue.consumer().await {
+            loop {
+                info!("Includer is alive.");
+                self.work(&mut consumer, Arc::clone(&queue)).await;
+            }
+        } else {
+            error!("Failed to create consumer");
         }
     }
 
     pub async fn consume(&self, task: QueueItem) -> Result<(), IncluderError> {
         match task {
-            QueueItem::Task(task) => match task {
+            QueueItem::Task(task) => match *task {
                 Task::Execute(execute_task) => {
                     info!("Consuming execute task: {:?}", execute_task);
                     let broadcast_result = match self
@@ -170,25 +176,33 @@ where
                         return Ok(());
                     }
 
-                    let err = &broadcast_result.status;
-                    let err = err.as_ref().unwrap_err();
-                    let (gmp_error, retry) = match err {
-                        BroadcasterError::InsufficientGas(_) => (
-                            crate::gmp_api::gmp_types::CannotExecuteMessageReason::InsufficientGas,
-                            false,
-                        ),
-                        _ => {
-                            warn!("Failed to broadcast execute message: {:?}", err);
-                            (
-                                crate::gmp_api::gmp_types::CannotExecuteMessageReason::Error,
-                                true,
-                            )
+                    let (gmp_error, retry, err) = match &broadcast_result.status {
+                        Err(err) => {
+                            let (gmp_error, retry) = match err {
+                                BroadcasterError::InsufficientGas(_) => (
+                                    crate::gmp_api::gmp_types::CannotExecuteMessageReason::InsufficientGas,
+                                    false,
+                                ),
+                                _ => {
+                                    warn!("Failed to broadcast execute message: {:?}", err);
+                                    (
+                                        crate::gmp_api::gmp_types::CannotExecuteMessageReason::Error,
+                                        true,
+                                    )
+                                }
+                            };
+                            (gmp_error, retry, err)
                         }
+                        Ok(_) => unreachable!("Expected broadcast_result.status to be Err"),
                     };
 
                     if Self::broadcast_result_has_message(&broadcast_result) {
-                        let message_id = broadcast_result.message_id.unwrap();
-                        let source_chain = broadcast_result.source_chain.unwrap();
+                        let message_id = broadcast_result.message_id.ok_or_else(|| {
+                            IncluderError::ConsumerError("Message ID is missing".to_string())
+                        })?;
+                        let source_chain = broadcast_result.source_chain.ok_or_else(|| {
+                            IncluderError::ConsumerError("Source chain is missing".to_string())
+                        })?;
 
                         self.gmp_api
                             .cannot_execute_message(
@@ -214,7 +228,7 @@ where
                         .broadcast_prover_message(hex::encode(
                             BASE64_STANDARD
                                 .decode(gateway_tx_task.task.execute_data)
-                                .unwrap(),
+                                .map_err(|e| IncluderError::ConsumerError(e.to_string()))?,
                         ))
                         .await
                         .map_err(|e| IncluderError::ConsumerError(e.to_string()))?;
@@ -226,14 +240,18 @@ where
 
                     if Self::broadcast_result_has_message(&broadcast_result)
                     {
-                        let message_id = broadcast_result.message_id.unwrap();
-                        let source_chain = broadcast_result.source_chain.unwrap();
+                        let message_id = broadcast_result.message_id.ok_or_else(|| {
+                            IncluderError::ConsumerError("Message ID is missing".to_string())
+                        })?;
+                        let source_chain = broadcast_result.source_chain.ok_or_else(|| {
+                            IncluderError::ConsumerError("Source chain is missing".to_string())
+                        })?;
 
-                        if broadcast_result.status.is_err() {
+                        if let Err(e) = broadcast_result.status {
                             // Retry creating proof for this message
                             let cross_chain_id =
                                 CrossChainId::new(source_chain.as_str(), message_id.as_str())
-                                    .unwrap();
+                                    .map_err(|e| IncluderError::ConsumerError(e.to_string()))?;
                             self.construct_proof_queue
                                 .publish(QueueItem::RetryConstructProof(cross_chain_id.to_string()))
                                 .await;
@@ -255,7 +273,7 @@ where
                                     gateway_tx_task.common.id,
                                     message_id,
                                     source_chain,
-                                    broadcast_result.status.unwrap_err().to_string(),
+                                    e.to_string(),
                                     crate::gmp_api::gmp_types::CannotExecuteMessageReason::Error
                                 )
                                 .await
@@ -265,7 +283,7 @@ where
                             self.payload_cache
                                 .clear(
                                     CrossChainId::new(source_chain.as_str(), message_id.as_str())
-                                        .unwrap(),
+                                        .map_err(|e| IncluderError::ConsumerError(e.to_string()))?,
                                 )
                                 .await
                                 .map_err(|e| IncluderError::ConsumerError(e.to_string()))?;
@@ -324,19 +342,21 @@ where
                         .map_err(|e| IncluderError::ConsumerError(e.to_string()))?;
 
                     if let Some((tx_blob, refunded_amount, fee)) = refund_info {
-                        let broadcast_result = self
+                        let tx_hash = match self
                             .broadcaster
                             .broadcast_refund(tx_blob)
                             .await
-                            .map_err(|e| IncluderError::ConsumerError(e.to_string()));
-
-                        if broadcast_result.is_err() {
-                            self.refund_manager
-                                .release_wallet_lock(wallet)
-                                .map_err(|e| IncluderError::ConsumerError(e.to_string()))?;
-                            return Err(broadcast_result.unwrap_err());
-                        }
-                        let tx_hash = broadcast_result.unwrap();
+                            .map_err(|e| IncluderError::ConsumerError(e.to_string()))
+                        {
+                            Ok(hash) => hash, // bind the successful tx_hash here…
+                            Err(err) => {
+                                // …or on error, release the lock and return
+                                self.refund_manager
+                                    .release_wallet_lock(wallet)
+                                    .map_err(|e| IncluderError::ConsumerError(e.to_string()))?;
+                                return Err(err);
+                            }
+                        };
 
                         let gas_refunded = Event::GasRefunded {
                             common: CommonEventFields {
@@ -357,9 +377,9 @@ where
                         };
 
                         let gas_refunded_post = self.gmp_api.post_events(vec![gas_refunded]).await;
-                        if gas_refunded_post.is_err() {
+                        if let Err(e) = gas_refunded_post {
                             // TODO: should retry somehow
-                            warn!("Failed to post event: {:?}", gas_refunded_post.unwrap_err());
+                            warn!("Failed to post event: {:?}", e);
                         }
                     } else {
                         warn!("Refund not executed: refund amount is not enough to cover tx fees");

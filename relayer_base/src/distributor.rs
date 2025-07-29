@@ -33,13 +33,10 @@ impl<DB: Database> Distributor<DB> {
             .await
             .expect("Failed to get latest task id");
 
-        if last_task_id.is_some() {
-            info!(
-                "Distributor: recovering last task id from {}: {}",
-                context,
-                last_task_id.clone().unwrap()
-            );
-        }
+        info!(
+            "Distributor: recovering last task id from {}: {:?}",
+            context, last_task_id
+        );
 
         Self {
             db,
@@ -65,30 +62,23 @@ impl<DB: Database> Distributor<DB> {
         gmp_api: Arc<GmpApi>,
         recovery_settings: RecoverySettings,
         refunds_enabled: bool,
-    ) -> Self {
+    ) -> Result<Self, DistributorError> {
         let mut distributor = Self::new(db, context, gmp_api, refunds_enabled).await;
         distributor.recovery_settings = Some(recovery_settings.clone());
         distributor.last_task_id = recovery_settings.from_task_id;
-        distributor.store_last_task_id().await.unwrap();
-        distributor
+        distributor.store_last_task_id().await?;
+        Ok(distributor)
     }
 
-    async fn store_last_task_id(&mut self) -> Result<(), DistributorError> {
-        if self.last_task_id.is_none() {
-            return Ok(());
+    pub async fn store_last_task_id(&mut self) -> Result<(), DistributorError> {
+        if let Some(task_id) = &self.last_task_id {
+            self.db
+                .store_latest_task_id(&self.gmp_api.chain, &self.context, task_id)
+                .await
+                .map_err(|e| {
+                    DistributorError::GenericError(format!("Failed to store last_task_id: {}", e))
+                })?;
         }
-
-        self.db
-            .store_latest_task_id(
-                &self.gmp_api.chain,
-                &self.context,
-                &self.last_task_id.clone().unwrap(),
-            )
-            .await
-            .map_err(|e| {
-                DistributorError::GenericError(format!("Failed to store last_task_id: {}", e))
-            })?;
-
         Ok(())
     }
 
@@ -122,14 +112,14 @@ impl<DB: Database> Distributor<DB> {
                 continue;
             }
 
-            let task_item = &QueueItem::Task(task.clone());
+            let task_item = &QueueItem::Task(Box::new(task.clone()));
 
             let queue = if self.supported_includer_tasks.contains(&task.kind()) {
                 info!("Publishing task to includer queue: {:?}", task);
-                includer_queue.clone()
+                Arc::<Queue>::clone(&includer_queue)
             } else if self.supported_ingestor_tasks.contains(&task.kind()) {
                 info!("Publishing task to ingestor queue: {:?}", task);
-                ingestor_queue.clone()
+                Arc::<Queue>::clone(&ingestor_queue)
             } else {
                 warn!("Dropping unsupported task: {:?}", task);
                 continue;
@@ -143,7 +133,11 @@ impl<DB: Database> Distributor<DB> {
         loop {
             info!("Distributor is alive.");
             let work_res = self
-                .work(includer_queue.clone(), ingestor_queue.clone(), None)
+                .work(
+                    Arc::clone(&includer_queue),
+                    Arc::clone(&ingestor_queue),
+                    None,
+                )
                 .await;
             if let Err(err) = work_res {
                 warn!("{:?}\nRetrying in 2 seconds", err);
@@ -153,13 +147,19 @@ impl<DB: Database> Distributor<DB> {
     }
 
     pub async fn run_recovery(&mut self, includer_queue: Arc<Queue>, ingestor_queue: Arc<Queue>) {
-        let recovery_settings = self.recovery_settings.clone().unwrap();
+        let recovery_settings = match &self.recovery_settings {
+            Some(settings) => settings.clone(),
+            None => {
+                warn!("No recovery settings configured; skipping recovery loop.");
+                return;
+            }
+        };
         loop {
             info!("Distributor is recovering.");
             let work_res = self
                 .work(
-                    includer_queue.clone(),
-                    ingestor_queue.clone(),
+                    Arc::clone(&includer_queue),
+                    Arc::clone(&ingestor_queue),
                     recovery_settings.tasks_filter.clone(),
                 )
                 .await;

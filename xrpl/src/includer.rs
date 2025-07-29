@@ -43,7 +43,7 @@ impl XrplIncluder {
             gmp_api,
             payload_cache,
             construct_proof_queue,
-            redis_pool: redis_pool.clone(),
+            redis_pool,
         };
 
         Ok(includer)

@@ -29,3 +29,6 @@ path = "src/bin/dlq_recovery.rs"
 [[bin]]
 name = "proof_retrier"
 path = "src/bin/proof_retrier.rs"
+
+[lints]
+workspace = true

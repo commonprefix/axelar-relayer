@@ -200,7 +200,9 @@ impl GmpApi {
             .client
             .post(&url)
             .header("Content-Type", "application/json")
-            .body(serde_json::to_string(&map).unwrap());
+            .body(serde_json::to_string(&map).map_err(|e| {
+                GmpApiError::GenericError(format!("Failed to serialize events payload: {}", e))
+            })?);
 
         let response: PostEventResponse = GmpApi::request_json(request).await?;
         info!("Response from POST: {:?}", response);
@@ -218,60 +220,51 @@ impl GmpApi {
 
         debug!("Broadcast:");
         debug!("URL: {}", url);
-        debug!("Payload: {}", serde_json::to_string(payload).unwrap());
+        debug!(
+            "Payload: {}",
+            serde_json::to_string(payload).map_err(|e| {
+                GmpApiError::GenericError(format!("Failed to serialize broadcast payload: {}", e))
+            })?
+        );
 
         let request = self
             .client
             .post(url.clone())
             .header("Content-Type", "application/json")
-            .body(serde_json::to_string(payload).unwrap());
+            .body(serde_json::to_string(payload).map_err(|e| {
+                GmpApiError::GenericError(format!("Failed to serialize broadcast payload: {}", e))
+            })?);
 
-        let response = GmpApi::request_text_if_success(request).await;
-        if response.is_ok() {
-            debug!("Broadcast successful: {:?}", response.as_ref().unwrap());
+        let response = GmpApi::request_text_if_success(request).await?;
+        debug!("Broadcast successful: {:?}", response);
 
-            let response_json: serde_json::Value = serde_json::from_str(response.as_ref().unwrap())
-                .map_err(|e| {
-                    GmpApiError::GenericError(format!(
-                        "Failed to parse GMP response {}: {}",
-                        response.as_ref().unwrap(),
-                        e
-                    ))
-                })?;
+        let response_json: serde_json::Value = serde_json::from_str(&response).map_err(|e| {
+            GmpApiError::GenericError(format!("Failed to parse GMP response {}: {}", response, e))
+        })?;
 
-            let broadcast_id = response_json
-                .get("broadcastID")
-                .ok_or_else(|| {
-                    GmpApiError::GenericError("Missing 'broadcastID' field".to_string())
-                })?
-                .as_str()
-                .ok_or_else(|| {
-                    GmpApiError::GenericError("'broadcastID' field is not a string".to_string())
-                })?;
+        let broadcast_id = response_json
+            .get("broadcastID")
+            .ok_or_else(|| GmpApiError::GenericError("Missing 'broadcastID' field".to_string()))?
+            .as_str()
+            .ok_or_else(|| {
+                GmpApiError::GenericError("'broadcastID' field is not a string".to_string())
+            })?;
 
-            let broadcast_result = self
-                .get_broadcast_result(contract_address, broadcast_id.to_string())
-                .await;
+        let broadcast_result = self
+            .get_broadcast_result(contract_address, broadcast_id.to_string())
+            .await;
 
-            if broadcast_result.is_err()
-                && matches!(
-                    broadcast_result.clone().unwrap_err(),
-                    GmpApiError::Timeout(_)
-                )
-            {
-                // TODO: handle timeouts
-                info!("Broadcast id {} timed out.", broadcast_id);
-                return Ok("timeout".to_string());
-            }
-
-            debug!(
-                "Broadcast id {} result: {:?}",
-                broadcast_id, broadcast_result
-            );
-
-            return broadcast_result;
+        if matches!(&broadcast_result, Err(GmpApiError::Timeout(_))) {
+            info!("Broadcast id {} timed out.", broadcast_id);
+            return Ok("timeout".to_string());
         }
-        response
+
+        debug!(
+            "Broadcast id {} result: {:?}",
+            broadcast_id, broadcast_result
+        );
+
+        broadcast_result
     }
 
     pub async fn get_broadcast_result(
@@ -327,7 +320,14 @@ impl GmpApi {
                             return Err(GmpApiError::GenericError(error.to_string()));
                         } else {
                             return Err(GmpApiError::GenericError(
-                                response.get("status").unwrap().to_string(),
+                                response
+                                    .get("status")
+                                    .ok_or_else(|| {
+                                        GmpApiError::GenericError(
+                                            "Broadcast result missing 'status' field".to_string(),
+                                        )
+                                    })?
+                                    .to_string(),
                             ));
                         }
                     }
@@ -367,7 +367,9 @@ impl GmpApi {
             .client
             .post(url)
             .header("Content-Type", "application/json")
-            .body(serde_json::to_string(payload).unwrap());
+            .body(serde_json::to_string(payload).map_err(|e| {
+                GmpApiError::GenericError(format!("Failed to serialize query payload: {}", e))
+            })?);
 
         GmpApi::request_text_if_success(request).await
     }
