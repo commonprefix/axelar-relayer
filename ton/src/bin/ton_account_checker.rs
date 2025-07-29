@@ -15,7 +15,7 @@ const MIN_BALANCE: u64 = 10_000_000_000;
 async fn main() -> anyhow::Result<()> {
     dotenv().ok();
     let network = std::env::var("NETWORK").expect("NETWORK must be set");
-    let config: TONConfig = config_from_yaml(&format!("config.{}.yaml", network))?;
+    let config: TONConfig = config_from_yaml(&format!("config.{network}.yaml"))?;
 
     let _guard = setup_logging(&config.common_config);
 
@@ -39,7 +39,7 @@ async fn main() -> anyhow::Result<()> {
     let client = TONRpcClient::new(config.ton_rpc.clone(), config.ton_api_key.clone(), 5, 5, 30)
         .await
         .map_err(|e| error_stack::report!(SubscriberError::GenericError(e.to_string())))
-        .unwrap();
+        .expect("Failed to create TonRpcClient");
 
     tokio::select! {
     _ = sigint.recv()  => {},

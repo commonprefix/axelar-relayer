@@ -6,6 +6,7 @@ use relayer_base::queue::Queue;
 use relayer_base::subscriber::Subscriber;
 use relayer_base::utils::{setup_heartbeat, setup_logging};
 use sqlx::PgPool;
+use std::sync::Arc;
 use tokio::signal::unix::{signal, SignalKind};
 use tokio::task::JoinHandle;
 use ton::client::TONRpcClient;
@@ -19,7 +20,7 @@ use tonlib_core::TonAddress;
 async fn main() -> anyhow::Result<()> {
     dotenv().ok();
     let network = std::env::var("NETWORK").expect("NETWORK must be set");
-    let config: TONConfig = config_from_yaml(&format!("config.{}.yaml", network)).unwrap();
+    let config: TONConfig = config_from_yaml(&format!("config.{network}.yaml"))?;
 
     let _guard = setup_logging(&config.common_config);
 
@@ -48,7 +49,7 @@ async fn main() -> anyhow::Result<()> {
     let client = TONRpcClient::new(config.ton_rpc.clone(), config.ton_api_key.clone(), 5, 5, 30)
         .await
         .map_err(|e| error_stack::report!(SubscriberError::GenericError(e.to_string())))
-        .unwrap();
+        .expect("Failed to create RPC client");
 
     for acct in [gateway_account.clone(), gas_service_account] {
         let ton_sub = TONSubscriber::new(
@@ -61,7 +62,7 @@ async fn main() -> anyhow::Result<()> {
         .await?;
 
         let mut sub = Subscriber::new(ton_sub);
-        let queue_clone = events_queue.clone();
+        let queue_clone = Arc::clone(&events_queue);
         let handle = tokio::spawn(async move {
             sub.run(acct, queue_clone).await;
         });
@@ -70,9 +71,9 @@ async fn main() -> anyhow::Result<()> {
 
     let retry_subscriber = RetryTONSubscriber::new(client.clone(), ton_traces.clone()).await?;
     let mut sub = Subscriber::new(retry_subscriber);
-    let events_queue_clone = events_queue.clone();
+    let events_clone = Arc::clone(&events_queue);
     let handle = tokio::spawn(async move {
-        sub.run(gateway_account, events_queue_clone).await;
+        sub.run(gateway_account, events_clone).await;
     });
     handles.push(handle);
 

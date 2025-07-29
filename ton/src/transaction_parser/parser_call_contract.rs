@@ -96,7 +96,7 @@ impl Parser for ParserCallContract {
         ]);
 
         let decoded = hex::decode(log.payload).map_err(|e| {
-            TransactionParsingError::BocParsing(format!("Failed to decode payload: {}", e))
+            TransactionParsingError::BocParsing(format!("Failed to decode payload: {e}"))
         })?;
 
         let b64_payload = BASE64_STANDARD.encode(decoded);

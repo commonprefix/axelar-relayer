@@ -16,7 +16,7 @@ use ton::ton_wallet_query_id::PgTONWalletQueryIdModel;
 async fn main() -> anyhow::Result<()> {
     dotenv().ok();
     let network = std::env::var("NETWORK").expect("NETWORK must be set");
-    let config: TONConfig = config_from_yaml(&format!("config.{}.yaml", network)).unwrap();
+    let config: TONConfig = config_from_yaml(&format!("config.{network}.yaml"))?;
 
     let _guard = setup_logging(&config.common_config);
 
@@ -38,11 +38,11 @@ async fn main() -> anyhow::Result<()> {
         gmp_api,
         redis_pool.clone(),
         payload_cache_for_includer,
-        construct_proof_queue.clone(),
+        Arc::clone(&construct_proof_queue),
         Arc::new(high_load_query_id_wrapper),
     )
     .await
-    .unwrap();
+    .expect("Failed to create TonIncluder");
     let mut sigint = signal(SignalKind::interrupt())?;
     let mut sigterm = signal(SignalKind::terminate())?;
 
@@ -51,7 +51,7 @@ async fn main() -> anyhow::Result<()> {
     tokio::select! {
         _ = sigint.recv()  => {},
         _ = sigterm.recv() => {},
-        _ = ton_includer.run(tasks_queue.clone()) => {},
+        _ = ton_includer.run(Arc::clone(&tasks_queue)) => {},
     }
 
     tasks_queue.close().await;

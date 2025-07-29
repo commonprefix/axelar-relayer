@@ -81,7 +81,7 @@ pub trait UpdateEvents {
 impl AtomicUpsert for PgTONTraceModel {
     async fn upsert_and_return_if_changed(&self, tx: TONTrace) -> anyhow::Result<Option<TONTrace>> {
         let query = format!(
-            "INSERT INTO {} (trace_id, is_incomplete, start_lt, end_lt, transactions)
+            "INSERT INTO {PG_TABLE_NAME} (trace_id, is_incomplete, start_lt, end_lt, transactions)
                 VALUES ($1, $2, $3, $4, $5)
                 ON CONFLICT (trace_id) DO UPDATE
                 SET
@@ -96,8 +96,7 @@ impl AtomicUpsert for PgTONTraceModel {
                     ton_traces.end_lt IS DISTINCT FROM EXCLUDED.end_lt OR
                     ton_traces.transactions IS DISTINCT FROM EXCLUDED.transactions OR
                     ton_traces.updated_at IS DISTINCT FROM EXCLUDED.updated_at
-                RETURNING *;",
-            PG_TABLE_NAME
+                RETURNING *;"
         );
 
         let result = sqlx::query_as::<_, TONTrace>(&query)
@@ -116,8 +115,7 @@ impl AtomicUpsert for PgTONTraceModel {
 impl Retriable for PgTONTraceModel {
     async fn fetch_retry(&self, limit: u32) -> anyhow::Result<Vec<TONTrace>> {
         let query = format!(
-            "SELECT * FROM {} WHERE retries > 0 AND is_incomplete = true ORDER BY updated_at NULLS FIRST LIMIT $1",
-            PG_TABLE_NAME
+            "SELECT * FROM {PG_TABLE_NAME} WHERE retries > 0 AND is_incomplete = true ORDER BY updated_at NULLS FIRST LIMIT $1"
         );
 
         let rows = sqlx::query_as::<_, TONTrace>(&query)
@@ -129,10 +127,7 @@ impl Retriable for PgTONTraceModel {
     }
 
     async fn decrease_retry(&self, tx: TONTrace) -> anyhow::Result<()> {
-        let query = format!(
-            "UPDATE {} SET retries = retries - 1 WHERE trace_id = $1",
-            PG_TABLE_NAME
-        );
+        let query = format!("UPDATE {PG_TABLE_NAME} SET retries = retries - 1 WHERE trace_id = $1");
         sqlx::query(&query)
             .bind(tx.trace_id)
             .execute(&self.pool)
@@ -169,7 +164,7 @@ impl Model<TONTrace, String> for PgTONTraceModel {
     }
 
     async fn find(&self, id: String) -> anyhow::Result<Option<TONTrace>> {
-        let query = format!("SELECT * FROM {} WHERE trace_id = $1", PG_TABLE_NAME);
+        let query = format!("SELECT * FROM {PG_TABLE_NAME} WHERE trace_id = $1");
         let tx = sqlx::query_as::<_, TONTrace>(&query)
             .bind(id)
             .fetch_optional(&self.pool)
@@ -178,7 +173,7 @@ impl Model<TONTrace, String> for PgTONTraceModel {
     }
 
     async fn delete(&self, tx: TONTrace) -> anyhow::Result<()> {
-        let query = format!("DELETE FROM {} WHERE trace_id = $1", PG_TABLE_NAME);
+        let query = format!("DELETE FROM {PG_TABLE_NAME} WHERE trace_id = $1");
         sqlx::query(&query)
             .bind(tx.trace_id)
             .execute(&self.pool)
@@ -243,14 +238,14 @@ mod tests {
         assert_eq!(saved.transactions.len(), transactions.len());
         assert_eq!(saved.start_lt, 123);
         assert_eq!(saved.end_lt, 321);
-        assert_eq!(saved.is_incomplete, false);
+        assert!(!saved.is_incomplete);
 
         assert_eq!(ret.trace_id, "123");
         assert_eq!(ret.transactions[0].hash, "aa1");
         assert_eq!(ret.transactions.len(), transactions.len());
         assert_eq!(ret.start_lt, 123);
         assert_eq!(ret.end_lt, 321);
-        assert_eq!(ret.is_incomplete, false);
+        assert!(!ret.is_incomplete);
 
         let ret = model
             .upsert_and_return_if_changed(trace.clone())
@@ -275,7 +270,7 @@ mod tests {
             .await
             .unwrap();
         assert!(ret.is_some());
-        assert_eq!(ret.unwrap().is_incomplete, true);
+        assert!(ret.unwrap().is_incomplete);
 
         model.delete(trace).await.unwrap();
         let saved = model.find("123".to_string()).await.unwrap();

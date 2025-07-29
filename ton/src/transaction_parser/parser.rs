@@ -483,11 +483,11 @@ mod tests {
             .with(eq(
                 "0:1962e375dcf78f97880e9bec4f63e1afe683b4abdd8855d366014c05ff1160e9/USD",
             ))
-            .returning(|_| Ok(Decimal::from_str(&"0.5").unwrap()));
+            .returning(|_| Ok(Decimal::from_str("0.5").unwrap()));
         price_view
             .expect_get_price()
             .with(eq("TON/USD"))
-            .returning(|_| Ok(Decimal::from_str(&"3").unwrap()));
+            .returning(|_| Ok(Decimal::from_str("3").unwrap()));
 
         price_view
     }

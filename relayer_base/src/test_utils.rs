@@ -1,5 +1,4 @@
 #[cfg(test)]
-
 pub(crate) mod fixtures {
     use crate::gmp_api::gmp_types::{
         Amount, CannotExecuteMessageReason, CommonEventFields, CommonTaskFields,
@@ -261,7 +260,7 @@ pub(crate) mod fixtures {
         let message = gateway_message();
 
         let execute_task_fields = ExecuteTaskFields {
-            message: message.clone(),
+            message,
             payload: "0xabcdef".to_string(),
             available_gas_balance: Amount {
                 token_id: None,
@@ -270,7 +269,7 @@ pub(crate) mod fixtures {
         };
 
         let execute_task = ExecuteTask {
-            common: common_fields.clone(),
+            common: common_fields,
             task: execute_task_fields,
         };
 
@@ -282,12 +281,12 @@ pub(crate) mod fixtures {
         let message = gateway_message();
 
         let verify_task_fields = VerifyTaskFields {
-            message: message.clone(),
+            message,
             payload: "0xabcdef".to_string(),
         };
 
         let verify_task = VerifyTask {
-            common: common_fields.clone(),
+            common: common_fields,
             task: verify_task_fields,
         };
 
@@ -299,12 +298,12 @@ pub(crate) mod fixtures {
         let message = gateway_message();
 
         let construct_proof_task_fields = ConstructProofTaskFields {
-            message: message.clone(),
+            message,
             payload: "0xabcdef".to_string(),
         };
 
         let construct_proof_task = ConstructProofTask {
-            common: common_fields.clone(),
+            common: common_fields,
             task: construct_proof_task_fields,
         };
 
@@ -316,7 +315,7 @@ pub(crate) mod fixtures {
         let message = gateway_message();
 
         let refund_task_fields = RefundTaskFields {
-            message: message.clone(),
+            message,
             refund_recipient_address: "0x789".to_string(),
             remaining_gas_balance: Amount {
                 token_id: None,
@@ -325,7 +324,7 @@ pub(crate) mod fixtures {
         };
 
         let refund_task = RefundTask {
-            common: common_fields.clone(),
+            common: common_fields,
             task: refund_task_fields,
         };
 
@@ -340,7 +339,7 @@ pub(crate) mod fixtures {
         };
 
         let gateway_tx_task = GatewayTxTask {
-            common: common_fields.clone(),
+            common: common_fields,
             task: gateway_tx_task_fields,
         };
 
@@ -372,7 +371,7 @@ pub(crate) mod fixtures {
         };
 
         let react_to_wasm_event_task = ReactToWasmEventTask {
-            common: common_fields.clone(),
+            common: common_fields,
             task: react_to_wasm_event_task_fields,
         };
 
@@ -390,7 +389,7 @@ pub(crate) mod fixtures {
         };
 
         let react_to_expired_signing_session_task = ReactToExpiredSigningSessionTask {
-            common: common_fields.clone(),
+            common: common_fields,
             task: react_to_expired_signing_session_task_fields,
         };
 
@@ -414,7 +413,7 @@ pub(crate) mod fixtures {
         };
 
         let react_to_retriable_poll_task = ReactToRetriablePollTask {
-            common: common_fields.clone(),
+            common: common_fields,
             task: react_to_retriable_poll_task_fields,
         };
 
@@ -425,7 +424,7 @@ pub(crate) mod fixtures {
         let common_fields = common_task_fields("UNKNOWN");
 
         let unknown_task = UnknownTask {
-            common: common_fields.clone(),
+            common: common_fields,
         };
 
         Task::Unknown(unknown_task)
@@ -438,7 +437,7 @@ pub(crate) mod fixtures {
         let message = gateway_message();
 
         let execute_task_fields = ExecuteTaskFields {
-            message: message.clone(),
+            message,
             payload: "0xabcdef".to_string(),
             available_gas_balance: Amount {
                 token_id: None,

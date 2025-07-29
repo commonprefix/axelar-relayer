@@ -58,18 +58,22 @@ impl GasCalculator {
         &self,
         transactions: &[Transaction],
     ) -> Result<u64, GasError> {
-        if transactions.len() < 3 || transactions[2].out_msgs.is_empty() {
-            return Ok(0);
-        }
+        let tx2 = match transactions.get(2) {
+            Some(tx) => tx,
+            None => return Ok(0),
+        };
+
+        let out_msg = match tx2.out_msgs.first() {
+            Some(msg) => msg,
+            None => return Ok(0),
+        };
+
+        let refund = match &out_msg.value {
+            Some(val_str) => i128::from_str(val_str).unwrap_or(0),
+            None => 0,
+        };
 
         let balance_diff = self.cost(transactions)?;
-        let refund = i128::from_str(
-            &transactions[2].out_msgs[0]
-                .value
-                .clone()
-                .unwrap_or("0".to_string()),
-        )
-        .unwrap_or(0);
         let total = balance_diff - refund;
 
         Ok(if total > 0 { total as u64 } else { 0 })

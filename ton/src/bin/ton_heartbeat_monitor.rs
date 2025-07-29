@@ -8,7 +8,7 @@ use ton::config::TONConfig;
 async fn main() -> anyhow::Result<()> {
     dotenv().ok();
     let network = std::env::var("NETWORK").expect("NETWORK must be set");
-    let config: TONConfig = config_from_yaml(&format!("config.{}.yaml", network))?;
+    let config: TONConfig = config_from_yaml(&format!("config.{network}.yaml"))?;
     let common_config = config.common_config.clone();
 
     heartbeats_loop(&common_config).await

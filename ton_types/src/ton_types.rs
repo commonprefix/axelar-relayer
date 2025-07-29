@@ -2,6 +2,7 @@ use serde::{Deserialize, Deserializer, Serialize};
 use serde_with::{serde_as, DisplayFromStr};
 use std::collections::HashMap;
 use tonlib_core::TonAddress;
+use tracing::error;
 
 #[serde_as]
 #[derive(Debug, Serialize, Deserialize)]
@@ -215,12 +216,11 @@ impl From<TracesResponseRest> for TracesResponse {
                 let transactions = trace_rest
                     .transactions_order
                     .into_iter()
-                    .map(|key| {
-                        trace_rest
-                            .transactions
-                            .get(&key)
-                            .cloned()
-                            .unwrap_or_else(|| panic!("Transaction key '{}' not found in map", key))
+                    .filter_map(|key| {
+                        trace_rest.transactions.get(&key).cloned().or_else(|| {
+                            error!("Transaction key '{}' not found in map", key);
+                            None
+                        })
                     })
                     .collect();
 

@@ -33,7 +33,7 @@ pub trait TONWalletQueryId {
 
 impl TONWalletQueryId for PgTONWalletQueryIdModel {
     async fn get_query_id(&self, address: &str) -> anyhow::Result<(i32, i32)> {
-        let query = format!("SELECT shift, bitnumber FROM {} WHERE address = $1 AND expires_at >= CURRENT_TIMESTAMP", PG_TABLE_NAME);
+        let query = format!("SELECT shift, bitnumber FROM {PG_TABLE_NAME} WHERE address = $1 AND expires_at >= CURRENT_TIMESTAMP");
         let maybe_row = sqlx::query(&query)
             .bind(address)
             .fetch_optional(&self.pool)
@@ -54,7 +54,7 @@ impl TONWalletQueryId for PgTONWalletQueryIdModel {
         shift: i32,
         bitnumber: i32,
     ) -> anyhow::Result<()> {
-        let query = format!("UPDATE {} SET shift = $1, bitnumber = $2, updated_at = CURRENT_TIMESTAMP WHERE address = $3", PG_TABLE_NAME);
+        let query = format!("UPDATE {PG_TABLE_NAME} SET shift = $1, bitnumber = $2, updated_at = CURRENT_TIMESTAMP WHERE address = $3");
         sqlx::query(&query)
             .bind(shift)
             .bind(bitnumber)
@@ -74,13 +74,12 @@ impl TONWalletQueryId for PgTONWalletQueryIdModel {
     ) -> anyhow::Result<()> {
         let query = format!(
             "
-            INSERT INTO {} (address, shift, bitnumber, expires_at)
+            INSERT INTO {PG_TABLE_NAME} (address, shift, bitnumber, expires_at)
             VALUES ($1, $2, $3, CURRENT_TIMESTAMP + ($4 * INTERVAL '1 second'))
             ON CONFLICT (address) DO UPDATE
             SET shift = EXCLUDED.shift,
                 bitnumber = EXCLUDED.bitnumber,
-                expires_at = EXCLUDED.expires_at",
-            PG_TABLE_NAME
+                expires_at = EXCLUDED.expires_at"
         );
 
         sqlx::query(&query)

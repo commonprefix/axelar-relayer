@@ -6851,6 +6851,7 @@ dependencies = [
  "serde_json",
  "serde_with",
  "tonlib-core",
+ "tracing",
 ]
 
 [[package]]

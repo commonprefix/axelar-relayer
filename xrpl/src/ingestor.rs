@@ -443,7 +443,7 @@ where
 
         let b64_payload = BASE64_STANDARD.encode(
             hex::decode(message_with_payload.payload.to_string()).map_err(|e| {
-                IngestorError::GenericError(format!("Failed to decode payload: {}", e))
+                IngestorError::GenericError(format!("Failed to decode payload: {e}"))
             })?,
         );
 
@@ -1170,8 +1170,7 @@ where
     async fn handle_transaction(&self, tx: ChainTransaction) -> Result<Vec<Event>, IngestorError> {
         let ChainTransaction::Xrpl(tx) = tx else {
             return Err(IngestorError::UnexpectedChainTransactionType(format!(
-                "{:?}",
-                tx
+                "{tx:?}"
             )));
         };
 

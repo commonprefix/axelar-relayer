@@ -56,3 +56,5 @@ path = "src/bin/ton_subscriber.rs"
 name = "ton_ingestor"
 path = "src/bin/ton_ingestor.rs"
 
+[lints]
+workspace = true

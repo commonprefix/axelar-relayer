@@ -122,7 +122,7 @@ mod tests {
 
         let mut parser = ParserNativeGasPaid::new(tx, address).await.unwrap();
         assert!(parser.is_match().await.unwrap());
-        assert_eq!(parser.message_id().await.is_ok(), true);
+        assert!(parser.message_id().await.is_ok());
         parser.parse().await.unwrap();
         let event = parser.event(Some("foo".to_string())).await.unwrap();
         match event {
@@ -158,7 +158,7 @@ mod tests {
 
         let mut parser = ParserNativeGasPaid::new(tx, address).await.unwrap();
         assert!(parser.is_match().await.unwrap());
-        assert_eq!(parser.message_id().await.is_ok(), true);
+        assert!(parser.message_id().await.is_ok());
         parser.parse().await.unwrap();
         let event = parser.event(Some("foo".to_string())).await.unwrap();
         match event {

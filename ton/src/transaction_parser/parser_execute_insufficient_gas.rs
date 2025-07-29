@@ -49,10 +49,7 @@ impl Parser for ParserExecuteInsufficientGas {
     async fn is_match(&self) -> Result<bool, TransactionParsingError> {
         let txs = &self.trace.transactions;
 
-        if txs.len() >= 3 {
-            let tx1 = &txs[1];
-            let tx2 = &txs[2];
-
+        if let (Some(tx1), Some(tx2)) = (txs.get(1), txs.get(2)) {
             if tx2.account == self.allowed_address {
                 let opcode = tx1.out_msgs.first().and_then(|msg| msg.opcode).unwrap_or(0);
 
@@ -71,12 +68,14 @@ impl Parser for ParserExecuteInsufficientGas {
             }
         }
 
-        if txs.len() == 5 && txs[3].in_msg.is_some() {
-            if let Some(in_msg4) = &txs[4].in_msg {
-                if in_msg4.opcode == Some(OP_NULLIFIED_SUCCESSFULLY) {
-                    if let Some(action) = &txs[4].description.action {
-                        if action.result_code == 37 {
-                            return Ok(true);
+        if let (Some(tx3), Some(tx4)) = (txs.get(3), txs.get(4)) {
+            if txs.len() == 5 && tx3.in_msg.is_some() {
+                if let Some(in_msg4) = &tx4.in_msg {
+                    if in_msg4.opcode == Some(OP_NULLIFIED_SUCCESSFULLY) {
+                        if let Some(action) = &tx4.description.action {
+                            if action.result_code == 37 {
+                                return Ok(true);
+                            }
                         }
                     }
                 }
