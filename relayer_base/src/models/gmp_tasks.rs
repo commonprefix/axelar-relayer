@@ -25,40 +25,40 @@ impl TaskModel {
         let (common, message_id) = match task {
             Task::Execute(t) => {
                 let message_id = Some(t.task.message.message_id.clone());
-                (t.common.clone(), message_id)
+                (t.common, message_id)
             },
             Task::Verify(t) => {
                 let message_id = Some(t.task.message.message_id.clone());
-                (t.common.clone(), message_id)
+                (t.common, message_id)
             },
             Task::ConstructProof(t) => {
                 let message_id = Some(t.task.message.message_id.clone());
-                (t.common.clone(), message_id)
+                (t.common, message_id)
             },
             Task::Refund(t) => {
                 let message_id = Some(t.task.message.message_id.clone());
-                (t.common.clone(), message_id)
+                (t.common, message_id)
             },
             Task::GatewayTx(t) => {
-                (t.common.clone(), None)
+                (t.common, None)
             },
             Task::ReactToWasmEvent(t) => {
-                (t.common.clone(), None)
+                (t.common, None)
             },
             Task::ReactToExpiredSigningSession(t) => {
-                (t.common.clone(), None)
+                (t.common, None)
             },
             Task::ReactToRetriablePoll(t) => {
-                (t.common.clone(), None)
+                (t.common, None)
             },
             Task::Unknown(t) => {
-                (t.common.clone(), None)
+                (t.common, None)
             },
         };
 
         let timestamp = chrono::DateTime::parse_from_rfc3339(&common.timestamp)
-            .expect("Invalid timestamp format")
-            .with_timezone(&chrono::Utc);
+            .map(|dt| dt.with_timezone(&chrono::Utc))
+            .unwrap_or_else(|_| chrono::Utc::now());
 
         Self {
             _id: 0,

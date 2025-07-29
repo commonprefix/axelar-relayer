@@ -12,12 +12,13 @@ use super::{broadcaster::XRPLBroadcaster, refund_manager::XRPLRefundManager};
 use super::config::XRPLConfig;
 use error_stack;
 use redis::aio::ConnectionManager;
+use relayer_base::utils::ThreadSafe;
 
 pub struct XrplIncluder {}
 
 impl XrplIncluder {
     #[allow(clippy::new_ret_no_self)]
-    pub async fn new<X: XRPLClientTrait, DB: Database, QM: QueuedTransactionsModel, G: GmpApiTrait + Send + Sync + 'static>(
+    pub async fn new<X: XRPLClientTrait, DB: Database, QM: QueuedTransactionsModel, G: GmpApiTrait + ThreadSafe>(
         config: XRPLConfig,
         gmp_api: Arc<G>,
         redis_conn: ConnectionManager,

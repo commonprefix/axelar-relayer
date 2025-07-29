@@ -217,7 +217,6 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore]
     async fn test_crud() {
         let container = postgres::Postgres::default()
             .with_init_sql(

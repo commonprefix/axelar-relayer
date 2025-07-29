@@ -31,7 +31,7 @@ async fn main() -> anyhow::Result<()> {
         .unwrap();
 
     let pg_pool = PgPool::connect(&config.common_config.postgres_url).await?;
-    let gmp_api = gmp_api::construct_gmp_api(pg_pool, &config.common_config, true).unwrap();
+    let gmp_api = gmp_api::construct_gmp_api(pg_pool, &config.common_config, true)?;
 
     let mut distributor = Distributor::new(
         postgres_db,

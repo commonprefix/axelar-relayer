@@ -85,3 +85,6 @@ path = "src/bin/xrpl_heartbeat_monitor.rs"
 [[bin]]
 name = "xrpl_queued_tx_monitor"
 path = "src/bin/xrpl_queued_tx_monitor.rs"
+
+[lints]
+workspace = true

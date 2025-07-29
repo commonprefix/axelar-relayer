@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use dotenv::dotenv;
 use sqlx::PgPool;
 use tokio::signal::unix::{signal, SignalKind};
@@ -25,20 +26,17 @@ use xrpl::config::XRPLConfig;
 async fn main() -> anyhow::Result<()> {
     dotenv().ok();
     let network = std::env::var("NETWORK").expect("NETWORK must be set");
-    let config: XRPLConfig = config_from_yaml(&format!("config.{}.yaml", network)).unwrap();
+    let config: XRPLConfig = config_from_yaml(&format!("config.{}.yaml", network))?;
 
     let _guard = setup_logging(&config.common_config);
 
     let tasks_queue = Queue::new(&config.common_config.queue_address, "ingestor_tasks").await;
     let events_queue = Queue::new(&config.common_config.queue_address, "events").await;
-    let postgres_db = PostgresDB::new(&config.common_config.postgres_url)
-        .await
-        .unwrap();
-    let pg_pool = PgPool::connect(&config.common_config.postgres_url)
-        .await
-        .unwrap();
 
-    let gmp_api = gmp_api::construct_gmp_api(pg_pool.clone(), &config.common_config, true).unwrap();
+    let postgres_db = PostgresDB::new(&config.common_config.postgres_url).await?;
+    let pg_pool = PgPool::connect(&config.common_config.postgres_url).await?;
+    let gmp_api = gmp_api::construct_gmp_api(pg_pool.clone(), &config.common_config, true)?;
+
     let price_view = PriceView::new(postgres_db.clone());
     let payload_cache = PayloadCache::new(postgres_db.clone());
     let models = XrplIngestorModels {
@@ -47,7 +45,7 @@ async fn main() -> anyhow::Result<()> {
     };
     // make an xrpl ingestor
     let xrpl_ingestor = XrplIngestor::new(
-        gmp_api.clone(),
+        Arc::clone(&gmp_api),
         config.clone(),
         price_view,
         payload_cache,
@@ -67,7 +65,7 @@ async fn main() -> anyhow::Result<()> {
     tokio::select! {
         _ = sigint.recv()  => {},
         _ = sigterm.recv() => {},
-        _ = ingestor.run(events_queue.clone(), tasks_queue.clone()) => {},
+        _ = ingestor.run(Arc::clone(&events_queue), Arc::clone(&tasks_queue)) => {},
     }
 
     tasks_queue.close().await;

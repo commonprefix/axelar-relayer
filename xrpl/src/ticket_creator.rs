@@ -5,13 +5,16 @@ use tracing::{debug, error, info};
 use crate::config::XRPLConfig;
 use relayer_base::gmp_api::{gmp_types::BroadcastRequest, GmpApiTrait};
 use xrpl_multisig_prover;
+use relayer_base::utils::ThreadSafe;
 
-pub struct XrplTicketCreator<G: GmpApiTrait + Send + Sync + 'static> {
+pub struct XrplTicketCreator<G: GmpApiTrait + ThreadSafe> {
     gmp_api: Arc<G>,
     config: XRPLConfig,
 }
 
-impl<G: GmpApiTrait + Send + Sync + 'static> XrplTicketCreator<G> {
+impl<G> XrplTicketCreator<G>
+where G: GmpApiTrait + ThreadSafe
+{
     pub fn new(gmp_api: Arc<G>, config: XRPLConfig) -> Self {
         Self { gmp_api, config }
     }
@@ -27,7 +30,7 @@ impl<G: GmpApiTrait + Send + Sync + 'static> XrplTicketCreator<G> {
             return;
         }
 
-        let request = BroadcastRequest::Generic(ticket_create_msg.unwrap());
+        let request = BroadcastRequest::Generic(ticket_create_msg.unwrap_or_default());
 
         let res = self
             .gmp_api
@@ -51,7 +54,7 @@ impl<G: GmpApiTrait + Send + Sync + 'static> XrplTicketCreator<G> {
                 error!("Failed to broadcast XRPL Ticket Create request: {:?}", e);
             }
         } else {
-            info!("Ticket create submitted: {}", res.unwrap());
+            info!("Ticket create submitted: {}", res.unwrap_or_default());
             sleep_duration = 60; // that's usually how long it takes for the tickets to be confirmed
         }
 

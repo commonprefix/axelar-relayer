@@ -60,9 +60,13 @@ impl<X: XRPLClientTrait> XRPLRefundManager<X> {
         let mut tx = PaymentTransaction::new(*account_id, pre_fee_amount, recipient_account);
 
         tx.common.memos = vec![Memo {
-            memo_data: Blob::from_hex(&hex::encode_upper(refund_id)).unwrap(),
+            memo_data: Blob::from_hex(&hex::encode_upper(refund_id)).map_err(|e| {
+                RefundManagerError::GenericError(format!("Failed to encode refund_id: {}", e))
+            })?,
             memo_format: None,
-            memo_type: Blob::from_hex(&hex::encode_upper("refund_id")).unwrap(),
+            memo_type: Blob::from_hex(&hex::encode_upper("refund_id")).map_err(|e| {
+                RefundManagerError::GenericError(format!("Failed to encode refund_id: {}", e))
+            })?,
         }];
 
         self.client

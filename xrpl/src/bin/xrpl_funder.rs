@@ -10,21 +10,21 @@ use relayer_base::redis::connection_manager;
 use xrpl::config::XRPLConfig;
 
 #[tokio::main]
-async fn main() {
+async fn main() -> anyhow::Result<()> {
     dotenv().ok();
     let network = std::env::var("NETWORK").expect("NETWORK must be set");
-    let config: XRPLConfig = config_from_yaml(&format!("config.{}.yaml", network)).unwrap();
+    let config: XRPLConfig = config_from_yaml(&format!("config.{}.yaml", network))?;
 
     let _guard = setup_logging(&config.common_config);
 
-    let redis_client = redis::Client::open(config.common_config.redis_server.clone()).unwrap();
-    let redis_conn = connection_manager(redis_client, None, None, None)
-        .await
-        .unwrap();
+    let redis_client = redis::Client::open(config.common_config.redis_server.clone())?;
+    let redis_conn = connection_manager(redis_client, None, None, None).await?;
     
     setup_heartbeat("heartbeat:funder".to_owned(), redis_conn);
 
-    let xrpl_client = XRPLClient::new(&config.xrpl_rpc, 3).unwrap();
+    let xrpl_client = XRPLClient::new(&config.xrpl_rpc, 3)?;
     let funder = XRPLFunder::new(config, xrpl_client);
     funder.run().await;
+
+    Ok(())
 }

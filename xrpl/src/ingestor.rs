@@ -9,7 +9,7 @@ use relayer_base::gmp_api::gmp_types::{CannotExecuteMessageReason, RetryTask, Ve
 use relayer_base::ingestor::IngestorTrait;
 use relayer_base::models::task_retries::{PgTaskRetriesModel, TaskRetries};
 use relayer_base::subscriber::ChainTransaction;
-use relayer_base::utils::extract_from_xrpl_memo;
+use relayer_base::utils::{extract_from_xrpl_memo, ThreadSafe};
 use relayer_base::{
     database::Database,
     error::{ITSTranslationError, IngestorError},
@@ -56,7 +56,7 @@ pub struct XrplIngestorModels {
     pub task_retries: PgTaskRetriesModel,
 }
 
-pub struct XrplIngestor<DB: Database, G: GmpApiTrait + Send + Sync + 'static> {
+pub struct XrplIngestor<DB: Database, G: GmpApiTrait + ThreadSafe> {
     client: xrpl_http_client::Client,
     gmp_api: Arc<G>,
     config: XRPLConfig,
@@ -65,7 +65,11 @@ pub struct XrplIngestor<DB: Database, G: GmpApiTrait + Send + Sync + 'static> {
     models: XrplIngestorModels,
 }
 
-impl<DB: Database, G: GmpApiTrait + Send + Sync + 'static> XrplIngestor<DB, G> {
+impl<DB, G> XrplIngestor<DB, G>
+where
+    DB: Database,
+    G: GmpApiTrait + ThreadSafe
+{
     pub fn new(
         gmp_api: Arc<G>,
         config: XRPLConfig,
@@ -758,7 +762,9 @@ impl<DB: Database, G: GmpApiTrait + Send + Sync + 'static> XrplIngestor<DB, G> {
         if payload_hash.is_some() {
             let payload_string = self
                 .gmp_api
-                .get_payload(&hex::encode(payload_hash.unwrap()))
+                .get_payload(&hex::encode(payload_hash.ok_or(
+                    IngestorError::GenericError("Payload hash is None".to_owned()),
+                )?))
                 .await
                 .map_err(|e| {
                     IngestorError::GenericError(format!("Failed to get payload from cache: {}", e))
@@ -802,7 +808,9 @@ impl<DB: Database, G: GmpApiTrait + Send + Sync + 'static> XrplIngestor<DB, G> {
     ) -> Result<(), IngestorError> {
         match xrpl_message {
             XRPLMessage::ProverMessage(_) => {
-                match prover_tx.unwrap() {
+                match prover_tx.ok_or(IngestorError::GenericError(
+                    "Prover transaction is None".to_owned(),
+                ))? {
                     Transaction::Payment(tx) => {
                         let tx_status: String = serde_json::from_str(
                             event_attribute(&task.task.event, "status")
@@ -926,7 +934,9 @@ impl<DB: Database, G: GmpApiTrait + Send + Sync + 'static> XrplIngestor<DB, G> {
             // If we have 'payload', store it in the cache and receive the payload_hash.
             let hash = self
                 .gmp_api
-                .post_payload(&hex::decode(payload_str.clone()).unwrap())
+                .post_payload(&hex::decode(payload_str.clone()).map_err(|e| {
+                    IngestorError::GenericError(format!("Failed to decode payload: {}", e))
+                })?)
                 .await
                 .map_err(|e| {
                     IngestorError::GenericError(format!("Failed to store payload in cache: {}", e))
@@ -1020,11 +1030,18 @@ impl<DB: Database, G: GmpApiTrait + Send + Sync + 'static> XrplIngestor<DB, G> {
                             payload_hash: if payload_hash.is_some() {
                                 Some(
                                     std::convert::TryInto::<[u8; 32]>::try_into(
-                                        hex::decode(payload_hash.unwrap()).map_err(|_| {
+                                        hex::decode(payload_hash.ok_or(
                                             IngestorError::GenericError(
-                                                "Failed to hex-decode payload_hash".into(),
-                                            )
-                                        })?,
+                                                "Payload hash is None".to_owned(),
+                                            ),
+                                        )?)
+                                        .map_err(
+                                            |_| {
+                                                IngestorError::GenericError(
+                                                    "Failed to hex-decode payload_hash".into(),
+                                                )
+                                            },
+                                        )?,
                                     )
                                     .map_err(|_| {
                                         IngestorError::GenericError(
@@ -1091,8 +1108,18 @@ impl<DB: Database, G: GmpApiTrait + Send + Sync + 'static> XrplIngestor<DB, G> {
                 let mut message_with_payload = WithPayload::new(message, None);
 
                 if payload.is_some() {
-                    let payload_bytes = hex::decode(payload.unwrap()).unwrap();
-                    message_with_payload.payload = Some(payload_bytes.try_into().unwrap());
+                    let payload_bytes = hex::decode(
+                        payload.ok_or(IngestorError::GenericError("Payload is None".to_owned()))?,
+                    )
+                    .map_err(|e| {
+                        IngestorError::GenericError(format!("Failed to decode payload: {}", e))
+                    })?;
+                    message_with_payload.payload = Some(payload_bytes.try_into().map_err(|e| {
+                        IngestorError::GenericError(format!(
+                            "Failed to convert payload to HexBinary: {}",
+                            e
+                        ))
+                    })?);
                 }
                 Ok(message_with_payload)
             }
@@ -1138,7 +1165,11 @@ impl<DB: Database, G: GmpApiTrait + Send + Sync + 'static> XrplIngestor<DB, G> {
     }
 }
 
-impl<DB: Database, G: GmpApiTrait + Send + Sync + 'static> IngestorTrait for XrplIngestor<DB, G> {
+impl<DB, G> IngestorTrait for XrplIngestor<DB, G>
+where
+    DB: Database,
+    G: GmpApiTrait + ThreadSafe
+{
     async fn handle_transaction(&self, tx: ChainTransaction) -> Result<Vec<Event>, IngestorError> {
         let ChainTransaction::Xrpl(tx) = tx else {
             return Err(IngestorError::UnexpectedChainTransactionType(format!("{:?}", tx)))
@@ -1184,14 +1215,11 @@ impl<DB: Database, G: GmpApiTrait + Send + Sync + 'static> IngestorTrait for Xrp
                     // prover message
                     self.handle_prover_tx(*tx).await
                 } else {
-                    Err(IngestorError::UnsupportedTransaction(
-                        serde_json::to_string(&payment).map_err(|e| {
-                            IngestorError::GenericError(format!(
-                                "Failed to serialize payment: {}",
-                                e
-                            ))
-                        })?,
-                    ))
+                    info!(
+                        "Skipping payment that is not for or from the multisig: {:?}",
+                        payment
+                    );
+                    return Ok(vec![]);
                 }
             }
             Transaction::TicketCreate(_) => self.handle_prover_tx(*tx).await,
@@ -1203,7 +1231,7 @@ impl<DB: Database, G: GmpApiTrait + Send + Sync + 'static> IngestorTrait for Xrp
             }
             Transaction::SignerListSet(_) => self.handle_prover_tx(*tx).await,
             tx => {
-                warn!(
+                info!(
                     "Unsupported transaction type: {}",
                     serde_json::to_string(&tx).map_err(|e| {
                         IngestorError::GenericError(format!(
@@ -1314,8 +1342,10 @@ impl<DB: Database, G: GmpApiTrait + Send + Sync + 'static> IngestorTrait for Xrp
                         let tx =
                             xrpl_tx_from_hash(prover_message.tx_id.clone(), &self.client).await?;
                         prover_tx = Some(tx);
-                        self.confirm_prover_message_request(prover_tx.as_ref().unwrap())
-                            .await?
+                        self.confirm_prover_message_request(prover_tx.as_ref().ok_or(
+                            IngestorError::GenericError("Prover transaction is None".to_owned()),
+                        )?)
+                        .await?
                     }
                     XRPLMessage::AddGasMessage(msg) => {
                         self.confirm_add_gas_message_request(msg).await?
@@ -1431,7 +1461,9 @@ impl<DB: Database, G: GmpApiTrait + Send + Sync + 'static> IngestorTrait for Xrp
                 info!("ConstructProof({}) transaction hash: {}", cc_id, tx_hash);
             }
             Err(e) => {
-                let re = Regex::new(r"(payment for .*? already succeeded)").unwrap();
+                let re = Regex::new(r"(payment for .*? already succeeded)").map_err(|e| {
+                    IngestorError::GenericError(format!("Failed to create regex: {}", e))
+                })?;
 
                 if re.is_match(&e.to_string()) {
                     info!("Payment for {} already succeeded", cc_id);

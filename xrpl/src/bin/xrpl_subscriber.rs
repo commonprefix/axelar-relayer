@@ -7,6 +7,7 @@ use relayer_base::{
     subscriber::Subscriber,
     utils::{setup_heartbeat, setup_logging},
 };
+use std::sync::Arc;
 use tokio::signal::unix::{signal, SignalKind};
 use xrpl::{client::XRPLClient, config::XRPLConfig, subscriber::XrplSubscriber};
 use xrpl_types::AccountId;
@@ -16,18 +17,16 @@ use relayer_base::redis::connection_manager;
 async fn main() -> anyhow::Result<()> {
     dotenv().ok();
     let network = std::env::var("NETWORK").expect("NETWORK must be set");
-    let config: XRPLConfig = config_from_yaml(&format!("config.{}.yaml", network)).unwrap();
+    let config: XRPLConfig = config_from_yaml(&format!("config.{}.yaml", network))?;
 
     let _guard = setup_logging(&config.common_config);
 
     let events_queue = Queue::new(&config.common_config.queue_address, "events").await;
-    let postgres_db = PostgresDB::new(&config.common_config.postgres_url)
-        .await
-        .unwrap();
+    let postgres_db = PostgresDB::new(&config.common_config.postgres_url).await?;
 
-    let account = AccountId::from_address(&config.xrpl_multisig).unwrap();
+    let account = AccountId::from_address(&config.xrpl_multisig)?;
 
-    let xrpl_client = XRPLClient::new(&config.xrpl_rpc, 3).unwrap();
+    let xrpl_client = XRPLClient::new(&config.xrpl_rpc, 3)?;
     let xrpl_subscriber =
         XrplSubscriber::new(xrpl_client, postgres_db, "default".to_string()).await?;
     let mut subscriber = Subscriber::new(xrpl_subscriber);
@@ -43,7 +42,7 @@ async fn main() -> anyhow::Result<()> {
     tokio::select! {
         _ = sigint.recv()  => {},
         _ = sigterm.recv() => {},
-        _ = subscriber.run(account, events_queue.clone()) => {},
+        _ = subscriber.run(account, Arc::clone(&events_queue)) => {},
     }
 
     events_queue.close().await;

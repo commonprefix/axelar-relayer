@@ -17,13 +17,11 @@ use xrpl::{
 async fn main() -> anyhow::Result<()> {
     dotenv().ok();
     let network = std::env::var("NETWORK").expect("NETWORK must be set");
-    let config: XRPLConfig = config_from_yaml(&format!("config.{}.yaml", network)).unwrap();
+    let config: XRPLConfig = config_from_yaml(&format!("config.{}.yaml", network))?;
 
     let _guard = setup_logging(&config.common_config);
 
-    let pg_pool = PgPool::connect(&config.common_config.postgres_url)
-        .await
-        .unwrap();
+    let pg_pool = PgPool::connect(&config.common_config.postgres_url).await?;
     let xrpl_client = Arc::new(XRPLClient::new(&config.xrpl_rpc, 3)?);
     let queued_tx_model = PgQueuedTransactionsModel::new(pg_pool);
 

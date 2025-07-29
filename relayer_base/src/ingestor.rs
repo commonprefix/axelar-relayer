@@ -14,8 +14,9 @@ use crate::{
     subscriber::ChainTransaction,
 };
 use crate::gmp_api::GmpApiTrait;
+use crate::utils::ThreadSafe;
 
-pub struct Ingestor<I: IngestorTrait, G: GmpApiTrait + Send + Sync + 'static> {
+pub struct Ingestor<I: IngestorTrait, G: GmpApiTrait + ThreadSafe> {
     gmp_api: Arc<G>,
     ingestor: I,
 }
@@ -44,7 +45,11 @@ pub trait IngestorTrait {
     ) -> impl Future<Output = Result<(), IngestorError>>;
 }
 
-impl<I: IngestorTrait, G: GmpApiTrait + Send + Sync + 'static> Ingestor<I, G> {
+impl<I, G> Ingestor<I, G>
+where
+    I: IngestorTrait,
+    G: GmpApiTrait + ThreadSafe
+{
     pub fn new(gmp_api: Arc<G>, ingestor: I) -> Self {
         Self { gmp_api, ingestor }
     }
@@ -87,16 +92,28 @@ impl<I: IngestorTrait, G: GmpApiTrait + Send + Sync + 'static> Ingestor<I, G> {
     }
 
     pub async fn run(&self, events_queue: Arc<Queue>, tasks_queue: Arc<Queue>) {
-        let mut events_consumer = events_queue.consumer().await.unwrap();
-        let mut tasks_consumer = tasks_queue.consumer().await.unwrap();
+        let mut events_consumer = match events_queue.consumer().await {
+            Ok(consumer) => consumer,
+            Err(e) => {
+                error!("Failed to create events consumer: {:?}", e);
+                return;
+            }
+        };
+        let mut tasks_consumer = match tasks_queue.consumer().await {
+            Ok(consumer) => consumer,
+            Err(e) => {
+                error!("Failed to create tasks consumer: {:?}", e);
+                return;
+            }
+        };
 
         info!("Ingestor is alive.");
 
         select! {
-            _ = self.work(&mut events_consumer, events_queue.clone()) => {
+            _ = self.work(&mut events_consumer, Arc::clone(&events_queue)) => {
                 warn!("Events consumer ended");
             },
-            _ = self.work(&mut tasks_consumer, tasks_queue.clone()) => {
+            _ = self.work(&mut tasks_consumer, Arc::clone(&tasks_queue)) => {
                 warn!("Tasks consumer ended");
             }
         };
@@ -111,7 +128,7 @@ impl<I: IngestorTrait, G: GmpApiTrait + Send + Sync + 'static> Ingestor<I, G> {
 
     pub async fn consume(&self, item: QueueItem) -> Result<(), IngestorError> {
         match item {
-            QueueItem::Task(task) => self.consume_task(task).await,
+            QueueItem::Task(task) => self.consume_task(*task).await,
             QueueItem::Transaction(chain_transaction) => {
                 self.consume_transaction(chain_transaction).await
             }
@@ -121,10 +138,10 @@ impl<I: IngestorTrait, G: GmpApiTrait + Send + Sync + 'static> Ingestor<I, G> {
 
     pub async fn consume_transaction(
         &self,
-        transaction: ChainTransaction,
+        transaction: Box<ChainTransaction>,
     ) -> Result<(), IngestorError> {
         info!("Consuming transaction: {:?}", transaction);
-        let events = self.ingestor.handle_transaction(transaction).await?;
+        let events = self.ingestor.handle_transaction(*transaction).await?;
 
         if events.is_empty() {
             info!("No GMP events to post.");
@@ -140,12 +157,12 @@ impl<I: IngestorTrait, G: GmpApiTrait + Send + Sync + 'static> Ingestor<I, G> {
 
         for event_response in response {
             if event_response.status != "ACCEPTED" {
-                error!("Posting event failed: {:?}", event_response.error.clone());
-                if event_response.retriable.is_some() && event_response.retriable.unwrap() {
+                error!("Posting event failed: {:?}", event_response.error);
+                if let Some(true) = event_response.retriable {
                     return Err(IngestorError::RetriableError(
                         // TODO: retry? Handle error responses for part of the batch
                         // Question: what happens if we send the same event multiple times?
-                        event_response.error.clone().unwrap_or_default(),
+                        event_response.error.unwrap_or_default(),
                     ));
                 }
             }
