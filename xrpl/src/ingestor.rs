@@ -1206,14 +1206,11 @@ impl<DB: Database> IngestorTrait for XrplIngestor<DB> {
                     // prover message
                     self.handle_prover_tx(tx).await
                 } else {
-                    Err(IngestorError::UnsupportedTransaction(
-                        serde_json::to_string(&payment).map_err(|e| {
-                            IngestorError::GenericError(format!(
-                                "Failed to serialize payment: {}",
-                                e
-                            ))
-                        })?,
-                    ))
+                    info!(
+                        "Skipping payment that is not for or from the multisig: {:?}",
+                        payment
+                    );
+                    return Ok(vec![]);
                 }
             }
             Transaction::TicketCreate(_) => self.handle_prover_tx(tx).await,
