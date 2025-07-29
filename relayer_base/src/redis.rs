@@ -14,7 +14,6 @@ pub async fn connection_manager(
         .set_number_of_retries(retries.unwrap_or(2))
         .set_max_delay(10000); // 1000 = 1 second
 
-    println!("{:?}", config);
     let conn = ConnectionManager::new_with_config(client, config).await?;
     Ok(conn)
 }

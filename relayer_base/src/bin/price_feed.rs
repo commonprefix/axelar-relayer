@@ -21,7 +21,7 @@ async fn main() {
     let redis_client = redis::Client::open(config.redis_server.clone()).unwrap();
     let redis_conn = connection_manager(redis_client, None, None, None)
         .await
-        .unwrap();
+        .expect("Failed to get redis connection");
     setup_heartbeat("heartbeat:price_feed".to_owned(), redis_conn);
 
     price_feeder.run().await.unwrap();
