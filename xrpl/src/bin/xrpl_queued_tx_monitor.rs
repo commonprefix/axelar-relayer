@@ -2,6 +2,7 @@ use dotenv::dotenv;
 use sqlx::PgPool;
 use std::sync::Arc;
 use tokio::signal::unix::{signal, SignalKind};
+use tracing::info;
 
 use relayer_base::{
     config::config_from_yaml,
@@ -15,6 +16,15 @@ use xrpl::{
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     dotenv().ok();
+
+    // dead code to test the new CI
+    let test_value = 3;
+    let test_value = test_value + 1;
+    let test_value = test_value + 1;
+    let test_value = test_value + 1;
+    let test_value = test_value + 1;
+    info!("test_value: {}", test_value);
+
     let network = std::env::var("NETWORK").expect("NETWORK must be set");
     let config: XRPLConfig = config_from_yaml(&format!("config.{}.yaml", network))?;
 
