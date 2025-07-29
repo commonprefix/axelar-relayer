@@ -6,6 +6,8 @@ use router_api::CrossChainId;
 use std::{future::Future, sync::Arc};
 use tracing::{debug, error, info, warn};
 
+use crate::gmp_api::gmp_types::{ExecuteTaskFields, RefundTaskFields};
+use crate::payload_cache::PayloadCacheTrait;
 use crate::{
     database::Database,
     error::{BroadcasterError, IncluderError, RefundManagerError},
@@ -16,8 +18,6 @@ use crate::{
     payload_cache::PayloadCache,
     queue::{Queue, QueueItem},
 };
-use crate::gmp_api::gmp_types::{ExecuteTaskFields, RefundTaskFields};
-use crate::payload_cache::PayloadCacheTrait;
 
 pub trait RefundManager {
     type Wallet;
@@ -62,9 +62,12 @@ pub trait Broadcaster {
     ) -> impl Future<Output = Result<String, BroadcasterError>>;
     fn broadcast_execute_message(
         &self,
-        message: ExecuteTaskFields
+        message: ExecuteTaskFields,
     ) -> impl Future<Output = Result<BroadcastResult<Self::Transaction>, BroadcasterError>>;
-    fn broadcast_refund_message(&self, refund_task: RefundTaskFields) -> impl Future<Output = Result<String, BroadcasterError>>;
+    fn broadcast_refund_message(
+        &self,
+        refund_task: RefundTaskFields,
+    ) -> impl Future<Output = Result<String, BroadcasterError>>;
 }
 
 pub struct Includer<B, C, R, DB>
@@ -210,12 +213,12 @@ where
                                 message_id,
                                 source_chain,
                                 err.to_string(),
-                                gmp_error
+                                gmp_error,
                             )
                             .await
                             .map_err(|e| IncluderError::ConsumerError(e.to_string()))?;
                     }
-                    
+
                     if !retry {
                         return Ok(());
                     }
@@ -238,8 +241,7 @@ where
                         broadcast_result.tx_hash
                     );
 
-                    if Self::broadcast_result_has_message(&broadcast_result)
-                    {
+                    if Self::broadcast_result_has_message(&broadcast_result) {
                         let message_id = broadcast_result.message_id.ok_or_else(|| {
                             IncluderError::ConsumerError("Message ID is missing".to_string())
                         })?;
@@ -274,7 +276,7 @@ where
                                     message_id,
                                     source_chain,
                                     e.to_string(),
-                                    crate::gmp_api::gmp_types::CannotExecuteMessageReason::Error
+                                    crate::gmp_api::gmp_types::CannotExecuteMessageReason::Error,
                                 )
                                 .await
                                 .map_err(|e| IncluderError::ConsumerError(e.to_string()))?;
@@ -306,7 +308,7 @@ where
                             Ok(_) => Ok(()),
                             Err(BroadcasterError::InsufficientGas(_)) => Ok(()),
                             Err(e) => Err(IncluderError::GenericError(e.to_string())),
-                        }
+                        };
                     }
 
                     if self
@@ -397,8 +399,9 @@ where
         }
     }
 
-    fn broadcast_result_has_message(broadcast_result: &BroadcastResult<<B as Broadcaster>::Transaction>) -> bool {
-        broadcast_result.message_id.is_some()
-            && broadcast_result.source_chain.is_some()
+    fn broadcast_result_has_message(
+        broadcast_result: &BroadcastResult<<B as Broadcaster>::Transaction>,
+    ) -> bool {
+        broadcast_result.message_id.is_some() && broadcast_result.source_chain.is_some()
     }
 }

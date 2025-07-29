@@ -46,13 +46,14 @@ impl<DB: Database> Distributor<DB> {
             gmp_api,
             refunds_enabled,
             // Sane default as it's the minimum required for the relayer to work
-            supported_includer_tasks: vec![TaskKind::Refund, 
-                                           TaskKind::GatewayTx],
-            supported_ingestor_tasks: vec![TaskKind::Verify, 
-                                           TaskKind::ConstructProof, 
-                                           TaskKind::ReactToWasmEvent, 
-                                           TaskKind::ReactToRetriablePoll, 
-                                           TaskKind::ReactToExpiredSigningSession]
+            supported_includer_tasks: vec![TaskKind::Refund, TaskKind::GatewayTx],
+            supported_ingestor_tasks: vec![
+                TaskKind::Verify,
+                TaskKind::ConstructProof,
+                TaskKind::ReactToWasmEvent,
+                TaskKind::ReactToRetriablePoll,
+                TaskKind::ReactToExpiredSigningSession,
+            ],
         }
     }
 
@@ -174,7 +175,7 @@ impl<DB: Database> Distributor<DB> {
             tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
         }
     }
-    
+
     pub fn set_supported_includer_tasks(&mut self, tasks: Vec<TaskKind>) {
         self.supported_includer_tasks = tasks;
     }
@@ -182,5 +183,4 @@ impl<DB: Database> Distributor<DB> {
     pub fn set_supported_ingestor_tasks(&mut self, tasks: Vec<TaskKind>) {
         self.supported_ingestor_tasks = tasks;
     }
-
 }

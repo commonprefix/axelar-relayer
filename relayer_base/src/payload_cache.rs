@@ -1,6 +1,6 @@
-use std::future::Future;
 use router_api::CrossChainId;
 use serde::{Deserialize, Serialize};
+use std::future::Future;
 use tracing::debug;
 
 use crate::database::Database;
@@ -18,11 +18,17 @@ pub struct PayloadCache<DB: Database> {
 
 #[cfg_attr(any(test, feature = "mocks"), mockall::automock)]
 pub trait PayloadCacheTrait {
-    fn get(&self, cc_id: CrossChainId) -> impl Future<Output = Result<Option<PayloadCacheValue>, anyhow::Error>>;
-    fn store(&self, cc_id: CrossChainId, value: PayloadCacheValue) -> impl Future<Output = Result<(), anyhow::Error>>;
+    fn get(
+        &self,
+        cc_id: CrossChainId,
+    ) -> impl Future<Output = Result<Option<PayloadCacheValue>, anyhow::Error>>;
+    fn store(
+        &self,
+        cc_id: CrossChainId,
+        value: PayloadCacheValue,
+    ) -> impl Future<Output = Result<(), anyhow::Error>>;
     fn clear(&self, cc_id: CrossChainId) -> impl Future<Output = Result<(), anyhow::Error>>;
 }
-
 
 impl<DB: Database> PayloadCache<DB> {
     pub fn new(db: DB) -> Self {
@@ -31,11 +37,7 @@ impl<DB: Database> PayloadCache<DB> {
 }
 
 impl<DB: Database> PayloadCacheTrait for PayloadCache<DB> {
-
-    async fn get(
-        &self,
-        cc_id: CrossChainId,
-    ) -> Result<Option<PayloadCacheValue>, anyhow::Error> {
+    async fn get(&self, cc_id: CrossChainId) -> Result<Option<PayloadCacheValue>, anyhow::Error> {
         let value = self
             .db
             .get_payload(cc_id.clone())
@@ -77,7 +79,6 @@ impl<DB: Database> PayloadCacheTrait for PayloadCache<DB> {
         Ok(())
     }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -134,7 +135,10 @@ mod tests {
         let result = cache.store(cc_id, value).await;
 
         assert!(result.is_err());
-        assert_eq!(result.unwrap_err().to_string(), "Failed to store payload: error");
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "Failed to store payload: error"
+        );
     }
 
     #[tokio::test]
@@ -164,9 +168,7 @@ mod tests {
         mock_db
             .expect_get_payload()
             .with(eq(cc_id.clone()))
-            .returning(move |_| {
-                Box::pin(async move { Ok(None) })
-            });
+            .returning(move |_| Box::pin(async move { Ok(None) }));
 
         let cache = PayloadCache::new(mock_db);
         let result = cache.get(cc_id).await.unwrap();
@@ -229,5 +231,4 @@ mod tests {
             "Failed to clear payload: clear error"
         );
     }
-
 }

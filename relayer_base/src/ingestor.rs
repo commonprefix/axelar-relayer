@@ -149,7 +149,7 @@ impl<I: IngestorTrait> Ingestor<I> {
             .post_events(events)
             .await
             .map_err(|e| IngestorError::PostEventError(e.to_string()))?;
-        
+
         for event_response in response {
             if event_response.status != "ACCEPTED" {
                 error!("Posting event failed: {:?}", event_response.error);

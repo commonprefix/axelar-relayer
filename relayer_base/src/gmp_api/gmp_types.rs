@@ -307,7 +307,6 @@ pub struct MessageApprovedEventMetadata {
     pub command_id: Option<String>,
 }
 
-
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct MessageExecutedEventMetadata {
     #[serde(flatten)]

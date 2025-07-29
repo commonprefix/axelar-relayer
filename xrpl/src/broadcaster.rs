@@ -5,12 +5,12 @@ use xrpl_api::{
     ResultCategory, SubmitRequest, SubmitResponse, Transaction, TransactionResult, TxRequest,
 };
 
+use relayer_base::gmp_api::gmp_types::{ExecuteTaskFields, RefundTaskFields};
 use relayer_base::{
     error::BroadcasterError,
     includer::{BroadcastResult, Broadcaster},
     utils::extract_hex_xrpl_memo,
 };
-use relayer_base::gmp_api::gmp_types::{ExecuteTaskFields, RefundTaskFields};
 
 use crate::models::queued_transactions::QueuedTransactionsModel;
 
@@ -197,23 +197,24 @@ impl<QM: QueuedTransactionsModel, X: XRPLClientTrait> Broadcaster for XRPLBroadc
     }
 
     async fn broadcast_execute_message(
-        &self, 
-        _message: ExecuteTaskFields
+        &self,
+        _message: ExecuteTaskFields,
     ) -> Result<BroadcastResult<Self::Transaction>, BroadcasterError> {
-        Err(BroadcasterError::IrrelevantTask("XRPL does not send Execute Message".to_string()))
+        Err(BroadcasterError::IrrelevantTask(
+            "XRPL does not send Execute Message".to_string(),
+        ))
     }
 
     // We have both broadcast_refund_message and broadcast_refund for legacy reasons: Ton
     // requires entire RefundTaskFields, while XRPL depends only on tx_blob, and Rust
-    // does not support method overloading, alas. We should refactor refund_manager to be 
-    // XRPL-specific. 
+    // does not support method overloading, alas. We should refactor refund_manager to be
+    // XRPL-specific.
     async fn broadcast_refund_message(
         &self,
-        _refund_task: RefundTaskFields)
-        -> Result<String, BroadcasterError> {
+        _refund_task: RefundTaskFields,
+    ) -> Result<String, BroadcasterError> {
         unimplemented!()
     }
-
 }
 
 #[cfg(test)]
