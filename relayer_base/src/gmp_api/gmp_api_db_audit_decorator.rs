@@ -268,14 +268,8 @@ mod tests {
         let returned_tasks = result.unwrap();
         assert_eq!(returned_tasks.len(), 2);
 
-        match &returned_tasks[0] {
-            Task::Execute(_) => {}
-            _ => panic!("Expected Execute task"),
-        }
-        match &returned_tasks[1] {
-            Task::Verify(_) => {}
-            _ => panic!("Expected Verify task"),
-        }
+        assert!(matches!(&returned_tasks[0], Task::Execute(_)));
+        assert!(matches!(&returned_tasks[1], Task::Verify(_)));
     }
 
     #[tokio::test]
@@ -308,10 +302,7 @@ mod tests {
         let returned_tasks = result.unwrap();
         assert_eq!(returned_tasks.len(), 1);
 
-        match &returned_tasks[0] {
-            Task::GatewayTx(_) => {}
-            _ => panic!("Expected GatewayTx task"),
-        }
+        assert!(matches!(&returned_tasks[0], Task::GatewayTx(_)));
     }
 
     #[tokio::test]
