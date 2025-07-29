@@ -1,11 +1,11 @@
 use dotenv::dotenv;
 use std::sync::Arc;
 
+use relayer_base::config::config_from_yaml;
 use relayer_base::{
     gmp_api,
     utils::{setup_heartbeat, setup_logging},
 };
-use relayer_base::config::{config_from_yaml};
 use xrpl::config::XRPLConfig;
 use xrpl::ticket_creator::XrplTicketCreator;
 
@@ -14,7 +14,7 @@ async fn main() {
     dotenv().ok();
     let network = std::env::var("NETWORK").expect("NETWORK must be set");
     let config: XRPLConfig = config_from_yaml(&format!("config.{}.yaml", network)).unwrap();
-    
+
     let _guard = setup_logging(&config.common_config);
 
     let redis_client = redis::Client::open(config.common_config.redis_server.clone()).unwrap();

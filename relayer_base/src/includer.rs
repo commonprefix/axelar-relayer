@@ -139,7 +139,7 @@ where
 
     pub async fn consume(&self, task: QueueItem) -> Result<(), IncluderError> {
         match task {
-            QueueItem::Task(task) => match task {
+            QueueItem::Task(task) => match *task {
                 Task::GatewayTx(gateway_tx_task) => {
                     info!("Consuming task: {:?}", gateway_tx_task);
                     let broadcast_result = self

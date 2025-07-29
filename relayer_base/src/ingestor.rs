@@ -111,7 +111,7 @@ impl<I: IngestorTrait> Ingestor<I> {
 
     pub async fn consume(&self, item: QueueItem) -> Result<(), IngestorError> {
         match item {
-            QueueItem::Task(task) => self.consume_task(task).await,
+            QueueItem::Task(task) => self.consume_task(*task).await,
             QueueItem::Transaction(chain_transaction) => {
                 self.consume_transaction(chain_transaction).await
             }
@@ -121,10 +121,10 @@ impl<I: IngestorTrait> Ingestor<I> {
 
     pub async fn consume_transaction(
         &self,
-        transaction: ChainTransaction,
+        transaction: Box<ChainTransaction>,
     ) -> Result<(), IngestorError> {
         info!("Consuming transaction: {:?}", transaction);
-        let events = self.ingestor.handle_transaction(transaction).await?;
+        let events = self.ingestor.handle_transaction(*transaction).await?;
 
         if events.is_empty() {
             info!("No GMP events to post.");

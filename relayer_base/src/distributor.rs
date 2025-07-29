@@ -112,7 +112,7 @@ impl<DB: Database> Distributor<DB> {
                 continue;
             }
 
-            let task_item = &QueueItem::Task(task.clone());
+            let task_item = &QueueItem::Task(Box::new(task.clone()));
             info!("Publishing task: {:?}", task);
             let queue = match task.kind() {
                 TaskKind::Refund | TaskKind::GatewayTx => includer_queue.clone(),

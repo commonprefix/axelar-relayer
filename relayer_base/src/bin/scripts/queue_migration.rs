@@ -2,6 +2,7 @@ use anyhow::Result;
 use dotenv::dotenv;
 use futures::StreamExt;
 use lapin::options::BasicAckOptions;
+use relayer_base::config::config_from_yaml;
 use relayer_base::{
     gmp_api::gmp_types::TaskKind,
     queue::{Queue, QueueItem},
@@ -9,7 +10,6 @@ use relayer_base::{
 };
 use std::env;
 use tracing::{error, info, warn};
-use relayer_base::config::config_from_yaml;
 
 #[tokio::main]
 async fn main() -> Result<()> {

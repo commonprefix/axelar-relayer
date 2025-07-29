@@ -59,3 +59,14 @@ mockall = "0.13.1"
 mockito = "1.6.1"
 testcontainers = "0.24.0"
 testcontainers-modules = { version = "0.12.1", features = ["postgres"] }
+
+# switch between warn and allow to enable/disable more restrictive clippy lints
+[workspace.lints.clippy]
+uninlined_format_args = "allow"
+unwrap_used = "allow"
+expect_used = "allow"
+panic = "allow"
+indexing_slicing = "allow"
+clone_on_ref_ptr = "allow"
+redundant_clone = "allow"
+unnecessary_box_returns = "allow"

@@ -1138,6 +1138,7 @@ impl<DB: Database> XrplIngestor<DB> {
 
 impl<DB: Database> IngestorTrait for XrplIngestor<DB> {
     async fn handle_transaction(&self, tx: ChainTransaction) -> Result<Vec<Event>, IngestorError> {
+        #[allow(clippy::infallible_destructuring_match)]
         let tx = match tx {
             ChainTransaction::Xrpl(tx) => tx,
         };

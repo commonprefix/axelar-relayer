@@ -1,10 +1,10 @@
 use dotenv::dotenv;
+use relayer_base::config::config_from_yaml;
 use relayer_base::{
     database::PostgresDB,
     price_feed::PriceFeeder,
     utils::{setup_heartbeat, setup_logging},
 };
-use relayer_base::config::config_from_yaml;
 
 #[tokio::main]
 async fn main() {
