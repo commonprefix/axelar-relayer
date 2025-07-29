@@ -57,12 +57,14 @@ impl<DB: Database> ProofRetrier<DB> {
             .get(redis_key.clone())
             .map_err(|e| anyhow::anyhow!("Failed to get Redis key: {}", e))?;
 
-        if redis_value.is_some() && redis_value.unwrap() >= 10 {
-            debug!("Message {} has failed too many times, skipping", cc_id);
-            return Err(anyhow::anyhow!(
-                "Message {} has failed too many times",
-                cc_id
-            ));
+        if let Some(value) = redis_value {
+            if value >= 10 {
+                debug!("Message {} has failed too many times, skipping", cc_id);
+                return Err(anyhow::anyhow!(
+                    "Message {} has failed too many times",
+                    cc_id
+                ));
+            }
         }
 
         let source_chain = cc_id

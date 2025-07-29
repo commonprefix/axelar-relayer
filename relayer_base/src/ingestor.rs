@@ -87,16 +87,28 @@ impl<I: IngestorTrait> Ingestor<I> {
     }
 
     pub async fn run(&self, events_queue: Arc<Queue>, tasks_queue: Arc<Queue>) {
-        let mut events_consumer = events_queue.consumer().await.unwrap();
-        let mut tasks_consumer = tasks_queue.consumer().await.unwrap();
+        let mut events_consumer = match events_queue.consumer().await {
+            Ok(consumer) => consumer,
+            Err(e) => {
+                error!("Failed to create events consumer: {:?}", e);
+                return;
+            }
+        };
+        let mut tasks_consumer = match tasks_queue.consumer().await {
+            Ok(consumer) => consumer,
+            Err(e) => {
+                error!("Failed to create tasks consumer: {:?}", e);
+                return;
+            }
+        };
 
         info!("Ingestor is alive.");
 
         select! {
-            _ = self.work(&mut events_consumer, events_queue.clone()) => {
+            _ = self.work(&mut events_consumer, Arc::clone(&events_queue)) => {
                 warn!("Events consumer ended");
             },
-            _ = self.work(&mut tasks_consumer, tasks_queue.clone()) => {
+            _ = self.work(&mut tasks_consumer, Arc::clone(&tasks_queue)) => {
                 warn!("Tasks consumer ended");
             }
         };
@@ -140,12 +152,12 @@ impl<I: IngestorTrait> Ingestor<I> {
 
         for event_response in response {
             if event_response.status != "ACCEPTED" {
-                error!("Posting event failed: {:?}", event_response.error.clone());
-                if event_response.retriable.is_some() && event_response.retriable.unwrap() {
+                error!("Posting event failed: {:?}", event_response.error);
+                if let Some(true) = event_response.retriable {
                     return Err(IngestorError::RetriableError(
                         // TODO: retry? Handle error responses for part of the batch
                         // Question: what happens if we send the same event multiple times?
-                        event_response.error.clone().unwrap_or_default(),
+                        event_response.error.unwrap_or_default(),
                     ));
                 }
             }

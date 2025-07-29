@@ -8,7 +8,7 @@ use sentry::ClientInitGuard;
 use sentry_tracing::{layer as sentry_layer, EventFilter};
 use serde::de::DeserializeOwned;
 use serde_json::Value;
-use tracing::{debug, level_filters::LevelFilter, warn, Level};
+use tracing::{debug, error, info, level_filters::LevelFilter, warn, Level};
 use tracing_subscriber::{fmt, prelude::*, Registry};
 use xrpl_amplifier_types::{
     msg::XRPLMessage,
@@ -103,7 +103,7 @@ pub fn extract_hex_xrpl_memo(
     memos: Option<Vec<Memo>>,
     memo_type: &str,
 ) -> Result<String, anyhow::Error> {
-    let hex_str = extract_from_xrpl_memo(memos.clone(), memo_type)?;
+    let hex_str = extract_from_xrpl_memo(memos, memo_type)?;
     let bytes = hex::decode(&hex_str)?;
     String::from_utf8(bytes).map_err(|e| e.into())
 }
@@ -115,7 +115,7 @@ pub fn setup_logging(config: &Config) -> ClientInitGuard {
         config.sentry_dsn.to_string(),
         sentry::ClientOptions {
             release: sentry::release_name!(),
-            environment: Some(std::borrow::Cow::Owned(environment.clone())),
+            environment: Some(std::borrow::Cow::Owned(environment)),
             traces_sample_rate: 1.0,
             ..Default::default()
         },
@@ -255,8 +255,15 @@ pub fn parse_message_from_context(
 pub fn setup_heartbeat(service: String, redis_pool: r2d2::Pool<redis::Client>) {
     tokio::spawn(async move {
         loop {
-            tracing::info!("Writing heartbeat to DB");
-            let mut redis_conn = redis_pool.get().unwrap();
+            info!("Writing heartbeat to DB");
+            let mut redis_conn = match redis_pool.get() {
+                Ok(conn) => conn,
+                Err(e) => {
+                    error!("Failed to get Redis connection: {}", e);
+
+                    continue;
+                }
+            };
             let set_opts =
                 SetOptions::default().with_expiration(SetExpiry::EX(HEARTBEAT_EXPIRATION));
             let result: redis::RedisResult<()> =
@@ -283,18 +290,27 @@ where
         .get(token_id)
         .ok_or_else(|| anyhow::anyhow!("Token id {} not found in deployed tokens", token_id))?;
 
-    let maybe_price = price_view.get_price(&format!("{}/XRP", token_symbol)).await;
-    let price = if let Ok(price) = maybe_price {
-        price
-    } else {
-        debug!("Price not found in database, checking demo tokens");
-        // if it wasn't found in the database, it could be a demo token
-        let token_to_xrp_rate = config.demo_tokens_rate.get(token_id);
-        if token_to_xrp_rate.is_none() {
-            return Err(maybe_price.unwrap_err());
+    let price = match price_view.get_price(&format!("{}/XRP", token_symbol)).await {
+        Ok(p) => p,
+        Err(db_err) => {
+            debug!(
+                "Price not found in database ({:?}), checking demo tokens",
+                db_err
+            );
+
+            match config.demo_tokens_rate.get(token_id).copied() {
+                Some(rate) => Decimal::from_f64(rate).ok_or_else(|| {
+                    anyhow::anyhow!(
+                        "Failed to convert demo rate {} for token {} into Decimal",
+                        rate,
+                        token_id
+                    )
+                })?,
+                None => {
+                    return Err(db_err);
+                }
+            }
         }
-        Decimal::from_f64(*token_to_xrp_rate.unwrap())
-            .ok_or_else(|| anyhow::anyhow!("Failed to convert token rate to Decimal"))?
     };
 
     let xrp = amount * price;

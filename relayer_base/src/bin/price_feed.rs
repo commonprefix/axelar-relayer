@@ -7,20 +7,22 @@ use relayer_base::{
 };
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<(), anyhow::Error> {
     dotenv().ok();
     let network = std::env::var("NETWORK").expect("NETWORK must be set");
-    let config = config_from_yaml(&format!("config.{}.yaml", network)).unwrap();
+    let config = config_from_yaml(&format!("config.{}.yaml", network))?;
 
     let _guard = setup_logging(&config);
 
-    let db = PostgresDB::new(&config.postgres_url).await.unwrap();
-    let price_feeder = PriceFeeder::new(&config, db).await.unwrap();
+    let db = PostgresDB::new(&config.postgres_url).await?;
+    let price_feeder = PriceFeeder::new(&config, db).await?;
 
-    let redis_client = redis::Client::open(config.redis_server.clone()).unwrap();
-    let redis_pool = r2d2::Pool::builder().build(redis_client).unwrap();
+    let redis_client = redis::Client::open(config.redis_server.clone())?;
+    let redis_pool = r2d2::Pool::builder().build(redis_client)?;
 
     setup_heartbeat("heartbeat:price_feed".to_owned(), redis_pool);
 
-    price_feeder.run().await.unwrap();
+    price_feeder.run().await?;
+
+    Ok(())
 }

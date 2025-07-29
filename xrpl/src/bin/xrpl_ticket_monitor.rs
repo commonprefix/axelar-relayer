@@ -20,7 +20,7 @@ async fn main() -> anyhow::Result<()> {
     let _guard = setup_logging(&config.common_config);
 
     let client = XRPLClient::new(&config.xrpl_rpc, RETRIES as usize)?;
-    let account = AccountId::from_address(&config.xrpl_multisig).unwrap();
+    let account = AccountId::from_address(&config.xrpl_multisig)?;
 
     let redis_client = redis::Client::open(config.common_config.redis_server.clone())?;
     let redis_pool = r2d2::Pool::builder().build(redis_client)?;

@@ -81,10 +81,10 @@ impl BufferProcessor {
     }
 
     fn run(&mut self) {
-        let receiver_mutex = self.buffer_receiver.clone();
-        let sender = self.buffer_sender.clone();
-        let queue = self.queue.clone();
-        let shutdown_signal = self.shutdown_signal.clone();
+        let receiver_mutex = Arc::clone(&self.buffer_receiver);
+        let sender = Arc::clone(&self.buffer_sender);
+        let queue = Arc::clone(&self.queue);
+        let shutdown_signal = Arc::clone(&self.shutdown_signal);
         let cancellation_token = self.cancellation_token.clone();
         self.handle = Some(tokio::spawn(async move {
             loop {
@@ -145,14 +145,14 @@ impl Queue {
         });
 
         let mut processor = BufferProcessor::new(
-            queue_arc.buffer_sender.clone(),
+            Arc::clone(&queue_arc.buffer_sender),
             buffer_receiver,
-            queue_arc.clone(),
+            Arc::clone(&queue_arc),
         );
         processor.run();
         *queue_arc.buffer_processor.write().await = Some(processor);
 
-        let queue_clone = queue_arc.clone();
+        let queue_clone = Arc::clone(&queue_arc);
         tokio::spawn(async move {
             queue_clone.connection_health_check().await;
         });
@@ -452,14 +452,18 @@ impl Queue {
             let mut ticker = time::interval(Duration::from_secs(5));
             ticker.tick().await; // throw away the immediate tick
 
-            tokio::select! {
-                _ = processor.handle.unwrap()=> {
-                    info!("Buffer processor closed");
+            if let Some(handle) = processor.handle {
+                tokio::select! {
+                    _ = handle => {
+                        info!("Buffer processor closed");
+                    }
+                    _ = ticker.tick() => {
+                        warn!("Force closing buffer processor after 5 seconds");
+                        processor.cancellation_token.cancel();
+                    }
                 }
-                _ = ticker.tick() => {
-                    warn!("Force closing buffer processor after 5 seconds");
-                    processor.cancellation_token.cancel();
-                }
+            } else {
+                warn!("No handle found for buffer processor");
             }
         }
     }

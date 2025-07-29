@@ -16,7 +16,7 @@ use xrpl::config::XRPLConfig;
 async fn main() -> anyhow::Result<()> {
     dotenv().ok();
     let network = std::env::var("NETWORK").expect("NETWORK must be set");
-    let config: XRPLConfig = config_from_yaml(&format!("config.{}.yaml", network)).unwrap();
+    let config: XRPLConfig = config_from_yaml(&format!("config.{}.yaml", network))?;
 
     let _guard = setup_logging(&config.common_config);
 
@@ -24,10 +24,13 @@ async fn main() -> anyhow::Result<()> {
         Queue::new(&config.common_config.queue_address, "includer_tasks").await;
     let ingestor_tasks_queue =
         Queue::new(&config.common_config.queue_address, "ingestor_tasks").await;
-    let gmp_api = Arc::new(gmp_api::GmpApi::new(&config.common_config, true).unwrap());
+    let gmp_api = Arc::new(
+        gmp_api::GmpApi::new(&config.common_config, true)
+            .map_err(|e| anyhow::anyhow!("Failed to create GmpApi: {}", e))?,
+    );
     let postgres_db = PostgresDB::new(&config.common_config.postgres_url)
         .await
-        .unwrap();
+        .map_err(|e| anyhow::anyhow!("Failed to create PostgresDB: {}", e))?;
 
     let mut distributor = Distributor::new(
         postgres_db,
@@ -40,8 +43,8 @@ async fn main() -> anyhow::Result<()> {
     let mut sigint = signal(SignalKind::interrupt())?;
     let mut sigterm = signal(SignalKind::terminate())?;
 
-    let redis_client = redis::Client::open(config.common_config.redis_server.clone()).unwrap();
-    let redis_pool = r2d2::Pool::builder().build(redis_client).unwrap();
+    let redis_client = redis::Client::open(config.common_config.redis_server.clone())?;
+    let redis_pool = r2d2::Pool::builder().build(redis_client)?;
 
     setup_heartbeat("heartbeat:distributor".to_owned(), redis_pool);
 
@@ -49,8 +52,8 @@ async fn main() -> anyhow::Result<()> {
         _ = sigint.recv()  => {},
         _ = sigterm.recv() => {},
         _ = distributor.run(
-            includer_tasks_queue.clone(),
-            ingestor_tasks_queue.clone(),
+            Arc::clone(&includer_tasks_queue),
+            Arc::clone(&ingestor_tasks_queue),
         ) => {},
     }
 

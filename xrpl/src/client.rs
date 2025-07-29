@@ -108,7 +108,7 @@ impl XRPLClientTrait for XRPLClient {
         let request = xrpl_api::TxRequest::new(&tx_id);
         let res = self.call(request).await;
         let response = res.map_err(|e| anyhow!("Error getting txs: {:?}", e.to_string()))?;
-        Ok(response.tx.clone())
+        Ok(response.tx)
     }
 
     async fn get_transactions_for_account(

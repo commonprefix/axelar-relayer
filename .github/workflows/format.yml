@@ -27,8 +27,8 @@ jobs:
       - name: Check formatting
         run: cargo fmt --all -- --check
 
-      - name: Run Clippy
-        run: cargo clippy --all-targets --workspace -- -D warnings
+      - name: Clippy on entire codebase
+        run: cargo clippy --workspace --all-targets -- -D warnings
 
       - name: Run tests
         run: cargo test --workspace

@@ -7,6 +7,7 @@ use relayer_base::{
     subscriber::Subscriber,
     utils::{setup_heartbeat, setup_logging},
 };
+use std::sync::Arc;
 use tokio::signal::unix::{signal, SignalKind};
 use xrpl::{client::XRPLClient, config::XRPLConfig, subscriber::XrplSubscriber};
 
@@ -14,16 +15,16 @@ use xrpl::{client::XRPLClient, config::XRPLConfig, subscriber::XrplSubscriber};
 async fn main() -> anyhow::Result<()> {
     dotenv().ok();
     let network = std::env::var("NETWORK").expect("NETWORK must be set");
-    let config: XRPLConfig = config_from_yaml(&format!("config.{}.yaml", network)).unwrap();
+    let config: XRPLConfig = config_from_yaml(&format!("config.{}.yaml", network))?;
 
     let _guard = setup_logging(&config.common_config);
 
     let events_queue = Queue::new(&config.common_config.queue_address, "events").await;
     let postgres_db = PostgresDB::new(&config.common_config.postgres_url)
         .await
-        .unwrap();
+        .map_err(|e| anyhow::anyhow!("Failed to create PostgresDB: {}", e))?;
 
-    let xrpl_client = XRPLClient::new(&config.xrpl_rpc, 3).unwrap();
+    let xrpl_client = XRPLClient::new(&config.xrpl_rpc, 3)?;
     let xrpl_subscriber =
         XrplSubscriber::new(xrpl_client, postgres_db, "recovery".to_string()).await?;
     let mut subscriber = Subscriber::new(xrpl_subscriber);
@@ -42,8 +43,8 @@ async fn main() -> anyhow::Result<()> {
         "751FE03A35711903B27C8D65C29F5E52E2993E338796A979E2960868A698A737",
     ];
 
-    let redis_client = redis::Client::open(config.common_config.redis_server.clone()).unwrap();
-    let redis_pool = r2d2::Pool::builder().build(redis_client).unwrap();
+    let redis_client = redis::Client::open(config.common_config.redis_server.clone())?;
+    let redis_pool = r2d2::Pool::builder().build(redis_client)?;
 
     setup_heartbeat("heartbeat:subscriber_recovery".to_owned(), redis_pool);
 
@@ -55,7 +56,7 @@ async fn main() -> anyhow::Result<()> {
         _ = sigterm.recv() => {},
         _ = subscriber.recover_txs(
             txs.into_iter().map(|s| s.to_string()).collect(),
-            events_queue.clone(),
+            Arc::clone(&events_queue),
         ) => {},
 
     }

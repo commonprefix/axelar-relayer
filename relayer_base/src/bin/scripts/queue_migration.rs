@@ -9,6 +9,7 @@ use relayer_base::{
     utils::setup_logging,
 };
 use std::env;
+use std::sync::Arc;
 use tracing::{error, info, warn};
 
 #[tokio::main]
@@ -35,22 +36,22 @@ async fn main() -> Result<()> {
         match maybe_delivery {
             Ok(delivery) => {
                 let data = delivery.data.clone();
-                let task_item: QueueItem = serde_json::from_slice::<QueueItem>(&data).unwrap();
+                let task_item: QueueItem = serde_json::from_slice::<QueueItem>(&data)?;
                 let task = match task_item.clone() {
                     QueueItem::Task(task) => task,
                     _ => continue,
                 };
                 info!("Publishing task: {:?}", task);
                 let queue = match task.kind() {
-                    TaskKind::Refund | TaskKind::GatewayTx => includer_tasks_queue.clone(),
+                    TaskKind::Refund | TaskKind::GatewayTx => Arc::clone(&includer_tasks_queue),
                     TaskKind::Verify
                     | TaskKind::ConstructProof
                     | TaskKind::ReactToWasmEvent
                     | TaskKind::ReactToRetriablePoll
-                    | TaskKind::ReactToExpiredSigningSession => ingestor_tasks_queue.clone(),
+                    | TaskKind::ReactToExpiredSigningSession => Arc::clone(&ingestor_tasks_queue),
                     TaskKind::Unknown | TaskKind::Execute => {
                         warn!("Dropping and acking unknown task: {:?}", task);
-                        delivery.ack(BasicAckOptions::default()).await.unwrap();
+                        delivery.ack(BasicAckOptions::default()).await?;
                         continue;
                     }
                 };

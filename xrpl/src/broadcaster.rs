@@ -93,7 +93,7 @@ impl<QM: QueuedTransactionsModel, X: XRPLClientTrait> Broadcaster for XRPLBroadc
                     .map_err(|e| BroadcasterError::GenericError(e.to_string()))?,
             );
             source_chain = Some(
-                extract_hex_xrpl_memo(memos.clone(), "source_chain")
+                extract_hex_xrpl_memo(memos, "source_chain")
                     .map_err(|e| BroadcasterError::GenericError(e.to_string()))?,
             );
         }
