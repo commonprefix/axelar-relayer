@@ -2,16 +2,11 @@ use std::str::FromStr;
 
 use anyhow::Context;
 use axelar_wasm_std::msg_id::HexTxHash;
-use opentelemetry::global;
-use opentelemetry_sdk::trace::SdkTracerProvider;
 use redis::{Commands, SetExpiry, SetOptions};
 use rust_decimal::{prelude::FromPrimitive, Decimal};
-use sentry::ClientInitGuard;
-use sentry_tracing::{layer as sentry_layer, EventFilter};
 use serde::de::DeserializeOwned;
 use serde_json::Value;
-use tracing::{debug, error, info, level_filters::LevelFilter, warn, Level};
-use tracing_subscriber::{fmt, prelude::*, Registry};
+use tracing::{debug, error, info, warn};
 use xrpl_amplifier_types::{
     msg::XRPLMessage,
     types::{XRPLPaymentAmount, XRPLToken, XRPLTokenAmount},

@@ -1,13 +1,11 @@
 use futures::StreamExt;
-use lapin::{options::BasicAckOptions, Consumer, message::Delivery};
+use lapin::{options::BasicAckOptions, Consumer};
 use std::{future::Future, sync::Arc, collections::HashMap};
-use std::collections::BTreeMap;
-use lapin::types::{AMQPValue, ShortString};
 use tokio::select;
 use tracing::{debug, error, info, warn};
-use opentelemetry::{global, Context, KeyValue};
+use opentelemetry::{global, KeyValue};
 use opentelemetry::propagation::Extractor;
-use opentelemetry::trace::{Span, TraceContextExt, Tracer};
+use opentelemetry::trace::{Span, Tracer};
 
 use crate::{
     error::IngestorError,
@@ -18,7 +16,6 @@ use crate::{
     models::task_retries::PgTaskRetriesModel,
     queue::{Queue, QueueItem},
     subscriber::ChainTransaction,
-    logging::deserialize_span_context,
 };
 
 pub struct Ingestor<I: IngestorTrait> {
@@ -153,13 +150,6 @@ impl<I: IngestorTrait> Ingestor<I> {
         };
     }
 
-    async fn process_delivery(&self, data: &[u8]) -> Result<(), IngestorError> {
-        let item = serde_json::from_slice::<QueueItem>(data)
-            .map_err(|e| IngestorError::ParseError(format!("Invalid JSON: {}", e)))?;
-
-        self.consume(item).await
-    }
-
     pub async fn consume(&self, item: QueueItem) -> Result<(), IngestorError> {
         self.consume_with_headers(item, HashMap::new()).await
     }
@@ -169,7 +159,7 @@ impl<I: IngestorTrait> Ingestor<I> {
             global::get_text_map_propagator(|prop| prop.extract(&HeadersMap(&mut headers)));
         let tracer = global::tracer("ingestor");
         let mut span = tracer.start_with_context("ingestor", &parent_cx);
-        
+
         let result = match item {
             QueueItem::Task(task) => {
                 span.set_attribute(KeyValue::new("task_type", format!("{:?}", task)));

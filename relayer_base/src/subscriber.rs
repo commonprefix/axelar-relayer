@@ -7,8 +7,7 @@ use std::{collections::BTreeMap, future::Future, pin::Pin, sync::Arc};
 use opentelemetry::{global, Context, KeyValue};
 use opentelemetry::propagation::Injector;
 use opentelemetry::trace::{Span, TraceContextExt, Tracer};
-use tracing::{debug, error, info, span, Level};
-use crate::logging::serialize_span;
+use tracing::{debug, error, info};
 
 pub trait TransactionListener {
     type Transaction;
@@ -59,10 +58,9 @@ pub enum ChainTransaction {
 struct HeadersMap<'a>(&'a mut BTreeMap<ShortString, AMQPValue>);
 
 impl Injector for HeadersMap<'_> {
-    /// Set a key and value in the MetadataMap.  Does nothing if the key or value are not valid inputs
     fn set(&mut self, key: &str, value: String) {
-        let Ok(key) = ShortString::from(key).try_into();
-        let Ok(val) = AMQPValue::LongString(value.into()).try_into();
+        let key = ShortString::from(key);
+        let val = AMQPValue::LongString(value.into());
         self.0.insert(key, val);
     }
 }
@@ -71,7 +69,6 @@ impl Injector for HeadersMap<'_> {
 impl<TP: TransactionPoller> Subscriber<TP>
 where
     TP::Account: Clone + ToString,
-    TP::Transaction: ToString,
 {
     pub fn new(transaction_poller: TP) -> Self {
         Self { transaction_poller }
