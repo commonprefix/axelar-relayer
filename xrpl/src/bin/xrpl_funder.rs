@@ -3,7 +3,8 @@ use dotenv::dotenv;
 use xrpl::{funder::XRPLFunder, XRPLClient};
 
 use relayer_base::config::config_from_yaml;
-use relayer_base::utils::{setup_heartbeat, setup_logging};
+use relayer_base::logging::setup_logging;
+use relayer_base::utils::setup_heartbeat;
 use xrpl::config::XRPLConfig;
 
 #[tokio::main]

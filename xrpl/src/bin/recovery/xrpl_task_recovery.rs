@@ -8,8 +8,8 @@ use relayer_base::{
     distributor::{Distributor, RecoverySettings},
     gmp_api::{self, gmp_types::TaskKind},
     queue::Queue,
-    utils::setup_logging,
 };
+use relayer_base::logging::setup_logging;
 use xrpl::config::XRPLConfig;
 
 #[tokio::main]

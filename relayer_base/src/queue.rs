@@ -394,6 +394,15 @@ impl Queue {
         }
     }
 
+    pub async fn publish_with_properties(&self, item: QueueItem, properties: BasicProperties) {
+        if let Err(e) = self.publish_item(&item, false, Some(properties)).await {
+            error!("Failed to publish item with properties: {:?}. Falling back to buffer.", e);
+            if let Err(e) = self.buffer_sender.send(item).await {
+                error!("Buffer is full, failed to enqueue message: {:?}", e);
+            }
+        }
+    }
+
     async fn publish_item(
         &self,
         item: &QueueItem,

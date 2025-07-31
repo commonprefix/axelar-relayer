@@ -4,8 +4,9 @@ use std::sync::Arc;
 use relayer_base::config::config_from_yaml;
 use relayer_base::{
     gmp_api,
-    utils::{setup_heartbeat, setup_logging},
+    utils::setup_heartbeat,
 };
+use relayer_base::logging::setup_logging;
 use xrpl::config::XRPLConfig;
 use xrpl::ticket_creator::XrplTicketCreator;
 

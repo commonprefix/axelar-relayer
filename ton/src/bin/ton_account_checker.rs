@@ -1,13 +1,14 @@
 use dotenv::dotenv;
 use relayer_base::config::config_from_yaml;
 use relayer_base::error::SubscriberError;
-use relayer_base::utils::{setup_heartbeat, setup_logging};
+use relayer_base::utils::setup_heartbeat;
 use std::str::FromStr;
 use tokio::signal::unix::{signal, SignalKind};
 use ton::check_accounts::check_accounts;
 use ton::client::TONRpcClient;
 use ton::config::TONConfig;
 use tonlib_core::TonAddress;
+use relayer_base::logging::setup_logging;
 
 const MIN_BALANCE: u64 = 10_000_000_000;
 

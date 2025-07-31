@@ -8,8 +8,9 @@ use relayer_base::{
     distributor::Distributor,
     gmp_api,
     queue::Queue,
-    utils::{setup_heartbeat, setup_logging},
+    utils::setup_heartbeat,
 };
+use relayer_base::logging::setup_logging;
 use xrpl::config::XRPLConfig;
 
 #[tokio::main]

@@ -3,8 +3,9 @@ use relayer_base::config::config_from_yaml;
 use relayer_base::{
     database::PostgresDB,
     price_feed::PriceFeeder,
-    utils::{setup_heartbeat, setup_logging},
+    utils::setup_heartbeat,
 };
+use relayer_base::logging::setup_logging;
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {

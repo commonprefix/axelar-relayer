@@ -2,6 +2,8 @@ use std::str::FromStr;
 
 use anyhow::Context;
 use axelar_wasm_std::msg_id::HexTxHash;
+use opentelemetry::global;
+use opentelemetry_sdk::trace::SdkTracerProvider;
 use redis::{Commands, SetExpiry, SetOptions};
 use rust_decimal::{prelude::FromPrimitive, Decimal};
 use sentry::ClientInitGuard;
@@ -106,39 +108,6 @@ pub fn extract_hex_xrpl_memo(
     let hex_str = extract_from_xrpl_memo(memos, memo_type)?;
     let bytes = hex::decode(&hex_str)?;
     String::from_utf8(bytes).map_err(|e| e.into())
-}
-
-pub fn setup_logging(config: &Config) -> ClientInitGuard {
-    let environment = std::env::var("ENVIRONMENT").unwrap_or_else(|_| "development".to_string());
-
-    let _guard = sentry::init((
-        config.sentry_dsn.to_string(),
-        sentry::ClientOptions {
-            release: sentry::release_name!(),
-            environment: Some(std::borrow::Cow::Owned(environment)),
-            traces_sample_rate: 1.0,
-            ..Default::default()
-        },
-    ));
-
-    let fmt_layer = fmt::layer()
-        .with_target(true)
-        .with_filter(LevelFilter::DEBUG);
-
-    let sentry_layer = sentry_layer().event_filter(|metadata| match *metadata.level() {
-        Level::ERROR => EventFilter::Event, // Send `error` events to Sentry
-        Level::WARN => EventFilter::Event,  // Send `warn` events to Sentry
-        _ => EventFilter::Breadcrumb,
-    });
-
-    let subscriber = Registry::default()
-        .with(fmt_layer) // Console logging
-        .with(sentry_layer); // Sentry logging
-
-    tracing::subscriber::set_global_default(subscriber)
-        .expect("Failed to set global tracing subscriber");
-
-    _guard
 }
 
 pub fn event_attribute(event: &WasmEvent, key: &str) -> Option<String> {

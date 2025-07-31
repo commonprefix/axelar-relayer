@@ -17,8 +17,9 @@ use relayer_base::{
     payload_cache::PayloadCache,
     price_view::PriceView,
     queue::Queue,
-    utils::{setup_heartbeat, setup_logging},
+    utils::setup_heartbeat,
 };
+use relayer_base::logging::setup_logging;
 use xrpl::config::XRPLConfig;
 
 #[tokio::main]

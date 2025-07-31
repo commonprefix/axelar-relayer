@@ -5,7 +5,7 @@ use relayer_base::gmp_api;
 use relayer_base::ingestor::Ingestor;
 use relayer_base::price_view::PriceView;
 use relayer_base::queue::Queue;
-use relayer_base::utils::{setup_heartbeat, setup_logging};
+use relayer_base::utils::setup_heartbeat;
 use sqlx::PgPool;
 use std::str::FromStr;
 use std::sync::Arc;
@@ -15,6 +15,7 @@ use ton::gas_calculator::GasCalculator;
 use ton::ingestor::TONIngestor;
 use ton::parser::TraceParser;
 use tonlib_core::TonAddress;
+use relayer_base::logging::setup_logging;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {

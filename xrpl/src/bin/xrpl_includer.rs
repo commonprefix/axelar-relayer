@@ -9,8 +9,9 @@ use relayer_base::{
     gmp_api,
     payload_cache::PayloadCache,
     queue::Queue,
-    utils::{setup_heartbeat, setup_logging},
+    utils::setup_heartbeat,
 };
+use relayer_base::logging::setup_logging;
 use xrpl::{
     client::XRPLClient, config::XRPLConfig, includer::XrplIncluder,
     models::queued_transactions::PgQueuedTransactionsModel,

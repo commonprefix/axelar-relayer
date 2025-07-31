@@ -1,5 +1,5 @@
 use crate::config::Config;
-use crate::utils::setup_logging;
+use crate::logging::setup_logging;
 use redis::Commands;
 use tracing::{debug, error};
 

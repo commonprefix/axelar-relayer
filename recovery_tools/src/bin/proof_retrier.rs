@@ -7,9 +7,10 @@ use relayer_base::{
     payload_cache::PayloadCache,
     proof_retrier::ProofRetrier,
     queue::Queue,
-    utils::{setup_heartbeat, setup_logging},
+    utils::setup_heartbeat,
 };
 use std::sync::Arc;
+use relayer_base::logging::setup_logging;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {

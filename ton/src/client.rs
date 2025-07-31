@@ -35,6 +35,7 @@ use tonlib_core::TonAddress;
 use tracing::{error, info};
 
 #[derive(Clone)]
+#[derive(Debug)]
 pub struct TONRpcClient {
     url: String,
     client: ClientWithMiddleware,

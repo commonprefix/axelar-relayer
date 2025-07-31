@@ -5,10 +5,11 @@ use relayer_base::{
     database::PostgresDB,
     queue::Queue,
     subscriber::Subscriber,
-    utils::{setup_heartbeat, setup_logging},
+    utils::setup_heartbeat,
 };
 use std::sync::Arc;
 use tokio::signal::unix::{signal, SignalKind};
+use relayer_base::logging::setup_logging;
 use xrpl::{client::XRPLClient, config::XRPLConfig, subscriber::XrplSubscriber};
 
 #[tokio::main]

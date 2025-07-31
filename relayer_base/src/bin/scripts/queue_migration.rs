@@ -6,11 +6,11 @@ use relayer_base::config::config_from_yaml;
 use relayer_base::{
     gmp_api::gmp_types::TaskKind,
     queue::{Queue, QueueItem},
-    utils::setup_logging,
 };
 use std::env;
 use std::sync::Arc;
 use tracing::{error, info, warn};
+use relayer_base::logging::setup_logging;
 
 #[tokio::main]
 async fn main() -> Result<()> {

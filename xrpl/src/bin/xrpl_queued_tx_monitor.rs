@@ -5,8 +5,9 @@ use tokio::signal::unix::{signal, SignalKind};
 
 use relayer_base::{
     config::config_from_yaml,
-    utils::{setup_heartbeat, setup_logging},
+    utils::setup_heartbeat,
 };
+use relayer_base::logging::setup_logging;
 use xrpl::{
     client::XRPLClient, config::XRPLConfig, models::queued_transactions::PgQueuedTransactionsModel,
     queued_tx_monitor::XrplQueuedTxMonitor,

@@ -1,12 +1,13 @@
 use dotenv::dotenv;
 
 use relayer_base::config::config_from_yaml;
-use relayer_base::utils::{setup_heartbeat, setup_logging};
+use relayer_base::utils::setup_heartbeat;
 use tracing::{debug, error};
 use xrpl::client::{XRPLClient, XRPLClientTrait};
 use xrpl::config::XRPLConfig;
 use xrpl_api::Ticket;
 use xrpl_types::AccountId;
+use relayer_base::logging::setup_logging;
 
 const RETRIES: u8 = 4;
 const THRESHOLD: u8 = 150;

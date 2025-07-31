@@ -1,6 +1,7 @@
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_with::{serde_as, DisplayFromStr};
 use std::collections::HashMap;
+use std::fmt::Display;
 use tonlib_core::TonAddress;
 use tracing::error;
 
@@ -43,6 +44,12 @@ pub struct Trace {
     pub end_lt: i64,
     pub trace_id: String,
     pub transactions: Vec<Transaction>,
+}
+
+impl Display for Trace {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.trace_id.clone())
+    }
 }
 
 #[serde_as]
