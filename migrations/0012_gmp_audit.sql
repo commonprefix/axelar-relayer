@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS gmp_events (
     updated_at TIMESTAMP WITH TIME ZONE
 );
 
-CREATE INDEX CONCURRENTLY IF NOT EXISTS gmp_events_event_id_idx ON gmp_events(event_id);
+CREATE INDEX IF NOT EXISTS gmp_events_event_id_idx ON gmp_events(event_id);
 
 CREATE TABLE IF NOT EXISTS gmp_tasks (
     id BIGSERIAL PRIMARY KEY,
@@ -23,4 +23,4 @@ CREATE TABLE IF NOT EXISTS gmp_tasks (
     updated_at TIMESTAMP WITH TIME ZONE
 );
 
-CREATE INDEX CONCURRENTLY IF NOT EXISTS gmp_tasks_task_id_idx ON gmp_tasks(task_id);
+CREATE INDEX IF NOT EXISTS gmp_tasks_task_id_idx ON gmp_tasks(task_id);
