@@ -17,6 +17,7 @@ use std::sync::Arc;
 use ton::lock_manager::RedisLockManager;
 use ton::wallet_manager::WalletManager;
 use tracing::error;
+use relayer_base::redis::connection_manager;
 
 #[tokio::main]
 async fn main() {
@@ -31,9 +32,9 @@ async fn main() {
     ];
 
     let client = redis::Client::open("redis://127.0.0.1/").unwrap();
-    let pool = r2d2::Pool::builder().build(client).unwrap();
+    let conn = connection_manager(client, None, None, None).await.unwrap();
 
-    let lock_manager = Arc::new(RedisLockManager::new(pool));
+    let lock_manager = Arc::new(RedisLockManager::new(conn));
     let wallet_manager = WalletManager::new(config, lock_manager).await;
 
     match wallet_manager.acquire().await {

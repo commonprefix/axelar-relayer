@@ -34,6 +34,7 @@ use std::sync::Arc;
 use ton::lock_manager::RedisLockManager;
 use ton::wallet_manager::WalletManager;
 use relayer_base::database::PostgresDB;
+use relayer_base::redis::connection_manager;
 use ton::high_load_query_id_db_wrapper::HighLoadQueryIdDbWrapper;
 use ton::high_load_query_id_db_wrapper::HighLoadQueryIdWrapper;
 use sqlx::PgPool;
@@ -52,9 +53,9 @@ async fn main() {
     ];
 
     let client = redis::Client::open("redis://127.0.0.1/").unwrap();
-    let pool = r2d2::Pool::builder().build(client).unwrap();
+    let conn = connection_manager(client, None, None, None).await.unwrap();
 
-    let lock_manager = Arc::new(RedisLockManager::new(pool));
+    let lock_manager = Arc::new(RedisLockManager::new(conn));
     let wallet_manager = WalletManager::new(config, lock_manager).await;
 
     let pg_pool = PgPool::connect("psql://foo?bar").await.unwrap();

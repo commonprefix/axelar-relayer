@@ -1,6 +1,7 @@
 use dotenv::dotenv;
 use relayer_base::config::config_from_yaml;
 use relayer_base::error::SubscriberError;
+use relayer_base::redis::connection_manager;
 use relayer_base::utils::{setup_heartbeat, setup_logging};
 use std::str::FromStr;
 use tokio::signal::unix::{signal, SignalKind};
@@ -15,7 +16,7 @@ const MIN_BALANCE: u64 = 10_000_000_000;
 async fn main() -> anyhow::Result<()> {
     dotenv().ok();
     let network = std::env::var("NETWORK").expect("NETWORK must be set");
-    let config: TONConfig = config_from_yaml(&format!("config.{network}.yaml"))?;
+    let config: TONConfig = config_from_yaml(&format!("config.{}.yaml", network))?;
 
     let _guard = setup_logging(&config.common_config);
 
@@ -23,9 +24,9 @@ async fn main() -> anyhow::Result<()> {
     let mut sigterm = signal(SignalKind::terminate())?;
 
     let redis_client = redis::Client::open(config.common_config.redis_server.clone())?;
-    let redis_pool = r2d2::Pool::builder().build(redis_client)?;
+    let redis_conn = connection_manager(redis_client, None, None, None).await?;
 
-    setup_heartbeat("heartbeat:account_checker".to_owned(), redis_pool);
+    setup_heartbeat("heartbeat:account_checker".to_owned(), redis_conn);
 
     let mut our_addresses = vec![];
     for wallet in config.wallets {
@@ -39,12 +40,12 @@ async fn main() -> anyhow::Result<()> {
     let client = TONRpcClient::new(config.ton_rpc.clone(), config.ton_api_key.clone(), 5, 5, 30)
         .await
         .map_err(|e| error_stack::report!(SubscriberError::GenericError(e.to_string())))
-        .expect("Failed to create TonRpcClient");
+        .expect("Failed to create RPC client");
 
     tokio::select! {
-    _ = sigint.recv()  => {},
-    _ = sigterm.recv() => {},
-    _ = check_accounts(&client, our_addresses, MIN_BALANCE, true) => {}
+        _ = sigint.recv()  => {},
+        _ = sigterm.recv() => {},
+        _ = check_accounts(&client, our_addresses, MIN_BALANCE, true) => {}
     }
 
     Ok(())

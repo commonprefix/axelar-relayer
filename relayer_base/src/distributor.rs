@@ -1,10 +1,12 @@
 use std::sync::Arc;
 use tracing::{info, warn};
 
+use crate::gmp_api::GmpApiTrait;
+use crate::utils::ThreadSafe;
 use crate::{
     database::Database,
     error::DistributorError,
-    gmp_api::{gmp_types::TaskKind, GmpApi},
+    gmp_api::gmp_types::TaskKind,
     queue::{Queue, QueueItem},
 };
 
@@ -15,21 +17,25 @@ pub struct RecoverySettings {
     pub tasks_filter: Option<Vec<TaskKind>>,
 }
 
-pub struct Distributor<DB: Database> {
+pub struct Distributor<DB: Database, G: GmpApiTrait + ThreadSafe> {
     db: DB,
     last_task_id: Option<String>,
     context: String,
     recovery_settings: Option<RecoverySettings>,
-    gmp_api: Arc<GmpApi>,
+    gmp_api: Arc<G>,
     refunds_enabled: bool,
     supported_includer_tasks: Vec<TaskKind>,
     supported_ingestor_tasks: Vec<TaskKind>,
 }
 
-impl<DB: Database> Distributor<DB> {
-    pub async fn new(db: DB, context: String, gmp_api: Arc<GmpApi>, refunds_enabled: bool) -> Self {
+impl<DB, G> Distributor<DB, G>
+where
+    DB: Database,
+    G: GmpApiTrait + ThreadSafe,
+{
+    pub async fn new(db: DB, context: String, gmp_api: Arc<G>, refunds_enabled: bool) -> Self {
         let last_task_id = db
-            .get_latest_task_id(&gmp_api.chain, &context)
+            .get_latest_task_id(gmp_api.get_chain(), &context)
             .await
             .expect("Failed to get latest task id");
 
@@ -60,7 +66,7 @@ impl<DB: Database> Distributor<DB> {
     pub async fn new_with_recovery_settings(
         db: DB,
         context: String,
-        gmp_api: Arc<GmpApi>,
+        gmp_api: Arc<G>,
         recovery_settings: RecoverySettings,
         refunds_enabled: bool,
     ) -> Result<Self, DistributorError> {
@@ -74,12 +80,13 @@ impl<DB: Database> Distributor<DB> {
     pub async fn store_last_task_id(&mut self) -> Result<(), DistributorError> {
         if let Some(task_id) = &self.last_task_id {
             self.db
-                .store_latest_task_id(&self.gmp_api.chain, &self.context, task_id)
+                .store_latest_task_id(self.gmp_api.get_chain(), &self.context, task_id)
                 .await
                 .map_err(|e| {
                     DistributorError::GenericError(format!("Failed to store last_task_id: {}", e))
                 })?;
         }
+
         Ok(())
     }
 

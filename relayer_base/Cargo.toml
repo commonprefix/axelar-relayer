@@ -27,7 +27,7 @@ error-stack = { workspace = true }
 serde = { workspace = true }
 tokio-util = { workspace = true }
 uuid = { workspace = true }
-redis = { workspace = true }
+redis = { workspace = true, features = ["connection-manager"] }
 async-std = { workspace = true }
 sentry = { workspace = true }
 sentry-tracing = { workspace = true }
@@ -40,15 +40,16 @@ reqwest-retry = { workspace = true }
 reqwest-middleware = { workspace = true }
 sqlx = { workspace = true }
 dotenv = { workspace = true }
-r2d2 = { workspace = true }
 mockall = { workspace = true, optional = true }
-testcontainers = { workspace = true }
 async-trait = { workspace = true }
 ton_types = { workspace = true }
 
 [dev-dependencies]
 mockall = { workspace = true }
 mockito = { workspace = true }
+httpmock = { workspace = true }
+testcontainers = { workspace = true }
+testcontainers-modules = { workspace = true, features = ["postgres"] }
 
 [[bin]]
 name = "price_feed"

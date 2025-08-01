@@ -1,9 +1,11 @@
 use dotenv::dotenv;
+use sqlx::PgPool;
 use std::sync::Arc;
 use tokio::signal::unix::{signal, SignalKind};
 
 use relayer_base::config::config_from_yaml;
 use relayer_base::gmp_api::gmp_types::TaskKind;
+use relayer_base::redis::connection_manager;
 use relayer_base::{
     database::PostgresDB,
     distributor::Distributor,
@@ -25,8 +27,10 @@ async fn main() -> anyhow::Result<()> {
         Queue::new(&config.common_config.queue_address, "includer_tasks").await;
     let ingestor_tasks_queue =
         Queue::new(&config.common_config.queue_address, "ingestor_tasks").await;
-    let gmp_api = Arc::new(gmp_api::GmpApi::new(&config.common_config, true)?);
     let postgres_db = PostgresDB::new(&config.common_config.postgres_url).await?;
+
+    let pg_pool = PgPool::connect(&config.common_config.postgres_url).await?;
+    let gmp_api = gmp_api::construct_gmp_api(pg_pool, &config.common_config, true)?;
 
     let mut distributor = Distributor::new(
         postgres_db,
@@ -42,9 +46,9 @@ async fn main() -> anyhow::Result<()> {
     ]);
 
     let redis_client = redis::Client::open(config.common_config.redis_server.clone())?;
-    let redis_pool = r2d2::Pool::builder().build(redis_client)?;
+    let redis_conn = connection_manager(redis_client, None, None, None).await?;
 
-    setup_heartbeat("heartbeat:distributor".to_owned(), redis_pool);
+    setup_heartbeat("heartbeat:distributor".to_owned(), redis_conn);
 
     let mut sigint = signal(SignalKind::interrupt())?;
     let mut sigterm = signal(SignalKind::terminate())?;

@@ -1,8 +1,10 @@
+use redis::AsyncCommands;
 use std::sync::Arc;
 
 use libsecp256k1::{PublicKey, SecretKey};
 use rand::seq::SliceRandom;
-use redis::{Commands, ExistenceCheck, SetExpiry, SetOptions};
+use redis::aio::ConnectionManager;
+use redis::{ExistenceCheck, SetExpiry, SetOptions};
 use relayer_base::{
     error::RefundManagerError,
     gmp_api::gmp_types::RefundTask,
@@ -17,7 +19,7 @@ use crate::{client::XRPLClientTrait, config::XRPLConfig};
 
 pub struct XRPLRefundManager<X: XRPLClientTrait> {
     client: Arc<X>,
-    redis_pool: r2d2::Pool<redis::Client>,
+    redis_conn: ConnectionManager,
     config: XRPLConfig,
 }
 
@@ -25,11 +27,11 @@ impl<X: XRPLClientTrait> XRPLRefundManager<X> {
     pub fn new(
         client: Arc<X>,
         config: XRPLConfig,
-        redis_pool: r2d2::Pool<redis::Client>,
+        redis_conn: ConnectionManager,
     ) -> Result<Self, RefundManagerError> {
         Ok(Self {
             client,
-            redis_pool,
+            redis_conn,
             config,
         })
     }
@@ -109,11 +111,8 @@ impl<X: XRPLClientTrait> RefundManager for XRPLRefundManager<X> {
         true
     }
 
-    fn get_wallet_lock(&self) -> Result<Self::Wallet, RefundManagerError> {
-        let mut redis_conn = self
-            .redis_pool
-            .get()
-            .map_err(|e| RefundManagerError::GenericError(e.to_string()))?;
+    async fn get_wallet_lock(&self) -> Result<Self::Wallet, RefundManagerError> {
+        let mut redis_conn = self.redis_conn.clone();
 
         let secrets: Vec<&str> = self.config.includer_secrets.split(',').collect();
         let addresses: Vec<&str> = self.config.refund_manager_addresses.split(',').collect();
@@ -134,6 +133,7 @@ impl<X: XRPLClientTrait> RefundManager for XRPLRefundManager<X> {
                     true,
                     set_opts,
                 )
+                .await
                 .map_err(|e| RefundManagerError::GenericError(e.to_string()))?;
 
             if !wallet_lock {
@@ -160,15 +160,13 @@ impl<X: XRPLClientTrait> RefundManager for XRPLRefundManager<X> {
         ))
     }
 
-    fn release_wallet_lock(&self, wallet: Self::Wallet) -> Result<(), RefundManagerError> {
+    async fn release_wallet_lock(&self, wallet: Self::Wallet) -> Result<(), RefundManagerError> {
         let address = wallet.2.to_address();
-        let mut redis_conn = self
-            .redis_pool
-            .get()
-            .map_err(|e| RefundManagerError::GenericError(e.to_string()))?;
+        let mut redis_conn = self.redis_conn.clone();
 
         let _: () = redis_conn
             .del(format!("includer_{}", address))
+            .await
             .map_err(|e| RefundManagerError::GenericError(e.to_string()))?;
 
         debug!("Released wallet lock for {}", address);

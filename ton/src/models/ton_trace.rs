@@ -5,6 +5,13 @@ use sqlx::PgPool;
 use std::future::Future;
 use ton_types::ton_types::{Trace, Transaction};
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct EventSummary {
+    pub event_id: String,
+    pub message_id: Option<String>,
+    pub event_type: String,
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone, sqlx::FromRow)]
 pub struct TONTrace {
     pub trace_id: String,
@@ -13,6 +20,7 @@ pub struct TONTrace {
     pub end_lt: i64,
     pub retries: i32,
     pub transactions: Json<Vec<Transaction>>,
+    pub events: Option<Json<Vec<EventSummary>>>,
     pub created_at: chrono::DateTime<chrono::Utc>,
     pub updated_at: Option<chrono::DateTime<chrono::Utc>>,
 }
@@ -25,6 +33,7 @@ impl TONTrace {
             start_lt: trace.start_lt,
             end_lt: trace.end_lt,
             transactions: Json::from(trace.transactions.clone()),
+            events: None,
             created_at: chrono::Utc::now(),
             updated_at: None,
             retries: 5,
@@ -60,6 +69,15 @@ pub trait Retriable {
     fn decrease_retry(&self, tx: TONTrace) -> impl Future<Output = anyhow::Result<()>> + Send;
 }
 
+#[cfg_attr(test, mockall::automock)]
+pub trait UpdateEvents {
+    fn update_events(
+        &self,
+        trace_id: String,
+        event: Vec<EventSummary>,
+    ) -> impl Future<Output = anyhow::Result<()>> + Send;
+}
+
 impl AtomicUpsert for PgTONTraceModel {
     async fn upsert_and_return_if_changed(&self, tx: TONTrace) -> anyhow::Result<Option<TONTrace>> {
         let query = format!(
@@ -76,9 +94,8 @@ impl AtomicUpsert for PgTONTraceModel {
                     ton_traces.is_incomplete IS DISTINCT FROM EXCLUDED.is_incomplete OR
                     ton_traces.start_lt IS DISTINCT FROM EXCLUDED.start_lt OR
                     ton_traces.end_lt IS DISTINCT FROM EXCLUDED.end_lt OR
-                    ton_traces.transactions IS DISTINCT FROM EXCLUDED.transactions OR
-                    ton_traces.updated_at IS DISTINCT FROM EXCLUDED.updated_at
-                RETURNING *;"
+                    ton_traces.transactions IS DISTINCT FROM EXCLUDED.transactions
+                RETURNING *;",
         );
 
         let result = sqlx::query_as::<_, TONTrace>(&query)
@@ -118,6 +135,27 @@ impl Retriable for PgTONTraceModel {
     }
 }
 
+impl UpdateEvents for PgTONTraceModel {
+    async fn update_events(
+        &self,
+        trace_id: String,
+        events: Vec<EventSummary>,
+    ) -> anyhow::Result<()> {
+        let query = format!(
+            "UPDATE {} SET events = $1, updated_at = NOW() WHERE trace_id = $2",
+            PG_TABLE_NAME
+        );
+
+        sqlx::query(&query)
+            .bind(Json(events))
+            .bind(trace_id)
+            .execute(&self.pool)
+            .await?;
+
+        Ok(())
+    }
+}
+
 impl Model<TONTrace, String> for PgTONTraceModel {
     async fn upsert(&self, tx: TONTrace) -> anyhow::Result<()> {
         self.upsert_and_return_if_changed(tx).await?;
@@ -146,7 +184,9 @@ impl Model<TONTrace, String> for PgTONTraceModel {
 
 #[cfg(test)]
 mod tests {
-    use crate::models::ton_trace::{AtomicUpsert, PgTONTraceModel, TONTrace};
+    use crate::models::ton_trace::{
+        AtomicUpsert, EventSummary, PgTONTraceModel, TONTrace, UpdateEvents,
+    };
     use crate::test_utils::fixtures::fixture_traces;
     use relayer_base::models::Model;
     use sqlx::types::Json;
@@ -155,12 +195,13 @@ mod tests {
 
     #[tokio::test]
     async fn test_crud() {
+        let init_sql = format!(
+            "{}\n{}",
+            include_str!("../../../migrations/0011_ton_traces.sql"),
+            include_str!("../../../migrations/0013_ton_traces_events.sql")
+        );
         let container = postgres::Postgres::default()
-            .with_init_sql(
-                include_str!("../../../migrations/0011_ton_traces.sql")
-                    .to_string()
-                    .into_bytes(),
-            )
+            .with_init_sql(init_sql.into_bytes())
             .start()
             .await
             .unwrap();
@@ -179,6 +220,7 @@ mod tests {
             start_lt: 123,
             end_lt: 321,
             transactions: Json::from(transactions.clone()),
+            events: None,
             created_at: chrono::Utc::now(),
             updated_at: Some(chrono::Utc::now()),
             retries: 5,
@@ -216,6 +258,7 @@ mod tests {
             start_lt: 123,
             end_lt: 321,
             transactions: Json::from(transactions.clone()),
+            events: None,
             created_at: chrono::Utc::now(),
             updated_at: Some(chrono::Utc::now()),
             retries: 5,
@@ -231,5 +274,73 @@ mod tests {
         model.delete(trace).await.unwrap();
         let saved = model.find("123".to_string()).await.unwrap();
         assert!(saved.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_update_events() {
+        let init_sql = format!(
+            "{}\n{}",
+            include_str!("../../../migrations/0011_ton_traces.sql"),
+            include_str!("../../../migrations/0013_ton_traces_events.sql")
+        );
+        let container = postgres::Postgres::default()
+            .with_init_sql(init_sql.into_bytes())
+            .start()
+            .await
+            .unwrap();
+        let connection_string = format!(
+            "postgres://postgres:postgres@{}:{}/postgres",
+            container.get_host().await.unwrap(),
+            container.get_host_port_ipv4(5432).await.unwrap()
+        );
+        let pool = sqlx::PgPool::connect(&connection_string).await.unwrap();
+        let model = PgTONTraceModel::new(pool);
+        let transactions = &fixture_traces()[0].transactions;
+
+        let trace = TONTrace {
+            trace_id: "123".to_string(),
+            is_incomplete: false,
+            start_lt: 123,
+            end_lt: 321,
+            transactions: Json::from(transactions.clone()),
+            events: None,
+            created_at: chrono::Utc::now(),
+            updated_at: None,
+            retries: 5,
+        };
+
+        model.upsert(trace).await.unwrap();
+
+        let events = vec![
+            EventSummary {
+                event_id: "event1".to_string(),
+                message_id: Some("message1".to_string()),
+                event_type: "GAS_REFUNDED".to_string(),
+            },
+            EventSummary {
+                event_id: "event2".to_string(),
+                message_id: Some("message2".to_string()),
+                event_type: "CANNOT_EXECUTE_MESSAGE_V2".to_string(),
+            },
+        ];
+
+        model
+            .update_events("123".to_string(), events.clone())
+            .await
+            .unwrap();
+
+        let updated_trace = model.find("123".to_string()).await.unwrap().unwrap();
+        assert!(updated_trace.events.is_some());
+
+        let updated_events = updated_trace.events.unwrap();
+        assert_eq!(updated_events.len(), 2);
+        assert_eq!(updated_events[0].event_id, "event1");
+        assert_eq!(updated_events[0].message_id, Some("message1".to_string()));
+        assert_eq!(updated_events[0].event_type, "GAS_REFUNDED");
+        assert_eq!(updated_events[1].event_id, "event2");
+        assert_eq!(updated_events[1].message_id, Some("message2".to_string()));
+        assert_eq!(updated_events[1].event_type, "CANNOT_EXECUTE_MESSAGE_V2");
+
+        assert!(updated_trace.updated_at.is_some());
     }
 }
