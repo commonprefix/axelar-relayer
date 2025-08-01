@@ -40,7 +40,7 @@ impl<TP: TraceParserTrait, TM: UpdateEvents + Send + Sync> IngestorTrait for TON
         trace: ChainTransaction,
     ) -> Result<Vec<Event>, IngestorError> {
         let tracer = global::tracer("ton_ingestor");
-        let mut span = tracer.start_with_context("ingestor.consume_transaction", &Context::current());
+        let mut span = tracer.start_with_context("ton_ingestor.consume_transaction", &Context::current());
         
         let ChainTransaction::TON(trace) = trace else {
             return Err(IngestorError::UnexpectedChainTransactionType(format!(

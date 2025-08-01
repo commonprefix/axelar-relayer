@@ -18,6 +18,8 @@ use relayer_base::price_view::PriceViewTrait;
 use std::collections::HashMap;
 use std::future::Future;
 use std::str::FromStr;
+use opentelemetry::{global, Context, KeyValue};
+use opentelemetry::trace::{Span, Tracer};
 use ton_types::ton_types::Trace;
 use tonlib_core::TonAddress;
 use tracing::{info, warn};
@@ -52,6 +54,13 @@ pub trait TraceParserTrait {
 
 impl<PV: PriceViewTrait> TraceParserTrait for TraceParser<PV> {
     async fn parse_trace(&self, trace: Trace) -> Result<Vec<Event>, TransactionParsingError> {
+        let trace_id = trace.trace_id.clone();
+
+        let tracer = global::tracer("ton_ingestor");
+        let mut span = tracer.start_with_context("ton_ingestor.parser.parse_trace", &Context::current());
+
+        span.set_attribute(KeyValue::new("chain_trace_id", trace_id.clone()));
+
         let mut events: Vec<Event> = Vec::new();
         let mut parsers: Vec<Box<dyn Parser>> = Vec::new();
         let mut call_contract: Vec<Box<dyn Parser>> = Vec::new();
@@ -59,7 +68,6 @@ impl<PV: PriceViewTrait> TraceParserTrait for TraceParser<PV> {
 
         let (total_gas_used, refund_gas_used) = self.gas_used(&trace)?;
 
-        let trace_id = trace.trace_id.clone();
         let message_approved_count = self
             .create_parsers(
                 trace,
@@ -77,6 +85,15 @@ impl<PV: PriceViewTrait> TraceParserTrait for TraceParser<PV> {
             call_contract.len(),
             gas_credit_map.len()
         );
+
+        span.add_event("Parsing result", vec![
+            KeyValue::new("trace_id", trace_id.clone()),
+            KeyValue::new("parsers", parsers.len() as i64),
+            KeyValue::new("call_contract", call_contract.len() as i64),
+            KeyValue::new("gas_credit_map", gas_credit_map.len() as i64),
+            KeyValue::new("total_gas_used", total_gas_used as i64),
+            KeyValue::new("refund_gas_used", refund_gas_used as i64),
+        ]);
 
         if (parsers.len() + call_contract.len() + gas_credit_map.len()) == 0 {
             warn!("Trace did not produce any parsers: trace_id={}", trace_id);
