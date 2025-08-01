@@ -1,5 +1,6 @@
 use dotenv::dotenv;
 use relayer_base::config::config_from_yaml;
+use relayer_base::redis::connection_manager;
 use relayer_base::utils::setup_heartbeat;
 use relayer_base::{
     database::PostgresDB, gmp_api, payload_cache::PayloadCache, queue::Queue, utils::setup_logging,
@@ -24,7 +25,8 @@ async fn main() -> anyhow::Result<()> {
     let construct_proof_queue =
         Queue::new(&config.common_config.queue_address, "construct_proof").await;
     let redis_client = redis::Client::open(config.common_config.redis_server.clone())?;
-    let redis_pool = r2d2::Pool::builder().build(redis_client)?;
+    let redis_conn = connection_manager(redis_client.clone(), None, None, None).await?;
+
     let postgres_db = PostgresDB::new(&config.common_config.postgres_url).await?;
     let payload_cache_for_includer = PayloadCache::new(postgres_db);
 
@@ -36,17 +38,17 @@ async fn main() -> anyhow::Result<()> {
     let ton_includer = TONIncluder::new(
         config,
         gmp_api,
-        redis_pool.clone(),
+        redis_conn.clone(),
         payload_cache_for_includer,
         Arc::clone(&construct_proof_queue),
         Arc::new(high_load_query_id_wrapper),
     )
     .await
-    .expect("Failed to create TonIncluder");
+    .expect("Failed to construct TONIncluder");
     let mut sigint = signal(SignalKind::interrupt())?;
     let mut sigterm = signal(SignalKind::terminate())?;
 
-    setup_heartbeat("heartbeat:includer".to_owned(), redis_pool);
+    setup_heartbeat("heartbeat:includer".to_owned(), redis_conn);
 
     tokio::select! {
         _ = sigint.recv()  => {},

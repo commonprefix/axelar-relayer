@@ -3,6 +3,7 @@ use sqlx::PgPool;
 use std::sync::Arc;
 
 use relayer_base::config::config_from_yaml;
+use relayer_base::redis::connection_manager;
 use relayer_base::{
     gmp_api,
     utils::{setup_heartbeat, setup_logging},
@@ -19,9 +20,9 @@ async fn main() -> anyhow::Result<()> {
     let _guard = setup_logging(&config.common_config);
 
     let redis_client = redis::Client::open(config.common_config.redis_server.clone())?;
-    let redis_pool = r2d2::Pool::builder().build(redis_client)?;
+    let redis_conn = connection_manager(redis_client, None, None, None).await?;
 
-    setup_heartbeat("heartbeat:ticket_creator".to_owned(), redis_pool);
+    setup_heartbeat("heartbeat:ticket_creator".to_owned(), redis_conn);
 
     let pg_pool = PgPool::connect(&config.common_config.postgres_url).await?;
     let gmp_api = gmp_api::construct_gmp_api(pg_pool, &config.common_config, false)?;

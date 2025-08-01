@@ -9,6 +9,7 @@ use xrpl::{
 };
 
 use relayer_base::config::config_from_yaml;
+use relayer_base::redis::connection_manager;
 use relayer_base::{
     database::PostgresDB,
     gmp_api,
@@ -56,9 +57,9 @@ async fn main() -> anyhow::Result<()> {
     let mut sigterm = signal(SignalKind::terminate())?;
 
     let redis_client = redis::Client::open(config.common_config.redis_server.clone())?;
-    let redis_pool = r2d2::Pool::builder().build(redis_client)?;
+    let redis_conn = connection_manager(redis_client, None, None, None).await?;
 
-    setup_heartbeat("heartbeat:ingestor".to_owned(), redis_pool);
+    setup_heartbeat("heartbeat:ingestor".to_owned(), redis_conn);
 
     tokio::select! {
         _ = sigint.recv()  => {},

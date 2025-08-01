@@ -3,6 +3,7 @@ use relayer_base::config::config_from_yaml;
 use relayer_base::database::PostgresDB;
 use relayer_base::error::SubscriberError;
 use relayer_base::queue::Queue;
+use relayer_base::redis::connection_manager;
 use relayer_base::subscriber::Subscriber;
 use relayer_base::utils::{setup_heartbeat, setup_logging};
 use sqlx::PgPool;
@@ -36,9 +37,9 @@ async fn main() -> anyhow::Result<()> {
     let mut sigterm = signal(SignalKind::terminate())?;
 
     let redis_client = redis::Client::open(config.common_config.redis_server.clone())?;
-    let redis_pool = r2d2::Pool::builder().build(redis_client)?;
+    let redis_conn = connection_manager(redis_client, None, None, None).await?;
 
-    setup_heartbeat("heartbeat:subscriber".to_owned(), redis_pool);
+    setup_heartbeat("heartbeat:subscriber".to_owned(), redis_conn);
 
     let pg_pool = PgPool::connect(&config.common_config.postgres_url).await?;
 

@@ -11,7 +11,7 @@ use super::{broadcaster::XRPLBroadcaster, refund_manager::XRPLRefundManager};
 
 use super::config::XRPLConfig;
 use error_stack;
-use r2d2;
+use redis::aio::ConnectionManager;
 use relayer_base::utils::ThreadSafe;
 
 pub struct XrplIncluder {}
@@ -26,7 +26,7 @@ impl XrplIncluder {
     >(
         config: XRPLConfig,
         gmp_api: Arc<G>,
-        redis_pool: r2d2::Pool<redis::Client>,
+        redis_conn: ConnectionManager,
         payload_cache: PayloadCache<DB>,
         construct_proof_queue: Arc<Queue>,
         queued_tx_model: QM,
@@ -39,7 +39,7 @@ impl XrplIncluder {
             .map_err(|e| e.attach_printable("Failed to create XRPLBroadcaster"))?;
 
         let refund_manager =
-            XRPLRefundManager::new(Arc::clone(&chain_client), config, redis_pool.clone())
+            XRPLRefundManager::new(Arc::clone(&chain_client), config, redis_conn.clone())
                 .map_err(|e| error_stack::report!(BroadcasterError::GenericError(e.to_string())))?;
 
         let includer = Includer {
@@ -49,7 +49,7 @@ impl XrplIncluder {
             gmp_api,
             payload_cache,
             construct_proof_queue,
-            redis_pool,
+            redis_conn,
         };
 
         Ok(includer)

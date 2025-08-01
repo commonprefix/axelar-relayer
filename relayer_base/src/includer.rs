@@ -1,7 +1,8 @@
 use base64::{prelude::BASE64_STANDARD, Engine};
 use futures::StreamExt;
 use lapin::{options::BasicAckOptions, Consumer};
-use redis::Commands;
+use redis::aio::ConnectionManager;
+use redis::AsyncCommands;
 use router_api::CrossChainId;
 use std::{future::Future, sync::Arc};
 use tracing::{debug, error, info, warn};
@@ -34,8 +35,11 @@ pub trait RefundManager {
         refund_task: &RefundTask,
         refund_id: &str,
     ) -> impl Future<Output = Result<bool, RefundManagerError>>;
-    fn get_wallet_lock(&self) -> Result<Self::Wallet, RefundManagerError>;
-    fn release_wallet_lock(&self, wallet: Self::Wallet) -> Result<(), RefundManagerError>;
+    fn get_wallet_lock(&self) -> impl Future<Output = Result<Self::Wallet, RefundManagerError>>;
+    fn release_wallet_lock(
+        &self,
+        wallet: Self::Wallet,
+    ) -> impl Future<Output = Result<(), RefundManagerError>>;
 }
 
 #[derive(PartialEq, Debug)]
@@ -82,7 +86,7 @@ where
     pub gmp_api: Arc<G>,
     pub payload_cache: PayloadCache<DB>,
     pub construct_proof_queue: Arc<Queue>,
-    pub redis_pool: r2d2::Pool<redis::Client>,
+    pub redis_conn: ConnectionManager,
 }
 
 impl<B, C, R, DB, G> Includer<B, C, R, DB, G>
@@ -259,16 +263,15 @@ where
                                 .publish(QueueItem::RetryConstructProof(cross_chain_id.to_string()))
                                 .await;
 
-                            let mut redis_conn = self
-                                .redis_pool
-                                .get()
-                                .map_err(|e| IncluderError::ConsumerError(e.to_string()))?;
+                            let mut redis_conn = self.redis_conn.clone();
                             let redis_key = format!("failed_proof:{}", cross_chain_id);
                             let _: i64 = redis_conn
                                 .incr(redis_key.clone(), 1)
+                                .await
                                 .map_err(|e| IncluderError::GenericError(e.to_string()))?;
                             redis_conn
-                                .expire::<_, ()>(redis_key.clone(), 60 * 60 * 12) // 12 hours
+                                .expire::<_, ()>(redis_key.clone(), 60 * 60 * 12)
+                                .await // 12 hours
                                 .map_err(|e| IncluderError::GenericError(e.to_string()))?;
 
                             self.gmp_api
@@ -331,6 +334,7 @@ where
                     let wallet = self
                         .refund_manager
                         .get_wallet_lock()
+                        .await
                         .map_err(|e| IncluderError::ConsumerError(e.to_string()))?;
 
                     let refund_info = self
@@ -356,6 +360,7 @@ where
                                 // …or on error, release the lock and return
                                 self.refund_manager
                                     .release_wallet_lock(wallet)
+                                    .await
                                     .map_err(|e| IncluderError::ConsumerError(e.to_string()))?;
                                 return Err(err);
                             }
@@ -389,6 +394,7 @@ where
                     }
                     self.refund_manager
                         .release_wallet_lock(wallet)
+                        .await
                         .map_err(|e| IncluderError::ConsumerError(e.to_string()))?;
                     Ok(())
                 }

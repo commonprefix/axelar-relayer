@@ -4,6 +4,7 @@ use std::sync::Arc;
 use tokio::signal::unix::{signal, SignalKind};
 
 use relayer_base::config::config_from_yaml;
+use relayer_base::redis::connection_manager;
 use relayer_base::{
     database::PostgresDB,
     gmp_api,
@@ -29,9 +30,11 @@ async fn main() -> anyhow::Result<()> {
     let tasks_queue = Queue::new(&config.common_config.queue_address, "includer_tasks").await;
     let construct_proof_queue =
         Queue::new(&config.common_config.queue_address, "construct_proof").await;
+
     let redis_client = redis::Client::open(config.common_config.redis_server.clone())?;
-    let redis_pool = r2d2::Pool::builder().build(redis_client)?;
+    let redis_conn = connection_manager(redis_client, None, None, None).await?;
     let postgres_db = PostgresDB::new(&config.common_config.postgres_url).await?;
+
     let payload_cache = PayloadCache::new(postgres_db.clone());
     let xrpl_client = XRPLClient::new(&config.xrpl_rpc, 3)?;
     let pg_pool = PgPool::connect(&config.common_config.postgres_url).await?;
@@ -46,7 +49,7 @@ async fn main() -> anyhow::Result<()> {
     >(
         config.clone(),
         gmp_api,
-        redis_pool.clone(),
+        redis_conn.clone(),
         payload_cache,
         Arc::clone(&construct_proof_queue),
         queued_tx_model.clone(),
@@ -58,7 +61,7 @@ async fn main() -> anyhow::Result<()> {
     let mut sigint = signal(SignalKind::interrupt())?;
     let mut sigterm = signal(SignalKind::terminate())?;
 
-    setup_heartbeat("heartbeat:includer".to_owned(), redis_pool);
+    setup_heartbeat("heartbeat:includer".to_owned(), redis_conn);
 
     tokio::select! {
         _ = sigint.recv()  => {},

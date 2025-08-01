@@ -5,6 +5,7 @@ use relayer_base::gmp_api;
 use relayer_base::ingestor::Ingestor;
 use relayer_base::price_view::PriceView;
 use relayer_base::queue::Queue;
+use relayer_base::redis::connection_manager;
 use relayer_base::utils::{setup_heartbeat, setup_logging};
 use sqlx::PgPool;
 use std::str::FromStr;
@@ -58,9 +59,9 @@ async fn main() -> anyhow::Result<()> {
     let ingestor = Ingestor::new(gmp_api, ton_ingestor);
 
     let redis_client = redis::Client::open(config.common_config.redis_server.clone())?;
-    let redis_pool = r2d2::Pool::builder().build(redis_client)?;
+    let redis_conn = connection_manager(redis_client, None, None, None).await?;
 
-    setup_heartbeat("heartbeat:ingestor".to_owned(), redis_pool);
+    setup_heartbeat("heartbeat:ingestor".to_owned(), redis_conn);
 
     let mut sigint = signal(SignalKind::interrupt())?;
     let mut sigterm = signal(SignalKind::terminate())?;

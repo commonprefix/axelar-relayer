@@ -12,6 +12,7 @@ pub mod price_feed;
 pub mod price_view;
 pub mod proof_retrier;
 pub mod queue;
+pub mod redis;
 pub mod subscriber;
 mod test_utils;
 pub mod utils;

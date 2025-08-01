@@ -17,8 +17,7 @@ dotenv = { workspace = true }
 sqlx = { workspace = true }
 relayer-base = { workspace = true }
 xrpl = { workspace = true }
-redis = { workspace = true }
-r2d2 = { workspace = true }
+redis = { workspace = true, features = ["tokio-rustls-comp"] }
 
 [dev-dependencies]
 

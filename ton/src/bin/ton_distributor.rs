@@ -5,6 +5,7 @@ use tokio::signal::unix::{signal, SignalKind};
 
 use relayer_base::config::config_from_yaml;
 use relayer_base::gmp_api::gmp_types::TaskKind;
+use relayer_base::redis::connection_manager;
 use relayer_base::{
     database::PostgresDB,
     distributor::Distributor,
@@ -45,9 +46,9 @@ async fn main() -> anyhow::Result<()> {
     ]);
 
     let redis_client = redis::Client::open(config.common_config.redis_server.clone())?;
-    let redis_pool = r2d2::Pool::builder().build(redis_client)?;
+    let redis_conn = connection_manager(redis_client, None, None, None).await?;
 
-    setup_heartbeat("heartbeat:distributor".to_owned(), redis_pool);
+    setup_heartbeat("heartbeat:distributor".to_owned(), redis_conn);
 
     let mut sigint = signal(SignalKind::interrupt())?;
     let mut sigterm = signal(SignalKind::terminate())?;
