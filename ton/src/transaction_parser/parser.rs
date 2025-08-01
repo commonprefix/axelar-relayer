@@ -58,9 +58,7 @@ impl<PV: PriceViewTrait> TraceParserTrait for TraceParser<PV> {
 
         let tracer = global::tracer("ton_ingestor");
         let mut span = tracer.start_with_context("ton_ingestor.parser.parse_trace", &Context::current());
-
-        span.set_attribute(KeyValue::new("chain_trace_id", trace_id.clone()));
-
+        
         let mut events: Vec<Event> = Vec::new();
         let mut parsers: Vec<Box<dyn Parser>> = Vec::new();
         let mut call_contract: Vec<Box<dyn Parser>> = Vec::new();
@@ -86,8 +84,8 @@ impl<PV: PriceViewTrait> TraceParserTrait for TraceParser<PV> {
             gas_credit_map.len()
         );
 
-        span.add_event("Parsing result", vec![
-            KeyValue::new("trace_id", trace_id.clone()),
+        span.set_attributes(vec![
+            KeyValue::new("chain_trace_id", trace_id.clone()),
             KeyValue::new("parsers", parsers.len() as i64),
             KeyValue::new("call_contract", call_contract.len() as i64),
             KeyValue::new("gas_credit_map", gas_credit_map.len() as i64),

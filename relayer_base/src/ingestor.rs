@@ -197,7 +197,7 @@ where
         info!("Posting events: {:?}", events.clone());
         let response = self
             .gmp_api
-            .post_events(events)
+            .post_events(events).with_current_context()
             .await
             .map_err(|e| IngestorError::PostEventError(e.to_string()))?;
 

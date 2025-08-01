@@ -33,6 +33,7 @@ sentry = { workspace = true, features = ["opentelemetry", "reqwest", "sentry-ope
 sentry-tracing = { workspace = true }
 opentelemetry = { workspace = true }
 opentelemetry_sdk = { workspace = true }
+reqwest-tracing = { workspace = true , features = ["opentelemetry_0_29"] }
 base64 = { workspace = true }
 serde_yaml = { workspace = true }
 chrono = { workspace = true }

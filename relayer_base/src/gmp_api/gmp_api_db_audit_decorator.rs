@@ -52,6 +52,8 @@ use crate::models::gmp_tasks::{GMPTaskAudit, PgGMPTasks, TaskModel};
 use crate::utils::ThreadSafe;
 use sqlx::{types::Json, PgPool};
 use std::sync::Arc;
+use opentelemetry::{global, Context};
+use opentelemetry::trace::{FutureExt, Tracer};
 use tokio::spawn;
 use tracing::error;
 use xrpl_amplifier_types::msg::XRPLMessage;
@@ -129,16 +131,19 @@ where
     }
 
     async fn post_events(&self, events: Vec<Event>) -> Result<Vec<PostEventResult>, GmpApiError> {
+        let tracer = global::tracer("gmp_api");
+        let _span = tracer.start_with_context("gmp_api_db_audit_decorator.post_events", &Context::current());
+
         let mut event_models = Vec::new();
         for event in &events {
             let event_model = EventModel::from_event(event.clone());
             event_models.push(event_model.clone());
-            if let Err(e) = self.gmp_events.insert_event(event_model).await {
+            if let Err(e) = self.gmp_events.insert_event(event_model).with_current_context().await {
                 error!("Failed to save event to database: {:?}", e);
             }
         }
 
-        let results = self.gmp_api.post_events(events).await?;
+        let results = self.gmp_api.post_events(events).with_current_context().await?;
 
         for result in &results {
             match event_models.get(result.index) {
@@ -149,11 +154,12 @@ where
                     spawn(async move {
                         if let Err(e) = gmp_events
                             .update_event_response(event_id, Json(result_clone))
+                            .with_current_context()
                             .await
                         {
                             error!("Failed to update event response in database: {:?}", e);
                         }
-                    });
+                    }.with_current_context());
                 }
                 None => {
                     error!("Index in PostEventResult out of bounds: {:?}", results);
