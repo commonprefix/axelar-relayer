@@ -3,16 +3,20 @@ use std::sync::Arc;
 use tracing::{debug, error, info};
 
 use crate::config::XRPLConfig;
-use relayer_base::gmp_api::{gmp_types::BroadcastRequest, GmpApi};
+use relayer_base::gmp_api::{gmp_types::BroadcastRequest, GmpApiTrait};
+use relayer_base::utils::ThreadSafe;
 use xrpl_multisig_prover;
 
-pub struct XrplTicketCreator {
-    gmp_api: Arc<GmpApi>,
+pub struct XrplTicketCreator<G: GmpApiTrait + ThreadSafe> {
+    gmp_api: Arc<G>,
     config: XRPLConfig,
 }
 
-impl XrplTicketCreator {
-    pub fn new(gmp_api: Arc<GmpApi>, config: XRPLConfig) -> Self {
+impl<G> XrplTicketCreator<G>
+where
+    G: GmpApiTrait + ThreadSafe,
+{
+    pub fn new(gmp_api: Arc<G>, config: XRPLConfig) -> Self {
         Self { gmp_api, config }
     }
 

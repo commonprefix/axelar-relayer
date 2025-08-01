@@ -89,7 +89,10 @@ impl<TM: Retriable + AtomicUpsert, CL: RestClient> TransactionPoller
                 .is_some()
                 && !trace.is_incomplete
             {
-                debug!("Trace {} added from account {}", trace.trace_id, account_id);
+                debug!(
+                    "Trace {} added from account {} after retry",
+                    trace.trace_id, account_id
+                );
                 unseen_traces.push(trace);
             } else {
                 info!("Trace {} already seen, skipping", trace.trace_id);

@@ -2,7 +2,8 @@ use std::str::FromStr;
 
 use anyhow::Context;
 use axelar_wasm_std::msg_id::HexTxHash;
-use redis::{Commands, SetExpiry, SetOptions};
+use redis::aio::ConnectionManager;
+use redis::{AsyncTypedCommands, SetExpiry, SetOptions};
 use rust_decimal::{prelude::FromPrimitive, Decimal};
 use serde::de::DeserializeOwned;
 use serde_json::Value;
@@ -25,6 +26,9 @@ use crate::{
 };
 
 const HEARTBEAT_EXPIRATION: u64 = 30;
+
+pub trait ThreadSafe: Send + Sync + 'static {}
+impl<T: Send + Sync + 'static> ThreadSafe for T {}
 
 fn parse_as<T: DeserializeOwned>(value: &Value) -> Result<T, GmpApiError> {
     serde_json::from_value(value.clone()).map_err(|e| GmpApiError::InvalidResponse(e.to_string()))
@@ -216,25 +220,19 @@ pub fn parse_message_from_context(
     })
 }
 
-pub fn setup_heartbeat(service: String, redis_pool: r2d2::Pool<redis::Client>) {
+pub fn setup_heartbeat(service: String, redis_conn: ConnectionManager) {
     tokio::spawn(async move {
+        let mut redis_conn = redis_conn;
         loop {
-            info!("Writing heartbeat to DB");
-            let mut redis_conn = match redis_pool.get() {
-                Ok(conn) => conn,
-                Err(e) => {
-                    error!("Failed to get Redis connection: {}", e);
-
-                    continue;
-                }
-            };
+            info!("Writing heartbeat to Redis");
             let set_opts =
                 SetOptions::default().with_expiration(SetExpiry::EX(HEARTBEAT_EXPIRATION));
-            let result: redis::RedisResult<()> =
-                redis_conn.set_options(service.clone(), "1", set_opts);
+            let result = redis_conn.set_options(service.clone(), 1, set_opts).await;
+
             if let Err(e) = result {
-                tracing::error!("Failed to write heartbeat: {}", e);
+                error!("Failed to write heartbeat: {}", e);
             }
+            info!("Heartbeat sent to Redis");
             tokio::time::sleep(tokio::time::Duration::from_secs(15)).await;
         }
     });
@@ -291,11 +289,10 @@ mod tests {
     use std::{
         collections::{BTreeMap, HashMap},
         fs,
-        time::Duration,
     };
 
     use crate::{database::MockDatabase, price_view::MockPriceView};
-    use redis::Client;
+    use redis::{Client, Commands};
     use testcontainers::{
         core::{IntoContainerPort, WaitFor},
         runners::AsyncRunner,
@@ -989,21 +986,34 @@ mod tests {
         let url = format!("redis://{host}:{host_port}");
         let client = Client::open(url.as_ref()).unwrap();
 
-        let pool = r2d2::Pool::builder()
-            .connection_timeout(Duration::from_millis(1000))
-            .build(client)
-            .unwrap();
-        let mut conn = pool.get().unwrap();
+        // Multiplexed connection for the heartbeat
+        let multiplexed_conn = client.get_connection_manager().await.unwrap();
+
+        // Separate connection for verification
+        let mut conn = client.get_connection().unwrap();
+
         tokio::time::pause();
-        setup_heartbeat("test".to_string(), pool);
+        setup_heartbeat("test".to_string(), multiplexed_conn);
         let mut val: Option<String> = conn.get("test").unwrap();
         assert!(val.is_none());
 
-        // It may be misleading to think that moving the clock forwards by 15 seconds will complete
-        // the loop. In fact, advance will move the tokio loop forward and change the clock, so
-        // the loop needs to be run as many times as there are yield opportunities.
-        tokio::time::advance(Duration::from_secs(1)).await;
-        val = conn.get("test").unwrap();
+        let mut attempts = 0;
+        const MAX_ATTEMPTS: usize = 1000;
+
+        loop {
+            tokio::task::yield_now().await;
+
+            val = conn.get("test").unwrap();
+            if val.is_some() {
+                break;
+            }
+
+            attempts += 1;
+            if attempts >= MAX_ATTEMPTS {
+                panic!("Heartbeat was not set after {} yields", MAX_ATTEMPTS);
+            }
+        }
+
         assert_eq!(val, Some("1".to_string()));
     }
 }

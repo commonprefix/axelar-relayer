@@ -42,8 +42,7 @@ serde = "1.0.215"
 libsecp256k1 = "0.7.1"
 tokio-util = "0.7.12"
 uuid = { version = "1.17.0", features = ["v4"] }
-redis = { version = "0.27.6", features = ["r2d2", "tls-rustls"] }
-r2d2 = "0.8.10"
+redis = { version = "0.32.4", features = ["tokio-rustls-comp"] }
 async-std = "1.13.0"
 sentry = { version = "0.42.0", features = ["opentelemetry", "reqwest", "sentry-opentelemetry"] }
 sentry-tracing = "0.42.0"
@@ -64,6 +63,7 @@ testcontainers = "0.24.0"
 testcontainers-modules = { version = "0.12.1", features = ["postgres"] }
 async-trait = "0.1.88"
 tonlib-core = "0.26.0"
+httpmock = "0.7.0"
 
 # switch between warn and allow to enable/disable more restrictive clippy lints
 [workspace.lints.clippy]

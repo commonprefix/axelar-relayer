@@ -1,23 +1,28 @@
 use crate::config::Config;
 use crate::logging::setup_logging;
-use redis::Commands;
+use crate::redis::connection_manager;
+use redis::AsyncTypedCommands;
 use tracing::{debug, error};
 
 pub async fn heartbeats_loop(common_config: &Config) -> ! {
     let _guard = setup_logging(common_config);
+
     let redis_client = redis::Client::open(common_config.redis_server.clone())
         .expect("Failed to connect to redis server");
-    let redis_pool = r2d2::Pool::builder()
-        .build(redis_client)
-        .expect("Failed to create redis pool");
+    let mut redis_conn = connection_manager(redis_client, None, None, None)
+        .await
+        .expect("Failed to connect to redis server");
+
     let client = reqwest::Client::new();
     loop {
         debug!("Sending heartbeats to sentry monitoring endpoint");
 
         for (key, url) in common_config.heartbeats.iter() {
             let redis_key = format!("heartbeat:{}", key);
-            let mut redis_conn = redis_pool.get().expect("Failed to get redis connection");
-            if redis_conn.get(redis_key).unwrap_or(0) == 1 {
+            let res: Option<String> = redis_conn.get(redis_key.as_str()).await.unwrap_or(None);
+            let value: u8 = res.and_then(|v| v.parse::<u8>().ok()).unwrap_or(0);
+
+            if value == 1 {
                 match client.get(url).send().await {
                     Ok(response) => {
                         if response.status().is_success() {

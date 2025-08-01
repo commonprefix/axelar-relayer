@@ -10,9 +10,8 @@ tokio = { workspace = true }
 anyhow = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
-r2d2 = { workspace = true }
 error-stack = { workspace = true }
-redis = { workspace = true }
+redis = { workspace = true, features = ["tokio-rustls-comp"] }
 hex = { workspace = true }
 tracing = { workspace = true }
 thiserror = { workspace = true }
@@ -31,7 +30,6 @@ opentelemetry = { workspace = true }
 nacl = "0.5.3"
 num-bigint = "0.4.6"
 async-trait = "0.1.88"
-httpmock = "0.7.0"
 tiny-keccak = {version = "2.0.2", features = ["keccak"]}
 primitive-types = "0.13.1"
 rust_decimal = { workspace = true }
@@ -39,6 +37,9 @@ rust_decimal = { workspace = true }
 [dev-dependencies]
 relayer-base = { workspace = true, features = ["mocks"] }
 mockall = { workspace = true }
+testcontainers = { workspace = true }
+testcontainers-modules = { workspace = true, features = ["postgres"] }
+httpmock = { workspace = true }
 tracing-test = "0.2.5"
 
 [[bin]]

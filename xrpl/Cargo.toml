@@ -15,10 +15,9 @@ serde = { workspace = true }
 serde_derive = { workspace = true }
 serde_json = { workspace = true }
 chrono = { workspace = true }
-r2d2 = { workspace = true }
 error-stack = { workspace = true }
 libsecp256k1 = { workspace = true }
-redis = { workspace = true }
+redis = { workspace = true, features = ["tokio-rustls-comp"] }
 rand = { workspace = true }
 xrpl_binary_codec = { workspace = true }
 xrpl_types = { workspace = true }
