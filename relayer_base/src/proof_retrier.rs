@@ -1,3 +1,4 @@
+use crate::payload_cache::PayloadCacheTrait;
 use std::sync::Arc;
 
 use async_std::stream::StreamExt;
@@ -5,7 +6,8 @@ use lapin::{
     message::Delivery,
     options::{BasicAckOptions, BasicNackOptions},
 };
-use redis::Commands;
+use redis::aio::ConnectionManager;
+use redis::AsyncTypedCommands;
 use router_api::CrossChainId;
 use tracing::{debug, error, info, warn};
 
@@ -20,7 +22,7 @@ pub struct ProofRetrier<DB: Database> {
     pub payload_cache: PayloadCache<DB>,
     pub construct_proof_queue: Arc<Queue>,
     pub tasks_queue: Arc<Queue>,
-    pub redis_pool: r2d2::Pool<redis::Client>,
+    pub redis_conn: ConnectionManager,
 }
 
 impl<DB: Database> ProofRetrier<DB> {
@@ -28,13 +30,13 @@ impl<DB: Database> ProofRetrier<DB> {
         payload_cache: PayloadCache<DB>,
         construct_proof_queue: Arc<Queue>,
         tasks_queue: Arc<Queue>,
-        redis_pool: r2d2::Pool<redis::Client>,
+        redis_conn: ConnectionManager,
     ) -> Self {
         Self {
             payload_cache,
             construct_proof_queue,
             tasks_queue,
-            redis_pool,
+            redis_conn,
         }
     }
 
@@ -48,14 +50,13 @@ impl<DB: Database> ProofRetrier<DB> {
             }
         };
 
-        let mut redis_conn = self
-            .redis_pool
-            .get()
-            .map_err(|e| anyhow::anyhow!("Failed to get Redis connection: {}", e))?;
+        let mut redis_conn = self.redis_conn.clone();
         let redis_key = format!("failed_proof:{}", cc_id);
-        let redis_value: Option<i64> = redis_conn
+        let redis_value = redis_conn
             .get(redis_key.clone())
-            .map_err(|e| anyhow::anyhow!("Failed to get Redis key: {}", e))?;
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to get Redis key: {}", e))?
+            .and_then(|s| s.parse::<i64>().ok());
 
         if let Some(value) = redis_value {
             if value >= 10 {

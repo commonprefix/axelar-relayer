@@ -1,24 +1,27 @@
 use base64::{prelude::BASE64_STANDARD, Engine};
 use futures::StreamExt;
 use lapin::{options::BasicAckOptions, Consumer};
-use redis::Commands;
+use redis::aio::ConnectionManager;
+use redis::AsyncCommands;
 use router_api::CrossChainId;
 use std::{future::Future, sync::Arc};
 use tracing::{debug, error, info, warn};
 
+use crate::gmp_api::gmp_types::{ExecuteTaskFields, RefundTaskFields};
+use crate::gmp_api::GmpApiTrait;
+use crate::payload_cache::PayloadCacheTrait;
+use crate::utils::ThreadSafe;
 use crate::{
     database::Database,
     error::{BroadcasterError, IncluderError, RefundManagerError},
-    gmp_api::{
-        gmp_types::{Amount, CommonEventFields, Event, RefundTask, Task},
-        GmpApi,
-    },
+    gmp_api::gmp_types::{Amount, CommonEventFields, Event, RefundTask, Task},
     payload_cache::PayloadCache,
     queue::{Queue, QueueItem},
 };
 
 pub trait RefundManager {
     type Wallet;
+    fn is_refund_manager_managed(&self) -> bool;
 
     fn build_refund_tx(
         &self,
@@ -32,8 +35,11 @@ pub trait RefundManager {
         refund_task: &RefundTask,
         refund_id: &str,
     ) -> impl Future<Output = Result<bool, RefundManagerError>>;
-    fn get_wallet_lock(&self) -> Result<Self::Wallet, RefundManagerError>;
-    fn release_wallet_lock(&self, wallet: Self::Wallet) -> Result<(), RefundManagerError>;
+    fn get_wallet_lock(&self) -> impl Future<Output = Result<Self::Wallet, RefundManagerError>>;
+    fn release_wallet_lock(
+        &self,
+        wallet: Self::Wallet,
+    ) -> impl Future<Output = Result<(), RefundManagerError>>;
 }
 
 #[derive(PartialEq, Debug)]
@@ -57,28 +63,38 @@ pub trait Broadcaster {
         &self,
         tx_blob: String,
     ) -> impl Future<Output = Result<String, BroadcasterError>>;
+    fn broadcast_execute_message(
+        &self,
+        message: ExecuteTaskFields,
+    ) -> impl Future<Output = Result<BroadcastResult<Self::Transaction>, BroadcasterError>>;
+    fn broadcast_refund_message(
+        &self,
+        refund_task: RefundTaskFields,
+    ) -> impl Future<Output = Result<String, BroadcasterError>>;
 }
 
-pub struct Includer<B, C, R, DB>
+pub struct Includer<B, C, R, DB, G>
 where
     B: Broadcaster,
     R: RefundManager,
     DB: Database,
+    G: GmpApiTrait + ThreadSafe,
 {
     pub chain_client: C,
     pub broadcaster: B,
     pub refund_manager: R,
-    pub gmp_api: Arc<GmpApi>,
+    pub gmp_api: Arc<G>,
     pub payload_cache: PayloadCache<DB>,
     pub construct_proof_queue: Arc<Queue>,
-    pub redis_pool: r2d2::Pool<redis::Client>,
+    pub redis_conn: ConnectionManager,
 }
 
-impl<B, C, R, DB> Includer<B, C, R, DB>
+impl<B, C, R, DB, G> Includer<B, C, R, DB, G>
 where
     B: Broadcaster,
     R: RefundManager,
     DB: Database,
+    G: GmpApiTrait + ThreadSafe,
 {
     async fn work(&self, consumer: &mut Consumer, queue: Arc<Queue>) {
         match consumer.next().await {
@@ -146,6 +162,73 @@ where
     pub async fn consume(&self, task: QueueItem) -> Result<(), IncluderError> {
         match task {
             QueueItem::Task(task) => match *task {
+                Task::Execute(execute_task) => {
+                    info!("Consuming execute task: {:?}", execute_task);
+                    let broadcast_result = match self
+                        .broadcaster
+                        .broadcast_execute_message(execute_task.task)
+                        .await
+                    {
+                        Ok(result) => result,
+                        Err(BroadcasterError::IrrelevantTask(_)) => {
+                            return Ok(());
+                        }
+                        Err(e) => {
+                            return Err(IncluderError::ConsumerError(e.to_string()));
+                        }
+                    };
+
+                    if Self::broadcast_result_has_message(&broadcast_result)
+                        && broadcast_result.status.is_ok()
+                    {
+                        return Ok(());
+                    }
+
+                    let (gmp_error, retry, err) = match &broadcast_result.status {
+                        Err(err) => {
+                            let (gmp_error, retry) = match err {
+                                BroadcasterError::InsufficientGas(_) => (
+                                    crate::gmp_api::gmp_types::CannotExecuteMessageReason::InsufficientGas,
+                                    false,
+                                ),
+                                _ => {
+                                    warn!("Failed to broadcast execute message: {:?}", err);
+                                    (
+                                        crate::gmp_api::gmp_types::CannotExecuteMessageReason::Error,
+                                        true,
+                                    )
+                                }
+                            };
+                            (gmp_error, retry, err)
+                        }
+                        Ok(_) => unreachable!("Expected broadcast_result.status to be Err"),
+                    };
+
+                    if Self::broadcast_result_has_message(&broadcast_result) {
+                        let message_id = broadcast_result.message_id.ok_or_else(|| {
+                            IncluderError::ConsumerError("Message ID is missing".to_string())
+                        })?;
+                        let source_chain = broadcast_result.source_chain.ok_or_else(|| {
+                            IncluderError::ConsumerError("Source chain is missing".to_string())
+                        })?;
+
+                        self.gmp_api
+                            .cannot_execute_message(
+                                execute_task.common.id,
+                                message_id,
+                                source_chain,
+                                err.to_string(),
+                                gmp_error,
+                            )
+                            .await
+                            .map_err(|e| IncluderError::ConsumerError(e.to_string()))?;
+                    }
+
+                    if !retry {
+                        return Ok(());
+                    }
+                    Err(IncluderError::ConsumerError(err.to_string()))
+                }
                 Task::GatewayTx(gateway_tx_task) => {
                     info!("Consuming task: {:?}", gateway_tx_task);
                     let broadcast_result = self
@@ -163,9 +246,7 @@ where
                         broadcast_result.tx_hash
                     );
 
-                    if broadcast_result.message_id.is_some()
-                        && broadcast_result.source_chain.is_some()
-                    {
+                    if Self::broadcast_result_has_message(&broadcast_result) {
                         let message_id = broadcast_result.message_id.ok_or_else(|| {
                             IncluderError::ConsumerError("Message ID is missing".to_string())
                         })?;
@@ -182,16 +263,15 @@ where
                                 .publish(QueueItem::RetryConstructProof(cross_chain_id.to_string()))
                                 .await;
 
-                            let mut redis_conn = self
-                                .redis_pool
-                                .get()
-                                .map_err(|e| IncluderError::ConsumerError(e.to_string()))?;
+                            let mut redis_conn = self.redis_conn.clone();
                             let redis_key = format!("failed_proof:{}", cross_chain_id);
                             let _: i64 = redis_conn
                                 .incr(redis_key.clone(), 1)
+                                .await
                                 .map_err(|e| IncluderError::GenericError(e.to_string()))?;
                             redis_conn
-                                .expire::<_, ()>(redis_key.clone(), 60 * 60 * 12) // 12 hours
+                                .expire::<_, ()>(redis_key.clone(), 60 * 60 * 12)
+                                .await // 12 hours
                                 .map_err(|e| IncluderError::GenericError(e.to_string()))?;
 
                             self.gmp_api
@@ -200,6 +280,7 @@ where
                                     message_id,
                                     source_chain,
                                     e.to_string(),
+                                    crate::gmp_api::gmp_types::CannotExecuteMessageReason::Error,
                                 )
                                 .await
                                 .map_err(|e| IncluderError::ConsumerError(e.to_string()))?;
@@ -222,6 +303,18 @@ where
                 }
                 Task::Refund(refund_task) => {
                     info!("Consuming task: {:?}", refund_task);
+                    if !self.refund_manager.is_refund_manager_managed() {
+                        return match self
+                            .broadcaster
+                            .broadcast_refund_message(refund_task.task)
+                            .await
+                        {
+                            Ok(_) => Ok(()),
+                            Err(BroadcasterError::InsufficientGas(_)) => Ok(()),
+                            Err(e) => Err(IncluderError::GenericError(e.to_string())),
+                        };
+                    }
+
                     if self
                         .refund_manager
                         .is_refund_processed(&refund_task, &refund_task.common.id)
@@ -241,6 +334,7 @@ where
                     let wallet = self
                         .refund_manager
                         .get_wallet_lock()
+                        .await
                         .map_err(|e| IncluderError::ConsumerError(e.to_string()))?;
 
                     let refund_info = self
@@ -266,6 +360,7 @@ where
                                 // …or on error, release the lock and return
                                 self.refund_manager
                                     .release_wallet_lock(wallet)
+                                    .await
                                     .map_err(|e| IncluderError::ConsumerError(e.to_string()))?;
                                 return Err(err);
                             }
@@ -299,6 +394,7 @@ where
                     }
                     self.refund_manager
                         .release_wallet_lock(wallet)
+                        .await
                         .map_err(|e| IncluderError::ConsumerError(e.to_string()))?;
                     Ok(())
                 }
@@ -308,5 +404,11 @@ where
                 "Invalid queue item".to_string(),
             )),
         }
+    }
+
+    fn broadcast_result_has_message(
+        broadcast_result: &BroadcastResult<<B as Broadcaster>::Transaction>,
+    ) -> bool {
+        broadcast_result.message_id.is_some() && broadcast_result.source_chain.is_some()
     }
 }

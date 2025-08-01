@@ -1,4 +1,6 @@
 use anyhow::Result;
+pub mod gmp_events;
+pub mod gmp_tasks;
 pub mod task_retries;
 
 // E - entity, P - primary key

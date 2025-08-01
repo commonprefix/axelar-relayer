@@ -266,7 +266,7 @@ impl Task {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct CommonEventFields<T> {
     pub r#type: String,
     #[serde(rename = "eventID")]
@@ -299,7 +299,15 @@ pub struct EventMetadata {
     pub timestamp: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct MessageApprovedEventMetadata {
+    #[serde(flatten)]
+    pub common_meta: EventMetadata,
+    #[serde(rename = "commandID")]
+    pub command_id: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct MessageExecutedEventMetadata {
     #[serde(flatten)]
     pub common_meta: EventMetadata,
@@ -319,7 +327,7 @@ pub struct ScopedMessage {
     pub source_chain: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum CannotExecuteMessageReason {
     InsufficientGas,
@@ -351,7 +359,7 @@ pub enum VerificationStatus {
     Unknown,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[serde(untagged)]
 pub enum Event {
     Call {
@@ -381,6 +389,12 @@ pub enum Event {
         #[serde(rename = "refundAddress")]
         refund_address: String,
         payment: Amount,
+    },
+    MessageApproved {
+        #[serde(flatten)]
+        common: CommonEventFields<MessageApprovedEventMetadata>,
+        message: GatewayV2Message,
+        cost: Amount,
     },
     MessageExecuted {
         #[serde(flatten)]
@@ -452,7 +466,6 @@ pub enum QueryRequest {
 pub struct StorePayloadResult {
     pub keccak256: String,
 }
-
 #[cfg(test)]
 mod tests {
     use super::{ReactToExpiredSigningSessionTask, ReactToRetriablePollTask};

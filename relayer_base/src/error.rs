@@ -32,6 +32,10 @@ pub enum BroadcasterError {
     RPCCallFailed(String),
     #[error("RPC call failed: {0}")]
     RPCError(String),
+    #[error("Insufficient gas: {0}")]
+    InsufficientGas(String),
+    #[error("Irrelevant task: {0}")]
+    IrrelevantTask(String),
     #[error("Generic error: {0}")]
     GenericError(String),
 }
@@ -40,6 +44,10 @@ pub enum BroadcasterError {
 pub enum ClientError {
     #[error("Connection failed: {0}")]
     ConnectionFailed(String),
+    #[error("Bad request: {0}")]
+    BadRequest(String),
+    #[error("Bad response: {0}")]
+    BadResponse(String),
 }
 
 #[derive(Error, Debug, Clone)]
@@ -74,6 +82,8 @@ pub enum IngestorError {
     ParseError(String),
     #[error("Unsupported transaction: {0}")]
     UnsupportedTransaction(String),
+    #[error("Unsupported Chain Transaction Type: {0}")]
+    UnexpectedChainTransactionType(String),
     #[error("Generic error: {0}")]
     GenericError(String),
 }

@@ -5,21 +5,20 @@ use axelar_wasm_std::{msg_id::HexTxHash, nonempty};
 use base64::prelude::*;
 use interchain_token_service::TokenId;
 use regex::Regex;
-use relayer_base::gmp_api::gmp_types::{RetryTask, VerificationStatus};
+use relayer_base::gmp_api::gmp_types::{CannotExecuteMessageReason, RetryTask, VerificationStatus};
+use relayer_base::gmp_api::GmpApiTrait;
 use relayer_base::ingestor::IngestorTrait;
 use relayer_base::models::task_retries::{PgTaskRetriesModel, TaskRetries};
+use relayer_base::payload_cache::PayloadCacheTrait;
 use relayer_base::subscriber::ChainTransaction;
-use relayer_base::utils::extract_from_xrpl_memo;
+use relayer_base::utils::{extract_from_xrpl_memo, ThreadSafe};
 use relayer_base::{
     database::Database,
     error::{ITSTranslationError, IngestorError},
-    gmp_api::{
-        gmp_types::{
-            self, Amount, BroadcastRequest, CommonEventFields, ConstructProofTask, Event,
-            EventMetadata, GatewayV2Message, MessageExecutedEventMetadata, MessageExecutionStatus,
-            QueryRequest, ReactToWasmEventTask, VerifyTask,
-        },
-        GmpApi,
+    gmp_api::gmp_types::{
+        self, Amount, BroadcastRequest, CommonEventFields, ConstructProofTask, Event,
+        EventMetadata, GatewayV2Message, MessageExecutedEventMetadata, MessageExecutionStatus,
+        QueryRequest, ReactToWasmEventTask, VerifyTask,
     },
     models::Model,
     payload_cache::{PayloadCache, PayloadCacheValue},
@@ -55,18 +54,22 @@ pub struct XrplIngestorModels {
     pub task_retries: PgTaskRetriesModel,
 }
 
-pub struct XrplIngestor<DB: Database> {
+pub struct XrplIngestor<DB: Database, G: GmpApiTrait + ThreadSafe> {
     client: xrpl_http_client::Client,
-    gmp_api: Arc<GmpApi>,
+    gmp_api: Arc<G>,
     config: XRPLConfig,
     price_view: PriceView<DB>,
     payload_cache: PayloadCache<DB>,
     models: XrplIngestorModels,
 }
 
-impl<DB: Database> XrplIngestor<DB> {
+impl<DB, G> XrplIngestor<DB, G>
+where
+    DB: Database,
+    G: GmpApiTrait + ThreadSafe,
+{
     pub fn new(
-        gmp_api: Arc<GmpApi>,
+        gmp_api: Arc<G>,
         config: XRPLConfig,
         price_view: PriceView<DB>,
         payload_cache: PayloadCache<DB>,
@@ -440,7 +443,7 @@ impl<DB: Database> XrplIngestor<DB> {
 
         let b64_payload = BASE64_STANDARD.encode(
             hex::decode(message_with_payload.payload.to_string()).map_err(|e| {
-                IngestorError::GenericError(format!("Failed to decode payload: {}", e))
+                IngestorError::GenericError(format!("Failed to decode payload: {e}"))
             })?,
         );
 
@@ -1159,18 +1162,23 @@ impl<DB: Database> XrplIngestor<DB> {
     }
 }
 
-impl<DB: Database> IngestorTrait for XrplIngestor<DB> {
+impl<DB, G> IngestorTrait for XrplIngestor<DB, G>
+where
+    DB: Database,
+    G: GmpApiTrait + ThreadSafe,
+{
     async fn handle_transaction(&self, tx: ChainTransaction) -> Result<Vec<Event>, IngestorError> {
-        #[allow(clippy::infallible_destructuring_match)]
-        let tx = match tx {
-            ChainTransaction::Xrpl(tx) => tx,
+        let ChainTransaction::Xrpl(tx) = tx else {
+            return Err(IngestorError::UnexpectedChainTransactionType(format!(
+                "{tx:?}"
+            )));
         };
 
         let xrpl_transaction =
             XrplTransaction::from_native_transaction(&tx, &self.config.xrpl_multisig)
                 .map_err(|e| IngestorError::GenericError(e.to_string()))?;
 
-        match tx.clone() {
+        match *tx.clone() {
             Transaction::Payment(_)
             | Transaction::TicketCreate(_)
             | Transaction::SignerListSet(_)
@@ -1193,7 +1201,7 @@ impl<DB: Database> IngestorTrait for XrplIngestor<DB> {
             _ => {}
         }
 
-        match tx.clone() {
+        match *tx.clone() {
             Transaction::Payment(payment) => {
                 if payment.destination == self.config.xrpl_multisig {
                     if payment.common.memos.is_none() {
@@ -1204,7 +1212,7 @@ impl<DB: Database> IngestorTrait for XrplIngestor<DB> {
                     self.handle_payment(payment).await
                 } else if payment.common.account == self.config.xrpl_multisig {
                     // prover message
-                    self.handle_prover_tx(tx).await
+                    self.handle_prover_tx(*tx).await
                 } else {
                     info!(
                         "Skipping payment that is not for or from the multisig: {:?}",
@@ -1213,14 +1221,14 @@ impl<DB: Database> IngestorTrait for XrplIngestor<DB> {
                     return Ok(vec![]);
                 }
             }
-            Transaction::TicketCreate(_) => self.handle_prover_tx(tx).await,
+            Transaction::TicketCreate(_) => self.handle_prover_tx(*tx).await,
             Transaction::TrustSet(trust_set) => {
                 if trust_set.common.account == self.config.xrpl_multisig {
-                    return self.handle_prover_tx(tx).await;
+                    return self.handle_prover_tx(*tx).await;
                 }
                 Ok(vec![])
             }
-            Transaction::SignerListSet(_) => self.handle_prover_tx(tx).await,
+            Transaction::SignerListSet(_) => self.handle_prover_tx(*tx).await,
             tx => {
                 info!(
                     "Unsupported transaction type: {}",
@@ -1468,6 +1476,7 @@ impl<DB: Database> IngestorTrait for XrplIngestor<DB> {
                         task.task.message.message_id.clone(),
                         task.task.message.source_chain.clone(),
                         e.to_string(),
+                        CannotExecuteMessageReason::Error,
                     )
                     .await
                     .map_err(|e| IngestorError::GenericError(e.to_string()))?;

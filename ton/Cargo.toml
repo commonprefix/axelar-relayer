@@ -1,0 +1,59 @@
+[package]
+name = "ton"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+relayer-base = { workspace = true }
+dotenv = { workspace = true }
+tokio = { workspace = true }
+anyhow = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+error-stack = { workspace = true }
+redis = { workspace = true, features = ["tokio-rustls-comp"] }
+hex = { workspace = true }
+tracing = { workspace = true }
+thiserror = { workspace = true }
+base64 = { workspace = true }
+sqlx = { workspace = true }
+chrono = { workspace = true }
+reqwest = { workspace = true }
+reqwest-retry = { workspace = true }
+reqwest-middleware = { workspace = true, features = ["json"] }
+ton_types = { workspace = true }
+tonlib-core = { workspace = true }
+
+nacl = "0.5.3"
+num-bigint = "0.4.6"
+async-trait = "0.1.88"
+tiny-keccak = {version = "2.0.2", features = ["keccak"]}
+primitive-types = "0.13.1"
+rust_decimal = { workspace = true }
+
+[dev-dependencies]
+relayer-base = { workspace = true, features = ["mocks"] }
+mockall = { workspace = true }
+testcontainers = { workspace = true }
+testcontainers-modules = { workspace = true, features = ["postgres"] }
+httpmock = { workspace = true }
+tracing-test = "0.2.5"
+
+[[bin]]
+name = "ton_includer"
+path = "src/bin/ton_includer.rs"
+
+[[bin]]
+name = "ton_distributor"
+path = "src/bin/ton_distributor.rs"
+
+[[bin]]
+name = "ton_subscriber"
+path = "src/bin/ton_subscriber.rs"
+
+[[bin]]
+name = "ton_ingestor"
+path = "src/bin/ton_ingestor.rs"
+
+[lints]
+workspace = true

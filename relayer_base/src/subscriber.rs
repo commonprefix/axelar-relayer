@@ -3,7 +3,6 @@ use futures::Stream;
 use serde::{Deserialize, Serialize};
 use std::{future::Future, pin::Pin, sync::Arc};
 use tracing::{debug, error, info};
-use xrpl_api::Transaction;
 
 pub trait TransactionListener {
     type Transaction;
@@ -47,7 +46,8 @@ pub struct Subscriber<TP: TransactionPoller> {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum ChainTransaction {
-    Xrpl(Transaction),
+    Xrpl(Box<xrpl_api::Transaction>),
+    TON(Box<ton_types::ton_types::Trace>),
 }
 
 impl<TP: TransactionPoller> Subscriber<TP>

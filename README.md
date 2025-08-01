@@ -1,21 +1,21 @@
-# Axelar XRPL Relayer
+# Axelar Relayer
 
 ## Components
 ### Subscriber
-- **Description:** Monitors the XRPL for incoming transactions.
-- **Function:** Listens for transactions on XRPL and publishes them to a local RabbitMQ instance for further processing.
+- **Description:** Monitors the chain for incoming transactions.
+- **Function:** Listens for transactions on chain and publishes them to a local RabbitMQ instance for further processing.
   
 ### Distributor
 - **Description:** Manages task distribution from the GMP API.
 - **Function:** Listens for tasks from the GMP API and enqueues them into RabbitMQ for downstream processing by other components.
   
 ### Ingestor
-- **Description:** Processes queued messages related to XRPL transactions and GMP API tasks.
+- **Description:** Processes queued messages related to chain transactions and GMP API tasks.
 - **Function:** Consumes and processes messages from RabbitMQ, handling tasks such as transaction verification and routing.
   
 ### Includer
-- **Description:** Handles transaction creation on the XRPL.
-- **Function:** Consumes tasks from RabbitMQ to create transactions on the XRPL, including actions like issuing refunds or submitting prover messages.
+- **Description:** Handles transaction creation on the chain.
+- **Function:** Consumes tasks from RabbitMQ to create transactions on the chain, including actions like issuing refunds or submitting prover messages.
 
 ## Setup
 
@@ -56,6 +56,7 @@ Ensure the following services are installed and running on your system:
 ### Running the Components
 
 Each component can be run individually. It's recommended to use separate terminal sessions or a process manager to handle multiple components concurrently.
+Chains are run using separate binaries, so adjust the following commands accordingly: 
 
 - **Subscriber**
 

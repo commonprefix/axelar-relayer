@@ -3,6 +3,7 @@ use dotenv::dotenv;
 use xrpl::{funder::XRPLFunder, XRPLClient};
 
 use relayer_base::config::config_from_yaml;
+use relayer_base::redis::connection_manager;
 use relayer_base::utils::{setup_heartbeat, setup_logging};
 use xrpl::config::XRPLConfig;
 
@@ -15,9 +16,9 @@ async fn main() -> anyhow::Result<()> {
     let _guard = setup_logging(&config.common_config);
 
     let redis_client = redis::Client::open(config.common_config.redis_server.clone())?;
-    let redis_pool = r2d2::Pool::builder().build(redis_client)?;
+    let redis_conn = connection_manager(redis_client, None, None, None).await?;
 
-    setup_heartbeat("heartbeat:funder".to_owned(), redis_pool);
+    setup_heartbeat("heartbeat:funder".to_owned(), redis_conn);
 
     let xrpl_client = XRPLClient::new(&config.xrpl_rpc, 3)?;
     let funder = XRPLFunder::new(config, xrpl_client);
