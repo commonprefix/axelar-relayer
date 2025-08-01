@@ -500,16 +500,7 @@ impl<DB: Database> XrplIngestor<DB> {
                                     ))
                                 })?;
 
-                            let amount = convert_token_amount_to_drops(
-                                &self.config.common_config,
-                                amount,
-                                &token_id.to_string(),
-                                &self.price_view,
-                            )
-                            .await
-                            .map_err(|e| IngestorError::GenericError(e.to_string()))?;
-
-                            (amount, token_id.to_string())
+                            (amount.to_string(), token_id.to_string())
                         } else {
                             return Err(IngestorError::GenericError(
                                 "Token id can't be None for IOU transfer".to_owned(),
