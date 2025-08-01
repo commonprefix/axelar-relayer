@@ -1,3 +1,4 @@
+use std::any::Any;
 use crate::config::Config;
 use opentelemetry::global;
 use opentelemetry_sdk::trace::SdkTracerProvider;
@@ -5,9 +6,12 @@ use sentry::integrations::opentelemetry as sentry_opentelemetry;
 use sentry::ClientInitGuard;
 use sentry_tracing::{layer as sentry_layer, EventFilter};
 use tracing::level_filters::LevelFilter;
-use tracing::Level;
+use tracing::{info, Level};
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::{fmt, Layer, Registry};
+use xrpl_api::Transaction;
+use xrpl_types::AccountId;
+use ton_types::ton_types::Trace;
 
 pub fn setup_logging(config: &Config) -> ClientInitGuard {
     let environment = std::env::var("ENVIRONMENT").unwrap_or_else(|_| "development".to_string());
@@ -48,4 +52,18 @@ pub fn setup_logging(config: &Config) -> ClientInitGuard {
     global::set_tracer_provider(tracer_provider);
 
     guard
+}
+
+pub fn maybe_to_string(val: &dyn Any) -> Option<String> {
+    if let Some(t) = val.downcast_ref::<Trace>() {
+        return Some(t.trace_id.to_string());
+    } else if let Some(t) = val.downcast_ref::<Transaction>() {
+        return t.common().hash.clone();
+    } else if let Some(t) = val.downcast_ref::<AccountId>() {
+        return Some(t.to_address());
+    } else {
+        info!("Unknown type");
+    }
+
+    None
 }

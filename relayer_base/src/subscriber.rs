@@ -8,6 +8,7 @@ use opentelemetry::{global, Context, KeyValue};
 use opentelemetry::propagation::Injector;
 use opentelemetry::trace::{Span, TraceContextExt, Tracer};
 use tracing::{debug, error, info};
+use crate::logging::maybe_to_string;
 
 pub trait TransactionListener {
     type Transaction;
@@ -68,24 +69,29 @@ impl Injector for HeadersMap<'_> {
 
 impl<TP: TransactionPoller> Subscriber<TP>
 where
-    TP::Account: Clone + ToString,
+    TP::Account: Clone,
 {
     pub fn new(transaction_poller: TP) -> Self {
         Self { transaction_poller }
     }
 
-    async fn work(&mut self, account: TP::Account, queue: Arc<Queue>) {
+    async fn work(&mut self, account: TP::Account, queue: Arc<Queue>) where
+        <TP as TransactionPoller>::Transaction: 'static,
+        <TP as TransactionPoller>::Account: 'static
+    {
         let tracer = global::tracer("tracer");
-        let acc_name = account.to_string();
 
         let res = self.transaction_poller.poll_account(account.clone()).await;
         match res {
             Ok(txs) => {
                 for tx in txs {
                     let mut span = tracer.start("subscriber.work");
-
-                    span.set_attribute(KeyValue::new("chain_account", acc_name.to_string()));
-                    span.set_attribute(KeyValue::new("chain_transaction_id", tx.to_string()));
+                    if let Some(s) = maybe_to_string(&account) {
+                        span.set_attribute(KeyValue::new("chain_account_id", s));
+                    }
+                    if let Some(s) = maybe_to_string(&tx) {
+                        span.set_attribute(KeyValue::new("chain_transaction_id", s));    
+                    }
 
                     let chain_transaction = self.transaction_poller.make_queue_item(tx);
                     let item = &QueueItem::Transaction(Box::new(chain_transaction.clone()));
@@ -115,7 +121,10 @@ where
         tokio::time::sleep(tokio::time::Duration::from_secs(2)).await
     }
 
-    pub async fn run(&mut self, account: TP::Account, queue: Arc<Queue>) {
+    pub async fn run(&mut self, account: TP::Account, queue: Arc<Queue>)
+    where
+        <TP as TransactionPoller>::Transaction: 'static,
+        <TP as TransactionPoller>::Account: 'static {
         loop {
             self.work(account.clone(), Arc::clone(&queue)).await;
         }

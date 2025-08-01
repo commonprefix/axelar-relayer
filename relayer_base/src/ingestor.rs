@@ -3,9 +3,9 @@ use lapin::{options::BasicAckOptions, Consumer};
 use std::{future::Future, sync::Arc, collections::HashMap};
 use tokio::select;
 use tracing::{debug, error, info, warn};
-use opentelemetry::{global, KeyValue};
+use opentelemetry::{global, Context, KeyValue};
 use opentelemetry::propagation::Extractor;
-use opentelemetry::trace::{Span, Tracer};
+use opentelemetry::trace::{FutureExt, Span, TraceContextExt, Tracer};
 
 use crate::{
     error::IngestorError,
@@ -82,9 +82,13 @@ impl<I: IngestorTrait> Ingestor<I> {
                             }
                         }
                     }
+                    let parent_cx =
+                        global::get_text_map_propagator(|prop| prop.extract(&HeadersMap(&mut headers_map)));
+                    let tracer = global::tracer("ingestor");
+                    let span = tracer.start_with_context("ingestor.work", &parent_cx);
 
                     let data = delivery.data.clone();
-                    if let Err(e) = self.process_delivery_with_headers(&data, headers_map).await {
+                    if let Err(e) = self.process_delivery(&data).with_context(Context::current_with_span(span)).await {
                         let mut force_requeue = false;
                         match e {
                             IngestorError::IrrelevantTask => {
@@ -115,11 +119,12 @@ impl<I: IngestorTrait> Ingestor<I> {
         }
     }
 
-    async fn process_delivery_with_headers(&self, data: &[u8], headers: HashMap<String, String>) -> Result<(), IngestorError> {
+    async fn process_delivery(&self, data: &[u8]) -> Result<(), IngestorError> {
         let item = serde_json::from_slice::<QueueItem>(data)
             .map_err(|e| IngestorError::ParseError(format!("Invalid JSON: {}", e)))?;
 
-        self.consume_with_headers(item, headers).await
+        //let parent_cx = Context::current();
+        self.consume(item).with_current_context().await
     }
 
     pub async fn run(&self, events_queue: Arc<Queue>, tasks_queue: Arc<Queue>) {
@@ -151,23 +156,15 @@ impl<I: IngestorTrait> Ingestor<I> {
     }
 
     pub async fn consume(&self, item: QueueItem) -> Result<(), IngestorError> {
-        self.consume_with_headers(item, HashMap::new()).await
-    }
-
-    pub async fn consume_with_headers(&self, item: QueueItem, mut headers: HashMap<String, String>) -> Result<(), IngestorError> {
-        let parent_cx =
-            global::get_text_map_propagator(|prop| prop.extract(&HeadersMap(&mut headers)));
         let tracer = global::tracer("ingestor");
-        let mut span = tracer.start_with_context("ingestor", &parent_cx);
+        let mut span = tracer.start_with_context("ingestor.consume", &Context::current());
 
         let result = match item {
             QueueItem::Task(task) => {
-                span.set_attribute(KeyValue::new("task_type", format!("{:?}", task)));
-                self.consume_task(*task).await
+                self.consume_task(*task).with_current_context().await
             }
             QueueItem::Transaction(chain_transaction) => {
-                  span.set_attribute(KeyValue::new("transaction_type", format!("{:?}", chain_transaction)));
-                self.consume_transaction(chain_transaction).await
+                self.consume_transaction(chain_transaction).with_current_context().await
             }
             _ => Err(IngestorError::IrrelevantTask),
         };
@@ -181,7 +178,12 @@ impl<I: IngestorTrait> Ingestor<I> {
         &self,
         transaction: Box<ChainTransaction>,
     ) -> Result<(), IngestorError> {
-        let events = self.ingestor.handle_transaction(*transaction).await?;
+        let tracer = global::tracer("ingestor");
+        let mut span = tracer.start_with_context("ingestor.consume_transaction", &Context::current());
+
+        let events = self.ingestor.handle_transaction(*transaction).with_current_context().await?;
+
+        span.set_attribute(KeyValue::new("num_events", events.len() as i64));
 
         if events.is_empty() {
             info!("No GMP events to post.");

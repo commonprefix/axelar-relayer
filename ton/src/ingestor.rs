@@ -1,3 +1,6 @@
+use opentelemetry::{global, Context, KeyValue};
+use opentelemetry::global::ObjectSafeSpan;
+use opentelemetry::trace::{FutureExt, Tracer};
 use crate::parser::TraceParserTrait;
 use relayer_base::error::IngestorError;
 use relayer_base::gmp_api::gmp_types::{
@@ -30,15 +33,21 @@ impl<TP: TraceParserTrait> IngestorTrait for TONIngestor<TP> {
         &self,
         trace: ChainTransaction,
     ) -> Result<Vec<Event>, IngestorError> {
+        let tracer = global::tracer("ton_ingestor");
+        let mut span = tracer.start_with_context("ingestor.consume_transaction", &Context::current());
+        
         let ChainTransaction::TON(trace) = trace else {
             return Err(IngestorError::UnexpectedChainTransactionType(format!(
                 "{trace:?}"
             )));
         };
 
+        span.set_attribute(KeyValue::new("chain_trace_id", trace.trace_id.clone()));
+
         let events = self
             .trace_parser
             .parse_trace(*trace)
+            .with_current_context()
             .await
             .map_err(|e| IngestorError::GenericError(e.to_string()))?;
 
