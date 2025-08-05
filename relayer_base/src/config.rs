@@ -173,7 +173,7 @@ axelar_contracts:
   chain_voting_verifier: "verifier"
   multisig: "multisig"
 
-deployed_tokens: {}
+deployed_tokens: []
 demo_tokens_rate: {}
 heartbeats: {}
 price_feed:
