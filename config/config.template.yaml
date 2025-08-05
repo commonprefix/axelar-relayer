@@ -12,7 +12,7 @@ axelar_contracts:
   chain_multisig_prover: ""
   chain_voting_verifier: ""
   multisig: ""
-deployed_tokens: {}
+deployed_tokens: []
 sentry_dsn: ""
 redis_server: ""
 chain_name: ""

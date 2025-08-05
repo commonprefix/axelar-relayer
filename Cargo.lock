@@ -1345,7 +1345,7 @@ version = "3.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fde0e0ec90c9dfb3b4b1a0891a7dcd0e2bffde2f7efed5fe7c9bb00e5bfb915e"
 dependencies = [
- "windows-sys 0.59.0",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]
@@ -7948,7 +7948,7 @@ dependencies = [
 [[package]]
 name = "xrpl_api"
 version = "0.16.6"
-source = "git+https://github.com/commonprefix/xrpl-sdk-rust?branch=main#f2e5284cfaa0667e400e4c5c00cf2265ac2950da"
+source = "git+https://github.com/commonprefix/xrpl-sdk-rust?branch=main#331f2f43427da6bea7a66fd708695c519f79cb8e"
 dependencies = [
  "enumflags2",
  "serde",
@@ -7959,7 +7959,7 @@ dependencies = [
 [[package]]
 name = "xrpl_binary_codec"
 version = "0.16.6"
-source = "git+https://github.com/commonprefix/xrpl-sdk-rust?branch=main#f2e5284cfaa0667e400e4c5c00cf2265ac2950da"
+source = "git+https://github.com/commonprefix/xrpl-sdk-rust?branch=main#331f2f43427da6bea7a66fd708695c519f79cb8e"
 dependencies = [
  "bytes",
  "hashbrown 0.14.5",
@@ -7974,7 +7974,7 @@ dependencies = [
 [[package]]
 name = "xrpl_http_client"
 version = "0.16.6"
-source = "git+https://github.com/commonprefix/xrpl-sdk-rust?branch=main#f2e5284cfaa0667e400e4c5c00cf2265ac2950da"
+source = "git+https://github.com/commonprefix/xrpl-sdk-rust?branch=main#331f2f43427da6bea7a66fd708695c519f79cb8e"
 dependencies = [
  "libsecp256k1",
  "reqwest",
@@ -7992,7 +7992,7 @@ dependencies = [
 [[package]]
 name = "xrpl_types"
 version = "0.16.6"
-source = "git+https://github.com/commonprefix/xrpl-sdk-rust?branch=main#f2e5284cfaa0667e400e4c5c00cf2265ac2950da"
+source = "git+https://github.com/commonprefix/xrpl-sdk-rust?branch=main#331f2f43427da6bea7a66fd708695c519f79cb8e"
 dependencies = [
  "ascii",
  "bs58",
