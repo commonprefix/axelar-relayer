@@ -321,10 +321,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::{
-        collections::{BTreeMap, HashMap},
-        fs,
-    };
+    use std::{collections::BTreeMap, fs};
 
     use crate::{config::TokenConfig, database::MockDatabase, price_view::MockPriceView};
     use redis::{Client, Commands};
