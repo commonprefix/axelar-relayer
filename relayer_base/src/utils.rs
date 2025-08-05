@@ -284,8 +284,7 @@ where
     T: PriceViewTrait,
 {
     let token_symbol = config
-        .deployed_tokens
-        .get(token_id)
+        .get_token_symbol(token_id)
         .ok_or_else(|| anyhow::anyhow!("Token id {} not found in deployed tokens", token_id))?;
 
     let price = match price_view.get_price(&format!("{}/XRP", token_symbol)).await {
@@ -327,7 +326,7 @@ mod tests {
         fs,
     };
 
-    use crate::{database::MockDatabase, price_view::MockPriceView};
+    use crate::{config::TokenConfig, database::MockDatabase, price_view::MockPriceView};
     use redis::{Client, Commands};
     use testcontainers::{
         core::{IntoContainerPort, WaitFor},
@@ -358,7 +357,11 @@ mod tests {
     #[tokio::test]
     async fn test_convert_token_amount_to_drops_whole_number() {
         let config = Config {
-            deployed_tokens: HashMap::from([("XRP".to_string(), "XRP".to_string())]),
+            deployed_tokens: vec![TokenConfig {
+                id: "XRP".to_string(),
+                symbol: "XRP".to_string(),
+                decimals: 6,
+            }],
             ..Default::default()
         };
 
@@ -380,7 +383,11 @@ mod tests {
     #[tokio::test]
     async fn test_convert_token_amount_to_drops_with_decimals() {
         let config = Config {
-            deployed_tokens: HashMap::from([("XRP".to_string(), "XRP".to_string())]),
+            deployed_tokens: vec![TokenConfig {
+                id: "XRP".to_string(),
+                symbol: "XRP".to_string(),
+                decimals: 6,
+            }],
             ..Default::default()
         };
 
@@ -402,7 +409,11 @@ mod tests {
     #[tokio::test]
     async fn test_convert_token_amount_to_drops_small_value() {
         let config = Config {
-            deployed_tokens: HashMap::from([("XRP".to_string(), "XRP".to_string())]),
+            deployed_tokens: vec![TokenConfig {
+                id: "XRP".to_string(),
+                symbol: "XRP".to_string(),
+                decimals: 6,
+            }],
             ..Default::default()
         };
 
@@ -424,7 +435,11 @@ mod tests {
     #[tokio::test]
     async fn test_convert_token_amount_to_drops_max_decimals() {
         let config = Config {
-            deployed_tokens: HashMap::from([("XRP".to_string(), "XRP".to_string())]),
+            deployed_tokens: vec![TokenConfig {
+                id: "XRP".to_string(),
+                symbol: "XRP".to_string(),
+                decimals: 6,
+            }],
             ..Default::default()
         };
 
@@ -446,7 +461,11 @@ mod tests {
     #[tokio::test]
     async fn test_convert_token_amount_to_drops_too_many_decimals_no_precision() {
         let config = Config {
-            deployed_tokens: HashMap::from([("XRP".to_string(), "XRP".to_string())]),
+            deployed_tokens: vec![TokenConfig {
+                id: "XRP".to_string(),
+                symbol: "XRP".to_string(),
+                decimals: 6,
+            }],
             ..Default::default()
         };
 
@@ -489,7 +508,11 @@ mod tests {
     #[tokio::test]
     async fn test_convert_xrpl_token_amount_to_drops() {
         let config = Config {
-            deployed_tokens: HashMap::from([("XRP".to_string(), "XRP".to_string())]),
+            deployed_tokens: vec![TokenConfig {
+                id: "XRP".to_string(),
+                symbol: "XRP".to_string(),
+                decimals: 6,
+            }],
             ..Default::default()
         };
 

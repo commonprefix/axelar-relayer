@@ -55,10 +55,17 @@ pub struct PriceFeedConfig {
 }
 
 #[derive(Debug, Clone, Deserialize, Default)]
+pub struct TokenConfig {
+    pub id: String,
+    pub symbol: String,
+    pub decimals: u8,
+}
+
+#[derive(Debug, Clone, Deserialize, Default)]
 pub struct Config {
     pub queue_address: String,
     pub gmp_api_url: String,
-    pub deployed_tokens: HashMap<String, String>,
+    pub deployed_tokens: Vec<TokenConfig>,
     pub redis_server: String,
     pub postgres_url: String,
     pub chain_name: String,
@@ -70,6 +77,29 @@ pub struct Config {
     pub demo_tokens_rate: HashMap<String, f64>,
     pub sentry_dsn: String,
     pub axelar_contracts: AxelarContracts,
+}
+
+impl Config {
+    pub fn get_token_config(&self, token_id: &str) -> Option<&TokenConfig> {
+        self.deployed_tokens
+            .iter()
+            .find(|token| token.id == token_id)
+    }
+
+    pub fn get_token_symbol(&self, token_id: &str) -> Option<&str> {
+        self.get_token_config(token_id)
+            .map(|token| token.symbol.as_str())
+    }
+
+    pub fn get_token_by_symbol(&self, symbol: &str) -> Option<&TokenConfig> {
+        self.deployed_tokens
+            .iter()
+            .find(|token| token.symbol == symbol)
+    }
+
+    pub fn get_token_decimals(&self, token_id: &str) -> Option<u8> {
+        self.get_token_config(token_id).map(|token| token.decimals)
+    }
 }
 
 pub fn config_from_yaml<T>(path: &str) -> Result<T>
