@@ -494,13 +494,34 @@ where
                     }
                     XRPLPaymentAmount::Issued(_, amount) => {
                         if let Some(token_id) = maybe_token_id {
-                            let amount =
-                                Decimal::from_scientific(&amount.to_string()).map_err(|e| {
+                            let original_amount = Decimal::from_scientific(&amount.to_string())
+                                .map_err(|e| {
                                     IngestorError::GenericError(format!(
                                         "Failed to parse amount {}: {}",
                                         amount, e
                                     ))
                                 })?;
+                            let token_decimals = self
+                                .config
+                                .common_config
+                                .get_token_decimals(&token_id.to_string())
+                                .ok_or(IngestorError::GenericError(
+                                    "Token id not found".to_string(),
+                                ))?;
+                            let amount_with_decimals = original_amount
+                                .checked_mul(Decimal::from(10_i128.pow(token_decimals as u32)))
+                                .ok_or(IngestorError::GenericError(
+                                    "Failed to multiply amount by token decimals".to_string(),
+                                ))?;
+
+                            if amount_with_decimals.fract() != Decimal::ZERO {
+                                warn!(
+                                    "Losing precision, amount has decimal places: {}",
+                                    amount_with_decimals
+                                );
+                            }
+
+                            let amount = amount_with_decimals.trunc();
 
                             (amount.to_string(), token_id.to_string())
                         } else {
