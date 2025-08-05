@@ -484,14 +484,13 @@ where
                         let xrpl_token_id = self
                             .config
                             .common_config
-                            .deployed_tokens
-                            .iter()
-                            .find(|(_, token_symbol)| token_symbol == &"XRP")
+                            .get_token_by_symbol("XRP")
                             .ok_or(IngestorError::GenericError(
                                 "XRP token id not found".to_string(),
                             ))?
-                            .0;
-                        (amount.to_string(), xrpl_token_id.to_owned())
+                            .id
+                            .clone();
+                        (amount.to_string(), xrpl_token_id)
                     }
                     XRPLPaymentAmount::Issued(_, amount) => {
                         if let Some(token_id) = maybe_token_id {
