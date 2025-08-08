@@ -7948,7 +7948,7 @@ dependencies = [
 [[package]]
 name = "xrpl_api"
 version = "0.16.6"
-source = "git+https://github.com/commonprefix/xrpl-sdk-rust?branch=main#331f2f43427da6bea7a66fd708695c519f79cb8e"
+source = "git+https://github.com/commonprefix/xrpl-sdk-rust?branch=main#f0539b53141dd1783bf21813d1c442b63228840b"
 dependencies = [
  "enumflags2",
  "serde",
@@ -7959,7 +7959,7 @@ dependencies = [
 [[package]]
 name = "xrpl_binary_codec"
 version = "0.16.6"
-source = "git+https://github.com/commonprefix/xrpl-sdk-rust?branch=main#331f2f43427da6bea7a66fd708695c519f79cb8e"
+source = "git+https://github.com/commonprefix/xrpl-sdk-rust?branch=main#f0539b53141dd1783bf21813d1c442b63228840b"
 dependencies = [
  "bytes",
  "hashbrown 0.14.5",
@@ -7974,7 +7974,7 @@ dependencies = [
 [[package]]
 name = "xrpl_http_client"
 version = "0.16.6"
-source = "git+https://github.com/commonprefix/xrpl-sdk-rust?branch=main#331f2f43427da6bea7a66fd708695c519f79cb8e"
+source = "git+https://github.com/commonprefix/xrpl-sdk-rust?branch=main#f0539b53141dd1783bf21813d1c442b63228840b"
 dependencies = [
  "libsecp256k1",
  "reqwest",
@@ -7992,7 +7992,7 @@ dependencies = [
 [[package]]
 name = "xrpl_types"
 version = "0.16.6"
-source = "git+https://github.com/commonprefix/xrpl-sdk-rust?branch=main#331f2f43427da6bea7a66fd708695c519f79cb8e"
+source = "git+https://github.com/commonprefix/xrpl-sdk-rust?branch=main#f0539b53141dd1783bf21813d1c442b63228840b"
 dependencies = [
  "ascii",
  "bs58",
