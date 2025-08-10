@@ -88,7 +88,20 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./migrations:/docker-entrypoint-initdb.d
 
+  grafana:
+    image: grafana/grafana:latest
+    container_name: relayer_grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana_data:/var/lib/grafana
+
 volumes:
   redis_data:
   rabbitmq_data:
   postgres_data:
+  grafana_data:

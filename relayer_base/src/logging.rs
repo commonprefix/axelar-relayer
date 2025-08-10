@@ -31,8 +31,10 @@ pub fn setup_logging(config: &Config) -> (ClientInitGuard, SdkTracerProvider) {
         },
     ));
 
-    //global::set_text_map_propagator(sentry_opentelemetry::SentryPropagator::new());
-    
+    global::set_text_map_propagator(sentry_opentelemetry::SentryPropagator::new());
+    //global::set_text_map_propagator(TraceContextPropagator::new());
+
+
     let exporter = SpanExporter::builder()
         .with_tonic()
         .with_endpoint("http://localhost:4317")
@@ -51,16 +53,17 @@ pub fn setup_logging(config: &Config) -> (ClientInitGuard, SdkTracerProvider) {
         .build();
 
     let tracer = tracer_provider.tracer("relayer");
-    
+
     let fmt_layer = fmt::layer()
         .with_target(true)
         .with_filter(LevelFilter::DEBUG);
 
-    let sentry_layer = sentry_layer().event_filter(|metadata| match *metadata.level() {
-        Level::ERROR => EventFilter::Event,
-        Level::WARN => EventFilter::Event,
-        _ => EventFilter::Breadcrumb,
-    });
+    let sentry_layer = sentry::integrations::tracing::layer()
+        .event_filter(|metadata| match *metadata.level() { 
+            Level::ERROR => EventFilter::Event, 
+            Level::WARN => EventFilter::Event, 
+            _ => EventFilter::Breadcrumb})
+        .span_filter(|_md| true); // Capture all spans regardless of level
 
     let otel_layer = tracing_opentelemetry::layer().with_tracer(tracer);
 
@@ -69,7 +72,7 @@ pub fn setup_logging(config: &Config) -> (ClientInitGuard, SdkTracerProvider) {
         .with(sentry_layer) // Sentry logging
         .with(otel_layer) // Otel, required for Sentry tracing too
         .init();
-    
+
     (guard, tracer_provider)
 }
 

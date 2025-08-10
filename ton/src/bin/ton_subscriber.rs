@@ -1,3 +1,4 @@
+use sentry::{Hub, TransactionOrSpan};
 use std::collections::BTreeMap;
 use std::io;
 use dotenv::dotenv;
@@ -38,45 +39,79 @@ async fn inner(i: u32) {
     // Also works, since log events are ingested by the tracing system
     tracing::warn!(number = i, "Generates a breadcrumb");
     let s = info_span!("Programmatic inner");
+
+    // // Create a Sentry span for the inner function
+    // let inner_span = sentry::configure_scope(|scope| {
+    //     if let Some(span) = scope.get_span() {
+    //         Some(span.start_child("inner_function", "inner"))
+    //     } else {
+    //         None
+    //     }
+    // });
+
     async move {
         tokio::time::sleep(Duration::from_millis(100)).await;
         for i in 0..2 {
             info!("Some piece of info");
-            info_span!("inner loop", l_iter = i);
+            let loop_span = info_span!("inner loop", l_iter = i);
             error!(error = "category", "connect failed");
             let context = Span::current().context();
             println!("{context:?}");
         }
     }.instrument(s).await;
+
+    // // Finish the inner Sentry span if it exists
+    // if let Some(span) = inner_span {
+    //     span.finish();
+    // }
 }
 
 
 async fn outer(ctx: opentelemetry::Context, sentry_headers: Vec<(&str, &str)>, mut headers: BTreeMap<ShortString, AMQPValue>) {
-    println!("got context: {ctx:?}");
+    //println!("got context: {ctx:?}");
     println!("got sentry_headers: {sentry_headers:?}");
     let parent_cx =
         global::get_text_map_propagator(|prop| prop.extract(&HeadersMap(&mut headers)));
 
-    
+
     println!("got headers: {:?}", headers);
     println!("parent_cx = {:?}", parent_cx);
 
-    // for (k, v) in &sentry_headers {
-    //     println!("{k}: {v}");
-    //     s.set_attribute((*k).to_string(), (*v).to_string());
-    // }
 
     let tx_ctx = sentry::TransactionContext::continue_from_headers(
-        "transaction name",
-        "http.server",
-        sentry_headers,
+        "ingestor",
+        "consume_task",
+        sentry_headers.clone(),
     );
     let transaction = sentry::start_transaction(tx_ctx);
     let tc = transaction.get_trace_context();
     let span = transaction.start_child("entry", "my entry");
-    span.finish();
+    // Clone the span and transaction so we can finish them later
+    let span_clone = span.clone();
+    let transaction_clone = transaction.clone();
+
+    Hub::current().configure_scope(|scope| {
+        let curr_span = scope.get_span();
+        println!("new scope: {curr_span:?}");
+        scope.set_span(Some(TransactionOrSpan::Span(span.clone())));
+    });
+
+
+
+    // let transaction = sentry::start_transaction(tx_ctx);
+    // let tc = transaction.get_trace_context();
+    // let span = transaction.start_child("entry", "my entry");
+    // span.finish();
+
+
+
     let s: Span = info_span!("Programmatic outer");
-    s.set_parent(ctx);
+    s.set_parent(parent_cx);
+    // for (k, v) in sentry_headers {
+    //     println!("{k}: {v}");
+    //     s.set_attribute((*k).to_string(), (*v).to_string());
+    // }
+
 
     async move {
         // Now, inside the instrumented future, the current span is `s`,
@@ -88,9 +123,15 @@ async fn outer(ctx: opentelemetry::Context, sentry_headers: Vec<(&str, &str)>, m
     }
         .instrument(s)
         .await;
+
+    // Finish the Sentry span to ensure it's recorded and sent to Sentry
+    span_clone.finish();
+    transaction_clone.finish();
 }
 
 use lapin::types::{AMQPValue, FieldTable, ShortString};
+use tracing::log::kv::{Key, Source};
+
 struct HeadersMap<'a>(&'a mut BTreeMap<ShortString, AMQPValue>);
 impl Injector for HeadersMap<'_> {
     fn set(&mut self, key: &str, value: String) {
@@ -132,17 +173,31 @@ async fn main() -> anyhow::Result<()> {
     let (_sentry_guard, otel_guard) = setup_logging(&config.common_config);
 
     let root = tracing::info_span!("parent");
+    let mut headers = BTreeMap::new();
 
     let (ctx, sentry_headers_string) = {
         let _e = root.enter();
         let mut sentry_headers = vec![];
+
         if let Some(span) = sentry::configure_scope(|scope| scope.get_span()) {
             for (k, v) in span.iter_headers() {
                 sentry_headers.push((k, v));
             }
         }
+        let ctx = Span::current().context();
 
-        (Span::current().context(), sentry_headers)
+        global::get_text_map_propagator(|propagator| {
+            let context = Span::current().context();
+            println!("inner ctx: {context:?}");
+            propagator.inject_context(&context, &mut HeadersMap(&mut headers));
+        });
+        Hub::current().configure_scope(|scope| {
+            println!("old scope: {scope:?}");
+        });
+
+        println!("my ctx: {ctx:?}");
+        println!("my headers: {headers:?}");
+        (ctx, sentry_headers)
     };
     drop(root);
 
@@ -152,10 +207,6 @@ async fn main() -> anyhow::Result<()> {
         .map(|(k, v)| (*k, v.as_str()))
         .collect();
 
-    let mut headers = BTreeMap::new();
-    global::get_text_map_propagator(|propagator| {
-        propagator.inject_context(&ctx, &mut HeadersMap(&mut headers));
-    });
 
     println!("{:?}", headers);
 

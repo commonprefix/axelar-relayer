@@ -29,7 +29,7 @@ tokio-util = { workspace = true }
 uuid = { workspace = true }
 redis = { workspace = true, features = ["connection-manager"] }
 async-std = { workspace = true }
-sentry = { workspace = true, features = ["opentelemetry", "reqwest", "sentry-opentelemetry"] }
+sentry = { workspace = true, features = ["opentelemetry", "reqwest", "sentry-opentelemetry", "tracing"] }
 sentry-tracing = { workspace = true }
 opentelemetry = { workspace = true }
 opentelemetry_sdk = { workspace = true }
