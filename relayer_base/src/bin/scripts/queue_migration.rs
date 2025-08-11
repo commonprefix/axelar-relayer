@@ -17,7 +17,7 @@ async fn main() -> Result<()> {
     dotenv().ok();
     let network = env::var("NETWORK").expect("NETWORK must be set");
     let config = config_from_yaml(&format!("config.{}.yaml", network))?;
-    let _guard = setup_logging(&config);
+    let (_sentry_guard, otel_guard) = setup_logging(&config);
 
     //let conn = Connection::connect(&config.queue_address, ConnectionProperties::default()).await?;
     //let channel: Channel = conn.create_channel().await?;
@@ -69,6 +69,10 @@ async fn main() -> Result<()> {
             }
         }
     }
+    
+    otel_guard
+        .force_flush()
+        .expect("Failed to flush OTEL messages");
 
     Ok(())
 }

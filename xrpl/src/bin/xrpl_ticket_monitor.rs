@@ -19,7 +19,7 @@ async fn main() -> anyhow::Result<()> {
     let network = std::env::var("NETWORK").expect("NETWORK must be set");
     let config: XRPLConfig = config_from_yaml(&format!("config.{}.yaml", network))?;
 
-    let _guard = setup_logging(&config.common_config);
+    let (_sentry_guard, _otel_guard) = setup_logging(&config.common_config);
 
     let client = XRPLClient::new(&config.xrpl_rpc, RETRIES as usize)?;
     let account = AccountId::from_address(&config.xrpl_multisig)?;

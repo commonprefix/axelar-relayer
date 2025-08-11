@@ -80,6 +80,7 @@ impl<DB: Database, X: XRPLClientTrait> TransactionPoller for XrplSubscriber<DB, 
         Ok(transactions)
     }
 
+    #[tracing::instrument(skip(self))]
     async fn poll_tx(&mut self, tx_hash: String) -> Result<Self::Transaction, anyhow::Error> {
         let request = xrpl_api::TxRequest::new(&tx_hash);
         let res = self.client.call(request).await;

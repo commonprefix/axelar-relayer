@@ -1,5 +1,5 @@
 use std::sync::Arc;
-use tracing::{info, warn};
+use tracing::{info, info_span, warn, Instrument};
 
 use crate::gmp_api::GmpApiTrait;
 use crate::utils::ThreadSafe;
@@ -77,6 +77,7 @@ where
         Ok(distributor)
     }
 
+    #[tracing::instrument(skip(self))]
     pub async fn store_last_task_id(&mut self) -> Result<(), DistributorError> {
         if let Some(task_id) = &self.last_task_id {
             self.db
@@ -104,10 +105,12 @@ where
             .map_err(|e| DistributorError::GenericError(format!("Failed to get tasks: {}", e)))?;
         for task in tasks {
             let task_id = task.id();
+            let span = info_span!("received_task", task = format!("{task:?}"));
+            
             processed_task_ids.push(task_id.clone());
             self.last_task_id = Some(task_id);
 
-            if let Err(err) = self.store_last_task_id().await {
+            if let Err(err) = self.store_last_task_id().instrument(span).await {
                 warn!("{:?}", err);
             }
             if let Some(tasks_filter) = &tasks_filter {

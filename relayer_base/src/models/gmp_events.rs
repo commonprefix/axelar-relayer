@@ -2,9 +2,6 @@ use crate::gmp_api::gmp_types::{Event, PostEventResult};
 use sqlx::types::Json;
 use sqlx::PgPool;
 use std::future::Future;
-use opentelemetry::{global, Context, KeyValue};
-use opentelemetry::global::ObjectSafeSpan;
-use opentelemetry::trace::Tracer;
 
 const PG_TABLE_NAME: &str = "gmp_events";
 
@@ -97,15 +94,9 @@ pub trait GMPAudit {
 }
 
 impl GMPAudit for PgGMPEvents {
+    
+    #[tracing::instrument(skip(self))]
     async fn insert_event(&self, event: EventModel) -> anyhow::Result<()> {
-        let tracer = global::tracer("gmp_api");
-        let mut span = tracer.start_with_context("gmp_events.insert_event", &Context::current());
-        span.set_attribute(KeyValue::new("gmp_event_id", event.event_id.clone()));
-        span.set_attribute(KeyValue::new("gmp_event_type", event.event_type.clone()));
-        if let Some(message_id) = &event.message_id {
-            span.set_attribute(KeyValue::new("message_id", message_id.clone()));
-        }
-
         let query = format!(
             "INSERT INTO {} (event_id, message_id, event_type, event)
                 VALUES ($1, $2, $3, $4)",
@@ -123,15 +114,12 @@ impl GMPAudit for PgGMPEvents {
         Ok(())
     }
 
+    #[tracing::instrument(skip(self))]
     async fn update_event_response(
         &self,
         event_id: String,
         response: Json<PostEventResult>,
     ) -> anyhow::Result<()> {
-        let tracer = global::tracer("gmp_api");
-        let mut span = tracer.start_with_context("gmp_events.update_event_response", &Context::current());
-        span.set_attribute(KeyValue::new("gmp_event_id", event_id.clone()));
-
         let query = format!(
             "UPDATE {} SET response = $1, updated_at = NOW() WHERE event_id = $2",
             PG_TABLE_NAME

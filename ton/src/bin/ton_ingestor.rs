@@ -25,7 +25,7 @@ async fn main() -> anyhow::Result<()> {
     let network = std::env::var("NETWORK").expect("NETWORK must be set");
     let config: TONConfig = config_from_yaml(&format!("config.{}.yaml", network))?;
 
-    let _guard = setup_logging(&config.common_config);
+    let (_sentry_guard, otel_guard) = setup_logging(&config.common_config);
 
     let tasks_queue = Queue::new(&config.common_config.queue_address, "ingestor_tasks").await;
     let events_queue = Queue::new(&config.common_config.queue_address, "events").await;
@@ -75,6 +75,10 @@ async fn main() -> anyhow::Result<()> {
 
     tasks_queue.close().await;
     events_queue.close().await;
+
+    otel_guard
+        .force_flush()
+        .expect("Failed to flush OTEL messages");
 
     Ok(())
 }

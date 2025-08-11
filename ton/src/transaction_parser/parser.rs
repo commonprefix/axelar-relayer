@@ -53,6 +53,8 @@ pub trait TraceParserTrait {
 }
 
 impl<PV: PriceViewTrait> TraceParserTrait for TraceParser<PV> {
+
+    #[tracing::instrument(skip(self))]
     async fn parse_trace(&self, trace: Trace) -> Result<Vec<Event>, TransactionParsingError> {
         let trace_id = trace.trace_id.clone();
 

@@ -394,6 +394,7 @@ impl Queue {
         }
     }
 
+    #[tracing::instrument(skip(self))]
     pub async fn publish_with_properties(&self, item: QueueItem, properties: BasicProperties) {
         if let Err(e) = self.publish_item(&item, false, Some(properties)).await {
             error!("Failed to publish item with properties: {:?}. Falling back to buffer.", e);

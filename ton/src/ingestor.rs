@@ -1,6 +1,6 @@
 use opentelemetry::{global, Context, KeyValue};
 use opentelemetry::global::ObjectSafeSpan;
-use opentelemetry::trace::{FutureExt, Tracer};
+use opentelemetry::trace::{Tracer};
 use crate::models::ton_trace::{EventSummary, UpdateEvents};
 use crate::parser::TraceParserTrait;
 use relayer_base::error::IngestorError;
@@ -27,6 +27,8 @@ impl<TP: TraceParserTrait, TM: UpdateEvents + Send + Sync> TONIngestor<TP, TM> {
 }
 
 impl<TP: TraceParserTrait, TM: UpdateEvents + Send + Sync> IngestorTrait for TONIngestor<TP, TM> {
+
+    #[tracing::instrument(skip(self))]
     async fn handle_verify(&self, task: VerifyTask) -> Result<(), IngestorError> {
         warn!("handle_verify: {:?}", task);
 
@@ -35,6 +37,7 @@ impl<TP: TraceParserTrait, TM: UpdateEvents + Send + Sync> IngestorTrait for TON
         ))
     }
 
+    #[tracing::instrument(skip(self))]
     async fn handle_transaction(
         &self,
         trace: ChainTransaction,
@@ -55,7 +58,6 @@ impl<TP: TraceParserTrait, TM: UpdateEvents + Send + Sync> IngestorTrait for TON
         let events = self
             .trace_parser
             .parse_trace(*trace)
-            .with_current_context()
             .await
             .map_err(|e| IngestorError::GenericError(e.to_string()))?;
 
@@ -90,6 +92,7 @@ impl<TP: TraceParserTrait, TM: UpdateEvents + Send + Sync> IngestorTrait for TON
         Ok(events)
     }
 
+    #[tracing::instrument(skip(self))]
     async fn handle_wasm_event(&self, task: ReactToWasmEventTask) -> Result<(), IngestorError> {
         warn!("handle_wasm_event: {:?}", task);
 
@@ -98,6 +101,7 @@ impl<TP: TraceParserTrait, TM: UpdateEvents + Send + Sync> IngestorTrait for TON
         ))
     }
 
+    #[tracing::instrument(skip(self))]
     async fn handle_construct_proof(&self, task: ConstructProofTask) -> Result<(), IngestorError> {
         warn!("handle_construct_proof: {:?}", task);
 
@@ -106,6 +110,7 @@ impl<TP: TraceParserTrait, TM: UpdateEvents + Send + Sync> IngestorTrait for TON
         ))
     }
 
+    #[tracing::instrument(skip(self))]
     async fn handle_retriable_task(&self, task: RetryTask) -> Result<(), IngestorError> {
         warn!("handle_retriable_task: {:?}", task);
 

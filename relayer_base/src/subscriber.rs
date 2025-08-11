@@ -1,14 +1,12 @@
 use crate::queue::{Queue, QueueItem};
 use futures::Stream;
 use lapin::BasicProperties;
-use lapin::types::{AMQPValue, FieldTable, ShortString};
+use lapin::types::{FieldTable};
 use serde::{Deserialize, Serialize};
-use std::{collections::BTreeMap, future::Future, pin::Pin, sync::Arc};
-use opentelemetry::{global, Context, KeyValue};
-use opentelemetry::propagation::Injector;
-use opentelemetry::trace::{Span, TraceContextExt, Tracer};
-use tracing::{debug, error, info};
-use crate::logging::maybe_to_string;
+use std::{future::Future, pin::Pin, sync::Arc};
+use tracing::{debug, error, info, info_span, Instrument};
+use tracing_opentelemetry::OpenTelemetrySpanExt;
+use crate::logging::{distributed_tracing_headers, maybe_to_string};
 
 pub trait TransactionListener {
     type Transaction;
@@ -56,17 +54,6 @@ pub enum ChainTransaction {
     TON(Box<ton_types::ton_types::Trace>),
 }
 
-struct HeadersMap<'a>(&'a mut BTreeMap<ShortString, AMQPValue>);
-
-impl Injector for HeadersMap<'_> {
-    fn set(&mut self, key: &str, value: String) {
-        let key = ShortString::from(key);
-        let val = AMQPValue::LongString(value.into());
-        self.0.insert(key, val);
-    }
-}
-
-
 impl<TP: TransactionPoller> Subscriber<TP>
 where
     TP::Account: Clone,
@@ -79,37 +66,30 @@ where
         <TP as TransactionPoller>::Transaction: 'static,
         <TP as TransactionPoller>::Account: 'static
     {
-        let tracer = global::tracer("tracer");
-
         let res = self.transaction_poller.poll_account(account.clone()).await;
         match res {
             Ok(txs) => {
                 for tx in txs {
-                    let mut span = tracer.start("subscriber.work");
+                    let span = info_span!("chain_transaction");
                     if let Some(s) = maybe_to_string(&account) {
-                        span.set_attribute(KeyValue::new("chain_account_id", s));
+                        span.set_attribute("chain_account_id", s);
                     }
                     if let Some(s) = maybe_to_string(&tx) {
-                        span.set_attribute(KeyValue::new("chain_transaction_id", s));    
+                        span.set_attribute("chain_transaction_id", s);
                     }
 
                     let chain_transaction = self.transaction_poller.make_queue_item(tx);
                     let item = &QueueItem::Transaction(Box::new(chain_transaction.clone()));
                     info!("Publishing transaction: {:?}", chain_transaction);
-                    let mut headers = BTreeMap::new();
 
-                    let cx = Context::current_with_span(span);
-                    global::get_text_map_propagator(|propagator| {
-                        propagator.inject_context(&cx, &mut HeadersMap(&mut headers));
-                    });
+                    let headers = distributed_tracing_headers(&span);
 
                     debug!("Sending headers: {:?}", headers);
-
                     let properties = BasicProperties::default()
                         .with_delivery_mode(2)
                         .with_headers(FieldTable::from(headers));
 
-                    queue.publish_with_properties(item.clone(), properties).await;
+                    queue.publish_with_properties(item.clone(), properties).instrument(span).await;
                     debug!("Published tx: {:?}", item);
                 }
             }
@@ -131,24 +111,22 @@ where
     }
 
     pub async fn recover_txs(&mut self, txs: Vec<String>, queue: Arc<Queue>) {
-        let tracer = global::tracer("tracer");
+        let span = info_span!("recover_txs");
 
         for tx in txs {
-            let res = self.transaction_poller.poll_tx(tx).await;
+            let res = self.transaction_poller
+                .poll_tx(tx)
+                .instrument(span.clone())
+                .await;
+
             match res {
                 Ok(tx) => {
-                    let span = tracer.start("subscriber.recover_txs");
 
                     let chain_transaction = self.transaction_poller.make_queue_item(tx);
                     let item = &QueueItem::Transaction(Box::new(chain_transaction.clone()));
                     info!("Publishing transaction: {:?}", chain_transaction);
 
-                    let mut headers = BTreeMap::new();
-
-                    let cx = Context::current_with_span(span);
-                    global::get_text_map_propagator(|propagator| {
-                        propagator.inject_context(&cx, &mut HeadersMap(&mut headers));
-                    });
+                    let headers = distributed_tracing_headers(&span);
 
                     let properties = BasicProperties::default()
                         .with_delivery_mode(2)

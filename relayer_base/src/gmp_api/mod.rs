@@ -14,14 +14,11 @@ use std::{
     path::PathBuf,
     time::Duration,
 };
-use opentelemetry::{global, Context, KeyValue};
-use opentelemetry::trace::{FutureExt, Span, Tracer};
 use tracing::{debug, info, warn};
 use xrpl_amplifier_types::msg::XRPLMessage;
 
 use reqwest::Identity;
 use reqwest_tracing::TracingMiddleware;
-use tracing::log::error;
 use crate::{config::Config, error::GmpApiError, utils::parse_task};
 use gmp_types::{
     Amount, BroadcastRequest, CannotExecuteMessageReason, CommonEventFields, Event,
@@ -101,6 +98,7 @@ impl GmpApi {
         })
     }
 
+    #[tracing::instrument]
     async fn request_bytes_if_success(
         request: reqwest_middleware::RequestBuilder,
     ) -> Result<Vec<u8>, GmpApiError> {
@@ -149,29 +147,10 @@ impl GmpApi {
         }
     }
 
+    #[tracing::instrument]
     async fn request_json<T: DeserializeOwned>(
         request: reqwest_middleware::RequestBuilder,
     ) -> Result<T, GmpApiError> {
-        let tracer = global::tracer("gmp_api");
-
-        let span_name;
-        // TODO: Move this ideally to a middleware (existing reqwest-middleware for tracing doesn't cut it)
-        if let Some(cloned) = request.try_clone() {
-            match cloned.build() {
-                Ok(request) => {
-                    span_name = format!("{} {}", request.method().to_string().to_uppercase(), request.url());
-                },
-                Err(e) => {
-                    error!("Failed to build request: {}", e);
-                    span_name = "UNKNOWN".to_string();
-                }
-            }
-        } else {
-            error!("Failed to clone RequestBuilder");
-            span_name = "UNKNOWN".to_string();
-        }
-        let _span = tracer.start_with_context(span_name, &Context::current());
-
         let response = request.send().await.map_err(|e| {
             debug!("{:?}", e);
             GmpApiError::RequestFailed(e.to_string())
@@ -203,7 +182,7 @@ impl GmpApiTrait for GmpApi {
             debug!("Requesting tasks after: {}", after);
         }
 
-        let response: HashMap<String, Vec<Value>> = GmpApi::request_json(request).with_current_context().await?;
+        let response: HashMap<String, Vec<Value>> = GmpApi::request_json(request).await?;
         debug!("Response from {}: {:?}", request_url, response);
 
         let tasks_json = response
@@ -221,6 +200,8 @@ impl GmpApiTrait for GmpApi {
             })
             .collect::<Vec<_>>())
     }
+
+    #[tracing::instrument(skip(self))]
     async fn post_events(&self, events: Vec<Event>) -> Result<Vec<PostEventResult>, GmpApiError> {
         let mut map = HashMap::new();
         map.insert("events", events);
@@ -237,10 +218,12 @@ impl GmpApiTrait for GmpApi {
                 GmpApiError::GenericError(format!("Failed to serialize events payload: {}", e))
             })?);
 
-        let response: PostEventResponse = GmpApi::request_json(request).with_current_context().await?;
+        let response: PostEventResponse = GmpApi::request_json(request).await?;
         info!("Response from POST: {:?}", response);
         Ok(response.results)
     }
+
+    #[tracing::instrument(skip(self))]
     async fn post_broadcast(
         &self,
         contract_address: String,
@@ -403,6 +386,8 @@ impl GmpApiTrait for GmpApi {
 
         GmpApi::request_text_if_success(request).await
     }
+
+    #[tracing::instrument(skip(self))]
     async fn post_payload(&self, payload: &[u8]) -> Result<String, GmpApiError> {
         let url = format!("{}/payloads", self.rpc_url);
         let request = self
@@ -411,9 +396,11 @@ impl GmpApiTrait for GmpApi {
             .header("Content-Type", "application/octet-stream")
             .body(payload.to_vec());
 
-        let response: StorePayloadResult = GmpApi::request_json(request).with_current_context().await?;
+        let response: StorePayloadResult = GmpApi::request_json(request).await?;
         Ok(response.keccak256.trim_start_matches("0x").to_string())
     }
+
+    #[tracing::instrument(skip(self))]
     async fn get_payload(&self, hash: &str) -> Result<String, GmpApiError> {
         let url = format!("{}/payloads/0x{}", self.rpc_url, hash.to_lowercase());
         let request = self.client.get(&url);

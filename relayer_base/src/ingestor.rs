@@ -1,12 +1,9 @@
 use futures::StreamExt;
 use lapin::{options::BasicAckOptions, Consumer};
-use std::{future::Future, sync::Arc, collections::HashMap};
+use std::{future::Future, sync::Arc};
 use tokio::select;
-use tracing::{debug, error, info, warn};
-use opentelemetry::{global, Context, KeyValue};
-use opentelemetry::propagation::Extractor;
-use opentelemetry::trace::{FutureExt, Span, TraceContextExt, Tracer};
-
+use tracing::{debug, error, info, info_span, warn, Instrument, Span};
+use tracing_opentelemetry::OpenTelemetrySpanExt;
 use crate::gmp_api::GmpApiTrait;
 use crate::utils::ThreadSafe;
 use crate::{
@@ -18,6 +15,7 @@ use crate::{
     queue::{Queue, QueueItem},
     subscriber::ChainTransaction,
 };
+use crate::logging::{distributed_tracing_extract_parent_context};
 
 pub struct Ingestor<I: IngestorTrait, G: GmpApiTrait + ThreadSafe> {
     gmp_api: Arc<G>,
@@ -48,21 +46,6 @@ pub trait IngestorTrait {
     ) -> impl Future<Output = Result<(), IngestorError>>;
 }
 
-struct HeadersMap<'a>(&'a mut HashMap<String, String>);
-
-impl Extractor for HeadersMap<'_> {
-    fn get(&self, key: &str) -> Option<&str> {
-        self.0.get(key).and_then(|metadata| Option::from(metadata.as_str()))
-    }
-
-    fn keys(&self) -> Vec<&str> {
-        self.0
-            .keys()
-            .map(|key| key.as_str())
-            .collect::<Vec<_>>()
-    }
-}
-
 impl<I, G> Ingestor<I, G>
 where
     I: IngestorTrait,
@@ -77,22 +60,12 @@ where
             info!("Waiting for messages from {}..", consumer.queue());
             match consumer.next().await {
                 Some(Ok(delivery)) => {
-                    // Extract headers from the delivery
-                    let mut headers_map = HashMap::new();
-                    if let Some(headers) = delivery.properties.headers() {
-                        for (key, value) in headers.inner().iter() {
-                            if let Some(value_str) = value.as_long_string() {
-                                headers_map.insert(key.to_string(), value_str.to_string());
-                            }
-                        }
-                    }
-                    let parent_cx =
-                        global::get_text_map_propagator(|prop| prop.extract(&HeadersMap(&mut headers_map)));
-                    let tracer = global::tracer("ingestor");
-                    let span = tracer.start_with_context("ingestor.work", &parent_cx);
+                    let parent_cx = distributed_tracing_extract_parent_context(&delivery);
+                    let span = info_span!("consume_message");
+                    span.set_parent(parent_cx);
 
                     let data = delivery.data.clone();
-                    if let Err(e) = self.process_delivery(&data).with_context(Context::current_with_span(span)).await {
+                    if let Err(e) = self.process_delivery(&data).instrument(span.clone()).await {
                         let mut force_requeue = false;
                         match e {
                             IngestorError::IrrelevantTask => {
@@ -104,10 +77,10 @@ where
                             }
                         }
 
-                        if let Err(nack_err) = queue.republish(delivery, force_requeue).await {
+                        if let Err(nack_err) = queue.republish(delivery, force_requeue).instrument(span).await {
                             error!("Failed to republish message: {:?}", nack_err);
                         }
-                    } else if let Err(ack_err) = delivery.ack(BasicAckOptions::default()).await {
+                    } else if let Err(ack_err) = delivery.ack(BasicAckOptions::default()).instrument(span).await {
                         let item = serde_json::from_slice::<QueueItem>(&delivery.data);
                         error!("Failed to ack item {:?}: {:?}", item, ack_err);
                     }
@@ -123,12 +96,13 @@ where
         }
     }
 
+
+    #[tracing::instrument(skip(self))]
     async fn process_delivery(&self, data: &[u8]) -> Result<(), IngestorError> {
         let item = serde_json::from_slice::<QueueItem>(data)
             .map_err(|e| IngestorError::ParseError(format!("Invalid JSON: {}", e)))?;
 
-        //let parent_cx = Context::current();
-        self.consume(item).with_current_context().await
+        self.consume(item).await
     }
 
     pub async fn run(&self, events_queue: Arc<Queue>, tasks_queue: Arc<Queue>) {
@@ -159,35 +133,29 @@ where
         };
     }
 
+    #[tracing::instrument(skip(self))]
     pub async fn consume(&self, item: QueueItem) -> Result<(), IngestorError> {
-        let tracer = global::tracer("ingestor");
-        let mut span = tracer.start_with_context("ingestor.consume", &Context::current());
-
         let result = match item {
             QueueItem::Task(task) => {
-                self.consume_task(*task).with_current_context().await
+                self.consume_task(*task).await
             }
             QueueItem::Transaction(chain_transaction) => {
-                self.consume_transaction(chain_transaction).with_current_context().await
+                self.consume_transaction(chain_transaction).await
             }
             _ => Err(IngestorError::IrrelevantTask),
         };
 
-        span.end();
-
         result
     }
 
+    #[tracing::instrument(skip(self))]
     pub async fn consume_transaction(
         &self,
         transaction: Box<ChainTransaction>,
     ) -> Result<(), IngestorError> {
-        let tracer = global::tracer("ingestor");
-        let mut span = tracer.start_with_context("ingestor.consume_transaction", &Context::current());
+        let events = self.ingestor.handle_transaction(*transaction).await?;
 
-        let events = self.ingestor.handle_transaction(*transaction).with_current_context().await?;
-
-        span.set_attribute(KeyValue::new("num_events", events.len() as i64));
+        Span::current().set_attribute("num_events", events.len() as i64);
 
         if events.is_empty() {
             info!("No GMP events to post.");
@@ -197,7 +165,7 @@ where
         info!("Posting events: {:?}", events.clone());
         let response = self
             .gmp_api
-            .post_events(events).with_current_context()
+            .post_events(events)
             .await
             .map_err(|e| IngestorError::PostEventError(e.to_string()))?;
 
@@ -216,6 +184,7 @@ where
         Ok(()) // TODO: better error handling
     }
 
+    #[tracing::instrument(skip(self))]
     pub async fn consume_task(&self, task: Task) -> Result<(), IngestorError> {
         match task {
             Task::Verify(verify_task) => {

@@ -19,7 +19,7 @@ async fn main() -> anyhow::Result<()> {
     let network = std::env::var("NETWORK").expect("NETWORK must be set");
     let config: XRPLConfig = config_from_yaml(&format!("config.{}.yaml", network))?;
 
-    let _guard = setup_logging(&config.common_config);
+    let (_sentry_guard, otel_guard) = setup_logging(&config.common_config);
 
     let events_queue = Queue::new(&config.common_config.queue_address, "events").await;
     let postgres_db = PostgresDB::new(&config.common_config.postgres_url)
@@ -64,6 +64,10 @@ async fn main() -> anyhow::Result<()> {
     }
 
     events_queue.close().await;
+
+    otel_guard
+        .force_flush()
+        .expect("Failed to flush OTEL messages");
 
     Ok(())
 }

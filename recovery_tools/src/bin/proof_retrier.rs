@@ -19,7 +19,7 @@ async fn main() -> anyhow::Result<()> {
     let network = std::env::var("NETWORK").expect("NETWORK must be set");
     let config: Config = config_from_yaml(&format!("config.{}.yaml", network))?;
 
-    let _guard = setup_logging(&config);
+    let (_sentry_guard, otel_guard) = setup_logging(&config);
 
     let construct_proof_queue = Queue::new(&config.queue_address, "construct_proof").await;
     let tasks_queue = Queue::new(&config.queue_address, "ingestor_tasks").await;
@@ -49,6 +49,8 @@ async fn main() -> anyhow::Result<()> {
 
     tasks_queue.close().await;
     construct_proof_queue.close().await;
-
+    otel_guard
+        .force_flush()
+        .expect("Failed to flush OTEL messages");
     Ok(())
 }

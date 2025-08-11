@@ -1167,6 +1167,8 @@ where
     DB: Database,
     G: GmpApiTrait + ThreadSafe,
 {
+
+    #[tracing::instrument(skip(self))]
     async fn handle_transaction(&self, tx: ChainTransaction) -> Result<Vec<Event>, IngestorError> {
         let ChainTransaction::Xrpl(tx) = tx else {
             return Err(IngestorError::UnexpectedChainTransactionType(format!(
@@ -1244,6 +1246,7 @@ where
         }
     }
 
+    #[tracing::instrument(skip(self))]
     async fn handle_verify(&self, task: VerifyTask) -> Result<(), IngestorError> {
         let xrpl_message = parse_message_from_context(&task.common.meta)?;
 
@@ -1264,6 +1267,7 @@ where
         Ok(())
     }
 
+    #[tracing::instrument(skip(self))]
     async fn handle_wasm_event(&self, task: ReactToWasmEventTask) -> Result<(), IngestorError> {
         let event_name = task.task.event.r#type.clone();
 
@@ -1406,6 +1410,7 @@ where
         }
     }
 
+    #[tracing::instrument(skip(self))]
     async fn handle_construct_proof(&self, task: ConstructProofTask) -> Result<(), IngestorError> {
         let cc_id = CrossChainId::new(
             task.task.message.source_chain.clone(),
@@ -1486,6 +1491,7 @@ where
         Ok(())
     }
 
+    #[tracing::instrument(skip(self))]
     async fn handle_retriable_task(&self, task: RetryTask) -> Result<(), IngestorError> {
         let message_id = match message_id_from_retry_task(task.clone()).map_err(|e| {
             IngestorError::GenericError(format!("Failed to get message id from retry task: {}", e))
