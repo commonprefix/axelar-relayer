@@ -80,7 +80,7 @@ where
                     let item = &QueueItem::Transaction(Box::new(chain_transaction.clone()));
                     info!("Publishing transaction: {:?}", chain_transaction);
 
-                    queue.publish_with_properties(item.clone()).instrument(span).await;
+                    queue.publish(item.clone()).instrument(span).await;
                     debug!("Published tx: {:?}", item);
                 }
             }

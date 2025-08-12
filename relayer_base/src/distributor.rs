@@ -136,7 +136,7 @@ where
                 continue;
             };
 
-            queue.publish_with_properties(task_item.clone()).instrument(span).await;
+            queue.publish(task_item.clone()).instrument(span).await;
         }
         Ok(processed_task_ids)
     }
