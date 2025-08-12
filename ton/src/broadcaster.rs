@@ -109,7 +109,7 @@ pub struct TONTransaction;
 impl<GE: GasEstimator> Broadcaster for TONBroadcaster<GE> {
     type Transaction = TONTransaction;
 
-    #[tracing::instrument(skip(self))]
+    #[tracing::instrument(skip(self), fields(message_id))]
     async fn broadcast_prover_message(
         &self,
         tx_blob: String,
@@ -124,6 +124,8 @@ impl<GE: GasEstimator> Broadcaster for TONBroadcaster<GE> {
                 .ok_or(BroadcasterError::GenericError(
                     "Missing approved message".to_string(),
                 ))?;
+
+        tracing::Span::current().record("message_id", &message.message_id);
 
         let approve_message_value: BigUint = BigUint::from(
             self.gas_estimator
@@ -174,7 +176,7 @@ impl<GE: GasEstimator> Broadcaster for TONBroadcaster<GE> {
         Ok(String::new())
     }
 
-    #[tracing::instrument(skip(self))]
+    #[tracing::instrument(skip(self), fields(message_id))]
     async fn broadcast_execute_message(
         &self,
         message: ExecuteTaskFields,
@@ -196,6 +198,8 @@ impl<GE: GasEstimator> Broadcaster for TONBroadcaster<GE> {
 
         let message_id = message.message.message_id;
         let source_chain = message.message.source_chain;
+
+        tracing::Span::current().record("message_id", &message_id);
 
         let available_gas = u64::from_str(&message.available_gas_balance.amount).unwrap_or(0);
         let required_gas = self.gas_estimator.execute_estimate(payload_len).await;
@@ -273,7 +277,7 @@ impl<GE: GasEstimator> Broadcaster for TONBroadcaster<GE> {
         result
     }
 
-    #[tracing::instrument(skip(self))]
+    #[tracing::instrument(skip(self), fields(message_id))]
     async fn broadcast_refund_message(
         &self,
         refund_task: RefundTaskFields,
@@ -289,6 +293,9 @@ impl<GE: GasEstimator> Broadcaster for TONBroadcaster<GE> {
             .message_id
             .strip_prefix("0x")
             .unwrap_or(&refund_task.message.message_id);
+
+        tracing::Span::current().record("message_id", &refund_task.message.message_id);
+
         let tx_hash = TonHash::from_hex(cleaned_hash)
             .map_err(|e| BroadcasterError::GenericError(e.to_string()))?;
 
