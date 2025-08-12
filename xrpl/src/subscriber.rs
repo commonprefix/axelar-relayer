@@ -56,6 +56,7 @@ impl<DB: Database, X: XRPLClientTrait> TransactionPoller for XrplSubscriber<DB, 
         ChainTransaction::Xrpl(Box::new(tx))
     }
 
+    #[tracing::instrument(skip(self))]
     async fn poll_account(
         &mut self,
         account_id: AccountId,
