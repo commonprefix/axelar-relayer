@@ -7227,7 +7227,6 @@ dependencies = [
  "error-stack 0.5.0",
  "hex",
  "httpmock",
- "lapin",
  "mockall",
  "nacl",
  "num-bigint",
@@ -7239,7 +7238,6 @@ dependencies = [
  "reqwest-middleware",
  "reqwest-retry",
  "rust_decimal",
- "sentry",
  "serde",
  "serde_json",
  "sqlx",
@@ -7251,7 +7249,6 @@ dependencies = [
  "ton_types",
  "tonlib-core",
  "tracing",
- "tracing-opentelemetry",
  "tracing-test",
 ]
 
