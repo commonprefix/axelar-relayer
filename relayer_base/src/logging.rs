@@ -36,16 +36,7 @@ pub fn setup_logging(config: &Config) -> (ClientInitGuard, SdkTracerProvider) {
         },
     ));
 
-    //global::set_text_map_propagator(sentry_opentelemetry::SentryPropagator::new());
     global::set_text_map_propagator(TraceContextPropagator::new());
-
-    let jaeger_endpoint =
-        std::env::var("JAEGER_ENDPOINT").unwrap_or_else(|_| "http://localhost:4317".to_string());
-    let exporter = SpanExporter::builder()
-        .with_tonic()
-        .with_endpoint(jaeger_endpoint)
-        .build()
-        .expect("Failed to create Jaeger exporter");
 
     let path = match env::current_exe() {
         Ok(exe_path) => exe_path
@@ -59,13 +50,28 @@ pub fn setup_logging(config: &Config) -> (ClientInitGuard, SdkTracerProvider) {
 
     let resource = Resource::builder().with_service_name(path).build();
 
-    let tracer_provider = SdkTracerProvider::builder()
-        .with_sampler(Sampler::ParentBased(Box::new(Sampler::TraceIdRatioBased(
-            1.0,
-        ))))
-        .with_resource(resource)
-        .with_batch_exporter(exporter)
-        .build();
+    let tracer_provider = if let Some(jaeger_url) = &config.jaeger_grpc_url {
+        let exporter = SpanExporter::builder()
+            .with_tonic()
+            .with_endpoint(jaeger_url)
+            .build()
+            .expect("Failed to create Jaeger exporter");
+
+        SdkTracerProvider::builder()
+            .with_sampler(Sampler::ParentBased(Box::new(Sampler::TraceIdRatioBased(
+                1.0,
+            ))))
+            .with_resource(resource)
+            .with_batch_exporter(exporter)
+            .build()
+    } else {
+        SdkTracerProvider::builder()
+            .with_sampler(Sampler::ParentBased(Box::new(Sampler::TraceIdRatioBased(
+                1.0,
+            ))))
+            .with_resource(resource)
+            .build()
+    };
 
     let tracer = tracer_provider.tracer("relayer");
 
@@ -79,17 +85,24 @@ pub fn setup_logging(config: &Config) -> (ClientInitGuard, SdkTracerProvider) {
             Level::WARN => EventFilter::Event,
             _ => EventFilter::Breadcrumb,
         })
-        .span_filter(|md| matches!(*md.level(), Level::INFO | Level::WARN | Level::ERROR));
+        .span_filter(|_| false); // Disable all spans for Sentry
 
-    let otel_layer = tracing_opentelemetry::layer()
-        .with_tracer(tracer)
-        .with_filter(LevelFilter::INFO);
+    if config.jaeger_grpc_url.is_some() {
+        let otel_layer = tracing_opentelemetry::layer()
+            .with_tracer(tracer)
+            .with_filter(LevelFilter::INFO);
 
-    tracing_subscriber::registry()
-        .with(fmt_layer) // Console logging
-        .with(sentry_layer) // Sentry logging
-        .with(otel_layer) // Otel, required for Sentry tracing too
-        .init();
+        tracing_subscriber::registry()
+            .with(fmt_layer) // Console logging
+            .with(sentry_layer) // Sentry logging
+            .with(otel_layer) // Otel layer for Jaeger
+            .init();
+    } else {
+        tracing_subscriber::registry()
+            .with(fmt_layer) // Console logging
+            .with(sentry_layer) // Sentry logging
+            .init();
+    }
 
     (guard, tracer_provider)
 }

@@ -178,9 +178,9 @@ pub fn parse_payment_amount(
             })?,
         ))
     } else {
-        return Err(IngestorError::GenericError(
+        Err(IngestorError::GenericError(
             "Payment amount must be either Drops or Issued".to_owned(),
-        ));
+        ))
     }
 }
 

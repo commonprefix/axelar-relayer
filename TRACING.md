@@ -1,5 +1,11 @@
 # Tracing and logging recommendations
 
+To enable tracing, add to your config file: 
+
+```yaml
+jaeger_grpc_url: "http://localhost:4317"
+```
+
 ## Use tracing crate for all logging
 
 Using `tracing::info!`, `tracing::warn!`, `tracing::error!`, etc. creates events that are attached to spans. 
