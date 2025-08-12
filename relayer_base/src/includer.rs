@@ -1,14 +1,6 @@
-use base64::{prelude::BASE64_STANDARD, Engine};
-use futures::StreamExt;
-use lapin::{options::BasicAckOptions, Consumer};
-use redis::aio::ConnectionManager;
-use redis::AsyncCommands;
-use router_api::CrossChainId;
-use std::{future::Future, sync::Arc};
-use tracing::{debug, error, info, info_span, warn, Instrument};
-use tracing_opentelemetry::OpenTelemetrySpanExt;
 use crate::gmp_api::gmp_types::{ExecuteTaskFields, RefundTaskFields};
 use crate::gmp_api::GmpApiTrait;
+use crate::logging::distributed_tracing_extract_parent_context;
 use crate::payload_cache::PayloadCacheTrait;
 use crate::utils::ThreadSafe;
 use crate::{
@@ -18,7 +10,15 @@ use crate::{
     payload_cache::PayloadCache,
     queue::{Queue, QueueItem},
 };
-use crate::logging::distributed_tracing_extract_parent_context;
+use base64::{prelude::BASE64_STANDARD, Engine};
+use futures::StreamExt;
+use lapin::{options::BasicAckOptions, Consumer};
+use redis::aio::ConnectionManager;
+use redis::AsyncCommands;
+use router_api::CrossChainId;
+use std::{future::Future, sync::Arc};
+use tracing::{debug, error, info, info_span, warn, Instrument};
+use tracing_opentelemetry::OpenTelemetrySpanExt;
 
 pub trait RefundManager {
     type Wallet;
@@ -126,9 +126,11 @@ where
                 match consume_res {
                     Ok(_) => {
                         info!("Successfully consumed delivery");
-                        if let Err(e) = delivery.ack(BasicAckOptions::default())
+                        if let Err(e) = delivery
+                            .ack(BasicAckOptions::default())
                             .instrument(span.clone())
-                            .await {
+                            .await
+                        {
                             error!("Failed to ack message: {:?}", e);
                         }
                     }
@@ -144,9 +146,11 @@ where
                             }
                         }
 
-                        if let Err(nack_err) = queue.republish(delivery, force_requeue)
+                        if let Err(nack_err) = queue
+                            .republish(delivery, force_requeue)
                             .instrument(span.clone())
-                            .await {
+                            .await
+                        {
                             error!("Failed to republish message: {:?}", nack_err);
                         }
                     }

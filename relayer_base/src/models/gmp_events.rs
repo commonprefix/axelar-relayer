@@ -94,7 +94,6 @@ pub trait GMPAudit {
 }
 
 impl GMPAudit for PgGMPEvents {
-    
     #[tracing::instrument(skip(self))]
     async fn insert_event(&self, event: EventModel) -> anyhow::Result<()> {
         let query = format!(

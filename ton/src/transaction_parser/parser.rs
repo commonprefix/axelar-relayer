@@ -13,13 +13,13 @@ use crate::transaction_parser::parser_native_gas_paid::ParserNativeGasPaid;
 use crate::transaction_parser::parser_native_gas_refunded::ParserNativeGasRefunded;
 use async_trait::async_trait;
 use num_bigint::BigUint;
+use opentelemetry::trace::{Span, Tracer};
+use opentelemetry::{global, Context, KeyValue};
 use relayer_base::gmp_api::gmp_types::Event;
 use relayer_base::price_view::PriceViewTrait;
 use std::collections::HashMap;
 use std::future::Future;
 use std::str::FromStr;
-use opentelemetry::{global, Context, KeyValue};
-use opentelemetry::trace::{Span, Tracer};
 use ton_types::ton_types::Trace;
 use tonlib_core::TonAddress;
 use tracing::{info, warn};
@@ -53,14 +53,14 @@ pub trait TraceParserTrait {
 }
 
 impl<PV: PriceViewTrait> TraceParserTrait for TraceParser<PV> {
-
     #[tracing::instrument(skip(self))]
     async fn parse_trace(&self, trace: Trace) -> Result<Vec<Event>, TransactionParsingError> {
         let trace_id = trace.trace_id.clone();
 
         let tracer = global::tracer("ton_ingestor");
-        let mut span = tracer.start_with_context("ton_ingestor.parser.parse_trace", &Context::current());
-        
+        let mut span =
+            tracer.start_with_context("ton_ingestor.parser.parse_trace", &Context::current());
+
         let mut events: Vec<Event> = Vec::new();
         let mut parsers: Vec<Box<dyn Parser>> = Vec::new();
         let mut call_contract: Vec<Box<dyn Parser>> = Vec::new();

@@ -4,15 +4,11 @@ use std::sync::Arc;
 use tokio::signal::unix::{signal, SignalKind};
 
 use relayer_base::config::config_from_yaml;
+use relayer_base::logging::setup_logging;
 use relayer_base::redis::connection_manager;
 use relayer_base::{
-    database::PostgresDB,
-    distributor::Distributor,
-    gmp_api,
-    queue::Queue,
-    utils::setup_heartbeat,
+    database::PostgresDB, distributor::Distributor, gmp_api, queue::Queue, utils::setup_heartbeat,
 };
-use relayer_base::logging::setup_logging;
 use xrpl::config::XRPLConfig;
 
 #[tokio::main]

@@ -3,12 +3,9 @@ use sqlx::PgPool;
 use std::sync::Arc;
 use tokio::signal::unix::{signal, SignalKind};
 
-use relayer_base::redis::connection_manager;
-use relayer_base::{
-    config::config_from_yaml,
-    utils::setup_heartbeat,
-};
 use relayer_base::logging::setup_logging;
+use relayer_base::redis::connection_manager;
+use relayer_base::{config::config_from_yaml, utils::setup_heartbeat};
 use xrpl::{
     client::XRPLClient, config::XRPLConfig, models::queued_transactions::PgQueuedTransactionsModel,
     queued_tx_monitor::XrplQueuedTxMonitor,

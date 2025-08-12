@@ -1,10 +1,5 @@
-use futures::StreamExt;
-use lapin::{options::BasicAckOptions, Consumer};
-use std::{future::Future, sync::Arc};
-use tokio::select;
-use tracing::{debug, error, info, info_span, warn, Instrument, Span};
-use tracing_opentelemetry::OpenTelemetrySpanExt;
 use crate::gmp_api::GmpApiTrait;
+use crate::logging::distributed_tracing_extract_parent_context;
 use crate::utils::ThreadSafe;
 use crate::{
     error::IngestorError,
@@ -15,7 +10,12 @@ use crate::{
     queue::{Queue, QueueItem},
     subscriber::ChainTransaction,
 };
-use crate::logging::{distributed_tracing_extract_parent_context};
+use futures::StreamExt;
+use lapin::{options::BasicAckOptions, Consumer};
+use std::{future::Future, sync::Arc};
+use tokio::select;
+use tracing::{debug, error, info, info_span, warn, Instrument, Span};
+use tracing_opentelemetry::OpenTelemetrySpanExt;
 
 pub struct Ingestor<I: IngestorTrait, G: GmpApiTrait + ThreadSafe> {
     gmp_api: Arc<G>,
@@ -77,10 +77,18 @@ where
                             }
                         }
 
-                        if let Err(nack_err) = queue.republish(delivery, force_requeue).instrument(span).await {
+                        if let Err(nack_err) = queue
+                            .republish(delivery, force_requeue)
+                            .instrument(span)
+                            .await
+                        {
                             error!("Failed to republish message: {:?}", nack_err);
                         }
-                    } else if let Err(ack_err) = delivery.ack(BasicAckOptions::default()).instrument(span).await {
+                    } else if let Err(ack_err) = delivery
+                        .ack(BasicAckOptions::default())
+                        .instrument(span)
+                        .await
+                    {
                         let item = serde_json::from_slice::<QueueItem>(&delivery.data);
                         error!("Failed to ack item {:?}: {:?}", item, ack_err);
                     }
@@ -95,7 +103,6 @@ where
             }
         }
     }
-
 
     #[tracing::instrument(skip(self))]
     async fn process_delivery(&self, data: &[u8]) -> Result<(), IngestorError> {
@@ -136,9 +143,7 @@ where
     #[tracing::instrument(skip(self))]
     pub async fn consume(&self, item: QueueItem) -> Result<(), IngestorError> {
         let result = match item {
-            QueueItem::Task(task) => {
-                self.consume_task(*task).await
-            }
+            QueueItem::Task(task) => self.consume_task(*task).await,
             QueueItem::Transaction(chain_transaction) => {
                 self.consume_transaction(chain_transaction).await
             }

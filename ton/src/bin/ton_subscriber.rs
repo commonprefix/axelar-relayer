@@ -93,6 +93,6 @@ async fn main() -> anyhow::Result<()> {
     otel_guard
         .force_flush()
         .expect("Failed to flush OTEL messages");
-    
+
     Ok(())
 }

@@ -147,14 +147,17 @@ where
                     let event_id = event.event_id.clone();
                     let gmp_events = Arc::clone(&self.gmp_events);
                     let result_clone = result.clone();
-                    spawn(async move {
-                        if let Err(e) = gmp_events
-                            .update_event_response(event_id, Json(result_clone))
-                            .await
-                        {
-                            error!("Failed to update event response in database: {:?}", e);
+                    spawn(
+                        async move {
+                            if let Err(e) = gmp_events
+                                .update_event_response(event_id, Json(result_clone))
+                                .await
+                            {
+                                error!("Failed to update event response in database: {:?}", e);
+                            }
                         }
-                    }.instrument(Span::current()));
+                        .instrument(Span::current()),
+                    );
                 }
                 None => {
                     error!("Index in PostEventResult out of bounds: {:?}", results);

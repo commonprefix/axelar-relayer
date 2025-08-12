@@ -3,12 +3,9 @@ use sqlx::PgPool;
 use std::sync::Arc;
 
 use relayer_base::config::config_from_yaml;
-use relayer_base::redis::connection_manager;
-use relayer_base::{
-    gmp_api,
-    utils::setup_heartbeat,
-};
 use relayer_base::logging::setup_logging;
+use relayer_base::redis::connection_manager;
+use relayer_base::{gmp_api, utils::setup_heartbeat};
 use xrpl::config::XRPLConfig;
 use xrpl::ticket_creator::XrplTicketCreator;
 

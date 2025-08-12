@@ -1,10 +1,10 @@
+use crate::logging::maybe_to_string;
 use crate::queue::{Queue, QueueItem};
 use futures::Stream;
 use serde::{Deserialize, Serialize};
 use std::{future::Future, pin::Pin, sync::Arc};
 use tracing::{debug, error, info, info_span, Instrument};
 use tracing_opentelemetry::OpenTelemetrySpanExt;
-use crate::logging::{maybe_to_string};
 
 pub trait TransactionListener {
     type Transaction;
@@ -60,9 +60,10 @@ where
         Self { transaction_poller }
     }
 
-    async fn work(&mut self, account: TP::Account, queue: Arc<Queue>) where
+    async fn work(&mut self, account: TP::Account, queue: Arc<Queue>)
+    where
         <TP as TransactionPoller>::Transaction: 'static,
-        <TP as TransactionPoller>::Account: 'static
+        <TP as TransactionPoller>::Account: 'static,
     {
         let res = self.transaction_poller.poll_account(account.clone()).await;
         match res {
@@ -95,7 +96,8 @@ where
     pub async fn run(&mut self, account: TP::Account, queue: Arc<Queue>)
     where
         <TP as TransactionPoller>::Transaction: 'static,
-        <TP as TransactionPoller>::Account: 'static {
+        <TP as TransactionPoller>::Account: 'static,
+    {
         loop {
             self.work(account.clone(), Arc::clone(&queue)).await;
         }
@@ -105,14 +107,14 @@ where
         let span = info_span!("recover_txs");
 
         for tx in txs {
-            let res = self.transaction_poller
+            let res = self
+                .transaction_poller
                 .poll_tx(tx)
                 .instrument(span.clone())
                 .await;
 
             match res {
                 Ok(tx) => {
-
                     let chain_transaction = self.transaction_poller.make_queue_item(tx);
                     let item = &QueueItem::Transaction(Box::new(chain_transaction.clone()));
                     info!("Publishing transaction: {:?}", chain_transaction);

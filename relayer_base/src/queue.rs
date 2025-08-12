@@ -27,11 +27,11 @@ use tokio::{
     time::{self, Duration},
 };
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, error, info, warn, Span, Instrument};
+use tracing::{debug, error, info, warn, Instrument, Span};
 use uuid::Uuid;
 
-use crate::{gmp_api::gmp_types::Task, subscriber::ChainTransaction};
 use crate::logging::distributed_tracing_headers;
+use crate::{gmp_api::gmp_types::Task, subscriber::ChainTransaction};
 
 const DEAD_LETTER_EXCHANGE: &str = "dlx_exchange";
 const DEAD_LETTER_QUEUE_PREFIX: &str = "dead_letter_";
@@ -396,7 +396,6 @@ impl Queue {
 
         info!("Reconnected to RabbitMQ at {}", self.url);
     }
-
 
     #[tracing::instrument(skip(self))]
     pub async fn publish(&self, item: QueueItem) {

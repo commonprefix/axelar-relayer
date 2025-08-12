@@ -1,8 +1,8 @@
-use opentelemetry::{global, Context, KeyValue};
-use opentelemetry::global::ObjectSafeSpan;
-use opentelemetry::trace::{Tracer};
 use crate::models::ton_trace::{EventSummary, UpdateEvents};
 use crate::parser::TraceParserTrait;
+use opentelemetry::global::ObjectSafeSpan;
+use opentelemetry::trace::Tracer;
+use opentelemetry::{global, Context, KeyValue};
 use relayer_base::error::IngestorError;
 use relayer_base::gmp_api::gmp_types::{
     ConstructProofTask, Event, ReactToWasmEventTask, RetryTask, VerifyTask,
@@ -27,7 +27,6 @@ impl<TP: TraceParserTrait, TM: UpdateEvents + Send + Sync> TONIngestor<TP, TM> {
 }
 
 impl<TP: TraceParserTrait, TM: UpdateEvents + Send + Sync> IngestorTrait for TONIngestor<TP, TM> {
-
     #[tracing::instrument(skip(self))]
     async fn handle_verify(&self, task: VerifyTask) -> Result<(), IngestorError> {
         warn!("handle_verify: {:?}", task);
@@ -43,8 +42,9 @@ impl<TP: TraceParserTrait, TM: UpdateEvents + Send + Sync> IngestorTrait for TON
         trace: ChainTransaction,
     ) -> Result<Vec<Event>, IngestorError> {
         let tracer = global::tracer("ton_ingestor");
-        let mut span = tracer.start_with_context("ton_ingestor.consume_transaction", &Context::current());
-        
+        let mut span =
+            tracer.start_with_context("ton_ingestor.consume_transaction", &Context::current());
+
         let ChainTransaction::TON(trace) = trace else {
             return Err(IngestorError::UnexpectedChainTransactionType(format!(
                 "{:?}",

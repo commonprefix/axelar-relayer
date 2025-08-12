@@ -1,27 +1,27 @@
+use crate::config::Config;
+use lapin::message::Delivery;
+use lapin::types::{AMQPValue, ShortString};
+use opentelemetry::propagation::{Extractor, Injector};
+use opentelemetry::trace::TracerProvider;
+use opentelemetry::{global, Context};
+use opentelemetry_otlp::{SpanExporter, WithExportConfig};
 use opentelemetry_sdk::propagation::TraceContextPropagator;
+use opentelemetry_sdk::trace::{Sampler, SdkTracerProvider};
+use opentelemetry_sdk::Resource;
+use sentry::ClientInitGuard;
+use sentry_tracing::EventFilter;
 use std::any::Any;
 use std::collections::{BTreeMap, HashMap};
 use std::env;
-use lapin::message::Delivery;
-use lapin::types::{AMQPValue, ShortString};
-use crate::config::Config;
-use opentelemetry::{global, Context};
-use opentelemetry::propagation::{Extractor, Injector};
-use opentelemetry::trace::TracerProvider;
-use opentelemetry_otlp::{SpanExporter, WithExportConfig};
-use opentelemetry_sdk::Resource;
-use opentelemetry_sdk::trace::{Sampler, SdkTracerProvider};
-use sentry::ClientInitGuard;
-use sentry_tracing::{EventFilter};
+use ton_types::ton_types::Trace;
 use tracing::level_filters::LevelFilter;
 use tracing::{info, Level, Span};
 use tracing_opentelemetry::OpenTelemetrySpanExt;
 use tracing_subscriber::layer::SubscriberExt;
-use tracing_subscriber::{fmt, Layer};
 use tracing_subscriber::util::SubscriberInitExt;
+use tracing_subscriber::{fmt, Layer};
 use xrpl_api::Transaction;
 use xrpl_types::AccountId;
-use ton_types::ton_types::Trace;
 
 pub fn setup_logging(config: &Config) -> (ClientInitGuard, SdkTracerProvider) {
     let environment = std::env::var("ENVIRONMENT").unwrap_or_else(|_| "development".to_string());
@@ -39,21 +39,26 @@ pub fn setup_logging(config: &Config) -> (ClientInitGuard, SdkTracerProvider) {
     //global::set_text_map_propagator(sentry_opentelemetry::SentryPropagator::new());
     global::set_text_map_propagator(TraceContextPropagator::new());
 
-
+    let jaeger_endpoint =
+        std::env::var("JAEGER_ENDPOINT").unwrap_or_else(|_| "http://localhost:4317".to_string());
     let exporter = SpanExporter::builder()
         .with_tonic()
-        .with_endpoint("http://localhost:4317")
-        .build().unwrap();
+        .with_endpoint(jaeger_endpoint)
+        .build()
+        .expect("Failed to create Jaeger exporter");
 
     let path = match env::current_exe() {
-        Ok(exe_path) => exe_path.file_name().expect("missing file name").to_str().expect("missing file name").to_string(),
+        Ok(exe_path) => exe_path
+            .file_name()
+            .expect("missing file name")
+            .to_str()
+            .expect("missing file name")
+            .to_string(),
         Err(_) => "<unknown>".to_string(),
     };
 
-    let resource = Resource::builder()
-        .with_service_name(path)
-        .build();
-    
+    let resource = Resource::builder().with_service_name(path).build();
+
     let tracer_provider = SdkTracerProvider::builder()
         .with_sampler(Sampler::ParentBased(Box::new(Sampler::TraceIdRatioBased(
             1.0,
@@ -69,10 +74,11 @@ pub fn setup_logging(config: &Config) -> (ClientInitGuard, SdkTracerProvider) {
         .with_filter(LevelFilter::DEBUG);
 
     let sentry_layer = sentry::integrations::tracing::layer()
-        .event_filter(|metadata| match *metadata.level() { 
-            Level::ERROR => EventFilter::Event, 
-            Level::WARN => EventFilter::Event, 
-            _ => EventFilter::Breadcrumb})
+        .event_filter(|metadata| match *metadata.level() {
+            Level::ERROR => EventFilter::Event,
+            Level::WARN => EventFilter::Event,
+            _ => EventFilter::Breadcrumb,
+        })
         .span_filter(|md| matches!(*md.level(), Level::INFO | Level::WARN | Level::ERROR));
 
     let otel_layer = tracing_opentelemetry::layer()
@@ -128,7 +134,6 @@ pub fn distributed_tracing_extract_parent_context(delivery: &Delivery) -> Contex
     parent_cx
 }
 
-
 pub struct HeadersBTreeMap<'a>(pub &'a mut BTreeMap<ShortString, AMQPValue>);
 pub struct HeadersMap<'a>(&'a mut HashMap<String, String>);
 
@@ -142,13 +147,12 @@ impl Injector for HeadersBTreeMap<'_> {
 
 impl Extractor for HeadersMap<'_> {
     fn get(&self, key: &str) -> Option<&str> {
-        self.0.get(key).and_then(|metadata| Option::from(metadata.as_str()))
+        self.0
+            .get(key)
+            .and_then(|metadata| Option::from(metadata.as_str()))
     }
 
     fn keys(&self) -> Vec<&str> {
-        self.0
-            .keys()
-            .map(|key| key.as_str())
-            .collect::<Vec<_>>()
+        self.0.keys().map(|key| key.as_str()).collect::<Vec<_>>()
     }
 }

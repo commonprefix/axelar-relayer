@@ -1,15 +1,15 @@
 use dotenv::dotenv;
 use relayer_base::config::config_from_yaml;
 use relayer_base::error::SubscriberError;
+use relayer_base::logging::setup_logging;
 use relayer_base::redis::connection_manager;
+use relayer_base::utils::setup_heartbeat;
 use std::str::FromStr;
 use tokio::signal::unix::{signal, SignalKind};
 use ton::check_accounts::check_accounts;
 use ton::client::TONRpcClient;
 use ton::config::TONConfig;
 use tonlib_core::TonAddress;
-use relayer_base::logging::setup_logging;
-use relayer_base::utils::setup_heartbeat;
 
 const MIN_BALANCE: u64 = 10_000_000_000;
 
@@ -48,7 +48,7 @@ async fn main() -> anyhow::Result<()> {
         _ = sigterm.recv() => {},
         _ = check_accounts(&client, our_addresses, MIN_BALANCE, true) => {}
     }
-    
+
     otel_guard
         .force_flush()
         .expect("Failed to flush OTEL messages");

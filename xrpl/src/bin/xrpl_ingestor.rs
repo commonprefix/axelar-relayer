@@ -9,18 +9,12 @@ use xrpl::{
 };
 
 use relayer_base::config::config_from_yaml;
+use relayer_base::logging::setup_logging;
 use relayer_base::redis::connection_manager;
 use relayer_base::{
-    database::PostgresDB,
-    gmp_api,
-    ingestor::Ingestor,
-    models::task_retries::PgTaskRetriesModel,
-    payload_cache::PayloadCache,
-    price_view::PriceView,
-    queue::Queue,
-    utils::setup_heartbeat,
+    database::PostgresDB, gmp_api, ingestor::Ingestor, models::task_retries::PgTaskRetriesModel,
+    payload_cache::PayloadCache, price_view::PriceView, queue::Queue, utils::setup_heartbeat,
 };
-use relayer_base::logging::setup_logging;
 use xrpl::config::XRPLConfig;
 
 #[tokio::main]

@@ -1,9 +1,9 @@
 use dotenv::dotenv;
 
 use relayer_base::config::config_from_yaml;
-use relayer_base::utils::setup_heartbeat;
-use relayer_base::redis::connection_manager;
 use relayer_base::logging::setup_logging;
+use relayer_base::redis::connection_manager;
+use relayer_base::utils::setup_heartbeat;
 use tracing::{debug, error};
 use xrpl::client::{XRPLClient, XRPLClientTrait};
 use xrpl::config::XRPLConfig;

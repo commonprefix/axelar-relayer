@@ -8,6 +8,8 @@ x-common-env: &common-env
     replicas: 1
   env_file:
     - .env
+  environment:
+    JAEGER_ENDPOINT: http://jaeger:4317
 
 services:
   relayer:
@@ -91,6 +93,7 @@ services:
   grafana:
     image: grafana/grafana:latest
     container_name: relayer_grafana
+    restart: always
     ports:
       - "3000:3000"
     environment:
@@ -99,6 +102,17 @@ services:
       GF_USERS_ALLOW_SIGN_UP: "false"
     volumes:
       - grafana_data:/var/lib/grafana
+
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    container_name: relayer_jaeger
+    restart: always
+    ports:
+      - "16686:16686"  # Jaeger UI
+      - "4317:4317"    # OTLP gRPC
+      - "4318:4318"    # OTLP HTTP
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
 
 volumes:
   redis_data:

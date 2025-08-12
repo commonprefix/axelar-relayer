@@ -17,13 +17,13 @@ use std::{
 use tracing::{debug, info, warn};
 use xrpl_amplifier_types::msg::XRPLMessage;
 
-use reqwest::Identity;
-use reqwest_tracing::TracingMiddleware;
 use crate::{config::Config, error::GmpApiError, utils::parse_task};
 use gmp_types::{
     Amount, BroadcastRequest, CannotExecuteMessageReason, CommonEventFields, Event,
     PostEventResponse, PostEventResult, QueryRequest, StorePayloadResult, Task,
 };
+use reqwest::Identity;
+use reqwest_tracing::TracingMiddleware;
 
 const MAX_BROADCAST_WAIT_TIME_SECONDS: u32 = 60; // 60 seconds
 const BROADCAST_POLL_INTERVAL_SECONDS: u32 = 2; // 2 seconds
@@ -33,7 +33,6 @@ pub struct GmpApi {
     client: ClientWithMiddleware,
     pub chain: String,
 }
-
 
 fn identity_from_config(config: &Config) -> Result<Identity, GmpApiError> {
     let base_path = std::env::var("BASE_PATH").ok();

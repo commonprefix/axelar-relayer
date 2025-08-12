@@ -1,12 +1,8 @@
 use dotenv::dotenv;
 use relayer_base::config::config_from_yaml;
-use relayer_base::redis::connection_manager;
-use relayer_base::{
-    database::PostgresDB,
-    price_feed::PriceFeeder,
-    utils::setup_heartbeat,
-};
 use relayer_base::logging::setup_logging;
+use relayer_base::redis::connection_manager;
+use relayer_base::{database::PostgresDB, price_feed::PriceFeeder, utils::setup_heartbeat};
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
@@ -24,7 +20,7 @@ async fn main() -> Result<(), anyhow::Error> {
     setup_heartbeat("heartbeat:price_feed".to_owned(), redis_conn);
 
     price_feeder.run().await?;
-    
+
     otel_guard
         .force_flush()
         .expect("Failed to flush OTEL messages");

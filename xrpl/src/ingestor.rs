@@ -1167,7 +1167,6 @@ where
     DB: Database,
     G: GmpApiTrait + ThreadSafe,
 {
-
     #[tracing::instrument(skip(self))]
     async fn handle_transaction(&self, tx: ChainTransaction) -> Result<Vec<Event>, IngestorError> {
         let ChainTransaction::Xrpl(tx) = tx else {

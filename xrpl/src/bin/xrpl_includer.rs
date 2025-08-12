@@ -4,17 +4,12 @@ use std::sync::Arc;
 use tokio::signal::unix::{signal, SignalKind};
 
 use relayer_base::config::config_from_yaml;
+use relayer_base::logging::setup_logging;
 use relayer_base::redis::connection_manager;
 use relayer_base::{
-    database::PostgresDB,
-    gmp_api,
-    models::gmp_events::PgGMPEvents,
-    models::gmp_tasks::PgGMPTasks,
-    payload_cache::PayloadCache,
-    queue::Queue,
-    utils::setup_heartbeat,
+    database::PostgresDB, gmp_api, models::gmp_events::PgGMPEvents, models::gmp_tasks::PgGMPTasks,
+    payload_cache::PayloadCache, queue::Queue, utils::setup_heartbeat,
 };
-use relayer_base::logging::setup_logging;
 use xrpl::{
     client::XRPLClient, config::XRPLConfig, includer::XrplIncluder,
     models::queued_transactions::PgQueuedTransactionsModel,
