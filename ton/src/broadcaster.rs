@@ -66,6 +66,7 @@ impl<GE: GasEstimator> TONBroadcaster<GE> {
         })
     }
 
+    #[tracing::instrument(skip(self))]
     async fn send_to_chain(
         &self,
         wallet: &TonWalletHighLoadV3,
@@ -108,6 +109,7 @@ pub struct TONTransaction;
 impl<GE: GasEstimator> Broadcaster for TONBroadcaster<GE> {
     type Transaction = TONTransaction;
 
+    #[tracing::instrument(skip(self))]
     async fn broadcast_prover_message(
         &self,
         tx_blob: String,
@@ -167,10 +169,12 @@ impl<GE: GasEstimator> Broadcaster for TONBroadcaster<GE> {
         result
     }
 
+    #[tracing::instrument(skip(self))]
     async fn broadcast_refund(&self, _data: String) -> Result<String, BroadcasterError> {
         Ok(String::new())
     }
 
+    #[tracing::instrument(skip(self))]
     async fn broadcast_execute_message(
         &self,
         message: ExecuteTaskFields,
@@ -269,6 +273,7 @@ impl<GE: GasEstimator> Broadcaster for TONBroadcaster<GE> {
         result
     }
 
+    #[tracing::instrument(skip(self))]
     async fn broadcast_refund_message(
         &self,
         refund_task: RefundTaskFields,

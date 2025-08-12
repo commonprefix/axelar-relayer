@@ -73,6 +73,7 @@ fn log_and_return_error(
 impl<QM: QueuedTransactionsModel, X: XRPLClientTrait> Broadcaster for XRPLBroadcaster<QM, X> {
     type Transaction = Transaction;
 
+    #[tracing::instrument(skip(self))]
     async fn broadcast_prover_message(
         &self,
         tx_blob: String,
@@ -164,6 +165,7 @@ impl<QM: QueuedTransactionsModel, X: XRPLClientTrait> Broadcaster for XRPLBroadc
         }
     }
 
+    #[tracing::instrument(skip(self))]
     async fn broadcast_refund(&self, tx_blob: String) -> Result<String, BroadcasterError> {
         let req = SubmitRequest::new(tx_blob);
         let response = self
@@ -196,6 +198,7 @@ impl<QM: QueuedTransactionsModel, X: XRPLClientTrait> Broadcaster for XRPLBroadc
         }
     }
 
+    #[tracing::instrument(skip(self))]
     async fn broadcast_execute_message(
         &self,
         _message: ExecuteTaskFields,
@@ -209,6 +212,7 @@ impl<QM: QueuedTransactionsModel, X: XRPLClientTrait> Broadcaster for XRPLBroadc
     // requires entire RefundTaskFields, while XRPL depends only on tx_blob, and Rust
     // does not support method overloading, alas. We should refactor refund_manager to be
     // XRPL-specific.
+    #[tracing::instrument(skip(self))]
     async fn broadcast_refund_message(
         &self,
         _refund_task: RefundTaskFields,

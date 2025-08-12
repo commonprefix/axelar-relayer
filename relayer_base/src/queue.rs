@@ -27,10 +27,11 @@ use tokio::{
     time::{self, Duration},
 };
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info, warn, Span};
 use uuid::Uuid;
 
 use crate::{gmp_api::gmp_types::Task, subscriber::ChainTransaction};
+use crate::logging::distributed_tracing_headers;
 
 const DEAD_LETTER_EXCHANGE: &str = "dlx_exchange";
 const DEAD_LETTER_QUEUE_PREFIX: &str = "dead_letter_";
@@ -160,6 +161,7 @@ impl Queue {
         queue_arc
     }
 
+    #[tracing::instrument(skip(self))]
     pub async fn republish(
         &self,
         delivery: Delivery,
@@ -388,6 +390,8 @@ impl Queue {
         info!("Reconnected to RabbitMQ at {}", self.url);
     }
 
+
+    #[tracing::instrument(skip(self))]
     pub async fn publish(&self, item: QueueItem) {
         if let Err(e) = self.buffer_sender.send(item).await {
             error!("Buffer is full, failed to enqueue message: {:?}", e);
@@ -395,15 +399,16 @@ impl Queue {
     }
 
     #[tracing::instrument(skip(self))]
-    pub async fn publish_with_properties(&self, item: QueueItem, properties: BasicProperties) {
-        if let Err(e) = self.publish_item(&item, false, Some(properties)).await {
-            error!("Failed to publish item with properties: {:?}. Falling back to buffer.", e);
+    pub async fn publish_with_properties(&self, item: QueueItem) {
+        if let Err(e) = self.publish_item(&item, false, None).await {
+            error!("Failed to publish item: {:?}. Falling back to buffer.", e);
             if let Err(e) = self.buffer_sender.send(item).await {
                 error!("Buffer is full, failed to enqueue message: {:?}", e);
             }
         }
     }
 
+    #[tracing::instrument(skip(self))]
     async fn publish_item(
         &self,
         item: &QueueItem,
@@ -419,13 +424,17 @@ impl Queue {
             self.queue.read().await
         };
 
+        let properties = properties.unwrap_or(BasicProperties::default().with_delivery_mode(2));
+        let headers = distributed_tracing_headers(&Span::current());
+        let properties = properties.with_headers(FieldTable::from(headers));
+
         let confirm = channel_lock
             .basic_publish(
                 "",
                 queue_lock.name().as_str(),
                 BasicPublishOptions::default(),
                 &msg,
-                properties.unwrap_or(BasicProperties::default().with_delivery_mode(2)),
+                properties,
             )
             .await?
             .await?;

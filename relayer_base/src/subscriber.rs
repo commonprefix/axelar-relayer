@@ -1,12 +1,10 @@
 use crate::queue::{Queue, QueueItem};
 use futures::Stream;
-use lapin::BasicProperties;
-use lapin::types::{FieldTable};
 use serde::{Deserialize, Serialize};
 use std::{future::Future, pin::Pin, sync::Arc};
 use tracing::{debug, error, info, info_span, Instrument};
 use tracing_opentelemetry::OpenTelemetrySpanExt;
-use crate::logging::{distributed_tracing_headers, maybe_to_string};
+use crate::logging::{maybe_to_string};
 
 pub trait TransactionListener {
     type Transaction;
@@ -82,14 +80,7 @@ where
                     let item = &QueueItem::Transaction(Box::new(chain_transaction.clone()));
                     info!("Publishing transaction: {:?}", chain_transaction);
 
-                    let headers = distributed_tracing_headers(&span);
-
-                    debug!("Sending headers: {:?}", headers);
-                    let properties = BasicProperties::default()
-                        .with_delivery_mode(2)
-                        .with_headers(FieldTable::from(headers));
-
-                    queue.publish_with_properties(item.clone(), properties).instrument(span).await;
+                    queue.publish_with_properties(item.clone()).instrument(span).await;
                     debug!("Published tx: {:?}", item);
                 }
             }
@@ -126,13 +117,7 @@ where
                     let item = &QueueItem::Transaction(Box::new(chain_transaction.clone()));
                     info!("Publishing transaction: {:?}", chain_transaction);
 
-                    let headers = distributed_tracing_headers(&span);
-
-                    let properties = BasicProperties::default()
-                        .with_delivery_mode(2)
-                        .with_headers(FieldTable::from(headers));
-
-                    queue.publish_with_properties(item.clone(), properties).await;
+                    queue.publish(item.clone()).await;
                     debug!("Published tx: {:?}", item);
                 }
                 Err(e) => {

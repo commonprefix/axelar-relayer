@@ -106,11 +106,11 @@ where
         for task in tasks {
             let task_id = task.id();
             let span = info_span!("received_task", task = format!("{task:?}"));
-            
+
             processed_task_ids.push(task_id.clone());
             self.last_task_id = Some(task_id);
 
-            if let Err(err) = self.store_last_task_id().instrument(span).await {
+            if let Err(err) = self.store_last_task_id().instrument(span.clone()).await {
                 warn!("{:?}", err);
             }
             if let Some(tasks_filter) = &tasks_filter {
@@ -135,7 +135,8 @@ where
                 warn!("Dropping unsupported task: {:?}", task);
                 continue;
             };
-            queue.publish(task_item.clone()).await;
+
+            queue.publish_with_properties(task_item.clone()).instrument(span).await;
         }
         Ok(processed_task_ids)
     }

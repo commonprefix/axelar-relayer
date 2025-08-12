@@ -61,7 +61,7 @@ where
             match consumer.next().await {
                 Some(Ok(delivery)) => {
                     let parent_cx = distributed_tracing_extract_parent_context(&delivery);
-                    let span = info_span!("consume_message");
+                    let span = info_span!("consume_queue_task");
                     span.set_parent(parent_cx);
 
                     let data = delivery.data.clone();
