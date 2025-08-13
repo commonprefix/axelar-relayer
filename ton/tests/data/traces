@@ -15,3 +15,4 @@ Trace 15 - Execute message failed because there was insufficient gas (result cod
 Trace 16 - Approve message that reported 0 gas used
 Trace 17 - Execute message 2025-07-23 contract
 Trace 18 - Pay gas (no contract call)
+Trace 19 - ITS Token Metadata Registered

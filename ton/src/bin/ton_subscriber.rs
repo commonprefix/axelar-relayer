@@ -28,10 +28,9 @@ async fn main() -> anyhow::Result<()> {
     let events_queue = Queue::new(&config.common_config.queue_address, "events").await;
     let postgres_db = PostgresDB::new(&config.common_config.postgres_url).await?;
 
-    let ton_gateway = config.ton_gateway;
-    let ton_gas_service = config.ton_gas_service;
-    let gateway_account = TonAddress::from_base64_url(ton_gateway.as_str())?;
-    let gas_service_account = TonAddress::from_base64_url(ton_gas_service.as_str())?;
+    let gateway_account = TonAddress::from_base64_url(config.ton_gateway.as_str())?;
+    let gas_service_account = TonAddress::from_base64_url(config.ton_gas_service.as_str())?;
+    let its_account = TonAddress::from_base64_url(config.ton_its.as_str())?;
 
     let mut sigint = signal(SignalKind::interrupt())?;
     let mut sigterm = signal(SignalKind::terminate())?;
@@ -52,7 +51,7 @@ async fn main() -> anyhow::Result<()> {
         .map_err(|e| error_stack::report!(SubscriberError::GenericError(e.to_string())))
         .expect("Failed to create RPC client");
 
-    for acct in [gateway_account.clone(), gas_service_account] {
+    for acct in [gateway_account.clone(), gas_service_account, its_account] {
         let ton_sub = TONSubscriber::new(
             client.clone(),
             postgres_db.clone(),

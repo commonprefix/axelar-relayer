@@ -41,6 +41,8 @@ async fn main() -> anyhow::Result<()> {
     }
     let gateway = TonAddress::from_str(&config.ton_gateway)?;
     let gas_service = TonAddress::from_str(&config.ton_gas_service)?;
+    let its = TonAddress::from_str(&config.ton_its)?;
+
     our_addresses.push(gateway.clone());
     our_addresses.push(gas_service.clone());
 
@@ -50,6 +52,7 @@ async fn main() -> anyhow::Result<()> {
         price_view,
         gateway,
         gas_service,
+        its,
         gas_calculator,
         config.common_config.chain_name,
     );

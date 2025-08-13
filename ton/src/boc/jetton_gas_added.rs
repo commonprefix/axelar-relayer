@@ -1,4 +1,4 @@
-/*! Ton Cross Chain Message: A parsed representation of a TON cross chain message.
+/*!
 
 # Usage Example
 ```rust,no_run

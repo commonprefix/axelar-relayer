@@ -21,6 +21,7 @@ use std::str::FromStr;
 use ton_types::ton_types::Trace;
 use tonlib_core::TonAddress;
 use tracing::{info, warn};
+use crate::transaction_parser::parser_its_token_metadata_registered::ParserITSTokenMetadataRegistered;
 
 #[async_trait]
 pub trait Parser {
@@ -38,6 +39,7 @@ pub struct TraceParser<PV> {
     price_view: PV,
     gateway_address: TonAddress,
     gas_service_address: TonAddress,
+    its_address: TonAddress,
     gas_calculator: GasCalculator,
     chain_name: String,
 }
@@ -55,6 +57,7 @@ impl<PV: PriceViewTrait> TraceParserTrait for TraceParser<PV> {
         let mut events: Vec<Event> = Vec::new();
         let mut parsers: Vec<Box<dyn Parser>> = Vec::new();
         let mut call_contract: Vec<Box<dyn Parser>> = Vec::new();
+        let mut its: Vec<Box<dyn Parser>> = Vec::new(); // ITS events that need mapping to call contract
         let mut gas_credit_map: HashMap<MessageMatchingKey, Box<dyn Parser>> = HashMap::new();
 
         let (total_gas_used, refund_gas_used) = self.gas_used(&trace)?;
@@ -66,23 +69,25 @@ impl<PV: PriceViewTrait> TraceParserTrait for TraceParser<PV> {
                 &mut parsers,
                 &mut call_contract,
                 &mut gas_credit_map,
+                &mut its,
                 self.chain_name.clone(),
             )
             .await?;
 
         info!(
-            "Parsing results: trace_id={} parsers={}, call_contract={}, gas_credit_map={}",
+            "Parsing results: trace_id={} parsers={}, call_contract={}, gas_credit_map={}, its={}",
             trace_id,
             parsers.len(),
             call_contract.len(),
-            gas_credit_map.len()
+            gas_credit_map.len(),
+            its.len()
         );
 
-        if (parsers.len() + call_contract.len() + gas_credit_map.len()) == 0 {
+        if (parsers.len() + call_contract.len() + gas_credit_map.len() + its.len()) == 0 {
             warn!("Trace did not produce any parsers: trace_id={}", trace_id);
         }
 
-        for cc in call_contract {
+        for cc in call_contract.iter().clone() {
             let cc_key = cc.key().await?;
             events.push(cc.event(None).await?);
             if let Some(parser) = gas_credit_map.get(&cc_key) {
@@ -95,94 +100,83 @@ impl<PV: PriceViewTrait> TraceParserTrait for TraceParser<PV> {
             }
         }
 
+        for (i, its_parser) in its.iter().enumerate() {
+            match call_contract.get(i) {
+                Some(contract_parser) => {
+                    let message_id = contract_parser.message_id().await?;
+                    events.push(its_parser.event(message_id).await?);
+                }
+                None => {
+                    return Err(TransactionParsingError::ITSWithoutPair(format!(
+                        "No matching call_contract for ITS index {i}"
+                    )));
+                }
+            }
+        }
+
+        
         for parser in parsers {
             let event = parser.event(None).await?;
             events.push(event);
         }
 
-        let mut parsed_events: Vec<Event> = Vec::new();
+        self.add_gas_used_and_convert(&mut events, total_gas_used, refund_gas_used, message_approved_count).await?;
 
-        for event in events {
-            let event = match event {
-                Event::GasCredit {
-                    common,
-                    message_id,
-                    refund_address,
-                    mut payment,
-                } => {
-                    let mut p = payment.clone();
-                    if let Some(token_id) = p.token_id {
-                        let msg_value = convert_jetton_to_native(
-                            token_id,
-                            &BigUint::from_str(&p.amount)
-                                .map_err(|e| TransactionParsingError::Generic(e.to_string()))?,
-                            &self.price_view,
-                        )
-                        .await
-                        .map_err(|e| TransactionParsingError::Generic(e.to_string()))?;
-                        p.amount = msg_value.to_string();
-                        p.token_id = None;
-                        payment = p;
-                    }
-                    Event::GasCredit {
-                        common,
-                        message_id,
-                        refund_address,
-                        payment,
-                    }
-                }
-                Event::MessageApproved {
-                    common,
-                    message,
-                    mut cost,
-                } => {
-                    cost.amount = (total_gas_used / message_approved_count).to_string();
-                    Event::MessageApproved {
-                        common,
-                        message,
-                        cost,
-                    }
-                }
-                Event::MessageExecuted {
-                    common,
-                    message_id,
-                    source_chain,
-                    status,
-                    mut cost,
-                } => {
-                    cost.amount = total_gas_used.to_string();
-                    Event::MessageExecuted {
-                        common,
-                        message_id,
-                        source_chain,
-                        status,
-                        cost,
-                    }
-                }
-                Event::GasRefunded {
-                    common,
-                    message_id,
-                    recipient_address,
-                    refunded_amount,
-                    mut cost,
-                } => {
-                    cost.amount = refund_gas_used.to_string();
-                    Event::GasRefunded {
-                        common,
-                        message_id,
-                        recipient_address,
-                        refunded_amount,
-                        cost,
-                    }
-                }
+        Ok(events)
+    }
+}
 
-                other => other,
-            };
-            parsed_events.push(event);
+impl<PV: PriceViewTrait> TraceParser<PV> {
+        pub async fn add_gas_used_and_convert(
+            &self,
+            events: &mut [Event],
+            total_gas_used: u64,
+            refund_gas_used: u64,
+            message_approved_count: u64,
+        ) -> Result<(), TransactionParsingError> {
+            for e in events.iter_mut() {
+                match e {
+                    Event::GasCredit { payment, .. } => {
+                        if let Some(token_id) = payment.token_id.take() {
+                            let amount = BigUint::from_str(payment.amount.as_str())
+                                .map_err(|e| TransactionParsingError::Generic(e.to_string()))?;
+
+                            let native = convert_jetton_to_native(
+                                token_id,
+                                &amount,
+                                &self.price_view,
+                            )
+                                .await
+                                .map_err(|e| TransactionParsingError::Generic(e.to_string()))?;
+
+                            payment.amount = native.to_string();
+                        }
+                    }
+
+                    Event::MessageApproved { cost, .. } => {
+                        let per = if message_approved_count == 0 {
+                            0
+                        } else {
+                            total_gas_used / message_approved_count
+                        };
+                        cost.amount = per.to_string();
+                    }
+
+                    Event::MessageExecuted { cost, .. } => {
+                        cost.amount = total_gas_used.to_string();
+                    }
+
+                    Event::GasRefunded { cost, .. } => {
+                        cost.amount = refund_gas_used.to_string();
+                    }
+
+                    _ => {}
+                }
+            }
+
+            Ok(())
         }
 
-        Ok(parsed_events)
-    }
 }
 
 impl<PV: PriceViewTrait> TraceParser<PV> {
@@ -190,6 +184,7 @@ impl<PV: PriceViewTrait> TraceParser<PV> {
         price_view: PV,
         gateway_address: TonAddress,
         gas_service_address: TonAddress,
+        its_address: TonAddress,
         gas_calculator: GasCalculator,
         chain_name: String,
     ) -> Self {
@@ -197,6 +192,7 @@ impl<PV: PriceViewTrait> TraceParser<PV> {
             price_view,
             gateway_address,
             gas_service_address,
+            its_address,
             gas_calculator,
             chain_name,
         }
@@ -208,6 +204,7 @@ impl<PV: PriceViewTrait> TraceParser<PV> {
         parsers: &mut Vec<Box<dyn Parser>>,
         call_contract: &mut Vec<Box<dyn Parser>>,
         gas_credit_map: &mut HashMap<MessageMatchingKey, Box<dyn Parser>>,
+        its: &mut Vec<Box<dyn Parser>>,
         chain_name: String,
     ) -> Result<u64, TransactionParsingError> {
         let mut message_approved_count = 0u64;
@@ -302,6 +299,19 @@ impl<PV: PriceViewTrait> TraceParser<PV> {
                 parsers.push(Box::new(parser));
                 continue;
             }
+            let mut parser =
+                ParserITSTokenMetadataRegistered::new(tx.clone(), self.its_address.clone()).await?;
+            if parser.is_match().await? {
+                info!(
+                    "ParserNativeGasRefunded matched, trace_id={}",
+                    trace.trace_id
+                );
+                parser.parse().await?;
+                its.push(Box::new(parser));
+                continue;
+            }
+
+
         }
         Ok(message_approved_count)
     }
@@ -340,6 +350,9 @@ mod tests {
             "0:00000000000000000000000000000000000000000000000000000000000000ff",
         )
         .unwrap();
+        let its = TonAddress::from_hex_str(
+            "0:000000000000000000000000000000000000000000000000000000000000ffff",
+        ).unwrap();
 
         let calc = GasCalculator::new(vec![gateway.clone(), gas_service.clone()]);
 
@@ -350,6 +363,7 @@ mod tests {
             price_view,
             traces[9].transactions[4].account.clone(),
             traces[9].transactions[1].account.clone(),
+            its,
             calc,
             "ton2".to_string(),
         );
@@ -396,14 +410,17 @@ mod tests {
         let gas_service =
             TonAddress::from_base64_url("EQBcfOiB4SF73vEFm1icuf3oqaFHj1bNQgxvwHKkxAiIjxLZ")
                 .unwrap();
+        let its =
+            TonAddress::from_base64_url("kQD-xq9YjzE6cq10P801OkBA65abvxvID5pnfFjTszltjilk")
+                .unwrap();
 
-        let calc = GasCalculator::new(vec![gateway.clone(), gas_service.clone()]);
+        let calc = GasCalculator::new(vec![gateway.clone(), gas_service.clone(), its.clone()]);
 
         let price_view = mock_price_view();
         let traces = fixture_traces();
         let gateway = traces[11].transactions[2].account.clone();
 
-        let parser = TraceParser::new(price_view, gateway, gas_service, calc, "ton2".to_string());
+        let parser = TraceParser::new(price_view, gateway, gas_service, its, calc, "ton2".to_string());
         let events = parser.parse_trace(traces[11].clone()).await.unwrap();
         assert_eq!(events.len(), 1);
 
@@ -417,12 +434,58 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_its_call_contract_connection() {
+        let gateway =
+            TonAddress::from_base64_url("kQApTXLsQhuTDGCFT0E0eMFi_c7sZXRghOus4lInGCl5osD9")
+                .unwrap();
+        let gas_service =
+            TonAddress::from_base64_url("EQBcfOiB4SF73vEFm1icuf3oqaFHj1bNQgxvwHKkxAiIjxLZ")
+                .unwrap();
+        let its =
+            TonAddress::from_base64_url("kQDdU6MZZX_QYO4RPTMaPJ9kFUdX2474z2yxRvDuhnXZv-aH")
+                .unwrap();
+
+        let calc = GasCalculator::new(vec![gateway.clone(), gas_service.clone(), its.clone()]);
+
+        let price_view = mock_price_view();
+        let traces = fixture_traces();
+
+        let parser = TraceParser::new(price_view, gateway, gas_service, its, calc, "ton2".to_string());
+        let events = parser.parse_trace(traces[19].clone()).await.unwrap();
+        assert_eq!(events.len(), 2);
+
+        match events[0].clone() {
+            Event::Call { message, destination_chain, payload, .. } => {
+                assert_eq!(message.message_id, "0xa88a820f8aa9750d0b057efe44e7e16795656157b796250afc0fbf4d23c649e1");
+                assert_eq!(message.source_chain, "ton2");
+                assert_eq!(message.source_address, "0:dd53a319657fd060ee113d331a3c9f64154757db8ef8cf6cb146f0ee8675d9bf");
+                assert_eq!(message.payload_hash, "IQBup4rxdld80lWFcBVi97AwbcGzoxMLL3V3EIFAMLc=");
+                assert_eq!(message.destination_address, "axelar157hl7gpuknjmhtac2qnphuazv2yerfagva7lsu9vuj2pgn32z22qa26dk4");
+                assert_eq!(destination_chain, "axelar");
+                assert_eq!(payload, "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAYAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAYAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAJAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACCeDX8nN2b3rX/z4LjntiXsJn6Lj/LQmhA1H7Z76iiMoQ==");
+            }
+            _ => panic!("Expected Call event"),
+        }
+        match events[1].clone() {
+            Event::ITSTokenMetadataRegisteredEvent { decimals, message_id, address, .. } => {
+                assert_eq!(message_id, "0xa88a820f8aa9750d0b057efe44e7e16795656157b796250afc0fbf4d23c649e1");
+                assert_eq!(decimals, 9);
+                assert_eq!(address, "0:9e0d7f273766f7ad7ff3e0b8e7b625ec267e8b8ff2d09a10351fb67bea288ca1");
+            }
+            _ => panic!("Expected ITSTokenMetadataRegisteredEvent event"),
+        }
+    }
+
+    #[tokio::test]
     async fn test_gas_approved() {
         let gateway =
             TonAddress::from_base64_url("EQCQPVhDBzLBwIlt8MtDhPwIrANfNH2ZQnX0cSvhCD4DlThU")
                 .unwrap();
         let gas_service =
             TonAddress::from_base64_url("EQBcfOiB4SF73vEFm1icuf3oqaFHj1bNQgxvwHKkxAiIjxLZ")
+                .unwrap();
+        let its =
+            TonAddress::from_base64_url("kQD-xq9YjzE6cq10P801OkBA65abvxvID5pnfFjTszltjilk")
                 .unwrap();
 
         let calc = GasCalculator::new(vec![gateway.clone(), gas_service.clone()]);
@@ -434,6 +497,7 @@ mod tests {
             price_view,
             traces[2].transactions[2].account.clone(),
             gas_service,
+            its,
             calc,
             "ton2".to_string(),
         );
@@ -457,13 +521,18 @@ mod tests {
         let gas_service =
             TonAddress::from_base64_url("kQCEKDERj88xS-gD7non_TITN-50i4QI8lMukNkqknAX28OJ")
                 .unwrap();
+        let its =
+            TonAddress::from_base64_url("kQD-xq9YjzE6cq10P801OkBA65abvxvID5pnfFjTszltjilk")
+                .unwrap();
 
+        
+        
         let calc = GasCalculator::new(vec![gateway.clone(), gas_service.clone()]);
 
         let price_view = self::mock_price_view();
 
         let traces = fixture_traces();
-        let parser = TraceParser::new(price_view, gateway, gas_service, calc, "ton2".to_string());
+        let parser = TraceParser::new(price_view, gateway, gas_service, its, calc, "ton2".to_string());
         let events = parser.parse_trace(traces[8].clone()).await.unwrap();
         assert_eq!(events.len(), 1);
 

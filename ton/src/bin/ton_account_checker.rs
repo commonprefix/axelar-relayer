@@ -32,10 +32,10 @@ async fn main() -> anyhow::Result<()> {
     for wallet in config.wallets {
         our_addresses.push(TonAddress::from_str(&wallet.address)?);
     }
-    let gateway = TonAddress::from_str(&config.ton_gateway)?;
-    let gas_service = TonAddress::from_str(&config.ton_gas_service)?;
-    our_addresses.push(gateway.clone());
-    our_addresses.push(gas_service.clone());
+    
+    our_addresses.push(TonAddress::from_str(&config.ton_gateway)?);
+    our_addresses.push(TonAddress::from_str(&config.ton_gas_service)?);
+    our_addresses.push(TonAddress::from_str(&config.ton_its)?);
 
     let client = TONRpcClient::new(config.ton_rpc.clone(), config.ton_api_key.clone(), 5, 5, 30)
         .await

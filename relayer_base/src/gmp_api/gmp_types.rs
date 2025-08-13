@@ -432,6 +432,14 @@ pub enum Event {
         #[serde(rename = "dataHash")]
         data_hash: String,
     },
+    ITSTokenMetadataRegisteredEvent {
+        #[serde(flatten)]
+        common: CommonEventFields<EventMetadata>,
+        #[serde(rename = "messageID")]
+        message_id: String,
+        address: String,
+        decimals: u8,
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
