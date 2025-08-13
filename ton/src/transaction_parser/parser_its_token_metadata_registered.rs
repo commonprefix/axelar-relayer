@@ -119,10 +119,10 @@ mod tests {
         let mut parser = ParserITSTokenMetadataRegistered::new(tx, address)
             .await
             .unwrap();
-        
+
         assert!(parser.is_match().await.unwrap());
         assert!(parser.message_id().await.is_ok());
-        
+
         parser.parse().await.unwrap();
         let event = parser.event(Some("foo".to_string())).await.unwrap();
         match event {
@@ -130,7 +130,7 @@ mod tests {
                 common,
                 message_id,
                 address,
-                decimals
+                decimals,
             } => {
                 assert_eq!(message_id, "foo");
                 assert_eq!(

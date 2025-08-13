@@ -82,10 +82,8 @@ mod tests {
         assert_eq!(log.decimals, 9);
         assert_eq!(
             log.address,
-            TonAddress::from_base64_url(
-                "EQCeDX8nN2b3rX_z4LjntiXsJn6Lj_LQmhA1H7Z76iiMoe62"
-            )
-            .expect("Failed to load address")
+            TonAddress::from_base64_url("EQCeDX8nN2b3rX_z4LjntiXsJn6Lj_LQmhA1H7Z76iiMoe62")
+                .expect("Failed to load address")
         );
     }
 }

@@ -32,7 +32,7 @@ async fn main() -> anyhow::Result<()> {
     for wallet in config.wallets {
         our_addresses.push(TonAddress::from_str(&wallet.address)?);
     }
-    
+
     our_addresses.push(TonAddress::from_str(&config.ton_gateway)?);
     our_addresses.push(TonAddress::from_str(&config.ton_gas_service)?);
     our_addresses.push(TonAddress::from_str(&config.ton_its)?);

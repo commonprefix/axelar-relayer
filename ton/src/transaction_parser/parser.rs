@@ -4,6 +4,7 @@ use crate::gas_calculator::GasCalculator;
 use crate::transaction_parser::common::convert_jetton_to_native;
 use crate::transaction_parser::parser_call_contract::ParserCallContract;
 use crate::transaction_parser::parser_execute_insufficient_gas::ParserExecuteInsufficientGas;
+use crate::transaction_parser::parser_its_token_metadata_registered::ParserITSTokenMetadataRegistered;
 use crate::transaction_parser::parser_jetton_gas_added::ParserJettonGasAdded;
 use crate::transaction_parser::parser_jetton_gas_paid::ParserJettonGasPaid;
 use crate::transaction_parser::parser_message_approved::ParserMessageApproved;
@@ -21,7 +22,6 @@ use std::str::FromStr;
 use ton_types::ton_types::Trace;
 use tonlib_core::TonAddress;
 use tracing::{info, warn};
-use crate::transaction_parser::parser_its_token_metadata_registered::ParserITSTokenMetadataRegistered;
 
 #[async_trait]
 pub trait Parser {
@@ -114,69 +114,69 @@ impl<PV: PriceViewTrait> TraceParserTrait for TraceParser<PV> {
             }
         }
 
-        
         for parser in parsers {
             let event = parser.event(None).await?;
             events.push(event);
         }
 
-        self.add_gas_used_and_convert(&mut events, total_gas_used, refund_gas_used, message_approved_count).await?;
+        self.add_gas_used_and_convert(
+            &mut events,
+            total_gas_used,
+            refund_gas_used,
+            message_approved_count,
+        )
+        .await?;
 
         Ok(events)
     }
 }
 
 impl<PV: PriceViewTrait> TraceParser<PV> {
-        pub async fn add_gas_used_and_convert(
-            &self,
-            events: &mut [Event],
-            total_gas_used: u64,
-            refund_gas_used: u64,
-            message_approved_count: u64,
-        ) -> Result<(), TransactionParsingError> {
-            for e in events.iter_mut() {
-                match e {
-                    Event::GasCredit { payment, .. } => {
-                        if let Some(token_id) = payment.token_id.take() {
-                            let amount = BigUint::from_str(payment.amount.as_str())
-                                .map_err(|e| TransactionParsingError::Generic(e.to_string()))?;
+    pub async fn add_gas_used_and_convert(
+        &self,
+        events: &mut [Event],
+        total_gas_used: u64,
+        refund_gas_used: u64,
+        message_approved_count: u64,
+    ) -> Result<(), TransactionParsingError> {
+        for e in events.iter_mut() {
+            match e {
+                Event::GasCredit { payment, .. } => {
+                    if let Some(token_id) = payment.token_id.take() {
+                        let amount = BigUint::from_str(payment.amount.as_str())
+                            .map_err(|e| TransactionParsingError::Generic(e.to_string()))?;
 
-                            let native = convert_jetton_to_native(
-                                token_id,
-                                &amount,
-                                &self.price_view,
-                            )
-                                .await
-                                .map_err(|e| TransactionParsingError::Generic(e.to_string()))?;
+                        let native = convert_jetton_to_native(token_id, &amount, &self.price_view)
+                            .await
+                            .map_err(|e| TransactionParsingError::Generic(e.to_string()))?;
 
-                            payment.amount = native.to_string();
-                        }
+                        payment.amount = native.to_string();
                     }
-
-                    Event::MessageApproved { cost, .. } => {
-                        let per = if message_approved_count == 0 {
-                            0
-                        } else {
-                            total_gas_used / message_approved_count
-                        };
-                        cost.amount = per.to_string();
-                    }
-
-                    Event::MessageExecuted { cost, .. } => {
-                        cost.amount = total_gas_used.to_string();
-                    }
-
-                    Event::GasRefunded { cost, .. } => {
-                        cost.amount = refund_gas_used.to_string();
-                    }
-
-                    _ => {}
                 }
-            }
 
-            Ok(())
+                Event::MessageApproved { cost, .. } => {
+                    let per = if message_approved_count == 0 {
+                        0
+                    } else {
+                        total_gas_used / message_approved_count
+                    };
+                    cost.amount = per.to_string();
+                }
+
+                Event::MessageExecuted { cost, .. } => {
+                    cost.amount = total_gas_used.to_string();
+                }
+
+                Event::GasRefunded { cost, .. } => {
+                    cost.amount = refund_gas_used.to_string();
+                }
+
+                _ => {}
+            }
         }
 
+        Ok(())
+    }
 }
 
 impl<PV: PriceViewTrait> TraceParser<PV> {
@@ -310,8 +310,6 @@ impl<PV: PriceViewTrait> TraceParser<PV> {
                 its.push(Box::new(parser));
                 continue;
             }
-
-
         }
         Ok(message_approved_count)
     }
@@ -352,7 +350,8 @@ mod tests {
         .unwrap();
         let its = TonAddress::from_hex_str(
             "0:000000000000000000000000000000000000000000000000000000000000ffff",
-        ).unwrap();
+        )
+        .unwrap();
 
         let calc = GasCalculator::new(vec![gateway.clone(), gas_service.clone()]);
 
@@ -410,9 +409,8 @@ mod tests {
         let gas_service =
             TonAddress::from_base64_url("EQBcfOiB4SF73vEFm1icuf3oqaFHj1bNQgxvwHKkxAiIjxLZ")
                 .unwrap();
-        let its =
-            TonAddress::from_base64_url("kQD-xq9YjzE6cq10P801OkBA65abvxvID5pnfFjTszltjilk")
-                .unwrap();
+        let its = TonAddress::from_base64_url("kQD-xq9YjzE6cq10P801OkBA65abvxvID5pnfFjTszltjilk")
+            .unwrap();
 
         let calc = GasCalculator::new(vec![gateway.clone(), gas_service.clone(), its.clone()]);
 
@@ -420,7 +418,14 @@ mod tests {
         let traces = fixture_traces();
         let gateway = traces[11].transactions[2].account.clone();
 
-        let parser = TraceParser::new(price_view, gateway, gas_service, its, calc, "ton2".to_string());
+        let parser = TraceParser::new(
+            price_view,
+            gateway,
+            gas_service,
+            its,
+            calc,
+            "ton2".to_string(),
+        );
         let events = parser.parse_trace(traces[11].clone()).await.unwrap();
         assert_eq!(events.len(), 1);
 
@@ -441,36 +446,70 @@ mod tests {
         let gas_service =
             TonAddress::from_base64_url("EQBcfOiB4SF73vEFm1icuf3oqaFHj1bNQgxvwHKkxAiIjxLZ")
                 .unwrap();
-        let its =
-            TonAddress::from_base64_url("kQDdU6MZZX_QYO4RPTMaPJ9kFUdX2474z2yxRvDuhnXZv-aH")
-                .unwrap();
+        let its = TonAddress::from_base64_url("kQDdU6MZZX_QYO4RPTMaPJ9kFUdX2474z2yxRvDuhnXZv-aH")
+            .unwrap();
 
         let calc = GasCalculator::new(vec![gateway.clone(), gas_service.clone(), its.clone()]);
 
         let price_view = mock_price_view();
         let traces = fixture_traces();
 
-        let parser = TraceParser::new(price_view, gateway, gas_service, its, calc, "ton2".to_string());
+        let parser = TraceParser::new(
+            price_view,
+            gateway,
+            gas_service,
+            its,
+            calc,
+            "ton2".to_string(),
+        );
         let events = parser.parse_trace(traces[19].clone()).await.unwrap();
         assert_eq!(events.len(), 2);
 
         match events[0].clone() {
-            Event::Call { message, destination_chain, payload, .. } => {
-                assert_eq!(message.message_id, "0xa88a820f8aa9750d0b057efe44e7e16795656157b796250afc0fbf4d23c649e1");
+            Event::Call {
+                message,
+                destination_chain,
+                payload,
+                ..
+            } => {
+                assert_eq!(
+                    message.message_id,
+                    "0xa88a820f8aa9750d0b057efe44e7e16795656157b796250afc0fbf4d23c649e1"
+                );
                 assert_eq!(message.source_chain, "ton2");
-                assert_eq!(message.source_address, "0:dd53a319657fd060ee113d331a3c9f64154757db8ef8cf6cb146f0ee8675d9bf");
-                assert_eq!(message.payload_hash, "IQBup4rxdld80lWFcBVi97AwbcGzoxMLL3V3EIFAMLc=");
-                assert_eq!(message.destination_address, "axelar157hl7gpuknjmhtac2qnphuazv2yerfagva7lsu9vuj2pgn32z22qa26dk4");
+                assert_eq!(
+                    message.source_address,
+                    "0:dd53a319657fd060ee113d331a3c9f64154757db8ef8cf6cb146f0ee8675d9bf"
+                );
+                assert_eq!(
+                    message.payload_hash,
+                    "IQBup4rxdld80lWFcBVi97AwbcGzoxMLL3V3EIFAMLc="
+                );
+                assert_eq!(
+                    message.destination_address,
+                    "axelar157hl7gpuknjmhtac2qnphuazv2yerfagva7lsu9vuj2pgn32z22qa26dk4"
+                );
                 assert_eq!(destination_chain, "axelar");
                 assert_eq!(payload, "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAYAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAYAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAJAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACCeDX8nN2b3rX/z4LjntiXsJn6Lj/LQmhA1H7Z76iiMoQ==");
             }
             _ => panic!("Expected Call event"),
         }
         match events[1].clone() {
-            Event::ITSTokenMetadataRegisteredEvent { decimals, message_id, address, .. } => {
-                assert_eq!(message_id, "0xa88a820f8aa9750d0b057efe44e7e16795656157b796250afc0fbf4d23c649e1");
+            Event::ITSTokenMetadataRegisteredEvent {
+                decimals,
+                message_id,
+                address,
+                ..
+            } => {
+                assert_eq!(
+                    message_id,
+                    "0xa88a820f8aa9750d0b057efe44e7e16795656157b796250afc0fbf4d23c649e1"
+                );
                 assert_eq!(decimals, 9);
-                assert_eq!(address, "0:9e0d7f273766f7ad7ff3e0b8e7b625ec267e8b8ff2d09a10351fb67bea288ca1");
+                assert_eq!(
+                    address,
+                    "0:9e0d7f273766f7ad7ff3e0b8e7b625ec267e8b8ff2d09a10351fb67bea288ca1"
+                );
             }
             _ => panic!("Expected ITSTokenMetadataRegisteredEvent event"),
         }
@@ -484,9 +523,8 @@ mod tests {
         let gas_service =
             TonAddress::from_base64_url("EQBcfOiB4SF73vEFm1icuf3oqaFHj1bNQgxvwHKkxAiIjxLZ")
                 .unwrap();
-        let its =
-            TonAddress::from_base64_url("kQD-xq9YjzE6cq10P801OkBA65abvxvID5pnfFjTszltjilk")
-                .unwrap();
+        let its = TonAddress::from_base64_url("kQD-xq9YjzE6cq10P801OkBA65abvxvID5pnfFjTszltjilk")
+            .unwrap();
 
         let calc = GasCalculator::new(vec![gateway.clone(), gas_service.clone()]);
 
@@ -521,18 +559,22 @@ mod tests {
         let gas_service =
             TonAddress::from_base64_url("kQCEKDERj88xS-gD7non_TITN-50i4QI8lMukNkqknAX28OJ")
                 .unwrap();
-        let its =
-            TonAddress::from_base64_url("kQD-xq9YjzE6cq10P801OkBA65abvxvID5pnfFjTszltjilk")
-                .unwrap();
+        let its = TonAddress::from_base64_url("kQD-xq9YjzE6cq10P801OkBA65abvxvID5pnfFjTszltjilk")
+            .unwrap();
 
-        
-        
         let calc = GasCalculator::new(vec![gateway.clone(), gas_service.clone()]);
 
         let price_view = self::mock_price_view();
 
         let traces = fixture_traces();
-        let parser = TraceParser::new(price_view, gateway, gas_service, its, calc, "ton2".to_string());
+        let parser = TraceParser::new(
+            price_view,
+            gateway,
+            gas_service,
+            its,
+            calc,
+            "ton2".to_string(),
+        );
         let events = parser.parse_trace(traces[8].clone()).await.unwrap();
         assert_eq!(events.len(), 1);
 

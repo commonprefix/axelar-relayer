@@ -36,7 +36,7 @@ impl EventModel {
                 common.r#type.clone(),
                 Some(message_id.clone()),
             ),
-            | Event::ITSTokenMetadataRegisteredEvent {
+            Event::ITSTokenMetadataRegisteredEvent {
                 common, message_id, ..
             } => (
                 common.event_id.clone(),

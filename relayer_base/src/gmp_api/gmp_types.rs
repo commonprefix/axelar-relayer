@@ -439,7 +439,7 @@ pub enum Event {
         message_id: String,
         address: String,
         decimals: u8,
-    }
+    },
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
