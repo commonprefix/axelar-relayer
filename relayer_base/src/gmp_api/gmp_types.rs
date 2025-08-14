@@ -329,7 +329,6 @@ pub struct ScopedMessage {
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct InterchainTokenDefinition {
-    #[serde(rename = "ID")]
     pub id: String,
     pub name: String,
     pub symbol: String,

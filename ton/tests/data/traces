@@ -17,3 +17,4 @@ Trace 17 - Execute message 2025-07-23 contract
 Trace 18 - Pay gas (no contract call)
 Trace 19 - ITS Token Metadata Registered
 Trace 20 - ITS Interchain Token Deployment Started
+Trace 21 - ITS Interchain Transfer (manually constructed, not real)

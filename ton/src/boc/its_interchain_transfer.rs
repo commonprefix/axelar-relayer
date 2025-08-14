@@ -33,12 +33,12 @@ use tonlib_core::TonAddress;
 
 #[derive(Debug, Clone)]
 pub struct LogITSInterchainTransferMessage {
-    token_id: BigUint,
-    sender_address: TonAddress,
-    destination_chain: String,
-    destination_address: String,
-    jetton_amount: BigUint,
-    data: Vec<u8>,
+    pub(crate) token_id: BigUint,
+    pub(crate) sender_address: TonAddress,
+    pub(crate) destination_chain: String,
+    pub(crate) destination_address: String,
+    pub(crate) jetton_amount: BigUint,
+    pub(crate) data: Vec<u8>,
 }
 
 impl LogITSInterchainTransferMessage {
