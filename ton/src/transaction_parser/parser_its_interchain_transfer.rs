@@ -35,7 +35,7 @@ impl Parser for ParserITSInterchainTransfer {
         if self.log.is_none() {
             self.log = Some(
                 LogITSInterchainTransferMessage::from_boc_b64(
-                    &self.tx.out_msgs[0].message_content.body,
+                    &self.tx.out_msgs[1].message_content.body,
                 )
                 .map_err(|e| TransactionParsingError::BocParsing(e.to_string()))?,
             );
@@ -48,7 +48,7 @@ impl Parser for ParserITSInterchainTransfer {
             return Ok(false);
         }
 
-        is_log_emitted(&self.tx, OP_INTERCHAIN_TRANSFER_LOG, 0)
+        is_log_emitted(&self.tx, OP_INTERCHAIN_TRANSFER_LOG, 1)
     }
 
     async fn key(&self) -> Result<MessageMatchingKey, TransactionParsingError> {
@@ -71,7 +71,7 @@ impl Parser for ParserITSInterchainTransfer {
             None => return Err(TransactionParsingError::Message("Missing log".to_string())),
         };
 
-        let hash = if log.data.len() == 0 {
+        let hash = if log.data.is_empty() {
             "0".repeat(32)
         } else {
             payload_hash(&log.data).to_string()
@@ -117,7 +117,7 @@ mod tests {
     async fn test_parser() {
         let traces = fixture_traces();
 
-        let tx = traces[21].transactions[3].clone();
+        let tx = traces[21].transactions[5].clone();
         let address = tx.clone().account;
 
         let mut parser = ParserITSInterchainTransfer::new(tx, address).await.unwrap();
@@ -142,22 +142,22 @@ mod tests {
                 assert_eq!(destination_chain, "avalanche-fuji");
                 assert_eq!(
                     token_spent.token_id.unwrap(),
-                    "0xf4e222ada316195f2e873313576b4e09a1d3bfc294ac3e5ee74d2a8ff6d054e"
+                    "0x12de0c2d53d40473f2f8683f95d825e2fbb36c319c8cdf95f8de30f933db569c"
                 );
-                assert_eq!(token_spent.amount, "2000000");
+                assert_eq!(token_spent.amount, "10");
                 assert_eq!(
                     source_address,
-                    "0:4686a2c066c784a915f3e01c853d3195ed254c948e21adbb3e4a9b3f5f3c74d7"
+                    "0:898ad13c059f2a3a69576a010c41af239b487bc555eabeb9a5894deb11299330"
                 );
                 assert_eq!(
                     destination_address,
-                    "0x81e63eA8F64FEdB9858EB6E2176B431FBd10d1eC"
+                    "0x72D489FC91f33011EC46Efa78d37E02dCC335453"
                 );
                 assert_eq!(data_hash, "00000000000000000000000000000000");
                 let meta = &common.meta.as_ref().unwrap();
                 assert_eq!(
                     meta.tx_id.as_deref(),
-                    Some("Det6b7Uh8FfP7N3e6pqb4guD71ZJj5WxN49Y/QezJQM=")
+                    Some("whzah8/IAGKVzmJNgD5/w9xygsneoYXrMtaluuPp1vs=")
                 );
             }
             _ => panic!("Expected ITSInterchainTokenDeploymentStartedEvent event"),

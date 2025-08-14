@@ -20,12 +20,12 @@ match LogITSInterchainTokenDeploymentStartedMessage::from_boc_b64(boc_b64) {
 
 */
 
-use num_bigint::BigUint;
 use crate::boc::cell_to::CellTo;
 use crate::boc::op_code::compare_op_code;
 use crate::error::BocError;
 use crate::error::BocError::{BocParsingError, InvalidOpCode};
 use crate::ton_constants::OP_INTERCHAIN_TOKEN_DEPLOYMENT_STARTED_LOG;
+use num_bigint::BigUint;
 use tonlib_core::cell::Cell;
 use tonlib_core::tlb_types::tlb::TLB;
 
@@ -91,9 +91,9 @@ impl LogITSInterchainTokenDeploymentStartedMessage {
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
-    use num_bigint::BigUint;
     use crate::boc::its_interchain_token_deployment_started::LogITSInterchainTokenDeploymentStartedMessage;
+    use num_bigint::BigUint;
+    use std::str::FromStr;
 
     #[test]
     fn test_from_boc_b64() {
@@ -109,7 +109,10 @@ mod tests {
         assert_eq!(log.destination_chain, "avalanche-fuji");
         assert_eq!(
             log.token_id,
-            BigUint::from_str("76100784879436770959190113963535317215282835248950831905149195120573357620156").expect("failed to decode")
+            BigUint::from_str(
+                "76100784879436770959190113963535317215282835248950831905149195120573357620156"
+            )
+            .expect("failed to decode")
         );
 
         assert_eq!(log.token_symbol, "TONTEST");

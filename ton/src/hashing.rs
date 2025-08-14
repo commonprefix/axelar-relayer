@@ -11,8 +11,8 @@ pub fn payload_hash(payload: &[u8]) -> BigUint {
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
     use crate::hashing::BigUint;
+    use std::str::FromStr;
 
     #[test]
     fn test_payload_hash() {

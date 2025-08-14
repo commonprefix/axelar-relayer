@@ -389,7 +389,7 @@ pub enum TokenManagerType {
     MintBurnFrom,
     LockUnlock,
     LockUnlockFee,
-    MintBurn
+    MintBurn,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -497,7 +497,7 @@ pub enum Event {
         #[serde(rename = "destinationChain")]
         destination_chain: String,
         #[serde(rename = "token")]
-        token: InterchainTokenDefinition
+        token: InterchainTokenDefinition,
     },
     APPInterchainTransferReceived {
         #[serde(flatten)]
@@ -513,8 +513,7 @@ pub enum Event {
         recipient: String,
         #[serde(rename = "tokenReceived")]
         token_received: InterchainTransferToken,
-    }
-
+    },
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]

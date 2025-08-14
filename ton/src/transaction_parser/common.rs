@@ -27,16 +27,14 @@ pub fn is_log_emitted(
     op_code: u32,
     out_msg_log_index: usize,
 ) -> Result<bool, TransactionParsingError> {
-    Ok(
-        tx.out_msgs
-            .get(out_msg_log_index)
-            .filter(|out_msg| out_msg.destination.is_none())
-            .and_then(|out_msg| out_msg.opcode)
-            .map(|opcode| opcode == op_code)
-            .unwrap_or(false),
-    )
+    Ok(tx
+        .out_msgs
+        .get(out_msg_log_index)
+        .filter(|out_msg| out_msg.destination.is_none())
+        .and_then(|out_msg| out_msg.opcode)
+        .map(|opcode| opcode == op_code)
+        .unwrap_or(false))
 }
-
 
 pub fn hash_to_message_id(hash: &str) -> Result<String, TONRpcError> {
     let hash = BASE64_STANDARD

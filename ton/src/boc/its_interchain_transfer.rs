@@ -20,13 +20,13 @@ match LogITSInterchainTransferMessage::from_boc_b64(boc_b64) {
 
 */
 
-use std::str::FromStr;
-use num_bigint::BigUint;
 use crate::boc::cell_to::CellTo;
 use crate::boc::op_code::compare_op_code;
 use crate::error::BocError;
 use crate::error::BocError::{BocParsingError, InvalidOpCode};
-use crate::ton_constants::{OP_INTERCHAIN_TOKEN_DEPLOYMENT_STARTED_LOG, OP_INTERCHAIN_TRANSFER_LOG};
+use crate::ton_constants::OP_INTERCHAIN_TRANSFER_LOG;
+use num_bigint::BigUint;
+use std::str::FromStr;
 use tonlib_core::cell::Cell;
 use tonlib_core::tlb_types::tlb::TLB;
 use tonlib_core::TonAddress;
@@ -63,39 +63,50 @@ impl LogITSInterchainTransferMessage {
             .map_err(|err| BocParsingError(err.to_string()))?;
 
         let sender_address = parser
-            .next_reference().map_err(|err| BocParsingError(err.to_string()))?
-            .parser().load_uint(256).map_err(|err| BocParsingError(err.to_string()))?;
-        let sender_address = TonAddress::from_str(&format!("0:{}", sender_address.to_str_radix(16))).map_err(|err| BocParsingError(err.to_string()))?;
+            .next_reference()
+            .map_err(|err| BocParsingError(err.to_string()))?
+            .parser()
+            .load_uint(256)
+            .map_err(|err| BocParsingError(err.to_string()))?;
+        let sender_address =
+            TonAddress::from_str(&format!("0:{}", sender_address.to_str_radix(16)))
+                .map_err(|err| BocParsingError(err.to_string()))?;
 
         let destination_chain = parser
             .next_reference()
             .map_err(|err| BocParsingError(err.to_string()))?
             .cell_to_string()?;
-        
+
         let destination_address = parser
             .next_reference()
             .map_err(|err| BocParsingError(err.to_string()))?
             .cell_to_string()?;
-        
-        let jetton_amount = parser.load_uint(256).map_err(|err| BocParsingError(err.to_string()))?;
-        let data: Vec<u8> = parser.next_reference().map_err(|err| BocParsingError(err.to_string()))?.data().into();
-        
+
+        let jetton_amount = parser
+            .load_uint(256)
+            .map_err(|err| BocParsingError(err.to_string()))?;
+        let data: Vec<u8> = parser
+            .next_reference()
+            .map_err(|err| BocParsingError(err.to_string()))?
+            .data()
+            .into();
+
         Ok(Self {
             token_id,
             sender_address,
             destination_chain,
             destination_address,
             jetton_amount,
-            data
+            data,
         })
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::boc::its_interchain_transfer::LogITSInterchainTransferMessage;
     use std::str::FromStr;
     use tonlib_core::TonAddress;
-    use crate::boc::its_interchain_transfer::LogITSInterchainTransferMessage;
 
     #[test]
     fn test_from_boc_b64() {
@@ -108,9 +119,21 @@ mod tests {
             response.unwrap_err()
         );
         let log = response.expect("Failed to unwrap log");
-        assert_eq!(log.token_id.to_str_radix(16), "f4e222ada316195f2e873313576b4e09a1d3bfc294ac3e5ee74d2a8ff6d054e");
-        assert_eq!(log.sender_address, TonAddress::from_str("0:4686a2c066c784a915f3e01c853d3195ed254c948e21adbb3e4a9b3f5f3c74d7").unwrap());
-        assert_eq!(log.destination_address, "0x81e63eA8F64FEdB9858EB6E2176B431FBd10d1eC");
+        assert_eq!(
+            log.token_id.to_str_radix(16),
+            "f4e222ada316195f2e873313576b4e09a1d3bfc294ac3e5ee74d2a8ff6d054e"
+        );
+        assert_eq!(
+            log.sender_address,
+            TonAddress::from_str(
+                "0:4686a2c066c784a915f3e01c853d3195ed254c948e21adbb3e4a9b3f5f3c74d7"
+            )
+            .unwrap()
+        );
+        assert_eq!(
+            log.destination_address,
+            "0x81e63eA8F64FEdB9858EB6E2176B431FBd10d1eC"
+        );
         assert_eq!(log.destination_chain, "avalanche-fuji");
         assert_eq!(log.data.len(), 0);
     }

@@ -1,14 +1,13 @@
+use crate::boc::its_link_token_started::LogITSLinkTokenStartedMessage;
 use crate::error::TransactionParsingError;
-use crate::transaction_parser::common::{is_log_emitted};
+use crate::ton_constants::OP_LINK_TOKEN_STARTED_LOG;
+use crate::transaction_parser::common::is_log_emitted;
 use crate::transaction_parser::message_matching_key::MessageMatchingKey;
 use crate::transaction_parser::parser::Parser;
 use async_trait::async_trait;
-use relayer_base::gmp_api::gmp_types::{Amount, CommonEventFields, Event, EventMetadata};
+use relayer_base::gmp_api::gmp_types::{CommonEventFields, Event, EventMetadata};
 use ton_types::ton_types::Transaction;
 use tonlib_core::TonAddress;
-use crate::boc::its_link_token_started::LogITSLinkTokenStartedMessage;
-use crate::hashing::payload_hash;
-use crate::ton_constants::OP_LINK_TOKEN_STARTED_LOG;
 
 pub struct ParserITSLinkTokenStarted {
     log: Option<LogITSLinkTokenStartedMessage>,
@@ -37,7 +36,7 @@ impl Parser for ParserITSLinkTokenStarted {
                 LogITSLinkTokenStartedMessage::from_boc_b64(
                     &self.tx.out_msgs[0].message_content.body,
                 )
-                    .map_err(|e| TransactionParsingError::BocParsing(e.to_string()))?,
+                .map_err(|e| TransactionParsingError::BocParsing(e.to_string()))?,
             );
         }
         Ok(true)
@@ -100,10 +99,10 @@ impl Parser for ParserITSLinkTokenStarted {
 
 #[cfg(test)]
 mod tests {
-    use relayer_base::gmp_api::gmp_types::TokenManagerType;
     use super::*;
     use crate::test_utils::fixtures::fixture_traces;
     use crate::transaction_parser::parser_its_link_token_started::ParserITSLinkTokenStarted;
+    use relayer_base::gmp_api::gmp_types::TokenManagerType;
 
     #[tokio::test]
     async fn test_parser() {
@@ -112,9 +111,7 @@ mod tests {
         let tx = traces[22].transactions[3].clone();
         let address = tx.clone().account;
 
-        let mut parser = ParserITSLinkTokenStarted::new(tx, address)
-            .await
-            .unwrap();
+        let mut parser = ParserITSLinkTokenStarted::new(tx, address).await.unwrap();
 
         assert!(parser.is_match().await.unwrap());
         assert!(parser.message_id().await.is_ok());
@@ -129,13 +126,22 @@ mod tests {
                 message_id,
                 source_token_address,
                 destination_token_address,
-                token_manager_type
+                token_manager_type,
             } => {
                 assert_eq!(message_id, "foo");
                 assert_eq!(destination_chain, "avalanche-fuji");
-                assert_eq!(token_id, "0x3b68a3e01061c8e033a99697acc6b23e7a829f8d816036f64b11576535e6eeb5");
-                assert_eq!(source_token_address, "EQAmm+MWQExvgU4K5bPnnxodIBAPetVKvxV+ndbEn/ywW0Ix");
-                assert_eq!(destination_token_address, "0x81e63eA8F64FEdB9858EB6E2176B431FBd10d1eC");
+                assert_eq!(
+                    token_id,
+                    "0x3b68a3e01061c8e033a99697acc6b23e7a829f8d816036f64b11576535e6eeb5"
+                );
+                assert_eq!(
+                    source_token_address,
+                    "EQAmm+MWQExvgU4K5bPnnxodIBAPetVKvxV+ndbEn/ywW0Ix"
+                );
+                assert_eq!(
+                    destination_token_address,
+                    "0x81e63eA8F64FEdB9858EB6E2176B431FBd10d1eC"
+                );
                 assert_eq!(token_manager_type, TokenManagerType::LockUnlock);
                 let meta = &common.meta.as_ref().unwrap();
                 assert_eq!(
@@ -154,7 +160,7 @@ mod tests {
         let address = TonAddress::from_hex_str(
             "0:0000000000000000000000000000000000000000000000000000000000000000",
         )
-            .unwrap();
+        .unwrap();
         let tx = traces[20].transactions[3].clone();
         let parser = ParserITSLinkTokenStarted::new(tx, address.clone())
             .await

@@ -5,7 +5,9 @@ use crate::transaction_parser::common::is_log_emitted;
 use crate::transaction_parser::message_matching_key::MessageMatchingKey;
 use crate::transaction_parser::parser::Parser;
 use async_trait::async_trait;
-use relayer_base::gmp_api::gmp_types::{CommonEventFields, Event, EventMetadata, InterchainTokenDefinition};
+use relayer_base::gmp_api::gmp_types::{
+    CommonEventFields, Event, EventMetadata, InterchainTokenDefinition,
+};
 use ton_types::ton_types::Transaction;
 use tonlib_core::TonAddress;
 
@@ -36,7 +38,7 @@ impl Parser for ParserITSInterchainTokenDeploymentStarted {
                 LogITSInterchainTokenDeploymentStartedMessage::from_boc_b64(
                     &self.tx.out_msgs[0].message_content.body,
                 )
-                    .map_err(|e| TransactionParsingError::BocParsing(e.to_string()))?,
+                .map_err(|e| TransactionParsingError::BocParsing(e.to_string()))?,
             );
         }
         Ok(true)
@@ -73,7 +75,10 @@ impl Parser for ParserITSInterchainTokenDeploymentStarted {
         Ok(Event::ITSInterchainTokenDeploymentStarted {
             common: CommonEventFields {
                 r#type: "ITS/INTERCHAIN_TOKEN_DEPLOYMENT_STARTED".to_owned(),
-                event_id: format!("{}-its-interchain-token-deployment-started", tx.hash.clone()),
+                event_id: format!(
+                    "{}-its-interchain-token-deployment-started",
+                    tx.hash.clone()
+                ),
                 meta: Some(EventMetadata {
                     tx_id: Some(tx.hash.clone()),
                     from_address: None,
@@ -90,7 +95,7 @@ impl Parser for ParserITSInterchainTokenDeploymentStarted {
                 name: log.token_name,
                 symbol: log.token_symbol,
                 decimals: log.decimals,
-            }
+            },
         })
     }
 
@@ -126,12 +131,15 @@ mod tests {
                 common,
                 destination_chain,
                 token,
-                message_id
+                message_id,
             } => {
                 assert_eq!(message_id, "foo");
 
                 assert_eq!(destination_chain, "avalanche-fuji");
-                assert_eq!(token.id, "0xa83f8491782f4edd33810373a6bc95a42ff4a460381d5ee4f86ff33faf2dfbbc");
+                assert_eq!(
+                    token.id,
+                    "0xa83f8491782f4edd33810373a6bc95a42ff4a460381d5ee4f86ff33faf2dfbbc"
+                );
                 assert_eq!(token.symbol, "TONTEST");
                 assert_eq!(token.name, "Test token");
                 assert_eq!(token.decimals, 9);
@@ -152,7 +160,7 @@ mod tests {
         let address = TonAddress::from_hex_str(
             "0:0000000000000000000000000000000000000000000000000000000000000000",
         )
-            .unwrap();
+        .unwrap();
         let tx = traces[20].transactions[1].clone();
         let parser = ParserITSInterchainTokenDeploymentStarted::new(tx, address.clone())
             .await

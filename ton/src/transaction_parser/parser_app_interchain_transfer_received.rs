@@ -1,166 +1,166 @@
-use crate::error::TransactionParsingError;
-use crate::transaction_parser::common::{is_log_emitted};
-use crate::transaction_parser::message_matching_key::MessageMatchingKey;
-use crate::transaction_parser::parser::Parser;
-use async_trait::async_trait;
-use relayer_base::gmp_api::gmp_types::{Amount, CommonEventFields, Event, EventMetadata, InterchainTransferToken};
-use ton_types::ton_types::Transaction;
-use tonlib_core::TonAddress;
-use crate::boc::app_interchain_transfer_received::LogAppInterchainTransferReceivedMessage;
-use crate::ton_constants::OP_INTERCHAIN_TRANSFER_RECEIVED_LOG;
-
-pub struct ParserITSLinkTokenStarted {
-    log: Option<LogAppInterchainTransferReceivedMessage>,
-    tx: Transaction,
-    allowed_address: TonAddress,
-}
-
-impl ParserITSLinkTokenStarted {
-    pub(crate) async fn new(
-        tx: Transaction,
-        allowed_address: TonAddress,
-    ) -> Result<Self, TransactionParsingError> {
-        Ok(Self {
-            log: None,
-            tx,
-            allowed_address,
-        })
-    }
-}
-
-#[async_trait]
-impl Parser for ParserITSLinkTokenStarted {
-    async fn parse(&mut self) -> Result<bool, TransactionParsingError> {
-        if self.log.is_none() {
-            self.log = Some(
-                LogAppInterchainTransferReceivedMessage::from_boc_b64(
-                    &self.tx.out_msgs[0].message_content.body,
-                )
-                    .map_err(|e| TransactionParsingError::BocParsing(e.to_string()))?,
-            );
-        }
-        Ok(true)
-    }
-
-    async fn is_match(&self) -> Result<bool, TransactionParsingError> {
-        if self.tx.account != self.allowed_address {
-            return Ok(false);
-        }
-
-        is_log_emitted(&self.tx, OP_INTERCHAIN_TRANSFER_RECEIVED_LOG, 0)
-    }
-
-    async fn key(&self) -> Result<MessageMatchingKey, TransactionParsingError> {
-        unimplemented!()
-    }
-
-    async fn event(&self, message_id: Option<String>) -> Result<Event, TransactionParsingError> {
-        let tx = &self.tx;
-
-        let message_id = if let Some(id) = message_id {
-            id
-        } else {
-            return Err(TransactionParsingError::Message(
-                "Missing message_id".to_string(),
-            ));
-        };
-
-        let log = match self.log.clone() {
-            Some(log) => log,
-            None => return Err(TransactionParsingError::Message("Missing log".to_string())),
-        };
-        todo!()
-        
-        // Ok(Event::APPInterchainTransferReceived {
-        //     common: CommonEventFields {
-        //         r#type: "ITS/LINK_TOKEN_STARTED".to_owned(),
-        //         event_id: format!("{}-its-link-token-started", tx.hash.clone()),
-        //         meta: Some(EventMetadata {
-        //             tx_id: Some(tx.hash.clone()),
-        //             from_address: None,
-        //             finalized: None,
-        //             source_context: None,
-        //             timestamp: chrono::Utc::now()
-        //                 .to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
-        //         }),
-        //     },
-        //     message_id,
-        //     source_chain: log.source_chain,
-        //     source_address: log.source_address,
-        //     recipient: log.destination_address.to_hex(),
-        //     token_received: InterchainTransferToken {
-        //         token_address: log.token_id,
-        //         amount: log.amount.to_string()
-        //     },
-        // })
-    }
-
-    async fn message_id(&self) -> Result<Option<String>, TransactionParsingError> {
-        Ok(None)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use relayer_base::gmp_api::gmp_types::TokenManagerType;
-    use super::*;
-    use crate::test_utils::fixtures::fixture_traces;
-    use crate::transaction_parser::parser_its_link_token_started::ParserITSLinkTokenStarted;
-
-    #[tokio::test]
-    async fn test_parser() {
-        let traces = fixture_traces();
-
-        let tx = traces[22].transactions[3].clone();
-        let address = tx.clone().account;
-
-        let mut parser = ParserITSLinkTokenStarted::new(tx, address)
-            .await
-            .unwrap();
-
-        assert!(parser.is_match().await.unwrap());
-        assert!(parser.message_id().await.is_ok());
-
-        parser.parse().await.unwrap();
-        let event = parser.event(Some("foo".to_string())).await.unwrap();
-        match event {
-            Event::ITSLinkTokenStarted {
-                common,
-                token_id,
-                destination_chain,
-                message_id,
-                source_token_address,
-                destination_token_address,
-                token_manager_type
-            } => {
-                assert_eq!(message_id, "foo");
-                assert_eq!(destination_chain, "avalanche-fuji");
-                assert_eq!(token_id, "0x3b68a3e01061c8e033a99697acc6b23e7a829f8d816036f64b11576535e6eeb5");
-                assert_eq!(source_token_address, "EQAmm+MWQExvgU4K5bPnnxodIBAPetVKvxV+ndbEn/ywW0Ix");
-                assert_eq!(destination_token_address, "0x81e63eA8F64FEdB9858EB6E2176B431FBd10d1eC");
-                assert_eq!(token_manager_type, TokenManagerType::LockUnlock);
-                let meta = &common.meta.as_ref().unwrap();
-                assert_eq!(
-                    meta.tx_id.as_deref(),
-                    Some("Det6b7Uh8FfP7N3e6pqb4guD71ZJj5WxN49Y/QezJQM=")
-                );
-            }
-            _ => panic!("Expected ITSLinkTokenStarted event"),
-        }
-    }
-
-    #[tokio::test]
-    async fn test_no_match() {
-        let traces = fixture_traces();
-
-        let address = TonAddress::from_hex_str(
-            "0:0000000000000000000000000000000000000000000000000000000000000000",
-        )
-            .unwrap();
-        let tx = traces[20].transactions[3].clone();
-        let parser = ParserITSLinkTokenStarted::new(tx, address.clone())
-            .await
-            .unwrap();
-        assert!(!parser.is_match().await.unwrap());
-    }
-}
+// use crate::error::TransactionParsingError;
+// use crate::transaction_parser::common::{is_log_emitted};
+// use crate::transaction_parser::message_matching_key::MessageMatchingKey;
+// use crate::transaction_parser::parser::Parser;
+// use async_trait::async_trait;
+// use relayer_base::gmp_api::gmp_types::{Amount, CommonEventFields, Event, EventMetadata, InterchainTransferToken};
+// use ton_types::ton_types::Transaction;
+// use tonlib_core::TonAddress;
+// use crate::boc::app_interchain_transfer_received::LogAppInterchainTransferReceivedMessage;
+// use crate::ton_constants::OP_INTERCHAIN_TRANSFER_RECEIVED_LOG;
+//
+// pub struct ParserITSLinkTokenStarted {
+//     log: Option<LogAppInterchainTransferReceivedMessage>,
+//     tx: Transaction,
+//     allowed_address: TonAddress,
+// }
+//
+// impl ParserITSLinkTokenStarted {
+//     pub(crate) async fn new(
+//         tx: Transaction,
+//         allowed_address: TonAddress,
+//     ) -> Result<Self, TransactionParsingError> {
+//         Ok(Self {
+//             log: None,
+//             tx,
+//             allowed_address,
+//         })
+//     }
+// }
+//
+// #[async_trait]
+// impl Parser for ParserITSLinkTokenStarted {
+//     async fn parse(&mut self) -> Result<bool, TransactionParsingError> {
+//         if self.log.is_none() {
+//             self.log = Some(
+//                 LogAppInterchainTransferReceivedMessage::from_boc_b64(
+//                     &self.tx.out_msgs[0].message_content.body,
+//                 )
+//                     .map_err(|e| TransactionParsingError::BocParsing(e.to_string()))?,
+//             );
+//         }
+//         Ok(true)
+//     }
+//
+//     async fn is_match(&self) -> Result<bool, TransactionParsingError> {
+//         if self.tx.account != self.allowed_address {
+//             return Ok(false);
+//         }
+//
+//         is_log_emitted(&self.tx, OP_INTERCHAIN_TRANSFER_RECEIVED_LOG, 0)
+//     }
+//
+//     async fn key(&self) -> Result<MessageMatchingKey, TransactionParsingError> {
+//         unimplemented!()
+//     }
+//
+//     async fn event(&self, message_id: Option<String>) -> Result<Event, TransactionParsingError> {
+//         let tx = &self.tx;
+//
+//         let message_id = if let Some(id) = message_id {
+//             id
+//         } else {
+//             return Err(TransactionParsingError::Message(
+//                 "Missing message_id".to_string(),
+//             ));
+//         };
+//
+//         let log = match self.log.clone() {
+//             Some(log) => log,
+//             None => return Err(TransactionParsingError::Message("Missing log".to_string())),
+//         };
+//         todo!()
+//
+//         // Ok(Event::APPInterchainTransferReceived {
+//         //     common: CommonEventFields {
+//         //         r#type: "ITS/LINK_TOKEN_STARTED".to_owned(),
+//         //         event_id: format!("{}-its-link-token-started", tx.hash.clone()),
+//         //         meta: Some(EventMetadata {
+//         //             tx_id: Some(tx.hash.clone()),
+//         //             from_address: None,
+//         //             finalized: None,
+//         //             source_context: None,
+//         //             timestamp: chrono::Utc::now()
+//         //                 .to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
+//         //         }),
+//         //     },
+//         //     message_id,
+//         //     source_chain: log.source_chain,
+//         //     source_address: log.source_address,
+//         //     recipient: log.destination_address.to_hex(),
+//         //     token_received: InterchainTransferToken {
+//         //         token_address: log.token_id,
+//         //         amount: log.amount.to_string()
+//         //     },
+//         // })
+//     }
+//
+//     async fn message_id(&self) -> Result<Option<String>, TransactionParsingError> {
+//         Ok(None)
+//     }
+// }
+//
+// #[cfg(test)]
+// mod tests {
+//     use relayer_base::gmp_api::gmp_types::TokenManagerType;
+//     use super::*;
+//     use crate::test_utils::fixtures::fixture_traces;
+//     use crate::transaction_parser::parser_its_link_token_started::ParserITSLinkTokenStarted;
+//
+//     #[tokio::test]
+//     async fn test_parser() {
+//         let traces = fixture_traces();
+//
+//         let tx = traces[22].transactions[3].clone();
+//         let address = tx.clone().account;
+//
+//         let mut parser = ParserITSLinkTokenStarted::new(tx, address)
+//             .await
+//             .unwrap();
+//
+//         assert!(parser.is_match().await.unwrap());
+//         assert!(parser.message_id().await.is_ok());
+//
+//         parser.parse().await.unwrap();
+//         let event = parser.event(Some("foo".to_string())).await.unwrap();
+//         match event {
+//             Event::ITSLinkTokenStarted {
+//                 common,
+//                 token_id,
+//                 destination_chain,
+//                 message_id,
+//                 source_token_address,
+//                 destination_token_address,
+//                 token_manager_type
+//             } => {
+//                 assert_eq!(message_id, "foo");
+//                 assert_eq!(destination_chain, "avalanche-fuji");
+//                 assert_eq!(token_id, "0x3b68a3e01061c8e033a99697acc6b23e7a829f8d816036f64b11576535e6eeb5");
+//                 assert_eq!(source_token_address, "EQAmm+MWQExvgU4K5bPnnxodIBAPetVKvxV+ndbEn/ywW0Ix");
+//                 assert_eq!(destination_token_address, "0x81e63eA8F64FEdB9858EB6E2176B431FBd10d1eC");
+//                 assert_eq!(token_manager_type, TokenManagerType::LockUnlock);
+//                 let meta = &common.meta.as_ref().unwrap();
+//                 assert_eq!(
+//                     meta.tx_id.as_deref(),
+//                     Some("Det6b7Uh8FfP7N3e6pqb4guD71ZJj5WxN49Y/QezJQM=")
+//                 );
+//             }
+//             _ => panic!("Expected ITSLinkTokenStarted event"),
+//         }
+//     }
+//
+//     #[tokio::test]
+//     async fn test_no_match() {
+//         let traces = fixture_traces();
+//
+//         let address = TonAddress::from_hex_str(
+//             "0:0000000000000000000000000000000000000000000000000000000000000000",
+//         )
+//             .unwrap();
+//         let tx = traces[20].transactions[3].clone();
+//         let parser = ParserITSLinkTokenStarted::new(tx, address.clone())
+//             .await
+//             .unwrap();
+//         assert!(!parser.is_match().await.unwrap());
+//     }
+// }

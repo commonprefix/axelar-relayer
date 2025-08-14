@@ -4,6 +4,9 @@ use crate::gas_calculator::GasCalculator;
 use crate::transaction_parser::common::convert_jetton_to_native;
 use crate::transaction_parser::parser_call_contract::ParserCallContract;
 use crate::transaction_parser::parser_execute_insufficient_gas::ParserExecuteInsufficientGas;
+use crate::transaction_parser::parser_its_interchain_token_deployment_started::ParserITSInterchainTokenDeploymentStarted;
+use crate::transaction_parser::parser_its_interchain_transfer::ParserITSInterchainTransfer;
+use crate::transaction_parser::parser_its_link_token_started::ParserITSLinkTokenStarted;
 use crate::transaction_parser::parser_its_token_metadata_registered::ParserITSTokenMetadataRegistered;
 use crate::transaction_parser::parser_jetton_gas_added::ParserJettonGasAdded;
 use crate::transaction_parser::parser_jetton_gas_paid::ParserJettonGasPaid;
@@ -22,9 +25,6 @@ use std::str::FromStr;
 use ton_types::ton_types::Trace;
 use tonlib_core::TonAddress;
 use tracing::{info, warn};
-use crate::transaction_parser::parser_app_interchain_transfer_received::ParserITSLinkTokenStarted;
-use crate::transaction_parser::parser_its_interchain_token_deployment_started::ParserITSInterchainTokenDeploymentStarted;
-use crate::transaction_parser::parser_its_interchain_transfer::ParserITSInterchainTransfer;
 
 #[async_trait]
 pub trait Parser {
@@ -313,8 +313,11 @@ impl<PV: PriceViewTrait> TraceParser<PV> {
                 its.push(Box::new(parser));
                 continue;
             }
-            let mut parser =
-                ParserITSInterchainTokenDeploymentStarted::new(tx.clone(), self.its_address.clone()).await?;
+            let mut parser = ParserITSInterchainTokenDeploymentStarted::new(
+                tx.clone(),
+                self.its_address.clone(),
+            )
+            .await?;
             if parser.is_match().await? {
                 info!(
                     "ParserITSInterchainTokenDeploymentStarted matched, trace_id={}",
