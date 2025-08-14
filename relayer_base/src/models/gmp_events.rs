@@ -36,21 +36,21 @@ impl EventModel {
                 common.r#type.clone(),
                 Some(message_id.clone()),
             ),
-            Event::ITSTokenMetadataRegisteredEvent {
+            Event::ITSTokenMetadataRegistered {
                 common, message_id, ..
             } => (
                 common.event_id.clone(),
                 common.r#type.clone(),
                 Some(message_id.clone()),
             ),
-            Event::ITSInterchainTokenDeploymentStartedEvent {
+            Event::ITSInterchainTokenDeploymentStarted {
                 common, message_id, ..
             } => (
                 common.event_id.clone(),
                 common.r#type.clone(),
                 Some(message_id.clone()),
             ),
-            Event::ITSLinkTokenStartedEvent {
+            Event::ITSLinkTokenStarted {
                 common, message_id, ..
             } => (
                 common.event_id.clone(),

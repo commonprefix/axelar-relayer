@@ -1,21 +1,22 @@
-use crate::boc::its_interchain_token_deployment_started::LogITSInterchainTokenDeploymentStartedMessage;
 use crate::error::TransactionParsingError;
-use crate::ton_constants::OP_INTERCHAIN_TOKEN_DEPLOYMENT_STARTED_LOG;
-use crate::transaction_parser::common::is_log_emitted;
+use crate::transaction_parser::common::{is_log_emitted};
 use crate::transaction_parser::message_matching_key::MessageMatchingKey;
 use crate::transaction_parser::parser::Parser;
 use async_trait::async_trait;
-use relayer_base::gmp_api::gmp_types::{CommonEventFields, Event, EventMetadata, InterchainTokenDefinition};
+use relayer_base::gmp_api::gmp_types::{Amount, CommonEventFields, Event, EventMetadata};
 use ton_types::ton_types::Transaction;
 use tonlib_core::TonAddress;
+use crate::boc::its_link_token_started::LogITSLinkTokenStartedMessage;
+use crate::hashing::payload_hash;
+use crate::ton_constants::OP_LINK_TOKEN_STARTED_LOG;
 
-pub struct ParserITSInterchainTokenDeploymentStarted {
-    log: Option<LogITSInterchainTokenDeploymentStartedMessage>,
+pub struct ParserITSLinkTokenStarted {
+    log: Option<LogITSLinkTokenStartedMessage>,
     tx: Transaction,
     allowed_address: TonAddress,
 }
 
-impl ParserITSInterchainTokenDeploymentStarted {
+impl ParserITSLinkTokenStarted {
     pub(crate) async fn new(
         tx: Transaction,
         allowed_address: TonAddress,
@@ -29,11 +30,11 @@ impl ParserITSInterchainTokenDeploymentStarted {
 }
 
 #[async_trait]
-impl Parser for ParserITSInterchainTokenDeploymentStarted {
+impl Parser for ParserITSLinkTokenStarted {
     async fn parse(&mut self) -> Result<bool, TransactionParsingError> {
         if self.log.is_none() {
             self.log = Some(
-                LogITSInterchainTokenDeploymentStartedMessage::from_boc_b64(
+                LogITSLinkTokenStartedMessage::from_boc_b64(
                     &self.tx.out_msgs[0].message_content.body,
                 )
                     .map_err(|e| TransactionParsingError::BocParsing(e.to_string()))?,
@@ -47,7 +48,7 @@ impl Parser for ParserITSInterchainTokenDeploymentStarted {
             return Ok(false);
         }
 
-        is_log_emitted(&self.tx, OP_INTERCHAIN_TOKEN_DEPLOYMENT_STARTED_LOG, 0)
+        is_log_emitted(&self.tx, OP_LINK_TOKEN_STARTED_LOG, 0)
     }
 
     async fn key(&self) -> Result<MessageMatchingKey, TransactionParsingError> {
@@ -70,10 +71,10 @@ impl Parser for ParserITSInterchainTokenDeploymentStarted {
             None => return Err(TransactionParsingError::Message("Missing log".to_string())),
         };
 
-        Ok(Event::ITSInterchainTokenDeploymentStarted {
+        Ok(Event::ITSLinkTokenStarted {
             common: CommonEventFields {
-                r#type: "ITS/INTERCHAIN_TOKEN_DEPLOYMENT_STARTED".to_owned(),
-                event_id: format!("{}-its-interchain-token-deployment-started", tx.hash.clone()),
+                r#type: "ITS/LINK_TOKEN_STARTED".to_owned(),
+                event_id: format!("{}-its-link-token-started", tx.hash.clone()),
                 meta: Some(EventMetadata {
                     tx_id: Some(tx.hash.clone()),
                     from_address: None,
@@ -84,13 +85,11 @@ impl Parser for ParserITSInterchainTokenDeploymentStarted {
                 }),
             },
             message_id,
+            token_id: format!("0x{}", log.token_id.to_str_radix(16)),
             destination_chain: log.destination_chain,
-            token: InterchainTokenDefinition {
-                id: format!("0x{}", log.token_id.to_str_radix(16)),
-                name: log.token_name,
-                symbol: log.token_symbol,
-                decimals: log.decimals,
-            }
+            source_token_address: log.source_token_address.to_base64_std(),
+            destination_token_address: log.destination_token_address,
+            token_manager_type: log.token_manager_type,
         })
     }
 
@@ -101,18 +100,19 @@ impl Parser for ParserITSInterchainTokenDeploymentStarted {
 
 #[cfg(test)]
 mod tests {
+    use relayer_base::gmp_api::gmp_types::TokenManagerType;
     use super::*;
     use crate::test_utils::fixtures::fixture_traces;
-    use crate::transaction_parser::parser_its_interchain_token_deployment_started::ParserITSInterchainTokenDeploymentStarted;
+    use crate::transaction_parser::parser_its_link_token_started::ParserITSLinkTokenStarted;
 
     #[tokio::test]
     async fn test_parser() {
         let traces = fixture_traces();
 
-        let tx = traces[20].transactions[3].clone();
+        let tx = traces[22].transactions[3].clone();
         let address = tx.clone().account;
 
-        let mut parser = ParserITSInterchainTokenDeploymentStarted::new(tx, address)
+        let mut parser = ParserITSLinkTokenStarted::new(tx, address)
             .await
             .unwrap();
 
@@ -122,26 +122,28 @@ mod tests {
         parser.parse().await.unwrap();
         let event = parser.event(Some("foo".to_string())).await.unwrap();
         match event {
-            Event::ITSInterchainTokenDeploymentStarted {
+            Event::ITSLinkTokenStarted {
                 common,
+                token_id,
                 destination_chain,
-                token,
-                message_id
+                message_id,
+                source_token_address,
+                destination_token_address,
+                token_manager_type
             } => {
                 assert_eq!(message_id, "foo");
-
                 assert_eq!(destination_chain, "avalanche-fuji");
-                assert_eq!(token.id, "0xa83f8491782f4edd33810373a6bc95a42ff4a460381d5ee4f86ff33faf2dfbbc");
-                assert_eq!(token.symbol, "TONTEST");
-                assert_eq!(token.name, "Test token");
-                assert_eq!(token.decimals, 9);
+                assert_eq!(token_id, "0x3b68a3e01061c8e033a99697acc6b23e7a829f8d816036f64b11576535e6eeb5");
+                assert_eq!(source_token_address, "EQAmm+MWQExvgU4K5bPnnxodIBAPetVKvxV+ndbEn/ywW0Ix");
+                assert_eq!(destination_token_address, "0x81e63eA8F64FEdB9858EB6E2176B431FBd10d1eC");
+                assert_eq!(token_manager_type, TokenManagerType::LockUnlock);
                 let meta = &common.meta.as_ref().unwrap();
                 assert_eq!(
                     meta.tx_id.as_deref(),
                     Some("Det6b7Uh8FfP7N3e6pqb4guD71ZJj5WxN49Y/QezJQM=")
                 );
             }
-            _ => panic!("Expected ITSInterchainTokenDeploymentStartedEvent event"),
+            _ => panic!("Expected ITSLinkTokenStarted event"),
         }
     }
 
@@ -153,8 +155,8 @@ mod tests {
             "0:0000000000000000000000000000000000000000000000000000000000000000",
         )
             .unwrap();
-        let tx = traces[20].transactions[1].clone();
-        let parser = ParserITSInterchainTokenDeploymentStarted::new(tx, address.clone())
+        let tx = traces[20].transactions[3].clone();
+        let parser = ParserITSLinkTokenStarted::new(tx, address.clone())
             .await
             .unwrap();
         assert!(!parser.is_match().await.unwrap());

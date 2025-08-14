@@ -2,11 +2,11 @@
 
 # Usage Example
 ```rust,no_run
-use ton::boc::its_link_token_started::LogLinkTokenStartedMessage;
+use ton::boc::its_link_token_started::LogITSLinkTokenStartedMessage;
 
 let boc_b64 = "b64 boc";
 
-match LogLinkTokenStartedMessage::from_boc_b64(boc_b64) {
+match LogITSLinkTokenStartedMessage::from_boc_b64(boc_b64) {
     Ok(log) => {
         // Handle fields
     }
@@ -33,15 +33,15 @@ use tonlib_core::tlb_types::tlb::TLB;
 use tonlib_core::TonAddress;
 
 #[derive(Debug, Clone)]
-pub struct LogLinkTokenStartedMessage {
-    token_id: BigUint,
-    destination_chain: String,
-    source_token_address: TonAddress,
-    destination_token_address: String,
-    token_manager_type: TokenManagerType,
+pub struct LogITSLinkTokenStartedMessage {
+    pub(crate) token_id: BigUint,
+    pub(crate) destination_chain: String,
+    pub(crate) source_token_address: TonAddress,
+    pub(crate) destination_token_address: String,
+    pub(crate) token_manager_type: TokenManagerType,
 }
 
-impl LogLinkTokenStartedMessage {
+impl LogITSLinkTokenStartedMessage {
     pub fn from_boc_b64(boc_b64: &str) -> Result<Self, BocError> {
         let cell = Cell::from_boc_b64(boc_b64).map_err(|err| BocParsingError(err.to_string()))?;
         let mut parser = cell.parser();
@@ -106,7 +106,7 @@ impl LogLinkTokenStartedMessage {
 
 #[cfg(test)]
 mod tests {
-    use crate::boc::its_link_token_started::LogLinkTokenStartedMessage;
+    use crate::boc::its_link_token_started::LogITSLinkTokenStartedMessage;
     use relayer_base::gmp_api::gmp_types::TokenManagerType;
     use std::str::FromStr;
     use num_bigint::BigUint;
@@ -114,7 +114,7 @@ mod tests {
 
     #[test]
     fn test_from_boc_b64() {
-        let response = LogLinkTokenStartedMessage::from_boc_b64(
+        let response = LogITSLinkTokenStartedMessage::from_boc_b64(
             "te6cckEBBQEAiwAESgAAAQU7aKPgEGHI4DOplpesxrI+eoKfjYFgNvZLEVdlNebutQIBAgMEABxhdmFsYW5jaGUtZnVqaQBAJpvjFkBMb4FOCuWz558aHSAQD3rVSr8Vfp3WxJ/8sFsAVDB4ODFlNjNlQThGNjRGRWRCOTg1OEVCNkUyMTc2QjQzMUZCZDEwZDFlQwAABJBC+Q==",
         );
         assert!(

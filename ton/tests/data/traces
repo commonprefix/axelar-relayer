@@ -18,3 +18,4 @@ Trace 18 - Pay gas (no contract call)
 Trace 19 - ITS Token Metadata Registered
 Trace 20 - ITS Interchain Token Deployment Started
 Trace 21 - ITS Interchain Transfer (manually constructed, not real)
+Trace 22 - ITS Link Token Started (manually constructed, not real)

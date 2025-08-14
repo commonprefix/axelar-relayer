@@ -339,15 +339,15 @@ pub struct InterchainTokenDefinition {
 #[serde(rename_all = "camelCase")]
 pub struct AppEventMetadata {
     #[serde(flatten)]
-    common: EventMetadata,
-    emitted_by_address: String,
+    pub common: EventMetadata,
+    pub emitted_by_address: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct InterchainTransferToken {
-    token_address: String,
-    amount: String,
+    pub token_address: String,
+    pub amount: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -465,7 +465,7 @@ pub enum Event {
         #[serde(rename = "dataHash")]
         data_hash: String,
     },
-    ITSTokenMetadataRegisteredEvent {
+    ITSTokenMetadataRegistered {
         #[serde(flatten)]
         common: CommonEventFields<EventMetadata>,
         #[serde(rename = "messageID")]
@@ -473,7 +473,7 @@ pub enum Event {
         address: String,
         decimals: u8,
     },
-    ITSLinkTokenStartedEvent {
+    ITSLinkTokenStarted {
         #[serde(flatten)]
         common: CommonEventFields<EventMetadata>,
         #[serde(rename = "messageID")]
@@ -489,7 +489,7 @@ pub enum Event {
         #[serde(rename = "tokenManagerType")]
         token_manager_type: TokenManagerType,
     },
-    ITSInterchainTokenDeploymentStartedEvent {
+    ITSInterchainTokenDeploymentStarted {
         #[serde(flatten)]
         common: CommonEventFields<EventMetadata>,
         #[serde(rename = "messageID")]

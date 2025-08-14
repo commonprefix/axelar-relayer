@@ -13,3 +13,5 @@ mod parser_native_gas_paid;
 mod parser_native_gas_refunded;
 mod parser_its_interchain_token_deployment_started;
 mod parser_its_interchain_transfer;
+mod parser_its_link_token_started;
+mod parser_app_interchain_transfer_received;

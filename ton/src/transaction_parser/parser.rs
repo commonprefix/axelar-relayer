@@ -22,6 +22,7 @@ use std::str::FromStr;
 use ton_types::ton_types::Trace;
 use tonlib_core::TonAddress;
 use tracing::{info, warn};
+use crate::transaction_parser::parser_app_interchain_transfer_received::ParserITSLinkTokenStarted;
 use crate::transaction_parser::parser_its_interchain_token_deployment_started::ParserITSInterchainTokenDeploymentStarted;
 use crate::transaction_parser::parser_its_interchain_transfer::ParserITSInterchainTransfer;
 
@@ -334,6 +335,17 @@ impl<PV: PriceViewTrait> TraceParser<PV> {
                 its.push(Box::new(parser));
                 continue;
             }
+            let mut parser =
+                ParserITSLinkTokenStarted::new(tx.clone(), self.its_address.clone()).await?;
+            if parser.is_match().await? {
+                info!(
+                    "ParserITSLinkTokenStarted matched, trace_id={}",
+                    trace.trace_id
+                );
+                parser.parse().await?;
+                its.push(Box::new(parser));
+                continue;
+            }
         }
         Ok(message_approved_count)
     }
@@ -519,7 +531,7 @@ mod tests {
             _ => panic!("Expected Call event"),
         }
         match events[1].clone() {
-            Event::ITSTokenMetadataRegisteredEvent {
+            Event::ITSTokenMetadataRegistered {
                 decimals,
                 message_id,
                 address,

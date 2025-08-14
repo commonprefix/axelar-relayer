@@ -70,7 +70,7 @@ impl Parser for ParserITSTokenMetadataRegistered {
             None => return Err(TransactionParsingError::Message("Missing log".to_string())),
         };
 
-        Ok(Event::ITSTokenMetadataRegisteredEvent {
+        Ok(Event::ITSTokenMetadataRegistered {
             common: CommonEventFields {
                 r#type: "ITS/TOKEN_METADATA_REGISTERED".to_owned(),
                 event_id: format!("{}-its-metadata", tx.hash.clone()),
@@ -117,7 +117,7 @@ mod tests {
         parser.parse().await.unwrap();
         let event = parser.event(Some("foo".to_string())).await.unwrap();
         match event {
-            Event::ITSTokenMetadataRegisteredEvent {
+            Event::ITSTokenMetadataRegistered {
                 common,
                 message_id,
                 address,

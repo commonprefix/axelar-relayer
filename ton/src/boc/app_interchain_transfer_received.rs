@@ -2,11 +2,11 @@
 
 # Usage Example
 ```rust,no_run
-use ton::boc::app_interchain_transfer_received::LogAppInterchainTransferReceived;
+use ton::boc::app_interchain_transfer_received::LogAppInterchainTransferReceivedMessage;
 
 let boc_b64 = "b64 boc";
 
-match LogAppInterchainTransferReceived::from_boc_b64(boc_b64) {
+match LogAppInterchainTransferReceivedMessage::from_boc_b64(boc_b64) {
     Ok(log) => {
         // Handle fields
     }
@@ -31,7 +31,7 @@ use tonlib_core::tlb_types::tlb::TLB;
 use tonlib_core::TonAddress;
 
 #[derive(Debug, Clone)]
-pub struct LogAppInterchainTransferReceived {
+pub struct LogAppInterchainTransferReceivedMessage {
     pub(crate) token_id: BigUint,
     pub(crate) source_chain: String,
     pub(crate) source_address: String,
@@ -40,7 +40,7 @@ pub struct LogAppInterchainTransferReceived {
     pub(crate) data: Vec<u8>,
 }
 
-impl LogAppInterchainTransferReceived {
+impl LogAppInterchainTransferReceivedMessage {
     pub fn from_boc_b64(boc_b64: &str) -> Result<Self, BocError> {
         let cell = Cell::from_boc_b64(boc_b64).map_err(|err| BocParsingError(err.to_string()))?;
         let mut parser = cell.parser();
@@ -113,11 +113,11 @@ mod tests {
     use std::str::FromStr;
     use num_bigint::BigUint;
     use tonlib_core::TonAddress;
-    use crate::boc::app_interchain_transfer_received::LogAppInterchainTransferReceived;
+    use crate::boc::app_interchain_transfer_received::LogAppInterchainTransferReceivedMessage;
 
     #[test]
     fn test_from_boc_b64() {
-        let response = LogAppInterchainTransferReceived::from_boc_b64(
+        let response = LogAppInterchainTransferReceivedMessage::from_boc_b64(
             "te6cckEBBQEAogAEiwAAAQY7aKPgEGHI4DOplpesxrI+eoKfjYFgNvZLEVdlNebutYAVf66zzgI92Xc1ALNkqEumRUKu0MrsT7K1c+WuvUzAXDABAgMEABxhdmFsYW5jaGUtZnVqaQBAEjRWeJASNFZ4kBI0VniQEjRWeJAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABkAADI0pyx",
         );
         assert!(
@@ -138,7 +138,7 @@ mod tests {
     fn test_from_boc_b64_sender_address_string() {
         let with_string = "te6cckEBBQEAwgAEiwAAAQY7aKPgEGHI4DOplpesxrI+eoKfjYFgNvZLEVdlNebutYAVf66zzgI92Xc1ALNkqEumRUKu0MrsT7K1c+WuvUzAXDABAgMEABxhdmFsYW5jaGUtZnVqaQCAMHgxMjM0NTY3ODkwMTIzNDU2Nzg5MDEyMzQ1Njc4OTAxMjM0NTY3ODkwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAGQAAD3tUXk=";
 
-        let response = LogAppInterchainTransferReceived::from_boc_b64(
+        let response = LogAppInterchainTransferReceivedMessage::from_boc_b64(
             with_string
         );
         assert!(

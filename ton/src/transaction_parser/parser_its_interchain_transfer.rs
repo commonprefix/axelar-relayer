@@ -1,14 +1,14 @@
+use crate::boc::its_interchain_transfer::LogITSInterchainTransferMessage;
 use crate::error::TransactionParsingError;
-use crate::transaction_parser::common::{is_log_emitted};
+use crate::hashing::payload_hash;
+use crate::ton_constants::OP_INTERCHAIN_TRANSFER_LOG;
+use crate::transaction_parser::common::is_log_emitted;
 use crate::transaction_parser::message_matching_key::MessageMatchingKey;
 use crate::transaction_parser::parser::Parser;
 use async_trait::async_trait;
 use relayer_base::gmp_api::gmp_types::{Amount, CommonEventFields, Event, EventMetadata};
 use ton_types::ton_types::Transaction;
 use tonlib_core::TonAddress;
-use crate::boc::its_interchain_transfer::LogITSInterchainTransferMessage;
-use crate::hashing::payload_hash;
-use crate::ton_constants::OP_INTERCHAIN_TRANSFER_LOG;
 
 pub struct ParserITSInterchainTransfer {
     log: Option<LogITSInterchainTransferMessage>,
@@ -37,7 +37,7 @@ impl Parser for ParserITSInterchainTransfer {
                 LogITSInterchainTransferMessage::from_boc_b64(
                     &self.tx.out_msgs[0].message_content.body,
                 )
-                    .map_err(|e| TransactionParsingError::BocParsing(e.to_string()))?,
+                .map_err(|e| TransactionParsingError::BocParsing(e.to_string()))?,
             );
         }
         Ok(true)
@@ -120,16 +120,13 @@ mod tests {
         let tx = traces[21].transactions[3].clone();
         let address = tx.clone().account;
 
-        let mut parser = ParserITSInterchainTransfer::new(tx, address)
-            .await
-            .unwrap();
+        let mut parser = ParserITSInterchainTransfer::new(tx, address).await.unwrap();
 
         assert!(parser.is_match().await.unwrap());
         assert!(parser.message_id().await.is_ok());
 
         parser.parse().await.unwrap();
         let event = parser.event(Some("foo".to_string())).await.unwrap();
-        println!("{:?}", serde_json::to_string(&event).unwrap());
         match event {
             Event::ITSInterchainTransfer {
                 common,
@@ -138,15 +135,24 @@ mod tests {
                 token_spent,
                 source_address,
                 destination_address,
-                data_hash
+                data_hash,
             } => {
                 assert_eq!(message_id, "foo");
 
                 assert_eq!(destination_chain, "avalanche-fuji");
-                assert_eq!(token_spent.token_id.unwrap(), "0xf4e222ada316195f2e873313576b4e09a1d3bfc294ac3e5ee74d2a8ff6d054e");
+                assert_eq!(
+                    token_spent.token_id.unwrap(),
+                    "0xf4e222ada316195f2e873313576b4e09a1d3bfc294ac3e5ee74d2a8ff6d054e"
+                );
                 assert_eq!(token_spent.amount, "2000000");
-                assert_eq!(source_address, "0:4686a2c066c784a915f3e01c853d3195ed254c948e21adbb3e4a9b3f5f3c74d7");
-                assert_eq!(destination_address, "0x81e63eA8F64FEdB9858EB6E2176B431FBd10d1eC");
+                assert_eq!(
+                    source_address,
+                    "0:4686a2c066c784a915f3e01c853d3195ed254c948e21adbb3e4a9b3f5f3c74d7"
+                );
+                assert_eq!(
+                    destination_address,
+                    "0x81e63eA8F64FEdB9858EB6E2176B431FBd10d1eC"
+                );
                 assert_eq!(data_hash, "00000000000000000000000000000000");
                 let meta = &common.meta.as_ref().unwrap();
                 assert_eq!(
@@ -165,7 +171,7 @@ mod tests {
         let address = TonAddress::from_hex_str(
             "0:0000000000000000000000000000000000000000000000000000000000000000",
         )
-            .unwrap();
+        .unwrap();
         let tx = traces[20].transactions[3].clone();
         let parser = ParserITSInterchainTransfer::new(tx, address.clone())
             .await
