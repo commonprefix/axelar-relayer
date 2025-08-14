@@ -22,6 +22,7 @@ use std::str::FromStr;
 use ton_types::ton_types::Trace;
 use tonlib_core::TonAddress;
 use tracing::{info, warn};
+use crate::transaction_parser::parser_its_interchain_token_deployment_started::ParserITSInterchainTokenDeploymentStarted;
 
 #[async_trait]
 pub trait Parser {
@@ -303,13 +304,25 @@ impl<PV: PriceViewTrait> TraceParser<PV> {
                 ParserITSTokenMetadataRegistered::new(tx.clone(), self.its_address.clone()).await?;
             if parser.is_match().await? {
                 info!(
-                    "ParserNativeGasRefunded matched, trace_id={}",
+                    "ParserITSTokenMetadataRegistered matched, trace_id={}",
                     trace.trace_id
                 );
                 parser.parse().await?;
                 its.push(Box::new(parser));
                 continue;
             }
+            let mut parser =
+                ParserITSInterchainTokenDeploymentStarted::new(tx.clone(), self.its_address.clone()).await?;
+            if parser.is_match().await? {
+                info!(
+                    "ParserITSInterchainTokenDeploymentStarted matched, trace_id={}",
+                    trace.trace_id
+                );
+                parser.parse().await?;
+                its.push(Box::new(parser));
+                continue;
+            }
+
         }
         Ok(message_approved_count)
     }

@@ -356,7 +356,7 @@ mod tests {
         );
 
         let traces = result.unwrap();
-        assert_eq!(traces.len(), 20);
+        assert_eq!(traces.len(), 21);
 
         let txs = &traces[0].transactions;
         assert_eq!(txs.len(), 6);

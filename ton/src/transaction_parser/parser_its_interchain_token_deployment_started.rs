@@ -1,21 +1,21 @@
-use crate::boc::its_token_metadata_registered::LogTokenMetadataRegisteredMessage;
 use crate::error::TransactionParsingError;
-use crate::ton_constants::OP_REGISTER_TOKEN_METADATA;
-use crate::transaction_parser::common::is_log_emmitted_in_opcode;
+use crate::ton_constants::OP_INTERCHAIN_TOKEN_DEPLOYMENT_STARTED_LOG;
+use crate::transaction_parser::common::{is_log_emitted, is_log_emmitted_in_opcode};
 use crate::transaction_parser::message_matching_key::MessageMatchingKey;
 use crate::transaction_parser::parser::Parser;
 use async_trait::async_trait;
-use relayer_base::gmp_api::gmp_types::{CommonEventFields, Event, EventMetadata};
+use relayer_base::gmp_api::gmp_types::{CommonEventFields, Event, EventMetadata, InterchainTokenDefinition};
 use ton_types::ton_types::Transaction;
 use tonlib_core::TonAddress;
+use crate::boc::its_interchain_token_deployment_started::LogITSInterchainTokenDeploymentStartedMessage;
 
-pub struct ParserITSTokenMetadataRegistered {
-    log: Option<LogTokenMetadataRegisteredMessage>,
+pub struct ParserITSInterchainTokenDeploymentStarted {
+    log: Option<LogITSInterchainTokenDeploymentStartedMessage>,
     tx: Transaction,
     allowed_address: TonAddress,
 }
 
-impl ParserITSTokenMetadataRegistered {
+impl ParserITSInterchainTokenDeploymentStarted {
     pub(crate) async fn new(
         tx: Transaction,
         allowed_address: TonAddress,
@@ -29,14 +29,14 @@ impl ParserITSTokenMetadataRegistered {
 }
 
 #[async_trait]
-impl Parser for ParserITSTokenMetadataRegistered {
+impl Parser for ParserITSInterchainTokenDeploymentStarted {
     async fn parse(&mut self) -> Result<bool, TransactionParsingError> {
         if self.log.is_none() {
             self.log = Some(
-                LogTokenMetadataRegisteredMessage::from_boc_b64(
+                LogITSInterchainTokenDeploymentStartedMessage::from_boc_b64(
                     &self.tx.out_msgs[0].message_content.body,
                 )
-                .map_err(|e| TransactionParsingError::BocParsing(e.to_string()))?,
+                    .map_err(|e| TransactionParsingError::BocParsing(e.to_string()))?,
             );
         }
         Ok(true)
@@ -47,7 +47,7 @@ impl Parser for ParserITSTokenMetadataRegistered {
             return Ok(false);
         }
 
-        is_log_emmitted_in_opcode(&self.tx, OP_REGISTER_TOKEN_METADATA, 0)
+        is_log_emitted(&self.tx, OP_INTERCHAIN_TOKEN_DEPLOYMENT_STARTED_LOG, 0)
     }
 
     async fn key(&self) -> Result<MessageMatchingKey, TransactionParsingError> {
@@ -70,7 +70,7 @@ impl Parser for ParserITSTokenMetadataRegistered {
             None => return Err(TransactionParsingError::Message("Missing log".to_string())),
         };
 
-        Ok(Event::ITSTokenMetadataRegisteredEvent {
+        Ok(Event::ITSInterchainTokenDeploymentStartedEvent {
             common: CommonEventFields {
                 r#type: "ITS/TOKEN_METADATA_REGISTERED".to_owned(),
                 event_id: format!("{}-its-metadata", tx.hash.clone()),
@@ -84,8 +84,13 @@ impl Parser for ParserITSTokenMetadataRegistered {
                 }),
             },
             message_id,
-            address: log.address.to_hex(),
-            decimals: log.decimals,
+            destination_chain: log.destination_chain,
+            token: InterchainTokenDefinition {
+                id: format!("0x{}", log.token_id.to_str_radix(16)),
+                name: log.token_name,
+                symbol: log.token_symbol,
+                decimals: log.decimals,
+            }
         })
     }
 
@@ -98,16 +103,16 @@ impl Parser for ParserITSTokenMetadataRegistered {
 mod tests {
     use super::*;
     use crate::test_utils::fixtures::fixture_traces;
-    use crate::transaction_parser::parser_its_token_metadata_registered::ParserITSTokenMetadataRegistered;
+    use crate::transaction_parser::parser_its_interchain_token_deployment_started::ParserITSInterchainTokenDeploymentStarted;
 
     #[tokio::test]
     async fn test_parser() {
         let traces = fixture_traces();
 
-        let tx = traces[19].transactions[1].clone();
+        let tx = traces[20].transactions[3].clone();
         let address = tx.clone().account;
 
-        let mut parser = ParserITSTokenMetadataRegistered::new(tx, address)
+        let mut parser = ParserITSInterchainTokenDeploymentStarted::new(tx, address)
             .await
             .unwrap();
 
@@ -117,26 +122,26 @@ mod tests {
         parser.parse().await.unwrap();
         let event = parser.event(Some("foo".to_string())).await.unwrap();
         match event {
-            Event::ITSTokenMetadataRegisteredEvent {
+            Event::ITSInterchainTokenDeploymentStartedEvent {
                 common,
-                message_id,
-                address,
-                decimals,
+                destination_chain,
+                token,
+                message_id
             } => {
                 assert_eq!(message_id, "foo");
-                assert_eq!(
-                    address,
-                    "0:9e0d7f273766f7ad7ff3e0b8e7b625ec267e8b8ff2d09a10351fb67bea288ca1"
-                );
-                assert_eq!(decimals, 9);
 
+                assert_eq!(destination_chain, "avalanche-fuji");
+                assert_eq!(token.id, "0xa83f8491782f4edd33810373a6bc95a42ff4a460381d5ee4f86ff33faf2dfbbc");
+                assert_eq!(token.symbol, "TONTEST");
+                assert_eq!(token.name, "Test token");
+                assert_eq!(token.decimals, 9);
                 let meta = &common.meta.as_ref().unwrap();
                 assert_eq!(
                     meta.tx_id.as_deref(),
-                    Some("fmi15xWaSKCu+gsavto75ZjRgPQzBkoAfNEJ+5Fvh4I=")
+                    Some("Det6b7Uh8FfP7N3e6pqb4guD71ZJj5WxN49Y/QezJQM=")
                 );
             }
-            _ => panic!("Expected ITSTokenMetadataRegisteredEvent event"),
+            _ => panic!("Expected ITSInterchainTokenDeploymentStartedEvent event"),
         }
     }
 
@@ -147,9 +152,9 @@ mod tests {
         let address = TonAddress::from_hex_str(
             "0:0000000000000000000000000000000000000000000000000000000000000000",
         )
-        .unwrap();
-        let tx = traces[10].transactions[3].clone(); // ADDED message
-        let parser = ParserITSTokenMetadataRegistered::new(tx, address.clone())
+            .unwrap();
+        let tx = traces[20].transactions[1].clone();
+        let parser = ParserITSInterchainTokenDeploymentStarted::new(tx, address.clone())
             .await
             .unwrap();
         assert!(!parser.is_match().await.unwrap());

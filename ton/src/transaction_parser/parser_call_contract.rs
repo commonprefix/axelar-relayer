@@ -1,7 +1,7 @@
 use crate::boc::call_contract::CallContractMessage;
 use crate::error::TransactionParsingError;
 use crate::ton_constants::OP_CALL_CONTRACT;
-use crate::transaction_parser::common::{hash_to_message_id, is_log_emmitted};
+use crate::transaction_parser::common::{hash_to_message_id, is_log_emmitted_in_opcode};
 use crate::transaction_parser::message_matching_key::MessageMatchingKey;
 use crate::transaction_parser::parser::Parser;
 use async_trait::async_trait;
@@ -51,7 +51,7 @@ impl Parser for ParserCallContract {
             return Ok(false);
         }
 
-        is_log_emmitted(&self.tx, OP_CALL_CONTRACT, 0)
+        is_log_emmitted_in_opcode(&self.tx, OP_CALL_CONTRACT, 0)
     }
 
     async fn key(&self) -> Result<MessageMatchingKey, TransactionParsingError> {

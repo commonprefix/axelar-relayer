@@ -328,6 +328,30 @@ pub struct ScopedMessage {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct InterchainTokenDefinition {
+    #[serde(rename = "ID")]
+    pub id: String,
+    pub name: String,
+    pub symbol: String,
+    pub decimals: u8,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct AppEventMetadata {
+    #[serde(flatten)]
+    common: EventMetadata,
+    emitted_by_address: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct InterchainTransferToken {
+    token_address: String,
+    amount: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum CannotExecuteMessageReason {
     InsufficientGas,
@@ -357,6 +381,16 @@ pub enum VerificationStatus {
     InProgress,
     #[serde(rename = "unknown")]
     Unknown,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum TokenManagerType {
+    NativeInterchainToken,
+    MintBurnFrom,
+    LockUnlock,
+    LockUnlockFee,
+    MintBurn
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -440,6 +474,48 @@ pub enum Event {
         address: String,
         decimals: u8,
     },
+    ITSLinkTokenStartedEvent {
+        #[serde(flatten)]
+        common: CommonEventFields<EventMetadata>,
+        #[serde(rename = "messageID")]
+        message_id: String,
+        #[serde(rename = "tokenID")]
+        token_id: String,
+        #[serde(rename = "destinationChain")]
+        destination_chain: String,
+        #[serde(rename = "sourceTokenAddress")]
+        source_token_address: String,
+        #[serde(rename = "destinationTokenAddress")]
+        destination_token_address: String,
+        #[serde(rename = "tokenManagerType")]
+        token_manager_type: TokenManagerType,
+    },
+    ITSInterchainTokenDeploymentStartedEvent {
+        #[serde(flatten)]
+        common: CommonEventFields<EventMetadata>,
+        #[serde(rename = "messageID")]
+        message_id: String,
+        #[serde(rename = "destinationChain")]
+        destination_chain: String,
+        #[serde(rename = "token")]
+        token: InterchainTokenDefinition
+    },
+    APPInterchainTransferReceived {
+        #[serde(flatten)]
+        common: CommonEventFields<EventMetadata>,
+        meta: Option<AppEventMetadata>,
+        #[serde(rename = "messageID")]
+        message_id: String,
+        #[serde(rename = "sourceChain")]
+        source_chain: String,
+        #[serde(rename = "sourceAddress")]
+        source_address: String,
+        sender: String,
+        recipient: String,
+        #[serde(rename = "tokenReceived")]
+        token_received: InterchainTransferToken,
+    }
+
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]

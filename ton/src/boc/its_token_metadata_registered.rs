@@ -10,7 +10,7 @@ match LogTokenMetadataRegisteredMessage::from_boc_b64(boc_b64) {
     Ok(log) => {
         // Handle fields
     }
-    Err(e) => println!("Failed to parse JettonGasAdded: {:?}", e),
+    Err(e) => println!("Failed to parse message: {:?}", e),
 }
 ```
 

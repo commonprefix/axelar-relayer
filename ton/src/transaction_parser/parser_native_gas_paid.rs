@@ -1,7 +1,7 @@
 use crate::boc::native_gas_paid::NativeGasPaidMessage;
 use crate::error::TransactionParsingError;
 use crate::ton_constants::{OP_PAY_GAS, OP_PAY_NATIVE_GAS_FOR_CONTRACT_CALL};
-use crate::transaction_parser::common::is_log_emmitted;
+use crate::transaction_parser::common::is_log_emmitted_in_opcode;
 use crate::transaction_parser::message_matching_key::MessageMatchingKey;
 use crate::transaction_parser::parser::Parser;
 use async_trait::async_trait;
@@ -45,11 +45,11 @@ impl Parser for ParserNativeGasPaid {
             return Ok(false);
         }
 
-        if is_log_emmitted(&self.tx, OP_PAY_NATIVE_GAS_FOR_CONTRACT_CALL, 0)? {
+        if is_log_emmitted_in_opcode(&self.tx, OP_PAY_NATIVE_GAS_FOR_CONTRACT_CALL, 0)? {
             return Ok(true);
         }
 
-        is_log_emmitted(&self.tx, OP_PAY_GAS, 0)
+        is_log_emmitted_in_opcode(&self.tx, OP_PAY_GAS, 0)
     }
 
     async fn key(&self) -> Result<MessageMatchingKey, TransactionParsingError> {

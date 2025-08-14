@@ -9,7 +9,7 @@ use tonlib_core::TonAddress;
 use crate::boc::nullified_message::NullifiedSuccessfullyMessage;
 use crate::error::TransactionParsingError;
 use crate::ton_constants::{OP_GATEWAY_EXECUTE, OP_NULLIFIED_SUCCESSFULLY};
-use crate::transaction_parser::common::is_log_emmitted;
+use crate::transaction_parser::common::is_log_emmitted_in_opcode;
 use crate::transaction_parser::message_matching_key::MessageMatchingKey;
 use crate::transaction_parser::parser::Parser;
 
@@ -54,9 +54,9 @@ impl Parser for ParserMessageExecuted {
 
         let mut msg_idx = 1usize;
         let mut second_log = false;
-        let first_log = is_log_emmitted(&self.tx, OP_NULLIFIED_SUCCESSFULLY, 0)?;
+        let first_log = is_log_emmitted_in_opcode(&self.tx, OP_NULLIFIED_SUCCESSFULLY, 0)?;
         if !first_log {
-            second_log = is_log_emmitted(&self.tx, OP_NULLIFIED_SUCCESSFULLY, 1)?;
+            second_log = is_log_emmitted_in_opcode(&self.tx, OP_NULLIFIED_SUCCESSFULLY, 1)?;
             msg_idx = 0;
         }
 

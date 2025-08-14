@@ -8,7 +8,7 @@ use rust_decimal::Decimal;
 use std::str::FromStr;
 use ton_types::ton_types::Transaction;
 
-pub fn is_log_emmitted(
+pub fn is_log_emmitted_in_opcode(
     tx: &Transaction,
     op_code: u32,
     out_msg_log_index: usize,
@@ -21,6 +21,22 @@ pub fn is_log_emmitted(
         .map(|msg| msg.destination.is_none())
         .unwrap_or(false))
 }
+
+pub fn is_log_emitted(
+    tx: &Transaction,
+    op_code: u32,
+    out_msg_log_index: usize,
+) -> Result<bool, TransactionParsingError> {
+    Ok(
+        tx.out_msgs
+            .get(out_msg_log_index)
+            .filter(|out_msg| out_msg.destination.is_none())
+            .and_then(|out_msg| out_msg.opcode)
+            .map(|opcode| opcode == op_code)
+            .unwrap_or(false),
+    )
+}
+
 
 pub fn hash_to_message_id(hash: &str) -> Result<String, TONRpcError> {
     let hash = BASE64_STANDARD

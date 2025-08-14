@@ -1,7 +1,7 @@
 use crate::boc::jetton_gas_paid::JettonGasPaidMessage;
 use crate::error::TransactionParsingError;
 use crate::ton_constants::OP_USER_BALANCE_SUBTRACTED;
-use crate::transaction_parser::common::is_log_emmitted;
+use crate::transaction_parser::common::is_log_emmitted_in_opcode;
 use crate::transaction_parser::message_matching_key::MessageMatchingKey;
 use crate::transaction_parser::parser::Parser;
 use async_trait::async_trait;
@@ -45,7 +45,7 @@ impl Parser for ParserJettonGasPaid {
             return Ok(false);
         }
 
-        let candidate = is_log_emmitted(&self.tx, OP_USER_BALANCE_SUBTRACTED, 0)?;
+        let candidate = is_log_emmitted_in_opcode(&self.tx, OP_USER_BALANCE_SUBTRACTED, 0)?;
 
         if !candidate {
             return Ok(false);
