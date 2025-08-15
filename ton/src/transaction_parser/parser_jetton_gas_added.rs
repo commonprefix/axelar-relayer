@@ -1,6 +1,6 @@
 use crate::boc::jetton_gas_added::JettonGasAddedMessage;
 use crate::error::TransactionParsingError;
-use crate::ton_constants::OP_USER_BALANCE_SUBTRACTED;
+use crate::ton_constants::OP_TRANSFER_NOTIFICATION;
 use crate::transaction_parser::common::is_log_emmitted_in_opcode;
 use crate::transaction_parser::message_matching_key::MessageMatchingKey;
 use crate::transaction_parser::parser::Parser;
@@ -45,7 +45,7 @@ impl Parser for ParserJettonGasAdded {
             return Ok(false);
         }
 
-        let candidate = is_log_emmitted_in_opcode(&self.tx, OP_USER_BALANCE_SUBTRACTED, 0)?;
+        let candidate = is_log_emmitted_in_opcode(&self.tx, OP_TRANSFER_NOTIFICATION, 0)?;
 
         if !candidate {
             return Ok(false);
@@ -124,7 +124,7 @@ mod tests {
         parser.parse().await.unwrap();
         assert_eq!(
             parser.message_id().await.unwrap().unwrap(),
-            "0xb9ac1cbe75a96a7146a71df1bf5f3ac00668edba0b432d4c5fbe5d59162aced7".to_string()
+            "0x5668753387dd61705335a69d13c61216624e27cf7497cf29635581c573d31cf8".to_string()
         );
         let event = parser.event(None).await.unwrap();
         match event {
@@ -136,18 +136,18 @@ mod tests {
             } => {
                 assert_eq!(
                     message_id,
-                    "0xb9ac1cbe75a96a7146a71df1bf5f3ac00668edba0b432d4c5fbe5d59162aced7"
+                    "0x5668753387dd61705335a69d13c61216624e27cf7497cf29635581c573d31cf8"
                 );
                 assert_eq!(
                     refund_address,
                     "0:ed22df34219ae26039fd977d8e419ae14d78b192e9db5dcfa3597899096470d1"
                 );
-                assert_eq!(payment.amount, "100000000");
+                assert_eq!(payment.amount, "1");
 
                 let meta = &common.meta.as_ref().unwrap();
                 assert_eq!(
                     meta.tx_id.as_deref(),
-                    Some("blzE/VLC5oz8yBYjKnSgUMomLj4oecIIiBwXZcxXY+k=")
+                    Some("etlBvJ9Oca6e9KYCUM5OJWVVkTJhoOK2AEbQEV1knZ8=")
                 );
             }
             _ => panic!("Expected GasCredit event"),

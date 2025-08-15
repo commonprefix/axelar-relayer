@@ -148,7 +148,7 @@ mod tests {
             "0:0000000000000000000000000000000000000000000000000000000000000000",
         )
         .unwrap();
-        let tx = traces[10].transactions[3].clone(); // ADDED message
+        let tx = traces[10].transactions[3].clone();
         let parser = ParserITSTokenMetadataRegistered::new(tx, address.clone())
             .await
             .unwrap();

@@ -95,7 +95,7 @@ mod tests {
 
     #[test]
     fn test_from_boc_b64() {
-        let response = JettonGasPaidMessage::from_boc_b64("te6cckEBBAEAuQAEiYADLFxuu57x8vEB032J7Hw1/NB2lXuxCrpswCmAv+IsHSYehIFdTKSGzgAfaUFUQWOp7HtVo9s9O+4sfkYSzmwh5eb6lwMBAgMACHRvbjIAhDA6ZWQyMmRmMzQyMTlhZTI2MDM5ZmQ5NzdkOGU0MTlhZTE0ZDc4YjE5MmU5ZGI1ZGNmYTM1OTc4OTkwOTY0NzBkMQBDgBw8xn1uA2IxaIUu4tnc4NPdCPattxGJL9/U0D2illpY8JdJDvc=");
+        let response = JettonGasPaidMessage::from_boc_b64("te6cckEBBAEAqQAEhYADLFxuu57x8vEB032J7Hw1/NB2lXuxCrpswCmAv+IsHSIDxrkMawLoqk/1cMqYanWtVhOn7os7RcEnPV9WakXMg80DAQIDABxhdmFsYW5jaGUtZnVqaQBUMHhkNzA2N0FlM0MzNTllODM3ODkwYjI4QjdCRDBkMjA4NENmRGY0OWI1AEOAHDzGfW4DYjFohS7i2dzg090I9q23EYkv39TQPaKWWljwjMXfiA==");
         assert!(
             response.is_ok(),
             "Failed to parse: {:?}",
@@ -107,7 +107,7 @@ mod tests {
         let payload_hash = format!("{:?}", H256::from(log.payload_hash));
         assert_eq!(
             payload_hash,
-            "0xaea6524367000fb4a0aa20b1d4f63daad1ed9e9df7163f2309673610f2f37d4b"
+            "0xe35c863581745527fab8654c353ad6ab09d3f7459da2e0939eafab3522e641e6"
         );
         assert_eq!(
             log.refund_address,
@@ -119,12 +119,12 @@ mod tests {
             TonAddress::from_base64_url("EQAZYuN13PePl4gOm-xPY-Gv5oO0q92IVdNmAUwF_xFg6fqe")
                 .unwrap()
         );
-        assert_eq!(log.destination_chain, "ton2");
+        assert_eq!(log.destination_chain, "avalanche-fuji");
         assert_eq!(
             log.destination_address,
-            "0:ed22df34219ae26039fd977d8e419ae14d78b192e9db5dcfa3597899096470d1"
+            "0xd7067Ae3C359e837890b28B7BD0d2084CfDf49b5"
         );
 
-        assert_eq!(log.amount, BigUint::from(1000000u32));
+        assert_eq!(log.amount, BigUint::from(1u32));
     }
 }
