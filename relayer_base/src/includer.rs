@@ -1,14 +1,6 @@
-use base64::{prelude::BASE64_STANDARD, Engine};
-use futures::StreamExt;
-use lapin::{options::BasicAckOptions, Consumer};
-use redis::aio::ConnectionManager;
-use redis::AsyncCommands;
-use router_api::CrossChainId;
-use std::{future::Future, sync::Arc};
-use tracing::{debug, error, info, warn};
-
 use crate::gmp_api::gmp_types::{ExecuteTaskFields, RefundTaskFields};
 use crate::gmp_api::GmpApiTrait;
+use crate::logging::distributed_tracing_extract_parent_context;
 use crate::payload_cache::PayloadCacheTrait;
 use crate::utils::ThreadSafe;
 use crate::{
@@ -18,6 +10,15 @@ use crate::{
     payload_cache::PayloadCache,
     queue::{Queue, QueueItem},
 };
+use base64::{prelude::BASE64_STANDARD, Engine};
+use futures::StreamExt;
+use lapin::{options::BasicAckOptions, Consumer};
+use redis::aio::ConnectionManager;
+use redis::AsyncCommands;
+use router_api::CrossChainId;
+use std::{future::Future, sync::Arc};
+use tracing::{debug, error, info, info_span, warn, Instrument};
+use tracing_opentelemetry::OpenTelemetrySpanExt;
 
 pub trait RefundManager {
     type Wallet;
@@ -99,6 +100,10 @@ where
     async fn work(&self, consumer: &mut Consumer, queue: Arc<Queue>) {
         match consumer.next().await {
             Some(Ok(delivery)) => {
+                let parent_cx = distributed_tracing_extract_parent_context(&delivery);
+                let span = info_span!("consume_queue_task");
+                span.set_parent(parent_cx);
+
                 let data = delivery.data.clone();
                 let maybe_task = serde_json::from_slice::<QueueItem>(&data);
 
@@ -106,18 +111,26 @@ where
                     Ok(task) => task,
                     Err(e) => {
                         error!("Failed to parse task: {:?}", e);
-                        if let Err(e) = delivery.ack(BasicAckOptions::default()).await {
+                        if let Err(e) = delivery
+                            .ack(BasicAckOptions::default())
+                            .instrument(span.clone())
+                            .await
+                        {
                             error!("Failed to ack message: {:?}", e);
                         }
                         return;
                     }
                 };
 
-                let consume_res = self.consume(task).await;
+                let consume_res = self.consume(task).instrument(span.clone()).await;
                 match consume_res {
                     Ok(_) => {
                         info!("Successfully consumed delivery");
-                        if let Err(e) = delivery.ack(BasicAckOptions::default()).await {
+                        if let Err(e) = delivery
+                            .ack(BasicAckOptions::default())
+                            .instrument(span.clone())
+                            .await
+                        {
                             error!("Failed to ack message: {:?}", e);
                         }
                     }
@@ -133,7 +146,11 @@ where
                             }
                         }
 
-                        if let Err(nack_err) = queue.republish(delivery, force_requeue).await {
+                        if let Err(nack_err) = queue
+                            .republish(delivery, force_requeue)
+                            .instrument(span.clone())
+                            .await
+                        {
                             error!("Failed to republish message: {:?}", nack_err);
                         }
                     }
@@ -159,6 +176,7 @@ where
         }
     }
 
+    #[tracing::instrument(skip(self))]
     pub async fn consume(&self, task: QueueItem) -> Result<(), IncluderError> {
         match task {
             QueueItem::Task(task) => match *task {

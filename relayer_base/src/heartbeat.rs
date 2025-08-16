@@ -1,6 +1,6 @@
 use crate::config::Config;
+use crate::logging::setup_logging;
 use crate::redis::connection_manager;
-use crate::utils::setup_logging;
 use redis::AsyncTypedCommands;
 use tracing::{debug, error};
 

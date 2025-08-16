@@ -70,6 +70,7 @@ impl<DB: Database, TM: AtomicUpsert, CL: RestClient> TransactionPoller
         ChainTransaction::TON(Box::new(tx))
     }
 
+    #[tracing::instrument(skip(self))]
     async fn poll_account(
         &mut self,
         account_id: TonAddress,
