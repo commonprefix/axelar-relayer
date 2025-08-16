@@ -132,6 +132,17 @@ pub fn distributed_tracing_headers(span: &Span) -> BTreeMap<ShortString, AMQPVal
     headers
 }
 
+pub fn distributed_tracing_headers_hash_map(span: &Span) -> HashMap<String, String> {
+    let mut headers = HashMap::new();
+
+    global::get_text_map_propagator(|propagator| {
+        let context = span.context();
+        propagator.inject_context(&context, &mut HeadersMap(&mut headers));
+    });
+
+    headers
+}
+
 pub fn distributed_tracing_extract_parent_context(delivery: &Delivery) -> Context {
     let mut headers_map = HashMap::new();
     if let Some(headers) = delivery.properties.headers() {
@@ -155,6 +166,12 @@ impl Injector for HeadersBTreeMap<'_> {
         let key = ShortString::from(key);
         let val = AMQPValue::LongString(value.into());
         self.0.insert(key, val);
+    }
+}
+
+impl Injector for HeadersMap<'_> {
+    fn set(&mut self, key: &str, value: String) {
+        self.0.insert(key.to_string(), value);
     }
 }
 

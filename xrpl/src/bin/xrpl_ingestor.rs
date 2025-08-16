@@ -10,6 +10,7 @@ use xrpl::{
 
 use relayer_base::config::config_from_yaml;
 use relayer_base::logging::setup_logging;
+use relayer_base::logging_ctx_cache::RedisLoggingCtxCache;
 use relayer_base::redis::connection_manager;
 use relayer_base::{
     database::PostgresDB, gmp_api, ingestor::Ingestor, models::task_retries::PgTaskRetriesModel,
@@ -46,13 +47,14 @@ async fn main() -> anyhow::Result<()> {
         payload_cache,
         models,
     );
-    let ingestor = Ingestor::new(gmp_api, xrpl_ingestor);
+    let redis_client = redis::Client::open(config.common_config.redis_server.clone())?;
+    let redis_conn = connection_manager(redis_client, None, None, None).await?;
+
+    let logging_ctx_cache = RedisLoggingCtxCache::new(redis_conn.clone());
+    let ingestor = Ingestor::new(gmp_api, xrpl_ingestor, Arc::new(logging_ctx_cache));
 
     let mut sigint = signal(SignalKind::interrupt())?;
     let mut sigterm = signal(SignalKind::terminate())?;
-
-    let redis_client = redis::Client::open(config.common_config.redis_server.clone())?;
-    let redis_conn = connection_manager(redis_client, None, None, None).await?;
 
     setup_heartbeat("heartbeat:ingestor".to_owned(), redis_conn);
 

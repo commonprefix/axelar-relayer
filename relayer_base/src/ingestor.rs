@@ -1,5 +1,6 @@
 use crate::gmp_api::GmpApiTrait;
 use crate::logging::distributed_tracing_extract_parent_context;
+use crate::logging_ctx_cache::LoggingCtxCache;
 use crate::utils::ThreadSafe;
 use crate::{
     error::IngestorError,
@@ -20,6 +21,7 @@ use tracing_opentelemetry::OpenTelemetrySpanExt;
 pub struct Ingestor<I: IngestorTrait, G: GmpApiTrait + ThreadSafe> {
     gmp_api: Arc<G>,
     ingestor: I,
+    _logging_ctx_cache: Arc<dyn LoggingCtxCache>,
 }
 
 pub struct IngestorModels {
@@ -51,8 +53,12 @@ where
     I: IngestorTrait,
     G: GmpApiTrait + ThreadSafe,
 {
-    pub fn new(gmp_api: Arc<G>, ingestor: I) -> Self {
-        Self { gmp_api, ingestor }
+    pub fn new(gmp_api: Arc<G>, ingestor: I, logging_ctx_cache: Arc<dyn LoggingCtxCache>) -> Self {
+        Self {
+            gmp_api,
+            ingestor,
+            _logging_ctx_cache: logging_ctx_cache,
+        }
     }
 
     async fn work(&self, consumer: &mut Consumer, queue: Arc<Queue>) {
