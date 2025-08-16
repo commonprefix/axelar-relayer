@@ -11,6 +11,8 @@ use relayer_base::{
     gmp_api::{self, gmp_types::TaskKind},
     queue::Queue,
 };
+use relayer_base::logging_ctx_cache::RedisLoggingCtxCache;
+use relayer_base::redis::connection_manager;
 use xrpl::config::XRPLConfig;
 
 #[tokio::main]
@@ -29,6 +31,9 @@ async fn main() -> anyhow::Result<()> {
 
     let pg_pool = PgPool::connect(&config.common_config.postgres_url).await?;
     let gmp_api = gmp_api::construct_gmp_api(pg_pool, &config.common_config, true)?;
+    let redis_client = redis::Client::open(config.common_config.redis_server.clone())?;
+    let redis_conn = connection_manager(redis_client, None, None, None).await?;
+    let logging_ctx_cache = RedisLoggingCtxCache::new(redis_conn.clone());
 
     let mut distributor = Distributor::new_with_recovery_settings(
         postgres_db,
@@ -43,6 +48,7 @@ async fn main() -> anyhow::Result<()> {
             // tasks_filter: Some(vec![TaskKind::ConstructProof]),
         },
         config.common_config.refunds_enabled,
+        Arc::new(logging_ctx_cache)
     )
     .await?;
 

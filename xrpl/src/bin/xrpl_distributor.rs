@@ -9,6 +9,7 @@ use relayer_base::redis::connection_manager;
 use relayer_base::{
     database::PostgresDB, distributor::Distributor, gmp_api, queue::Queue, utils::setup_heartbeat,
 };
+use relayer_base::logging_ctx_cache::RedisLoggingCtxCache;
 use xrpl::config::XRPLConfig;
 
 #[tokio::main]
@@ -29,21 +30,22 @@ async fn main() -> anyhow::Result<()> {
 
     let pg_pool = PgPool::connect(&config.common_config.postgres_url).await?;
     let gmp_api = gmp_api::construct_gmp_api(pg_pool, &config.common_config, true)?;
+    let redis_client = redis::Client::open(config.common_config.redis_server.clone())?;
+    let redis_conn = connection_manager(redis_client, None, None, None).await?;
+    let logging_ctx_cache = RedisLoggingCtxCache::new(redis_conn.clone());
 
     let mut distributor = Distributor::new(
         postgres_db,
         "default".to_string(),
         gmp_api,
         config.common_config.refunds_enabled,
+        Arc::new(logging_ctx_cache),
     )
     .await;
 
     let mut sigint = signal(SignalKind::interrupt())?;
     let mut sigterm = signal(SignalKind::terminate())?;
-
-    let redis_client = redis::Client::open(config.common_config.redis_server.clone())?;
-    let redis_conn = connection_manager(redis_client, None, None, None).await?;
-
+    
     setup_heartbeat("heartbeat:distributor".to_owned(), redis_conn);
 
     tokio::select! {

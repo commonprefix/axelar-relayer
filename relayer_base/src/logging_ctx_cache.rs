@@ -142,7 +142,7 @@ impl LoggingCtxCache for RedisLoggingCtxCache {
 
         let serialized = match Self::serialize_ctx(&ctx) {
             Ok(value) => value,
-            Err(value) => return None,
+            Err(_) => return None,
         };
 
         for message_id in message_ids {
