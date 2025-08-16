@@ -1,5 +1,7 @@
 pub mod gmp_api_db_audit_decorator;
 pub mod gmp_types;
+pub mod utils;
+
 pub use gmp_api_db_audit_decorator::construct_gmp_api;
 pub use gmp_api_db_audit_decorator::GmpApiDbAuditDecorator;
 

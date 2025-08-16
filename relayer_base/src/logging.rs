@@ -143,6 +143,13 @@ pub fn distributed_tracing_headers_hash_map(span: &Span) -> HashMap<String, Stri
     headers
 }
 
+pub fn hashmap_extract_parent_context(headers: &HashMap<String, String>) -> Context {
+    let parent_cx =
+        global::get_text_map_propagator(|prop| prop.extract(&HeadersMap(&mut headers.clone())));
+    
+    parent_cx
+}
+
 pub fn distributed_tracing_extract_parent_context(delivery: &Delivery) -> Context {
     let mut headers_map = HashMap::new();
     if let Some(headers) = delivery.properties.headers() {

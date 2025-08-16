@@ -17,11 +17,12 @@ use std::{future::Future, sync::Arc};
 use tokio::select;
 use tracing::{debug, error, info, info_span, warn, Instrument, Span};
 use tracing_opentelemetry::OpenTelemetrySpanExt;
+use crate::gmp_api::utils::extract_message_ids_from_events;
 
 pub struct Ingestor<I: IngestorTrait, G: GmpApiTrait + ThreadSafe> {
     gmp_api: Arc<G>,
     ingestor: I,
-    _logging_ctx_cache: Arc<dyn LoggingCtxCache>,
+    logging_ctx_cache: Arc<dyn LoggingCtxCache>,
 }
 
 pub struct IngestorModels {
@@ -57,7 +58,7 @@ where
         Self {
             gmp_api,
             ingestor,
-            _logging_ctx_cache: logging_ctx_cache,
+            logging_ctx_cache: logging_ctx_cache,
         }
     }
 
@@ -165,7 +166,12 @@ where
         transaction: Box<ChainTransaction>,
     ) -> Result<(), IngestorError> {
         let events = self.ingestor.handle_transaction(*transaction).await?;
-
+        let message_ids = extract_message_ids_from_events(&events);
+        let ctx = self.logging_ctx_cache.get_or_store_context(message_ids, Span::current()).await;
+        if let Some(ctx) = ctx {
+            debug!("Setting parent context: {:?}", ctx);
+            Span::current().set_parent(ctx);
+        }
         Span::current().set_attribute("num_events", events.len() as i64);
 
         if events.is_empty() {

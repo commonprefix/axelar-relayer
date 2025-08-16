@@ -22,21 +22,31 @@ If caching any serializable value without regard for failures becomes a common p
 we should move it to a cache.rs (or better yet, find a library that does it for us).
 */
 use async_trait::async_trait;
-use mockall::automock;
 use redis::{aio::ConnectionManager, AsyncCommands};
 use std::collections::HashMap;
+use opentelemetry::Context;
 use tracing::{debug, error};
+use crate::logging::{distributed_tracing_headers_hash_map, hashmap_extract_parent_context};
 
 const EXPIRATION_TIME: u64 = 604800; // 7 days
 
-#[automock]
+#[cfg_attr(test, mockall::automock)]
 #[async_trait]
 pub trait LoggingCtxCache: Send + Sync {
     async fn get_or_insert(
         &self,
         message_id: Vec<String>,
         ctx: HashMap<String, String>,
-    ) -> HashMap<String, String>;
+    ) -> Option<HashMap<String, String>>;
+
+    async fn get_or_store_context(&self, message_id: Vec<String>, span: tracing::Span)
+        -> Option<Context> {
+        debug!("Storing context for message_id: {}", message_id.clone().join(","));
+        let map = distributed_tracing_headers_hash_map(&span);
+        let map = self.get_or_insert(message_id.clone(), map).await?;
+        debug!("Stored context for message_id: {}", message_id.join(","));
+        Some(hashmap_extract_parent_context(&map))
+    }
 }
 
 pub struct RedisLoggingCtxCache {
@@ -104,9 +114,9 @@ impl LoggingCtxCache for RedisLoggingCtxCache {
         &self,
         message_ids: Vec<String>,
         ctx: HashMap<String, String>,
-    ) -> HashMap<String, String> {
+    ) -> Option<HashMap<String, String>> {
         if message_ids.is_empty() {
-            return ctx;
+            return None;
         }
 
         let mut redis_conn = self.redis_conn.clone();
@@ -114,14 +124,15 @@ impl LoggingCtxCache for RedisLoggingCtxCache {
         // Find an existing context for any of the message IDs
         for message_id in &message_ids {
             let key = format!("logging_ctx:{}", message_id);
+            debug!("Looking for context for message_id: {}", message_id);
             match redis_conn.get::<_, String>(&key).await {
                 Ok(serialized) => {
                     if let Some(value) = Self::deserialize_ctx(message_id, &serialized) {
-                        return value;
+                        return Some(value);
                     }
                 }
                 Err(e) => {
-                    error!(
+                    debug!(
                         "Failed to get context from Redis for message_id {}: {}",
                         message_id, e
                     );
@@ -131,14 +142,14 @@ impl LoggingCtxCache for RedisLoggingCtxCache {
 
         let serialized = match Self::serialize_ctx(&ctx) {
             Ok(value) => value,
-            Err(value) => return value,
+            Err(value) => return None,
         };
 
         for message_id in message_ids {
             Self::store_cache(&mut redis_conn, &serialized, message_id).await;
         }
 
-        ctx
+        None
     }
 }
 
@@ -180,7 +191,7 @@ mod tests {
 
         // Store context in redis (now it's empty)
         let result = cache.get_or_insert(message_ids.clone(), ctx.clone()).await;
-        assert_eq!(result, ctx);
+        assert!(result.is_none(), "Should return None");
 
         // Verify that the context was stored in Redis
         let key = format!("logging_ctx:{}", message_ids[0]);
@@ -195,7 +206,7 @@ mod tests {
         let result = cache
             .get_or_insert(message_ids.clone(), different_ctx.clone())
             .await;
-        assert_eq!(result, ctx, "Should return the original context from Redis");
+        assert_eq!(result.unwrap(), ctx, "Should return the original context from Redis");
 
         // Test with a new message ID that doesn't exist in Redis
         let new_message_ids = vec!["3".to_string()];
@@ -203,7 +214,7 @@ mod tests {
             .get_or_insert(new_message_ids.clone(), different_ctx.clone())
             .await;
         assert_eq!(
-            result, different_ctx,
+            result.unwrap(), different_ctx,
             "Should store and return the new context"
         );
 
