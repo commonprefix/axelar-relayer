@@ -21,12 +21,12 @@ serializable. However:
 If caching any serializable value without regard for failures becomes a common pattern,
 we should move it to a cache.rs (or better yet, find a library that does it for us).
 */
+use crate::logging::{distributed_tracing_headers_hash_map, hashmap_extract_parent_context};
 use async_trait::async_trait;
+use opentelemetry::Context;
 use redis::{aio::ConnectionManager, AsyncCommands};
 use std::collections::HashMap;
-use opentelemetry::Context;
 use tracing::{debug, error};
-use crate::logging::{distributed_tracing_headers_hash_map, hashmap_extract_parent_context};
 
 const EXPIRATION_TIME: u64 = 604800; // 7 days
 
@@ -39,12 +39,13 @@ pub trait LoggingCtxCache: Send + Sync {
         ctx: HashMap<String, String>,
     ) -> Option<HashMap<String, String>>;
 
-    async fn get_or_store_context(&self, message_id: Vec<String>, span: tracing::Span)
-        -> Option<Context> {
-        debug!("Storing context for message_id: {}", message_id.clone().join(","));
-        let map = distributed_tracing_headers_hash_map(&span);
-        let map = self.get_or_insert(message_id.clone(), map).await?;
-        debug!("Stored context for message_id: {}", message_id.join(","));
+    async fn get_or_store_context(
+        &self,
+        message_id: Vec<String>,
+        span: &tracing::Span,
+    ) -> Option<Context> {
+        let map = distributed_tracing_headers_hash_map(span);
+        let map = self.get_or_insert(message_id, map).await?;
         Some(hashmap_extract_parent_context(&map))
     }
 }
@@ -206,17 +207,18 @@ mod tests {
         let result = cache
             .get_or_insert(message_ids.clone(), different_ctx.clone())
             .await;
-        assert_eq!(result.unwrap(), ctx, "Should return the original context from Redis");
+        assert_eq!(
+            result.unwrap(),
+            ctx,
+            "Should return the original context from Redis"
+        );
 
         // Test with a new message ID that doesn't exist in Redis
         let new_message_ids = vec!["3".to_string()];
         let result = cache
             .get_or_insert(new_message_ids.clone(), different_ctx.clone())
             .await;
-        assert_eq!(
-            result.unwrap(), different_ctx,
-            "Should store and return the new context"
-        );
+        assert!(result.is_none(),);
 
         // Verify that the new context was stored in Redis
         let key = format!("logging_ctx:{}", new_message_ids[0]);

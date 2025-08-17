@@ -1,7 +1,7 @@
-use std::sync::Arc;
-use tracing::{debug, info, info_span, warn, Instrument, Span};
-use tracing_opentelemetry::OpenTelemetrySpanExt;
+use crate::gmp_api::utils::extract_message_ids_from_task;
 use crate::gmp_api::GmpApiTrait;
+use crate::logging::connect_span_to_message_id;
+use crate::logging_ctx_cache::LoggingCtxCache;
 use crate::utils::ThreadSafe;
 use crate::{
     database::Database,
@@ -9,8 +9,8 @@ use crate::{
     gmp_api::gmp_types::TaskKind,
     queue::{Queue, QueueItem},
 };
-use crate::gmp_api::utils::{extract_message_ids_from_events, extract_message_ids_from_tasks};
-use crate::logging_ctx_cache::LoggingCtxCache;
+use std::sync::Arc;
+use tracing::{info, info_span, warn, Instrument};
 
 #[derive(Clone)]
 pub struct RecoverySettings {
@@ -41,7 +41,7 @@ where
         context: String,
         gmp_api: Arc<G>,
         refunds_enabled: bool,
-        logging_ctx_cache: Arc<dyn LoggingCtxCache>
+        logging_ctx_cache: Arc<dyn LoggingCtxCache>,
     ) -> Self {
         let last_task_id = db
             .get_latest_task_id(gmp_api.get_chain(), &context)
@@ -69,7 +69,7 @@ where
                 TaskKind::ReactToRetriablePoll,
                 TaskKind::ReactToExpiredSigningSession,
             ],
-            logging_ctx_cache
+            logging_ctx_cache,
         }
     }
 
@@ -82,12 +82,7 @@ where
         logging_ctx_cache: Arc<dyn LoggingCtxCache>,
     ) -> Result<Self, DistributorError> {
         let mut distributor =
-            Self::new(
-                db,
-                context,
-                gmp_api,
-                refunds_enabled,
-                logging_ctx_cache).await;
+            Self::new(db, context, gmp_api, refunds_enabled, logging_ctx_cache).await;
         distributor.recovery_settings = Some(recovery_settings.clone());
         distributor.last_task_id = recovery_settings.from_task_id;
         distributor.store_last_task_id().await?;
@@ -123,12 +118,8 @@ where
         for task in tasks {
             let task_id = task.id();
             let span = info_span!("received_task", task = format!("{task:?}"));
-            let message_ids = extract_message_ids_from_tasks(&vec![task.clone()]);
-            let ctx = self.logging_ctx_cache.get_or_store_context(message_ids, span.clone()).await;
-            if let Some(ctx) = ctx {
-                debug!("Setting parent context: {:?}", ctx);
-                span.set_parent(ctx);
-            }
+            let message_ids = extract_message_ids_from_task(&task);
+            connect_span_to_message_id(&span, message_ids, &self.logging_ctx_cache).await;
 
             processed_task_ids.push(task_id.clone());
             self.last_task_id = Some(task_id);

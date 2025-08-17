@@ -5,14 +5,14 @@ use tokio::signal::unix::{signal, SignalKind};
 
 use relayer_base::config::config_from_yaml;
 use relayer_base::logging::setup_logging;
+use relayer_base::logging_ctx_cache::RedisLoggingCtxCache;
+use relayer_base::redis::connection_manager;
 use relayer_base::{
     database::PostgresDB,
     distributor::{Distributor, RecoverySettings},
     gmp_api::{self, gmp_types::TaskKind},
     queue::Queue,
 };
-use relayer_base::logging_ctx_cache::RedisLoggingCtxCache;
-use relayer_base::redis::connection_manager;
 use xrpl::config::XRPLConfig;
 
 #[tokio::main]
@@ -48,7 +48,7 @@ async fn main() -> anyhow::Result<()> {
             // tasks_filter: Some(vec![TaskKind::ConstructProof]),
         },
         config.common_config.refunds_enabled,
-        Arc::new(logging_ctx_cache)
+        Arc::new(logging_ctx_cache),
     )
     .await?;
 

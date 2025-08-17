@@ -1,9 +1,10 @@
 use crate::config::Config;
+use crate::logging_ctx_cache::LoggingCtxCache;
 use lapin::message::Delivery;
 use lapin::types::{AMQPValue, ShortString};
 use opentelemetry::propagation::{Extractor, Injector};
 use opentelemetry::trace::TracerProvider;
-use opentelemetry::{global, Context};
+use opentelemetry::{global, Array, Context, StringValue, Value};
 use opentelemetry_otlp::{SpanExporter, WithExportConfig};
 use opentelemetry_sdk::propagation::TraceContextPropagator;
 use opentelemetry_sdk::trace::{Sampler, SdkTracerProvider};
@@ -13,9 +14,10 @@ use sentry_tracing::EventFilter;
 use std::any::Any;
 use std::collections::{BTreeMap, HashMap};
 use std::env;
+use std::sync::Arc;
 use ton_types::ton_types::Trace;
 use tracing::level_filters::LevelFilter;
-use tracing::{info, Level, Span};
+use tracing::{debug, Level, Span};
 use tracing_opentelemetry::OpenTelemetrySpanExt;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
@@ -115,10 +117,33 @@ pub fn maybe_to_string(val: &dyn Any) -> Option<String> {
     } else if let Some(t) = val.downcast_ref::<AccountId>() {
         return Some(t.to_address());
     } else {
-        info!("Unknown type");
+        debug!("Unknown type");
     }
 
     None
+}
+
+pub async fn connect_span_to_message_id(
+    span: &Span,
+    message_ids: Vec<String>,
+    logging_ctx_cache: &Arc<dyn LoggingCtxCache>,
+) {
+    let attr = Value::Array(Array::String(
+        message_ids
+            .clone()
+            .into_iter()
+            .map(StringValue::from)
+            .collect(),
+    ));
+    span.set_attribute("message_ids", attr);
+
+    let ctx = logging_ctx_cache
+        .get_or_store_context(message_ids, span)
+        .await;
+    if let Some(ctx) = ctx {
+        debug!("Setting parent context: {:?}", ctx);
+        span.set_parent(ctx);
+    }
 }
 
 pub fn distributed_tracing_headers(span: &Span) -> BTreeMap<ShortString, AMQPValue> {
@@ -146,7 +171,7 @@ pub fn distributed_tracing_headers_hash_map(span: &Span) -> HashMap<String, Stri
 pub fn hashmap_extract_parent_context(headers: &HashMap<String, String>) -> Context {
     let parent_cx =
         global::get_text_map_propagator(|prop| prop.extract(&HeadersMap(&mut headers.clone())));
-    
+
     parent_cx
 }
 

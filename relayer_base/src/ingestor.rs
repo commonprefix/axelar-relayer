@@ -1,5 +1,6 @@
+use crate::gmp_api::utils::extract_message_ids_and_event_types_from_events;
 use crate::gmp_api::GmpApiTrait;
-use crate::logging::distributed_tracing_extract_parent_context;
+use crate::logging::{connect_span_to_message_id, distributed_tracing_extract_parent_context};
 use crate::logging_ctx_cache::LoggingCtxCache;
 use crate::utils::ThreadSafe;
 use crate::{
@@ -13,11 +14,11 @@ use crate::{
 };
 use futures::StreamExt;
 use lapin::{options::BasicAckOptions, Consumer};
+use opentelemetry::{Array, StringValue, Value};
 use std::{future::Future, sync::Arc};
 use tokio::select;
 use tracing::{debug, error, info, info_span, warn, Instrument, Span};
 use tracing_opentelemetry::OpenTelemetrySpanExt;
-use crate::gmp_api::utils::extract_message_ids_from_events;
 
 pub struct Ingestor<I: IngestorTrait, G: GmpApiTrait + ThreadSafe> {
     gmp_api: Arc<G>,
@@ -58,7 +59,7 @@ where
         Self {
             gmp_api,
             ingestor,
-            logging_ctx_cache: logging_ctx_cache,
+            logging_ctx_cache,
         }
     }
 
@@ -68,6 +69,7 @@ where
             match consumer.next().await {
                 Some(Ok(delivery)) => {
                     let parent_cx = distributed_tracing_extract_parent_context(&delivery);
+
                     let span = info_span!("consume_queue_task");
                     span.set_parent(parent_cx);
 
@@ -166,13 +168,17 @@ where
         transaction: Box<ChainTransaction>,
     ) -> Result<(), IngestorError> {
         let events = self.ingestor.handle_transaction(*transaction).await?;
-        let message_ids = extract_message_ids_from_events(&events);
-        let ctx = self.logging_ctx_cache.get_or_store_context(message_ids, Span::current()).await;
-        if let Some(ctx) = ctx {
-            debug!("Setting parent context: {:?}", ctx);
-            Span::current().set_parent(ctx);
-        }
+        let (message_ids, event_names) = extract_message_ids_and_event_types_from_events(&events);
+        let attr = Value::Array(Array::String(
+            event_names
+                .clone()
+                .into_iter()
+                .map(StringValue::from)
+                .collect(),
+        ));
+        Span::current().set_attribute("event_names", attr);
         Span::current().set_attribute("num_events", events.len() as i64);
+        connect_span_to_message_id(&Span::current(), message_ids, &self.logging_ctx_cache).await;
 
         if events.is_empty() {
             info!("No GMP events to post.");

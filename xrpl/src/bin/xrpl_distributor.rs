@@ -5,11 +5,11 @@ use tokio::signal::unix::{signal, SignalKind};
 
 use relayer_base::config::config_from_yaml;
 use relayer_base::logging::setup_logging;
+use relayer_base::logging_ctx_cache::RedisLoggingCtxCache;
 use relayer_base::redis::connection_manager;
 use relayer_base::{
     database::PostgresDB, distributor::Distributor, gmp_api, queue::Queue, utils::setup_heartbeat,
 };
-use relayer_base::logging_ctx_cache::RedisLoggingCtxCache;
 use xrpl::config::XRPLConfig;
 
 #[tokio::main]
@@ -45,7 +45,7 @@ async fn main() -> anyhow::Result<()> {
 
     let mut sigint = signal(SignalKind::interrupt())?;
     let mut sigterm = signal(SignalKind::terminate())?;
-    
+
     setup_heartbeat("heartbeat:distributor".to_owned(), redis_conn);
 
     tokio::select! {
