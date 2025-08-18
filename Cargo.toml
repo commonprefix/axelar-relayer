@@ -1,10 +1,11 @@
 [workspace]
-members = ["relayer_base", "recovery_tools", "xrpl", "ton"]
+members = ["relayer_base", "recovery_tools", "xrpl", "ton", "solana"]
 resolver = "2"
 
 [workspace.dependencies]
 relayer-base = { path = "relayer_base" }
 xrpl = { path = "xrpl" }
+solana = { path = "solana" }
 ton_types = { path = "ton_types" }
 recovery-tools = { path = "recovery_tools" }
 anyhow = "1.0.93"
@@ -62,6 +63,17 @@ testcontainers-modules = { version = "0.12.1", features = ["postgres"] }
 async-trait = "0.1.88"
 tonlib-core = "0.26.0"
 httpmock = "0.7.0"
+
+# Solana
+solana-client = "~2.1"
+solana-test-validator = "~2.1"
+solana-rpc-client = "~2.1"
+solana-rpc = "~2.1"
+solana-rpc-client-api = "~2.1"
+solana-program = "~2.1"
+solana-sdk = "~2.1"
+solana-transaction-status = "~2.1"
+solana-compute-budget = "~2.1"
 
 # switch between warn and allow to enable/disable more restrictive clippy lints
 [workspace.lints.clippy]
