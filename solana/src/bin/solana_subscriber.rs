@@ -8,7 +8,9 @@ use relayer_base::{
     subscriber::Subscriber,
     utils::{setup_heartbeat, setup_logging},
 };
-use solana::config::SolanaConfig;
+use solana::{client::SolanaClient, config::SolanaConfig, subscriber::SolanaSubscriber};
+use solana_sdk::pubkey::Pubkey;
+use std::str::FromStr;
 use std::sync::Arc;
 use tokio::signal::unix::{signal, SignalKind};
 
@@ -25,10 +27,25 @@ async fn main() -> anyhow::Result<()> {
     let mut sigint = signal(SignalKind::interrupt())?;
     let mut sigterm = signal(SignalKind::terminate())?;
 
+    let solana_client: SolanaClient = SolanaClient::new(&config.solana_rpc, 3)?;
+    let solana_subscriber =
+        SolanaSubscriber::new(solana_client, postgres_db, "default".to_string()).await?;
+
+    let mut subscriber = Subscriber::new(solana_subscriber);
     let redis_client = redis::Client::open(config.common_config.redis_server.clone())?;
     let redis_conn = connection_manager(redis_client, None, None, None).await?;
 
     setup_heartbeat("heartbeat:subscriber".to_owned(), redis_conn);
+
+    let account = Pubkey::from_str(&config.solana_multisig)?;
+
+    tokio::select! {
+        _ = sigint.recv()  => {},
+        _ = sigterm.recv() => {},
+        _ = subscriber.run(account, Arc::clone(&events_queue)) => {},
+    }
+
+    events_queue.close().await;
 
     Ok(())
 }
