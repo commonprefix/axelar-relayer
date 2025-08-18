@@ -27,6 +27,11 @@ solana-program = { workspace = true }
 solana-sdk = { workspace = true }
 solana-transaction-status = { workspace = true }
 solana-compute-budget = { workspace = true }
+axelar-wasm-std = { workspace = true }
+interchain-token-service = { workspace = true }
+regex = { workspace = true }
+rust_decimal = { workspace = true }
+
 
 [dev-dependencies]
 relayer-base = { workspace = true, features = ["mocks"] }
