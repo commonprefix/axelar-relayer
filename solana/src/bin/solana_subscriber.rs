@@ -16,6 +16,7 @@ use tokio::signal::unix::{signal, SignalKind};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    dotenv().ok();
     let network = std::env::var("NETWORK").expect("NETWORK must be set");
     let config: SolanaConfig = config_from_yaml(&format!("config.{}.yaml", network))?;
 
