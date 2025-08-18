@@ -8423,14 +8423,18 @@ name = "solana"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "axelar-wasm-std",
  "base64 0.22.1",
  "chrono",
  "dotenv",
  "error-stack 0.5.0",
  "hex",
+ "interchain-token-service 1.1.0",
  "mockall 0.13.1",
  "redis",
+ "regex",
  "relayer-base",
+ "rust_decimal",
  "serde",
  "serde_derive",
  "serde_json",
