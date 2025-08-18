@@ -30,24 +30,42 @@ pub enum SolanaTransactionSource {
     User,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone, sqlx::Type)]
+#[sqlx(type_name = "status_enum", rename_all = "PascalCase")]
+pub enum SolanaStatus {
+    Detected,
+    Initialized,
+    Verified,
+    Routed,
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone, sqlx::FromRow)]
 pub struct SolanaTransaction {
-    /// signature of the transaction (id)
-    pub signature: Signature,
-    /// optional timespamp
-    pub timestamp: Option<DateTime<Utc>>,
-    /// The raw transaction logs
+    pub signature: String,
+    pub tx: String,
+    pub status: SolanaStatus,
+    pub source: SolanaTransactionSource,
+    pub verify_task: Option<String>,
+    pub verify_tx: Option<String>,
+    pub quorum_reached_task: Option<String>,
+    pub route_tx: Option<String>,
+    pub timestamp: Option<chrono::DateTime<chrono::Utc>>,
     pub logs: Vec<String>,
     /// The accounts that were passed to an instructoin.
     /// - first item: the program id
     /// - second item: the Pubkeys provided to the ix
     /// - third item: payload data
-    pub ixs: Vec<(Pubkey, Vec<Pubkey>, Vec<u8>)>,
-    /// the slot number of the tx
-    pub slot: u64,
-    /// How expensive was the transaction expressed in lamports
-    pub cost_in_lamports: u64,
+    pub ixs: sqlx::types::Json<Vec<IxRecord>>,
+    pub slot: i64,
+    pub cost_in_lamports: i64,
     pub created_at: chrono::DateTime<chrono::Utc>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct IxRecord {
+    pub program_id: String,    // base58
+    pub accounts: Vec<String>, // base58
+    pub data: String,          // base64 or hex
 }
 
 impl SolanaTransaction {
@@ -114,45 +132,64 @@ pub struct PgSolanaTransactionModel {
 
 impl Model<SolanaTransaction, String> for PgSolanaTransactionModel {
     async fn find(&self, id: String) -> Result<Option<SolanaTransaction>> {
-        // let query = format!("SELECT * FROM {} WHERE signature = $1", PG_TABLE_NAME);
-        // let tx = sqlx::query_as::<_, SolanaTransaction>(&query)
-        //     .bind(id)
-        //     .fetch_optional(&self.pool)
-        //     .await?;
-        // Ok(tx)
-        Err(anyhow::anyhow!("Not implemented"))
+        let query = format!("SELECT * FROM {} WHERE signature = $1", PG_TABLE_NAME);
+        let tx = sqlx::query_as::<_, SolanaTransaction>(&query)
+            .bind(id)
+            .fetch_optional(&self.pool)
+            .await?;
+        Ok(tx)
     }
 
     async fn upsert(&self, tx: SolanaTransaction) -> Result<()> {
-        // let query = format!(
-        //     "INSERT INTO {} (signature, timestamp, logs, ixs, slot, cost_in_lamports, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT (signature) DO UPDATE SET timestamp = $2, logs = $3, ixs = $4, slot = $5, cost_in_lamports = $6, created_at = $7 RETURNING *",
-        //     PG_TABLE_NAME
-        // );
+        let query = format!(
+            "INSERT INTO {} \
+             (signature, tx, status, source, verify_task, verify_tx, quorum_reached_task, route_tx, \
+              timestamp, logs, ixs, slot, cost_in_lamports, created_at) \
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,NOW()) \
+             ON CONFLICT (signature) DO UPDATE SET \
+               tx = EXCLUDED.tx, \
+               status = EXCLUDED.status, \
+               source = EXCLUDED.source, \
+               verify_task = EXCLUDED.verify_task, \
+               verify_tx = EXCLUDED.verify_tx, \
+               quorum_reached_task = EXCLUDED.quorum_reached_task, \
+               route_tx = EXCLUDED.route_tx, \
+               timestamp = EXCLUDED.timestamp, \
+               logs = EXCLUDED.logs, \
+               ixs = EXCLUDED.ixs, \
+               slot = EXCLUDED.slot, \
+               cost_in_lamports = EXCLUDED.cost_in_lamports",
+            PG_TABLE_NAME
+        );
 
-        // sqlx::query(&query)
-        //     .bind(tx.signature)
-        //     .bind(tx.timestamp)
-        //     .bind(tx.logs)
-        //     .bind(tx.ixs)
-        //     .bind(tx.slot)
-        //     .bind(tx.cost_in_lamports)
-        //     .bind(tx.created_at)
-        //     .execute(&self.pool)
-        //     .await?;
+        sqlx::query(&query)
+            .bind(tx.signature)
+            .bind(tx.tx)
+            .bind(tx.status)
+            .bind(tx.source)
+            .bind(tx.verify_task)
+            .bind(tx.verify_tx)
+            .bind(tx.quorum_reached_task)
+            .bind(tx.route_tx)
+            .bind(tx.timestamp)
+            .bind(tx.logs)
+            .bind(tx.ixs)
+            .bind(tx.slot)
+            .bind(tx.cost_in_lamports)
+            .execute(&self.pool)
+            .await?;
 
-        // Ok(())
-        Err(anyhow::anyhow!("Not implemented"))
+        Ok(())
     }
 
     async fn delete(&self, tx: SolanaTransaction) -> Result<()> {
-        // let query = format!("DELETE FROM {} WHERE signature = $1", PG_TABLE_NAME);
-        // sqlx::query(&query)
-        //     .bind(tx.signature)
-        //     .execute(&self.pool)
-        //     .await?;
+        let query = format!("DELETE FROM {} WHERE signature = $1", PG_TABLE_NAME);
+        sqlx::query(&query)
+            .bind(tx.signature)
+            .execute(&self.pool)
+            .await?;
 
-        // Ok(())
-        Err(anyhow::anyhow!("Not implemented"))
+        Ok(())
     }
 }
 
@@ -161,100 +198,90 @@ impl PgSolanaTransactionModel {
         Self { pool }
     }
 
-    pub async fn update_status(
-        &self,
-        tx_hash: &str,
-        status: SolanaTransactionStatus,
-    ) -> Result<()> {
-        // let query = format!(
-        //     "UPDATE {} SET status = $1 WHERE signature = $2",
-        //     PG_TABLE_NAME
-        // );
+    pub async fn update_status(&self, signature: &str, status: SolanaStatus) -> Result<()> {
+        let query = format!(
+            "UPDATE {} SET status = $1 WHERE signature = $2",
+            PG_TABLE_NAME
+        );
 
-        // sqlx::query(&query)
-        //     .bind(status)
-        //     .bind(tx_hash)
-        //     .execute(&self.pool)
-        //     .await?;
+        sqlx::query(&query)
+            .bind(status)
+            .bind(signature)
+            .execute(&self.pool)
+            .await?;
 
-        // Ok(())
-        Err(anyhow::anyhow!("Not implemented"))
+        Ok(())
     }
 
-    pub async fn update_verify_task(&self, tx_hash: &str, verify_task: &str) -> Result<()> {
-        // let query = format!(
-        //     "UPDATE {} SET verify_task = $1 WHERE tx_hash = $2",
-        //     PG_TABLE_NAME
-        // );
-        // sqlx::query(&query)
-        //     .bind(verify_task)
-        //     .bind(tx_hash)
-        //     .execute(&self.pool)
-        //     .await?;
+    pub async fn update_verify_task(&self, signature: &str, verify_task: &str) -> Result<()> {
+        let query = format!(
+            "UPDATE {} SET verify_task = $1 WHERE signature = $2",
+            PG_TABLE_NAME
+        );
+        sqlx::query(&query)
+            .bind(verify_task)
+            .bind(signature)
+            .execute(&self.pool)
+            .await?;
 
-        // Ok(())
-        Err(anyhow::anyhow!("Not implemented"))
+        Ok(())
     }
 
-    pub async fn update_verify_tx(&self, tx_hash: &str, verify_tx: &str) -> Result<()> {
-        //  let query = format!(
-        //     "UPDATE {} SET verify_tx = $1 WHERE tx_hash = $2",
-        //     PG_TABLE_NAME
-        // );
-        // sqlx::query(&query)
-        //     .bind(verify_tx)
-        //     .bind(tx_hash)
-        //     .execute(&self.pool)
-        //     .await?;
+    pub async fn update_verify_tx(&self, signature: &str, verify_tx: &str) -> Result<()> {
+        let query = format!(
+            "UPDATE {} SET verify_tx = $1 WHERE signature = $2",
+            PG_TABLE_NAME
+        );
+        sqlx::query(&query)
+            .bind(verify_tx)
+            .bind(signature)
+            .execute(&self.pool)
+            .await?;
 
-        // Ok(())
-        Err(anyhow::anyhow!("Not implemented"))
+        Ok(())
     }
 
     pub async fn update_quorum_reached_task(
         &self,
-        tx_hash: &str,
+        signature: &str,
         quorum_reached_task: &str,
     ) -> Result<()> {
-        // let query = format!(
-        //     "UPDATE {} SET quorum_reached_task = $1 WHERE tx_hash = $2",
-        //     PG_TABLE_NAME
-        // );
-        // sqlx::query(&query)
-        //     .bind(quorum_reached_task)
-        //     .bind(tx_hash)
-        //     .execute(&self.pool)
-        //     .await?;
+        let query = format!(
+            "UPDATE {} SET quorum_reached_task = $1 WHERE signature = $2",
+            PG_TABLE_NAME
+        );
+        sqlx::query(&query)
+            .bind(quorum_reached_task)
+            .bind(signature)
+            .execute(&self.pool)
+            .await?;
 
-        // Ok(())
-        Err(anyhow::anyhow!("Not implemented"))
+        Ok(())
     }
 
-    pub async fn update_route_tx(&self, tx_hash: &str, route_tx: &str) -> Result<()> {
-        //  let query = format!(
-        //     "UPDATE {} SET route_tx = $1 WHERE tx_hash = $2",
-        //     PG_TABLE_NAME
-        // );
-        // sqlx::query(&query)
-        //     .bind(route_tx)
-        //     .bind(tx_hash)
-        //     .execute(&self.pool)
-        //     .await?;
+    pub async fn update_route_tx(&self, signature: &str, route_tx: &str) -> Result<()> {
+        let query = format!(
+            "UPDATE {} SET route_tx = $1 WHERE signature = $2",
+            PG_TABLE_NAME
+        );
+        sqlx::query(&query)
+            .bind(route_tx)
+            .bind(signature)
+            .execute(&self.pool)
+            .await?;
 
-        // Ok(())
-        Err(anyhow::anyhow!("Not implemented"))
+        Ok(())
     }
 
     pub async fn find_expired_events(&self) -> Result<Vec<SolanaTransaction>> {
-        // let query = format!(
-        //     "SELECT * FROM {} WHERE quorum_reached_task IS NULL AND verify_tx IS NOT NULL AND created_at < NOW() - INTERVAL '5 minutes'",
-        //     PG_TABLE_NAME
-        // );
-        // let txs = sqlx::query_as::<_, SolanaTransaction>(&query)
-        //     .fetch_all(&self.pool)
-        //     .await?;
+        let query = format!(
+            "SELECT * FROM {} WHERE quorum_reached_task IS NULL AND verify_tx IS NOT NULL AND created_at < NOW() - INTERVAL '5 minutes'",
+            PG_TABLE_NAME
+        );
+        let txs = sqlx::query_as::<_, SolanaTransaction>(&query)
+            .fetch_all(&self.pool)
+            .await?;
 
-        // Ok(txs)
-        Err(anyhow::anyhow!("Not implemented"))
+        Ok(txs)
     }
 }
