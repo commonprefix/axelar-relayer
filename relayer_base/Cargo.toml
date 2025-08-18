@@ -44,6 +44,7 @@ mockall = { workspace = true, optional = true }
 async-trait = { workspace = true }
 ton_types = { workspace = true }
 log = "0.4.27"
+solana-sdk = { workspace = true }
 
 [dev-dependencies]
 mockall = { workspace = true }

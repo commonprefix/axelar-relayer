@@ -48,6 +48,7 @@ pub struct Subscriber<TP: TransactionPoller> {
 pub enum ChainTransaction {
     Xrpl(Box<xrpl_api::Transaction>),
     TON(Box<ton_types::ton_types::Trace>),
+    Solana(Box<solana_sdk::transaction::Transaction>),
 }
 
 impl<TP: TransactionPoller> Subscriber<TP>
