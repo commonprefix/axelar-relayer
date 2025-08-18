@@ -1,11 +1,7 @@
 use anyhow::Result;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use solana_sdk::{
-    pubkey::Pubkey,
-    signature::Signature,
-    transaction::{Transaction, TransactionError},
-};
+use solana_sdk::transaction::{Transaction, TransactionError};
 use sqlx::{PgPool, Type};
 
 use relayer_base::models::Model;
@@ -42,22 +38,33 @@ pub enum SolanaStatus {
 #[derive(Debug, Serialize, Deserialize, Clone, sqlx::FromRow)]
 pub struct SolanaTransaction {
     pub signature: String,
+    pub signatures: Option<Vec<String>>, // optional additional signatures
     pub tx: String,
     pub status: SolanaStatus,
     pub source: SolanaTransactionSource,
+    pub confirmation_status: Option<String>,
     pub verify_task: Option<String>,
     pub verify_tx: Option<String>,
     pub quorum_reached_task: Option<String>,
     pub route_tx: Option<String>,
-    pub timestamp: Option<chrono::DateTime<chrono::Utc>>,
+    pub block_time: Option<chrono::DateTime<chrono::Utc>>,
     pub logs: Vec<String>,
     /// The accounts that were passed to an instructoin.
     /// - first item: the program id
     /// - second item: the Pubkeys provided to the ix
     /// - third item: payload data
     pub ixs: sqlx::types::Json<Vec<IxRecord>>,
+    pub inner_ixs: sqlx::types::Json<Vec<IxRecord>>,
     pub slot: i64,
-    pub cost_in_lamports: i64,
+    pub fee_lamports: i64,
+    pub meta_err: Option<sqlx::types::Json<serde_json::Value>>,
+    pub version: i16,
+    pub loaded_addresses: Option<sqlx::types::Json<serde_json::Value>>,
+    pub account_keys: Vec<String>,
+    pub payer: Option<String>,
+    pub pre_post_balances: Option<sqlx::types::Json<serde_json::Value>>,
+    pub pre_post_token_balances: Option<sqlx::types::Json<serde_json::Value>>,
+    pub compute_units: Option<i64>,
     pub created_at: chrono::DateTime<chrono::Utc>,
 }
 
@@ -143,39 +150,61 @@ impl Model<SolanaTransaction, String> for PgSolanaTransactionModel {
     async fn upsert(&self, tx: SolanaTransaction) -> Result<()> {
         let query = format!(
             "INSERT INTO {} \
-             (signature, tx, status, source, verify_task, verify_tx, quorum_reached_task, route_tx, \
-              timestamp, logs, ixs, slot, cost_in_lamports, created_at) \
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,NOW()) \
+             (signature, signatures, tx, status, source, confirmation_status, verify_task, verify_tx, quorum_reached_task, route_tx, \
+              block_time, logs, ixs, inner_ixs, slot, fee_lamports, meta_err, version, loaded_addresses, account_keys, payer, \
+              pre_post_balances, pre_post_token_balances, compute_units, created_at) \
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,NOW()) \
              ON CONFLICT (signature) DO UPDATE SET \
                tx = EXCLUDED.tx, \
                status = EXCLUDED.status, \
                source = EXCLUDED.source, \
+               confirmation_status = EXCLUDED.confirmation_status, \
                verify_task = EXCLUDED.verify_task, \
                verify_tx = EXCLUDED.verify_tx, \
                quorum_reached_task = EXCLUDED.quorum_reached_task, \
                route_tx = EXCLUDED.route_tx, \
-               timestamp = EXCLUDED.timestamp, \
+               block_time = EXCLUDED.block_time, \
                logs = EXCLUDED.logs, \
                ixs = EXCLUDED.ixs, \
+               inner_ixs = EXCLUDED.inner_ixs, \
                slot = EXCLUDED.slot, \
-               cost_in_lamports = EXCLUDED.cost_in_lamports",
+               fee_lamports = EXCLUDED.fee_lamports, \
+               meta_err = EXCLUDED.meta_err, \
+               version = EXCLUDED.version, \
+               loaded_addresses = EXCLUDED.loaded_addresses, \
+               account_keys = EXCLUDED.account_keys, \
+               payer = EXCLUDED.payer, \
+               pre_post_balances = EXCLUDED.pre_post_balances, \
+               pre_post_token_balances = EXCLUDED.pre_post_token_balances, \
+               compute_units = EXCLUDED.compute_units",
             PG_TABLE_NAME
         );
 
         sqlx::query(&query)
             .bind(tx.signature)
+            .bind(tx.signatures)
             .bind(tx.tx)
             .bind(tx.status)
             .bind(tx.source)
+            .bind(tx.confirmation_status)
             .bind(tx.verify_task)
             .bind(tx.verify_tx)
             .bind(tx.quorum_reached_task)
             .bind(tx.route_tx)
-            .bind(tx.timestamp)
+            .bind(tx.block_time)
             .bind(tx.logs)
             .bind(tx.ixs)
+            .bind(tx.inner_ixs)
             .bind(tx.slot)
-            .bind(tx.cost_in_lamports)
+            .bind(tx.fee_lamports)
+            .bind(tx.meta_err)
+            .bind(tx.version)
+            .bind(tx.loaded_addresses)
+            .bind(tx.account_keys)
+            .bind(tx.payer)
+            .bind(tx.pre_post_balances)
+            .bind(tx.pre_post_token_balances)
+            .bind(tx.compute_units)
             .execute(&self.pool)
             .await?;
 
