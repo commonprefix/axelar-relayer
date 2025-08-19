@@ -337,14 +337,6 @@ pub struct InterchainTokenDefinition {
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[serde(rename_all = "camelCase")]
-pub struct AppEventMetadata {
-    #[serde(flatten)]
-    pub common: EventMetadata,
-    pub emitted_by_address: String,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-#[serde(rename_all = "camelCase")]
 pub struct InterchainTransferToken {
     pub token_address: String,
     pub amount: String,
@@ -498,21 +490,6 @@ pub enum Event {
         destination_chain: String,
         #[serde(rename = "token")]
         token: InterchainTokenDefinition,
-    },
-    APPInterchainTransferReceived {
-        #[serde(flatten)]
-        common: CommonEventFields<EventMetadata>,
-        meta: Option<AppEventMetadata>,
-        #[serde(rename = "messageID")]
-        message_id: String,
-        #[serde(rename = "sourceChain")]
-        source_chain: String,
-        #[serde(rename = "sourceAddress")]
-        source_address: String,
-        sender: String,
-        recipient: String,
-        #[serde(rename = "tokenReceived")]
-        token_received: InterchainTransferToken,
     },
 }
 
