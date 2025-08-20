@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::client::SolanaClientTrait;
 use anyhow::anyhow;
 use relayer_base::{
@@ -6,7 +8,7 @@ use relayer_base::{
     subscriber::{ChainTransaction, TransactionPoller},
 };
 use solana_sdk::pubkey::Pubkey;
-use solana_sdk::transaction::Transaction;
+use solana_transaction_status::EncodedConfirmedTransactionWithStatusMeta;
 use tracing::warn;
 
 pub struct SolanaSubscriber<DB: Database, X: SolanaClientTrait> {
@@ -29,11 +31,11 @@ impl<DB: Database, X: SolanaClientTrait> SolanaSubscriber<DB, X> {
 }
 
 impl<DB: Database, X: SolanaClientTrait> TransactionPoller for SolanaSubscriber<DB, X> {
-    type Transaction = Transaction;
+    type Transaction = EncodedConfirmedTransactionWithStatusMeta;
     type Account = Pubkey;
 
     fn make_queue_item(&mut self, tx: Self::Transaction) -> ChainTransaction {
-        ChainTransaction::Solana(Box::new(tx))
+        ChainTransaction::Solana(Arc::new(tx))
     }
 
     async fn poll_account(
