@@ -1229,7 +1229,7 @@ where
                         "Skipping payment that is not for or from the multisig: {:?}",
                         payment
                     );
-                    return Ok(vec![]);
+                    Ok(vec![])
                 }
             }
             Transaction::TicketCreate(_) => self.handle_prover_tx(*tx).await,

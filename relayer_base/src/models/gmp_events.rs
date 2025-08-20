@@ -57,13 +57,6 @@ impl EventModel {
                 common.r#type.clone(),
                 Some(message_id.clone()),
             ),
-            Event::APPInterchainTransferReceived {
-                common, message_id, ..
-            } => (
-                common.event_id.clone(),
-                common.r#type.clone(),
-                Some(message_id.clone()),
-            ),
             Event::MessageExecuted {
                 common, message_id, ..
             } => (

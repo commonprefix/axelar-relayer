@@ -1,7 +1,6 @@
 mod common;
 mod message_matching_key;
 pub mod parser;
-mod parser_app_interchain_transfer_received;
 mod parser_call_contract;
 mod parser_execute_insufficient_gas;
 mod parser_its_interchain_token_deployment_started;

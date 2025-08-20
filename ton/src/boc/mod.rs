@@ -1,4 +1,3 @@
-pub mod app_interchain_transfer_received;
 pub mod approve_message;
 mod buffer_to_cell;
 pub mod call_contract;
