@@ -151,7 +151,7 @@ mod tests {
                 );
                 assert_eq!(
                     destination_address,
-                    "0x72D489FC91f33011EC46Efa78d37E02dCC335453"
+                    "0x307837324434383946433931663333303131454334364566613738643337453032644343333335343533"
                 );
                 assert_eq!(data_hash, "00000000000000000000000000000000");
                 let meta = &common.meta.as_ref().unwrap();

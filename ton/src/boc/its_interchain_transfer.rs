@@ -80,7 +80,9 @@ impl LogITSInterchainTransferMessage {
         let destination_address = parser
             .next_reference()
             .map_err(|err| BocParsingError(err.to_string()))?
-            .cell_to_string()?;
+            .cell_to_buffer()?;
+
+        let destination_address = format!("0x{}", hex::encode(&destination_address));
 
         let jetton_amount = parser
             .load_uint(256)
@@ -111,7 +113,7 @@ mod tests {
     #[test]
     fn test_from_boc_b64() {
         let response = LogITSInterchainTransferMessage::from_boc_b64(
-            "te6cckEBBQEAqgAEiAAAARAPTiIq2jFhlfLoczE1drTgmh07/ClKw+XudNKo/20FTgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHoSAAQIDBABARoaiwGbHhKkV8+AchT0xle0lTJSOIa27PkqbP188dNcAHGF2YWxhbmNoZS1mdWppAFQweDgxZTYzZUE4RjY0RkVkQjk4NThFQjZFMjE3NkI0MzFGQmQxMGQxZUMAAIF4EWQ=",
+            "te6cckEBBgEAlwAEiAAAARAGqiTxVdSBp9+zVVBJQeRlDVIDh8DkrUzNRniAwuoJUwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAQIDBABAH+D6DngoiSjKBZCMYX+5C9x+3eQp4UbKBIvc0xyJDnYAHGF2YWxhbmNoZS1mdWppAQAFAAAAKBI0VniQEjRWeJASNFZ4kBI0VniQPA51Og==",
         );
         assert!(
             response.is_ok(),
@@ -121,18 +123,15 @@ mod tests {
         let log = response.expect("Failed to unwrap log");
         assert_eq!(
             log.token_id.to_str_radix(16),
-            "f4e222ada316195f2e873313576b4e09a1d3bfc294ac3e5ee74d2a8ff6d054e"
+            "6aa24f155d481a7dfb355504941e4650d520387c0e4ad4ccd467880c2ea0953"
         );
         assert_eq!(
             log.sender_address,
-            TonAddress::from_str(
-                "0:4686a2c066c784a915f3e01c853d3195ed254c948e21adbb3e4a9b3f5f3c74d7"
-            )
-            .unwrap()
+            TonAddress::from_str("EQAf4PoOeCiJKMoFkIxhf7kL3H7d5CnhRsoEi9zTHIkOdh-4").unwrap()
         );
         assert_eq!(
             log.destination_address,
-            "0x81e63eA8F64FEdB9858EB6E2176B431FBd10d1eC"
+            "0x1234567890123456789012345678901234567890"
         );
         assert_eq!(log.destination_chain, "avalanche-fuji");
         assert_eq!(log.data.len(), 0);
