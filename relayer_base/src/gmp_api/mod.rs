@@ -28,6 +28,7 @@ use gmp_types::{
 const MAX_BROADCAST_WAIT_TIME_SECONDS: u32 = 60; // 60 seconds
 const BROADCAST_POLL_INTERVAL_SECONDS: u32 = 2; // 2 seconds
 
+#[derive(Clone)]
 pub struct GmpApi {
     rpc_url: String,
     client: ClientWithMiddleware,
@@ -470,28 +471,31 @@ pub trait GmpApiTrait {
     fn get_tasks_action(
         &self,
         after: Option<String>,
-    ) -> impl Future<Output = Result<Vec<Task>, GmpApiError>>;
+    ) -> impl Future<Output = Result<Vec<Task>, GmpApiError>> + Send;
     fn post_events(
         &self,
         events: Vec<Event>,
-    ) -> impl Future<Output = Result<Vec<PostEventResult>, GmpApiError>>;
+    ) -> impl Future<Output = Result<Vec<PostEventResult>, GmpApiError>> + Send;
     fn post_broadcast(
         &self,
         contract_address: String,
         data: &BroadcastRequest,
-    ) -> impl Future<Output = Result<String, GmpApiError>>;
+    ) -> impl Future<Output = Result<String, GmpApiError>> + Send;
     fn get_broadcast_result(
         &self,
         contract_address: String,
         broadcast_id: String,
-    ) -> impl Future<Output = Result<String, GmpApiError>>;
+    ) -> impl Future<Output = Result<String, GmpApiError>> + Send;
     fn post_query(
         &self,
         contract_address: String,
         data: &QueryRequest,
-    ) -> impl Future<Output = Result<String, GmpApiError>>;
-    fn post_payload(&self, payload: &[u8]) -> impl Future<Output = Result<String, GmpApiError>>;
-    fn get_payload(&self, hash: &str) -> impl Future<Output = Result<String, GmpApiError>>;
+    ) -> impl Future<Output = Result<String, GmpApiError>> + Send;
+    fn post_payload(
+        &self,
+        payload: &[u8],
+    ) -> impl Future<Output = Result<String, GmpApiError>> + Send;
+    fn get_payload(&self, hash: &str) -> impl Future<Output = Result<String, GmpApiError>> + Send;
     fn cannot_execute_message(
         &self,
         id: String,
@@ -499,11 +503,11 @@ pub trait GmpApiTrait {
         source_chain: String,
         details: String,
         reason: CannotExecuteMessageReason,
-    ) -> impl Future<Output = Result<(), GmpApiError>>;
+    ) -> impl Future<Output = Result<(), GmpApiError>> + Send;
     fn its_interchain_transfer(
         &self,
         xrpl_message: XRPLMessage,
-    ) -> impl Future<Output = Result<(), GmpApiError>>;
+    ) -> impl Future<Output = Result<(), GmpApiError>> + Send;
 
     fn map_cannot_execute_message_to_event(
         &self,

@@ -259,7 +259,7 @@ impl Queue {
             .confirm_select(ConfirmSelectOptions { nowait: false })
             .await?;
 
-        channel.basic_qos(1, BasicQosOptions::default()).await?;
+        channel.basic_qos(32, BasicQosOptions::default()).await?;
 
         // Declare DLX
         channel

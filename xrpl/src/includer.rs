@@ -20,7 +20,7 @@ impl XrplIncluder {
     #[allow(clippy::new_ret_no_self)]
     pub async fn new<
         X: XRPLClientTrait,
-        DB: Database,
+        DB: Database + ThreadSafe,
         QM: QueuedTransactionsModel,
         G: GmpApiTrait + ThreadSafe,
     >(

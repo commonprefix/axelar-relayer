@@ -9,6 +9,7 @@ use xrpl::{
 };
 
 use relayer_base::config::config_from_yaml;
+use relayer_base::ingestor_worker::IngestorWorker;
 use relayer_base::redis::connection_manager;
 use relayer_base::{
     database::PostgresDB,
@@ -51,7 +52,8 @@ async fn main() -> anyhow::Result<()> {
         payload_cache,
         models,
     );
-    let ingestor = Ingestor::new(gmp_api, xrpl_ingestor);
+    let worker = IngestorWorker::new(gmp_api, Arc::new(xrpl_ingestor));
+    let ingestor = Ingestor::new(worker);
 
     let mut sigint = signal(SignalKind::interrupt())?;
     let mut sigterm = signal(SignalKind::terminate())?;

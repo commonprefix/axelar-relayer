@@ -9,12 +9,13 @@ use relayer_base::models::gmp_events::EventModel;
 use relayer_base::subscriber::ChainTransaction;
 use tracing::{info, warn};
 
-pub struct TONIngestor<TP: TraceParserTrait, TM: UpdateEvents + Send + Sync> {
+#[derive(Clone)]
+pub struct TONIngestor<TP: TraceParserTrait + Sync, TM: UpdateEvents + Send + Sync> {
     trace_parser: TP,
     ton_trace_model: TM,
 }
 
-impl<TP: TraceParserTrait, TM: UpdateEvents + Send + Sync> TONIngestor<TP, TM> {
+impl<TP: TraceParserTrait + Sync, TM: UpdateEvents + Send + Sync> TONIngestor<TP, TM> {
     pub fn new(trace_parser: TP, ton_trace_model: TM) -> Self {
         Self {
             trace_parser,
@@ -23,7 +24,9 @@ impl<TP: TraceParserTrait, TM: UpdateEvents + Send + Sync> TONIngestor<TP, TM> {
     }
 }
 
-impl<TP: TraceParserTrait, TM: UpdateEvents + Send + Sync> IngestorTrait for TONIngestor<TP, TM> {
+impl<TP: TraceParserTrait + Sync, TM: UpdateEvents + Send + Sync> IngestorTrait
+    for TONIngestor<TP, TM>
+{
     async fn handle_verify(&self, task: VerifyTask) -> Result<(), IngestorError> {
         warn!("handle_verify: {:?}", task);
 
@@ -295,7 +298,7 @@ mod tests {
         // Setup mock parser to return our test events
         mock_parser.expect_parse_trace().returning(move |_| {
             let events = events.clone();
-            Box::pin(async move { Ok(events) })
+            Ok(events)
         });
 
         let mut mock_ton_trace_model = MockUpdateEvents::new();

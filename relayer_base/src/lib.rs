@@ -6,6 +6,7 @@ pub mod gmp_api;
 pub mod heartbeat;
 pub mod includer;
 pub mod ingestor;
+pub mod ingestor_worker;
 pub mod models;
 pub mod payload_cache;
 pub mod price_feed;

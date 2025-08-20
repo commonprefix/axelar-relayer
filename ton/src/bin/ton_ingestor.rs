@@ -3,6 +3,7 @@ use relayer_base::config::config_from_yaml;
 use relayer_base::database::PostgresDB;
 use relayer_base::gmp_api;
 use relayer_base::ingestor::Ingestor;
+use relayer_base::ingestor_worker::IngestorWorker;
 use relayer_base::price_view::PriceView;
 use relayer_base::queue::Queue;
 use relayer_base::redis::connection_manager;
@@ -56,7 +57,8 @@ async fn main() -> anyhow::Result<()> {
 
     let ton_trace_model = PgTONTraceModel::new(pg_pool.clone());
     let ton_ingestor = TONIngestor::new(parser, ton_trace_model);
-    let ingestor = Ingestor::new(gmp_api, ton_ingestor);
+    let worker = IngestorWorker::new(gmp_api, Arc::new(ton_ingestor));
+    let ingestor = Ingestor::new(worker);
 
     let redis_client = redis::Client::open(config.common_config.redis_server.clone())?;
     let redis_conn = connection_manager(redis_client, None, None, None).await?;

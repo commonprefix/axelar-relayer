@@ -56,6 +56,7 @@ use tokio::spawn;
 use tracing::error;
 use xrpl_amplifier_types::msg::XRPLMessage;
 
+#[derive(Clone)]
 pub struct GmpApiDbAuditDecorator<T: GmpApiTrait, U: GMPTaskAudit, V: GMPAudit> {
     gmp_api: T,
     gmp_tasks: Arc<U>,

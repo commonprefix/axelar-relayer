@@ -18,7 +18,7 @@ pub struct TONIncluder {}
 
 impl TONIncluder {
     #[allow(clippy::new_ret_no_self)]
-    pub async fn new<DB: Database, G: GmpApiTrait + ThreadSafe>(
+    pub async fn new<DB: Database + ThreadSafe, G: GmpApiTrait + ThreadSafe>(
         config: TONConfig,
         gmp_api: Arc<G>,
         redis_conn: ConnectionManager,

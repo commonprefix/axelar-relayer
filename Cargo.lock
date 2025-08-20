@@ -4875,6 +4875,7 @@ dependencies = [
  "httpmock",
  "interchain-token-service 1.1.0",
  "lapin",
+ "log",
  "mockall",
  "mockito",
  "multisig",

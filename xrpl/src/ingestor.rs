@@ -49,12 +49,14 @@ use xrpl_gateway::msg::{CallContract, InterchainTransfer, MessageWithPayload};
 
 const MAX_TASK_RETRIES: i32 = 5;
 
+#[derive(Clone)]
 pub struct XrplIngestorModels {
     pub xrpl_transaction_model: PgXrplTransactionModel,
     pub task_retries: PgTaskRetriesModel,
 }
 
-pub struct XrplIngestor<DB: Database, G: GmpApiTrait + ThreadSafe> {
+#[derive(Clone)]
+pub struct XrplIngestor<DB: Database + ThreadSafe, G: GmpApiTrait + ThreadSafe> {
     client: xrpl_http_client::Client,
     gmp_api: Arc<G>,
     config: XRPLConfig,
@@ -65,7 +67,7 @@ pub struct XrplIngestor<DB: Database, G: GmpApiTrait + ThreadSafe> {
 
 impl<DB, G> XrplIngestor<DB, G>
 where
-    DB: Database,
+    DB: Database + ThreadSafe,
     G: GmpApiTrait + ThreadSafe,
 {
     pub fn new(
@@ -1175,7 +1177,7 @@ where
 
 impl<DB, G> IngestorTrait for XrplIngestor<DB, G>
 where
-    DB: Database,
+    DB: Database + ThreadSafe,
     G: GmpApiTrait + ThreadSafe,
 {
     async fn handle_transaction(&self, tx: ChainTransaction) -> Result<Vec<Event>, IngestorError> {
@@ -1229,7 +1231,7 @@ where
                         "Skipping payment that is not for or from the multisig: {:?}",
                         payment
                     );
-                    return Ok(vec![]);
+                    Ok(vec![])
                 }
             }
             Transaction::TicketCreate(_) => self.handle_prover_tx(*tx).await,

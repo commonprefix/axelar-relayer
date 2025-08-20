@@ -77,7 +77,7 @@ pub struct Includer<B, C, R, DB, G>
 where
     B: Broadcaster,
     R: RefundManager,
-    DB: Database,
+    DB: Database + ThreadSafe,
     G: GmpApiTrait + ThreadSafe,
 {
     pub chain_client: C,
@@ -93,7 +93,7 @@ impl<B, C, R, DB, G> Includer<B, C, R, DB, G>
 where
     B: Broadcaster,
     R: RefundManager,
-    DB: Database,
+    DB: Database + ThreadSafe,
     G: GmpApiTrait + ThreadSafe,
 {
     async fn work(&self, consumer: &mut Consumer, queue: Arc<Queue>) {
