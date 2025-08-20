@@ -9,6 +9,7 @@ use relayer_base::{
     utils::{setup_heartbeat, setup_logging},
 };
 use solana::{client::SolanaClient, config::SolanaConfig, subscriber::SolanaSubscriber};
+use solana_sdk::commitment_config::CommitmentConfig;
 use solana_sdk::pubkey::Pubkey;
 use std::str::FromStr;
 use std::sync::Arc;
@@ -28,7 +29,8 @@ async fn main() -> anyhow::Result<()> {
     let mut sigint = signal(SignalKind::interrupt())?;
     let mut sigterm = signal(SignalKind::terminate())?;
 
-    let solana_client: SolanaClient = SolanaClient::new(&config.solana_rpc, 3)?;
+    let solana_client: SolanaClient =
+        SolanaClient::new(&config.solana_rpc, CommitmentConfig::confirmed(), 3)?;
     let solana_subscriber =
         SolanaSubscriber::new(solana_client, postgres_db, "default".to_string()).await?;
 

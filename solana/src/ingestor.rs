@@ -32,6 +32,7 @@ use relayer_base::{
     },
 };
 use rust_decimal::Decimal;
+use solana_sdk::commitment_config::CommitmentConfig;
 use solana_sdk::transaction::Transaction;
 use std::{collections::HashMap, str::FromStr, sync::Arc, vec};
 use tracing::{debug, error, info, warn};
@@ -64,8 +65,8 @@ where
         payload_cache: PayloadCache<DB>,
         models: SolanaIngestorModels,
     ) -> Self {
-        let client =
-            SolanaClient::new(&config.solana_rpc, 3).expect("failed to create Solana RPC client");
+        let client = SolanaClient::new(&config.solana_rpc, CommitmentConfig::confirmed(), 3)
+            .expect("failed to create Solana RPC client");
         Self {
             gmp_api,
             config,
