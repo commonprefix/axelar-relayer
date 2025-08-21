@@ -37,17 +37,15 @@ impl Parser for ParserITSInterchainTransfer {
         if self.log_position < 0 {
             return Ok(false);
         }
-
         if self.log.is_none() {
-            for tx in &self.tx.out_msgs.clone() {
-                if tx.destination.is_none() && tx.opcode == Some(OP_INTERCHAIN_TRANSFER_LOG) {
-                    self.log = Some(
-                        LogITSInterchainTransferMessage::from_boc_b64(&tx.message_content.body)
-                            .map_err(|e| TransactionParsingError::BocParsing(e.to_string()))?,
-                    );
-                    break;
-                }
-            }
+            self.log = Some(
+                LogITSInterchainTransferMessage::from_boc_b64(
+                    &self.tx.out_msgs[self.log_position as usize]
+                        .message_content
+                        .body,
+                )
+                .map_err(|e| TransactionParsingError::BocParsing(e.to_string()))?,
+            );
         }
         Ok(true)
     }

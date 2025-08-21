@@ -15,6 +15,7 @@ use crate::transaction_parser::parser_message_executed::ParserMessageExecuted;
 use crate::transaction_parser::parser_native_gas_added::ParserNativeGasAdded;
 use crate::transaction_parser::parser_native_gas_paid::ParserNativeGasPaid;
 use crate::transaction_parser::parser_native_gas_refunded::ParserNativeGasRefunded;
+use crate::transaction_parser::parser_signers_rotated::ParserSignersRotated;
 use async_trait::async_trait;
 use num_bigint::BigUint;
 use relayer_base::gmp_api::gmp_types::Event;
@@ -345,6 +346,14 @@ impl<PV: PriceViewTrait> TraceParser<PV> {
                     "ParserITSLinkTokenStarted matched, trace_id={}",
                     trace.trace_id
                 );
+                parser.parse().await?;
+                its.push(Box::new(parser));
+                continue;
+            }
+            let mut parser =
+                ParserSignersRotated::new(tx.clone(), self.its_address.clone()).await?;
+            if parser.check_match().await? {
+                info!("ParserSignersRotated matched, trace_id={}", trace.trace_id);
                 parser.parse().await?;
                 its.push(Box::new(parser));
                 continue;

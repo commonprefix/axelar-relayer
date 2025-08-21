@@ -19,4 +19,5 @@ Trace 19 - ITS Token Metadata Registered
 Trace 20 - ITS Interchain Token Deployment Started
 Trace 21 - ITS Interchain Transfer (manually constructed, not real)
 Trace 22 - ITS Link Token Started (manually constructed, not real)
-Trace 23 - ITS Interchain Transfer (real, different position
+Trace 23 - ITS Interchain Transfer (real, different position)
+Trace 24 - Signers Rotated (manuall constructed, not real)
