@@ -45,6 +45,7 @@ async-trait = { workspace = true }
 ton_types = { workspace = true }
 log = "0.4.27"
 solana-sdk = { workspace = true }
+solana-transaction-status = { workspace = true }
 
 [dev-dependencies]
 mockall = { workspace = true }

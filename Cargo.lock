@@ -6965,6 +6965,7 @@ dependencies = [
  "serde_json",
  "serde_yaml",
  "solana-sdk",
+ "solana-transaction-status",
  "sqlx",
  "testcontainers",
  "testcontainers-modules",

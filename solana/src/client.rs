@@ -13,7 +13,7 @@ use solana_sdk::signature::Signature;
 use solana_transaction_status::{EncodedConfirmedTransactionWithStatusMeta, UiTransactionEncoding};
 use tracing::{debug, info};
 
-const LIMIT: usize = 10;
+const LIMIT: usize = 6;
 
 pub trait SolanaClientTrait: Send + Sync {
     fn inner(&self) -> &RpcClient;
@@ -24,7 +24,7 @@ pub trait SolanaClientTrait: Send + Sync {
         signature: Signature,
     ) -> impl Future<Output = Result<EncodedConfirmedTransactionWithStatusMeta, anyhow::Error>>;
 
-    fn get_account_logs(
+    fn get_transactions_for_account(
         &self,
         commitment: Option<CommitmentConfig>,
         address: &Pubkey,
@@ -103,8 +103,10 @@ impl SolanaClientTrait for SolanaClient {
     }
 
     // Traverses the account's tx history backwards
-    // To simulate "after" we need to set before to None and until to the signature that would be the "after" signature
-    async fn get_account_logs(
+    // before and until are exclusive
+    // before is the chronologically latest transaction
+    // until is the chronologically earliest transaction
+    async fn get_transactions_for_account(
         &self,
         commitment: Option<CommitmentConfig>,
         address: &Pubkey,
@@ -114,6 +116,8 @@ impl SolanaClientTrait for SolanaClient {
         let mut retries = 0;
         let mut delay = Duration::from_millis(500);
         let mut txs = vec![];
+        let mut before_sig = before;
+        let until_sig = until;
 
         // NOT READY YET, NEEDS PAGE LOGIC IMPLEMENTED + SCALABILITY ISSUES
 
@@ -122,8 +126,8 @@ impl SolanaClientTrait for SolanaClient {
             let config = GetConfirmedSignaturesForAddress2Config {
                 commitment,
                 limit: Some(LIMIT),
-                before,
-                until,
+                before: before_sig,
+                until: until_sig,
             };
             // This function returns the signatures. We then need to get the transactions for each signature
             match self
@@ -132,12 +136,13 @@ impl SolanaClientTrait for SolanaClient {
                 .await
             {
                 Ok(response) => {
+                    // edge case where last page had exactly LIMIT txs and we did one extra request
                     if response.is_empty() {
                         info!("No more signatures to fetch");
                         return Ok(txs);
                     }
 
-                    for status_with_signature in response {
+                    for status_with_signature in response.clone() {
                         // TODO: Spawn tasks for the loop. Can the same client be used for all the tasks?
                         // Also, this is a "double" retry mechanism. Maybe it's unnecessary
                         let tx = self
@@ -148,13 +153,19 @@ impl SolanaClientTrait for SolanaClient {
                             .await?;
                         txs.push(tx);
                     }
-                    // if txs.len() < LIMIT {
-                    //     debug!("Fetched less than {} txs. Stopping", LIMIT);
-                    //     return Ok(txs);
-                    // }
 
-                    // call next page instead of returning
-                    return Ok(txs);
+                    // If we have less than LIMIT txs, we can return since there are no more pages
+                    if response.len() < LIMIT {
+                        return Ok(txs);
+                    }
+
+                    let maybe_earliest_signature = response.last();
+                    match maybe_earliest_signature {
+                        Some(earliest_signature) => {
+                            before_sig = Some(Signature::from_str(&earliest_signature.signature)?)
+                        }
+                        None => return Err(anyhow!("No earliest signature found")),
+                    }
                 }
 
                 Err(e) => {
@@ -194,8 +205,28 @@ mod tests {
 
     use super::*;
 
+    // #[tokio::test]
+    // async fn test_get_transaction_by_signature() {
+    //     dotenv().ok();
+    //     let network = std::env::var("NETWORK").expect("NETWORK must be set");
+    //     let config: SolanaConfig = config_from_yaml(&format!("config.{}.yaml", network)).unwrap();
+
+    //     let solana_client: SolanaClient =
+    //         SolanaClient::new(&config.solana_rpc, CommitmentConfig::confirmed(), 3).unwrap();
+
+    //     //let signature = Signature::from_str("viT9BuyqLeWy2jUwpHV7uurjvuq8PoDjC2aBPEHCDM5jhSsgZghXdzN36rdV1n35k8TazcxD5yLmhxLWMZmRCVc").unwrap();
+    //     let signature = Signature::from_str("5Pg6SHHKCBEz4yHtnsiK7EtTvnPk31WQ9Adh48XhwcDv7ghwLY4ADvTneq3bw64osqZwjwehVRBrKwDG2XNzrvFB").unwrap();
+    //     let transaction = solana_client
+    //         .get_transaction_by_signature(Some(CommitmentConfig::confirmed()), signature)
+    //         .await
+    //         .unwrap();
+
+    //     // println!("{:?}", transaction);
+    //     println!("{:?}", transaction.transaction.meta.unwrap().log_messages);
+    // }
+
     #[tokio::test]
-    async fn test_get_transaction_by_signature() {
+    async fn test_get_transactions_for_account() {
         dotenv().ok();
         let network = std::env::var("NETWORK").expect("NETWORK must be set");
         let config: SolanaConfig = config_from_yaml(&format!("config.{}.yaml", network)).unwrap();
@@ -204,13 +235,22 @@ mod tests {
             SolanaClient::new(&config.solana_rpc, CommitmentConfig::confirmed(), 3).unwrap();
 
         //let signature = Signature::from_str("viT9BuyqLeWy2jUwpHV7uurjvuq8PoDjC2aBPEHCDM5jhSsgZghXdzN36rdV1n35k8TazcxD5yLmhxLWMZmRCVc").unwrap();
-        let signature = Signature::from_str("5Pg6SHHKCBEz4yHtnsiK7EtTvnPk31WQ9Adh48XhwcDv7ghwLY4ADvTneq3bw64osqZwjwehVRBrKwDG2XNzrvFB").unwrap();
-        let transaction = solana_client
-            .get_transaction_by_signature(Some(CommitmentConfig::confirmed()), signature)
+        //let signature = Signature::from_str("5Pg6SHHKCBEz4yHtnsiK7EtTvnPk31WQ9Adh48XhwcDv7ghwLY4ADvTneq3bw64osqZwjwehVRBrKwDG2XNzrvFB").unwrap();
+        let transactions = solana_client
+            .get_transactions_for_account(
+                Some(CommitmentConfig::confirmed()),
+                &Pubkey::from_str("DaejccUfXqoAFTiDTxDuMQfQ9oa6crjtR9cT52v1AvGK").unwrap(),
+                None,
+                None,
+            )
             .await
             .unwrap();
 
-        // println!("{:?}", transaction);
-        println!("{:?}", transaction.transaction.meta.unwrap().log_messages);
+        assert_eq!(transactions.len(), 5);
+
+        for tx in transactions {
+            println!("--------------------------------");
+            println!("{:?}", tx.transaction.transaction);
+        }
     }
 }
