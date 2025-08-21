@@ -44,6 +44,7 @@ mockall = { workspace = true, optional = true }
 async-trait = { workspace = true }
 ton_types = { workspace = true }
 solana-sdk = { workspace = true }
+solana-transaction-status = { workspace = true }
 
 [dev-dependencies]
 mockall = { workspace = true }

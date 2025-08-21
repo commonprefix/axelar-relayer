@@ -48,7 +48,9 @@ pub struct Subscriber<TP: TransactionPoller> {
 pub enum ChainTransaction {
     Xrpl(Box<xrpl_api::Transaction>),
     TON(Box<ton_types::ton_types::Trace>),
-    Solana(Box<solana_sdk::transaction::Transaction>),
+    // solana_sdk::transaction::Transaction does not have enough information
+    // TODO: Find a clone alternative for EncodedConfirmedTransactionWithStatusMeta which does not implement Clone (maybe fork?)
+    Solana(Arc<solana_transaction_status::EncodedConfirmedTransactionWithStatusMeta>),
 }
 
 impl<TP: TransactionPoller> Subscriber<TP>
