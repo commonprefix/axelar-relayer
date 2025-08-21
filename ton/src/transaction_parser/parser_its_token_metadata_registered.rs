@@ -70,6 +70,13 @@ impl Parser for ParserITSTokenMetadataRegistered {
             None => return Err(TransactionParsingError::Message("Missing log".to_string())),
         };
 
+        let address = log.address.to_hex();
+        let address = if let Some(rest) = address.strip_prefix("0:") {
+            format!("0x{}", rest)
+        } else {
+            address.to_string()
+        };
+
         Ok(Event::ITSTokenMetadataRegistered {
             common: CommonEventFields {
                 r#type: "ITS/TOKEN_METADATA_REGISTERED".to_owned(),
@@ -84,7 +91,7 @@ impl Parser for ParserITSTokenMetadataRegistered {
                 }),
             },
             message_id,
-            address: log.address.to_hex(),
+            address,
             decimals: log.decimals,
         })
     }
@@ -126,7 +133,7 @@ mod tests {
                 assert_eq!(message_id, "foo");
                 assert_eq!(
                     address,
-                    "0:9e0d7f273766f7ad7ff3e0b8e7b625ec267e8b8ff2d09a10351fb67bea288ca1"
+                    "0x9e0d7f273766f7ad7ff3e0b8e7b625ec267e8b8ff2d09a10351fb67bea288ca1"
                 );
                 assert_eq!(decimals, 9);
 

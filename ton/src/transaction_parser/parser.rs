@@ -556,7 +556,7 @@ mod tests {
                 assert_eq!(decimals, 9);
                 assert_eq!(
                     address,
-                    "0:9e0d7f273766f7ad7ff3e0b8e7b625ec267e8b8ff2d09a10351fb67bea288ca1"
+                    "0x9e0d7f273766f7ad7ff3e0b8e7b625ec267e8b8ff2d09a10351fb67bea288ca1"
                 );
             }
             _ => panic!("Expected ITSTokenMetadataRegisteredEvent event"),

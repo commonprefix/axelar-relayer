@@ -84,6 +84,13 @@ impl Parser for ParserITSLinkTokenStarted {
             None => return Err(TransactionParsingError::Message("Missing log".to_string())),
         };
 
+        let source_token_address = log.source_token_address.to_hex();
+        let source_token_address = if let Some(rest) = source_token_address.strip_prefix("0:") {
+            format!("0x{}", rest)
+        } else {
+            source_token_address.to_string()
+        };
+
         Ok(Event::ITSLinkTokenStarted {
             common: CommonEventFields {
                 r#type: "ITS/LINK_TOKEN_STARTED".to_owned(),
@@ -100,7 +107,7 @@ impl Parser for ParserITSLinkTokenStarted {
             message_id,
             token_id: format!("0x{}", log.token_id.to_str_radix(16)),
             destination_chain: log.destination_chain,
-            source_token_address: log.source_token_address.to_base64_std(),
+            source_token_address,
             destination_token_address: log.destination_token_address,
             token_manager_type: log.token_manager_type,
         })
@@ -150,11 +157,11 @@ mod tests {
                 );
                 assert_eq!(
                     source_token_address,
-                    "EQAmm+MWQExvgU4K5bPnnxodIBAPetVKvxV+ndbEn/ywW0Ix"
+                    "0x269be316404c6f814e0ae5b3e79f1a1d20100f7ad54abf157e9dd6c49ffcb05b"
                 );
                 assert_eq!(
                     destination_token_address,
-                    "0x81e63eA8F64FEdB9858EB6E2176B431FBd10d1eC"
+                    "0x307838316536336541384636344645644239383538454236453231373642343331464264313064316543"
                 );
                 assert_eq!(token_manager_type, TokenManagerType::LockUnlock);
                 let meta = &common.meta.as_ref().unwrap();

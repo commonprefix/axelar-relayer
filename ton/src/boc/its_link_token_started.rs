@@ -77,7 +77,8 @@ impl LogITSLinkTokenStartedMessage {
         let destination_token_address = parser
             .next_reference()
             .map_err(|err| BocParsingError(err.to_string()))?
-            .cell_to_string()?;
+            .cell_to_buffer()?;
+        let destination_token_address = format!("0x{}", hex::encode(&destination_token_address));
         let token_manager_type = parser
             .load_u8(8)
             .map_err(|err| BocParsingError(err.to_string()))?;
@@ -115,7 +116,7 @@ mod tests {
     #[test]
     fn test_from_boc_b64() {
         let response = LogITSLinkTokenStartedMessage::from_boc_b64(
-            "te6cckEBBQEAiwAESgAAAQU7aKPgEGHI4DOplpesxrI+eoKfjYFgNvZLEVdlNebutQIBAgMEABxhdmFsYW5jaGUtZnVqaQBAJpvjFkBMb4FOCuWz558aHSAQD3rVSr8Vfp3WxJ/8sFsAVDB4ODFlNjNlQThGNjRGRWRCOTg1OEVCNkUyMTc2QjQzMUZCZDEwZDFlQwAABJBC+Q==",
+            "te6cckEBBQEAdQAESgAAAQU5aO+Enn04pm2AGPEU51UMmn1nuKcaUkOfFXOz8LgyigQBAgMEABxhdmFsYW5jaGUtZnVqaQBA+DyL4Yz0ZcelnxPvEyWNQkVzHPnLINq2ie/m2TMUbjcAKBKHpvtekQHhBLrvQEwN7A0hIGuaAAB7CRi0",
         );
         assert!(
             response.is_ok(),
@@ -126,7 +127,7 @@ mod tests {
         assert_eq!(
             log.token_id,
             BigUint::from_str(
-                "26871341186557472135101808709108740864004914226099995230790596800968625942197"
+                "25967237556763834250448421157752164845917487892249674121800212115404164182666"
             )
             .expect("Failed to parse BigUint")
         );
@@ -134,14 +135,14 @@ mod tests {
         assert_eq!(
             log.source_token_address,
             TonAddress::from_str(
-                "0:269be316404c6f814e0ae5b3e79f1a1d20100f7ad54abf157e9dd6c49ffcb05b"
+                "0:f83c8be18cf465c7a59f13ef13258d4245731cf9cb20dab689efe6d933146e37"
             )
             .expect("Failed to parse TonAddress from string")
         );
-        assert_eq!(log.token_manager_type, TokenManagerType::LockUnlock);
+        assert_eq!(log.token_manager_type, TokenManagerType::MintBurn);
         assert_eq!(
             log.destination_token_address,
-            "0x81e63eA8F64FEdB9858EB6E2176B431FBd10d1eC"
+            "0x1287a6fb5e9101e104baef404c0dec0d21206b9a"
         );
     }
 }
