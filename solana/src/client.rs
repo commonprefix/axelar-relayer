@@ -1,8 +1,8 @@
 use std::{future::Future, str::FromStr, time::Duration};
 
 use anyhow::anyhow;
-use serde::{de::DeserializeOwned, Serialize};
 
+use futures::future::join_all;
 use relayer_base::error::ClientError;
 use solana_client::rpc_client::GetConfirmedSignaturesForAddress2Config;
 use solana_client::rpc_config::RpcTransactionConfig;
@@ -13,7 +13,7 @@ use solana_sdk::signature::Signature;
 use solana_transaction_status::{EncodedConfirmedTransactionWithStatusMeta, UiTransactionEncoding};
 use tracing::{debug, info};
 
-const LIMIT: usize = 6;
+const LIMIT: usize = 1000;
 
 pub trait SolanaClientTrait: Send + Sync {
     fn inner(&self) -> &RpcClient;
@@ -142,16 +142,20 @@ impl SolanaClientTrait for SolanaClient {
                         return Ok(txs);
                     }
 
-                    for status_with_signature in response.clone() {
-                        // TODO: Spawn tasks for the loop. Can the same client be used for all the tasks?
-                        // Also, this is a "double" retry mechanism. Maybe it's unnecessary
-                        let tx = self
-                            .get_transaction_by_signature(
-                                commitment,
-                                Signature::from_str(&status_with_signature.signature)?,
-                            )
-                            .await?;
-                        txs.push(tx);
+                    let futures = response.iter().map(|status_with_signature| {
+                        let sig_str = status_with_signature.signature.clone();
+
+                        let sig = Signature::from_str(&sig_str).unwrap();
+                        self.get_transaction_by_signature(commitment, sig)
+                    });
+
+                    let results = join_all(futures).await;
+
+                    for res in results {
+                        match res {
+                            Ok(tx) => txs.push(tx),
+                            Err(e) => debug!("Error fetching tx: {:?}", e),
+                        }
                     }
 
                     // If we have less than LIMIT txs, we can return since there are no more pages
