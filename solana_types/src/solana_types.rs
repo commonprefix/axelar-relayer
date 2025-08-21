@@ -1,6 +1,6 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use solana_sdk::{pubkey::Pubkey, signature::Signature};
+use solana_sdk::signature::Signature;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct SolanaTransaction {
