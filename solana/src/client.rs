@@ -13,7 +13,7 @@ use solana_sdk::signature::Signature;
 use solana_transaction_status::{EncodedConfirmedTransactionWithStatusMeta, UiTransactionEncoding};
 use tracing::{debug, info};
 
-const LIMIT: usize = 1000;
+const LIMIT: usize = 100;
 
 pub trait SolanaClientTrait: Send + Sync {
     fn inner(&self) -> &RpcClient;
@@ -138,7 +138,7 @@ impl SolanaClientTrait for SolanaClient {
                 Ok(response) => {
                     // edge case where last page had exactly LIMIT txs and we did one extra request
                     if response.is_empty() {
-                        info!("No more signatures to fetch");
+                        info!("No more signatures to fetch, empty response");
                         return Ok(txs);
                     }
 
@@ -154,12 +154,20 @@ impl SolanaClientTrait for SolanaClient {
                     for res in results {
                         match res {
                             Ok(tx) => txs.push(tx),
-                            Err(e) => debug!("Error fetching tx: {:?}", e),
+                            Err(e) => {
+                                debug!("Error fetching tx: {:?}", e);
+                                return Err(anyhow!("Error fetching tx: {:?}", e));
+                            }
                         }
                     }
 
                     // If we have less than LIMIT txs, we can return since there are no more pages
                     if response.len() < LIMIT {
+                        info!(
+                            "No more signatures to fetch, fetched {} and limit is {}",
+                            response.len(),
+                            LIMIT
+                        );
                         return Ok(txs);
                     }
 
@@ -209,25 +217,25 @@ mod tests {
 
     use super::*;
 
-    // #[tokio::test]
-    // async fn test_get_transaction_by_signature() {
-    //     dotenv().ok();
-    //     let network = std::env::var("NETWORK").expect("NETWORK must be set");
-    //     let config: SolanaConfig = config_from_yaml(&format!("config.{}.yaml", network)).unwrap();
+    #[tokio::test]
+    async fn test_get_transaction_by_signature() {
+        dotenv().ok();
+        let network = std::env::var("NETWORK").expect("NETWORK must be set");
+        let config: SolanaConfig = config_from_yaml(&format!("config.{}.yaml", network)).unwrap();
 
-    //     let solana_client: SolanaClient =
-    //         SolanaClient::new(&config.solana_rpc, CommitmentConfig::confirmed(), 3).unwrap();
+        let solana_client: SolanaClient =
+            SolanaClient::new(&config.solana_rpc, CommitmentConfig::confirmed(), 3).unwrap();
 
-    //     //let signature = Signature::from_str("viT9BuyqLeWy2jUwpHV7uurjvuq8PoDjC2aBPEHCDM5jhSsgZghXdzN36rdV1n35k8TazcxD5yLmhxLWMZmRCVc").unwrap();
-    //     let signature = Signature::from_str("5Pg6SHHKCBEz4yHtnsiK7EtTvnPk31WQ9Adh48XhwcDv7ghwLY4ADvTneq3bw64osqZwjwehVRBrKwDG2XNzrvFB").unwrap();
-    //     let transaction = solana_client
-    //         .get_transaction_by_signature(Some(CommitmentConfig::confirmed()), signature)
-    //         .await
-    //         .unwrap();
+        //let signature = Signature::from_str("viT9BuyqLeWy2jUwpHV7uurjvuq8PoDjC2aBPEHCDM5jhSsgZghXdzN36rdV1n35k8TazcxD5yLmhxLWMZmRCVc").unwrap();
+        let signature = Signature::from_str("5Pg6SHHKCBEz4yHtnsiK7EtTvnPk31WQ9Adh48XhwcDv7ghwLY4ADvTneq3bw64osqZwjwehVRBrKwDG2XNzrvFB").unwrap();
+        let transaction = solana_client
+            .get_transaction_by_signature(Some(CommitmentConfig::confirmed()), signature)
+            .await
+            .unwrap();
 
-    //     // println!("{:?}", transaction);
-    //     println!("{:?}", transaction.transaction.meta.unwrap().log_messages);
-    // }
+        // println!("{:?}", transaction);
+        println!("{:?}", transaction.transaction.meta.unwrap().log_messages);
+    }
 
     #[tokio::test]
     async fn test_get_transactions_for_account() {
@@ -243,18 +251,18 @@ mod tests {
         let transactions = solana_client
             .get_transactions_for_account(
                 Some(CommitmentConfig::confirmed()),
-                &Pubkey::from_str("DaejccUfXqoAFTiDTxDuMQfQ9oa6crjtR9cT52v1AvGK").unwrap(),
+                &Pubkey::from_str("9EHADvhP1vnYsk1XVYjJ4qpZ9jP33nHy84wo2CGnDDij").unwrap(),
                 None,
                 None,
             )
             .await
             .unwrap();
 
-        assert_eq!(transactions.len(), 5);
+        assert_eq!(transactions.len(), 18);
 
         for tx in transactions {
             println!("--------------------------------");
-            println!("{:?}", tx.transaction.transaction);
+            println!("{:?}", tx.transaction);
         }
     }
 }
