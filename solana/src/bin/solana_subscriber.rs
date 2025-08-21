@@ -11,7 +11,6 @@ use solana::{
     client::SolanaClient, config::SolanaConfig, models::solana_subscriber_cursor::PostgresDB,
     subscriber::SolanaSubscriber,
 };
-use solana_sdk::commitment_config::CommitmentConfig;
 use solana_sdk::pubkey::Pubkey;
 use std::str::FromStr;
 use std::sync::Arc;

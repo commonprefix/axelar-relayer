@@ -16,6 +16,7 @@ use solana_sdk::commitment_config::CommitmentConfig;
 use solana_sdk::pubkey::Pubkey;
 use solana_sdk::signature::Signature;
 use solana_transaction_status::{EncodedConfirmedTransactionWithStatusMeta, UiTransactionEncoding};
+use solana_types::solana_types::SolanaTransaction;
 use tracing::{debug, error, info};
 
 const LIMIT: usize = 50;
@@ -26,14 +27,16 @@ pub trait SolanaClientTrait: Send + Sync {
     fn get_transaction_by_signature(
         &self,
         signature: Signature,
-    ) -> impl Future<Output = Result<EncodedConfirmedTransactionWithStatusMeta, anyhow::Error>>;
+    ) -> impl Future<
+        Output = Result<(Signature, EncodedConfirmedTransactionWithStatusMeta), anyhow::Error>,
+    >;
 
     fn get_transactions_for_account(
         &self,
         address: &Pubkey,
         before: Option<Signature>,
         until: Option<Signature>,
-    ) -> impl Future<Output = Result<Vec<EncodedConfirmedTransactionWithStatusMeta>, anyhow::Error>>;
+    ) -> impl Future<Output = Result<Vec<SolanaTransaction>, anyhow::Error>>;
 }
 
 pub struct SolanaClient {
@@ -62,7 +65,7 @@ impl SolanaClientTrait for SolanaClient {
     async fn get_transaction_by_signature(
         &self,
         signature: Signature,
-    ) -> Result<EncodedConfirmedTransactionWithStatusMeta, anyhow::Error> {
+    ) -> Result<(Signature, EncodedConfirmedTransactionWithStatusMeta), anyhow::Error> {
         let config = RpcTransactionConfig {
             encoding: Some(UiTransactionEncoding::Binary),
             commitment: Some(self.client.commitment()),
@@ -78,7 +81,7 @@ impl SolanaClientTrait for SolanaClient {
                 .get_transaction_with_config(&signature, config)
                 .await
             {
-                Ok(response) => return Ok(response),
+                Ok(response) => return Ok((signature, response)),
                 Err(e) => {
                     if retries >= self.max_retries {
                         return Err(anyhow!(
@@ -113,10 +116,10 @@ impl SolanaClientTrait for SolanaClient {
         address: &Pubkey,
         before: Option<Signature>,
         until: Option<Signature>,
-    ) -> Result<Vec<EncodedConfirmedTransactionWithStatusMeta>, anyhow::Error> {
+    ) -> Result<Vec<SolanaTransaction>, anyhow::Error> {
         let mut retries = 0;
         let mut delay = Duration::from_millis(500);
-        let mut txs = vec![];
+        let mut txs: Vec<SolanaTransaction> = vec![];
         let mut before_sig = before;
         let until_sig = until;
 
@@ -158,7 +161,24 @@ impl SolanaClientTrait for SolanaClient {
 
                     for res in results {
                         match res {
-                            Ok(tx) => txs.push(tx),
+                            Ok((sig, tx)) => {
+                                let maybe_meta = &tx.transaction.meta;
+                                let solana_tx = SolanaTransaction {
+                                    signature: sig,
+                                    transaction: serde_json::to_string(&tx.transaction)?,
+                                    timestamp: None,
+                                    logs: match maybe_meta {
+                                        Some(meta) => meta.log_messages.clone().into(),
+                                        None => None,
+                                    },
+                                    slot: tx.slot,
+                                    cost_in_lamports: match maybe_meta {
+                                        Some(meta) => meta.fee,
+                                        None => 0,
+                                    },
+                                };
+                                txs.push(solana_tx);
+                            }
                             Err(e) => {
                                 error!("Error fetching tx: {:?}", e);
                                 return Err(anyhow!("Error fetching tx: {:?}", e));
@@ -239,7 +259,7 @@ mod tests {
             .unwrap();
 
         // println!("{:?}", transaction);
-        println!("{:?}", transaction.transaction.meta.unwrap().log_messages);
+        println!("{:?}", transaction.1.transaction.meta.unwrap().log_messages);
     }
 
     #[tokio::test]
