@@ -8,14 +8,15 @@ use relayer_base::ingestor::IngestorTrait;
 use relayer_base::models::gmp_events::EventModel;
 use relayer_base::subscriber::ChainTransaction;
 use tracing::{info, warn};
+use relayer_base::utils::ThreadSafe;
 
 #[derive(Clone)]
-pub struct TONIngestor<TP: TraceParserTrait + Sync, TM: UpdateEvents + Send + Sync> {
+pub struct TONIngestor<TP: TraceParserTrait + Sync, TM: UpdateEvents + ThreadSafe> {
     trace_parser: TP,
     ton_trace_model: TM,
 }
 
-impl<TP: TraceParserTrait + Sync, TM: UpdateEvents + Send + Sync> TONIngestor<TP, TM> {
+impl<TP: TraceParserTrait + Sync, TM: UpdateEvents + ThreadSafe> TONIngestor<TP, TM> {
     pub fn new(trace_parser: TP, ton_trace_model: TM) -> Self {
         Self {
             trace_parser,
@@ -24,8 +25,10 @@ impl<TP: TraceParserTrait + Sync, TM: UpdateEvents + Send + Sync> TONIngestor<TP
     }
 }
 
-impl<TP: TraceParserTrait + Sync, TM: UpdateEvents + Send + Sync> IngestorTrait
-    for TONIngestor<TP, TM>
+impl<TP, TM> IngestorTrait for TONIngestor<TP, TM>
+where
+    TP: TraceParserTrait + ThreadSafe,
+    TM: UpdateEvents + ThreadSafe,
 {
     async fn handle_verify(&self, task: VerifyTask) -> Result<(), IngestorError> {
         warn!("handle_verify: {:?}", task);

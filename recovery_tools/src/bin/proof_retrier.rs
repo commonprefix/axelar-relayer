@@ -11,6 +11,7 @@ use relayer_base::{
     utils::{setup_heartbeat, setup_logging},
 };
 use std::sync::Arc;
+use tokio_util::sync::CancellationToken;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -38,7 +39,7 @@ async fn main() -> anyhow::Result<()> {
     let mut sigint = signal(SignalKind::interrupt())?;
     let mut sigterm = signal(SignalKind::terminate())?;
 
-    setup_heartbeat("heartbeat:proof_retrier".to_owned(), redis_conn);
+    setup_heartbeat("heartbeat:proof_retrier".to_owned(), redis_conn, None);
 
     tokio::select! {
         _ = sigint.recv()  => {},

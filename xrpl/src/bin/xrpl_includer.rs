@@ -61,7 +61,7 @@ async fn main() -> anyhow::Result<()> {
     let mut sigint = signal(SignalKind::interrupt())?;
     let mut sigterm = signal(SignalKind::terminate())?;
 
-    setup_heartbeat("heartbeat:includer".to_owned(), redis_conn);
+    setup_heartbeat("heartbeat:price_feed".to_owned(), redis_conn, None);
 
     tokio::select! {
         _ = sigint.recv()  => {},

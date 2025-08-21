@@ -2,7 +2,7 @@ use dotenv::dotenv;
 use sqlx::PgPool;
 use std::sync::Arc;
 use tokio::signal::unix::{signal, SignalKind};
-
+use tokio_util::sync::CancellationToken;
 use relayer_base::config::config_from_yaml;
 use relayer_base::gmp_api::gmp_types::TaskKind;
 use relayer_base::redis::connection_manager;
@@ -48,7 +48,7 @@ async fn main() -> anyhow::Result<()> {
     let redis_client = redis::Client::open(config.common_config.redis_server.clone())?;
     let redis_conn = connection_manager(redis_client, None, None, None).await?;
 
-    setup_heartbeat("heartbeat:distributor".to_owned(), redis_conn);
+    setup_heartbeat("heartbeat:price_feed".to_owned(), redis_conn, None);
 
     let mut sigint = signal(SignalKind::interrupt())?;
     let mut sigterm = signal(SignalKind::terminate())?;

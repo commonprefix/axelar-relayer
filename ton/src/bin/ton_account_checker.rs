@@ -5,6 +5,7 @@ use relayer_base::redis::connection_manager;
 use relayer_base::utils::{setup_heartbeat, setup_logging};
 use std::str::FromStr;
 use tokio::signal::unix::{signal, SignalKind};
+use tokio_util::sync::CancellationToken;
 use ton::check_accounts::check_accounts;
 use ton::client::TONRpcClient;
 use ton::config::TONConfig;
@@ -26,7 +27,7 @@ async fn main() -> anyhow::Result<()> {
     let redis_client = redis::Client::open(config.common_config.redis_server.clone())?;
     let redis_conn = connection_manager(redis_client, None, None, None).await?;
 
-    setup_heartbeat("heartbeat:account_checker".to_owned(), redis_conn);
+    setup_heartbeat("heartbeat:price_feed".to_owned(), redis_conn, None);
 
     let mut our_addresses = vec![];
     for wallet in config.wallets {

@@ -10,6 +10,7 @@ use sqlx::PgPool;
 use std::sync::Arc;
 use tokio::signal::unix::{signal, SignalKind};
 use tokio::task::JoinHandle;
+use tokio_util::sync::CancellationToken;
 use ton::client::TONRpcClient;
 use ton::config::TONConfig;
 use ton::retry_subscriber::RetryTONSubscriber;
@@ -39,7 +40,7 @@ async fn main() -> anyhow::Result<()> {
     let redis_client = redis::Client::open(config.common_config.redis_server.clone())?;
     let redis_conn = connection_manager(redis_client, None, None, None).await?;
 
-    setup_heartbeat("heartbeat:subscriber".to_owned(), redis_conn);
+    setup_heartbeat("heartbeat:price_feed".to_owned(), redis_conn, None);
 
     let pg_pool = PgPool::connect(&config.common_config.postgres_url).await?;
 

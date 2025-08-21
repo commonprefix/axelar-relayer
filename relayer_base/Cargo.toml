@@ -25,7 +25,7 @@ reqwest = { workspace = true }
 thiserror = { workspace = true }
 error-stack = { workspace = true }
 serde = { workspace = true }
-tokio-util = { workspace = true }
+tokio-util = { workspace = true, features = ["rt"] }
 uuid = { workspace = true }
 redis = { workspace = true, features = ["connection-manager"] }
 async-std = { workspace = true }
