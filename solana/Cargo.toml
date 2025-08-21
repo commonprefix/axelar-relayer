@@ -31,7 +31,7 @@ axelar-wasm-std = { workspace = true }
 interchain-token-service = { workspace = true }
 regex = { workspace = true }
 rust_decimal = { workspace = true }
-
+futures = { workspace = true }
 
 [dev-dependencies]
 relayer-base = { workspace = true, features = ["mocks"] }
