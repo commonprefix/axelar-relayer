@@ -7,15 +7,10 @@ pub trait SubscriberCursor {
     // Subscriber functions
     fn store_latest_signature(
         &self,
-        chain: &str,
         context: &str,
         signature: String,
     ) -> impl Future<Output = Result<()>>;
-    fn get_latest_signature(
-        &self,
-        chain: &str,
-        context: &str,
-    ) -> impl Future<Output = Result<Option<String>>>;
+    fn get_latest_signature(&self, context: &str) -> impl Future<Output = Result<Option<String>>>;
 }
 
 #[derive(Clone, Debug)]
@@ -31,17 +26,11 @@ impl PostgresDB {
 }
 
 impl SubscriberCursor for PostgresDB {
-    async fn store_latest_signature(
-        &self,
-        chain: &str,
-        context: &str,
-        signature: String,
-    ) -> Result<()> {
+    async fn store_latest_signature(&self, context: &str, signature: String) -> Result<()> {
         let query =
-            "INSERT INTO subscriber_cursors (chain, context, signature) VALUES ($1, $2, $3) ON CONFLICT (chain, context) DO UPDATE SET signature = $3, updated_at = now() RETURNING chain, context, signature";
+            "INSERT INTO solana_subscriber_cursors (context, signature) VALUES ($1, $2) ON CONFLICT (context) DO UPDATE SET signature = $2, updated_at = now() RETURNING context, signature";
 
         sqlx::query(query)
-            .bind(chain)
             .bind(context)
             .bind(signature)
             .execute(&self.pool)
@@ -49,10 +38,9 @@ impl SubscriberCursor for PostgresDB {
         Ok(())
     }
 
-    async fn get_latest_signature(&self, chain: &str, context: &str) -> Result<Option<String>> {
-        let query = "SELECT signature FROM subscriber_cursors WHERE chain = $1 AND context = $2";
+    async fn get_latest_signature(&self, context: &str) -> Result<Option<String>> {
+        let query = "SELECT signature FROM solana_subscriber_cursors WHERE context = $1";
         let signature = sqlx::query_scalar(query)
-            .bind(chain)
             .bind(context)
             .fetch_optional(&self.pool)
             .await?;
