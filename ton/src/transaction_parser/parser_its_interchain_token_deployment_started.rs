@@ -15,6 +15,7 @@ pub struct ParserITSInterchainTokenDeploymentStarted {
     log: Option<LogITSInterchainTokenDeploymentStartedMessage>,
     tx: Transaction,
     allowed_address: TonAddress,
+    log_position: isize,
 }
 
 impl ParserITSInterchainTokenDeploymentStarted {
@@ -26,6 +27,7 @@ impl ParserITSInterchainTokenDeploymentStarted {
             log: None,
             tx,
             allowed_address,
+            log_position: -1,
         })
     }
 }
@@ -33,6 +35,10 @@ impl ParserITSInterchainTokenDeploymentStarted {
 #[async_trait]
 impl Parser for ParserITSInterchainTokenDeploymentStarted {
     async fn parse(&mut self) -> Result<bool, TransactionParsingError> {
+        if self.log_position == -1 {
+            return Ok(false);
+        }
+
         if self.log.is_none() {
             self.log = Some(
                 LogITSInterchainTokenDeploymentStartedMessage::from_boc_b64(
@@ -44,12 +50,17 @@ impl Parser for ParserITSInterchainTokenDeploymentStarted {
         Ok(true)
     }
 
-    async fn is_match(&self) -> Result<bool, TransactionParsingError> {
+    async fn check_match(&mut self) -> Result<bool, TransactionParsingError> {
         if self.tx.account != self.allowed_address {
             return Ok(false);
         }
+        let pos = is_log_emitted(&self.tx, OP_INTERCHAIN_TOKEN_DEPLOYMENT_STARTED_LOG)?;
+        if pos >= 0 {
+            self.log_position = pos;
+            return Ok(true);
+        };
 
-        is_log_emitted(&self.tx, OP_INTERCHAIN_TOKEN_DEPLOYMENT_STARTED_LOG, 0)
+        Ok(false)
     }
 
     async fn key(&self) -> Result<MessageMatchingKey, TransactionParsingError> {
@@ -121,7 +132,7 @@ mod tests {
             .await
             .unwrap();
 
-        assert!(parser.is_match().await.unwrap());
+        assert!(parser.check_match().await.unwrap());
         assert!(parser.message_id().await.is_ok());
 
         parser.parse().await.unwrap();
@@ -162,9 +173,9 @@ mod tests {
         )
         .unwrap();
         let tx = traces[20].transactions[1].clone();
-        let parser = ParserITSInterchainTokenDeploymentStarted::new(tx, address.clone())
+        let mut parser = ParserITSInterchainTokenDeploymentStarted::new(tx, address.clone())
             .await
             .unwrap();
-        assert!(!parser.is_match().await.unwrap());
+        assert!(!parser.check_match().await.unwrap());
     }
 }

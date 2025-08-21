@@ -42,7 +42,7 @@ impl Parser for ParserITSTokenMetadataRegistered {
         Ok(true)
     }
 
-    async fn is_match(&self) -> Result<bool, TransactionParsingError> {
+    async fn check_match(&mut self) -> Result<bool, TransactionParsingError> {
         if self.tx.account != self.allowed_address {
             return Ok(false);
         }
@@ -111,7 +111,7 @@ mod tests {
             .await
             .unwrap();
 
-        assert!(parser.is_match().await.unwrap());
+        assert!(parser.check_match().await.unwrap());
         assert!(parser.message_id().await.is_ok());
 
         parser.parse().await.unwrap();
@@ -149,9 +149,9 @@ mod tests {
         )
         .unwrap();
         let tx = traces[10].transactions[3].clone();
-        let parser = ParserITSTokenMetadataRegistered::new(tx, address.clone())
+        let mut parser = ParserITSTokenMetadataRegistered::new(tx, address.clone())
             .await
             .unwrap();
-        assert!(!parser.is_match().await.unwrap());
+        assert!(!parser.check_match().await.unwrap());
     }
 }

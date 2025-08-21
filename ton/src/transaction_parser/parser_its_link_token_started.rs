@@ -13,6 +13,7 @@ pub struct ParserITSLinkTokenStarted {
     log: Option<LogITSLinkTokenStartedMessage>,
     tx: Transaction,
     allowed_address: TonAddress,
+    log_position: isize,
 }
 
 impl ParserITSLinkTokenStarted {
@@ -24,6 +25,7 @@ impl ParserITSLinkTokenStarted {
             log: None,
             tx,
             allowed_address,
+            log_position: -1,
         })
     }
 }
@@ -31,10 +33,16 @@ impl ParserITSLinkTokenStarted {
 #[async_trait]
 impl Parser for ParserITSLinkTokenStarted {
     async fn parse(&mut self) -> Result<bool, TransactionParsingError> {
+        if self.log_position < 0 {
+            return Ok(false);
+        }
+
         if self.log.is_none() {
             self.log = Some(
                 LogITSLinkTokenStartedMessage::from_boc_b64(
-                    &self.tx.out_msgs[0].message_content.body,
+                    &self.tx.out_msgs[self.log_position as usize]
+                        .message_content
+                        .body,
                 )
                 .map_err(|e| TransactionParsingError::BocParsing(e.to_string()))?,
             );
@@ -42,12 +50,18 @@ impl Parser for ParserITSLinkTokenStarted {
         Ok(true)
     }
 
-    async fn is_match(&self) -> Result<bool, TransactionParsingError> {
+    async fn check_match(&mut self) -> Result<bool, TransactionParsingError> {
         if self.tx.account != self.allowed_address {
             return Ok(false);
         }
 
-        is_log_emitted(&self.tx, OP_LINK_TOKEN_STARTED_LOG, 0)
+        let pos = is_log_emitted(&self.tx, OP_LINK_TOKEN_STARTED_LOG)?;
+        if pos >= 0 {
+            self.log_position = pos;
+            return Ok(true);
+        };
+
+        Ok(false)
     }
 
     async fn key(&self) -> Result<MessageMatchingKey, TransactionParsingError> {
@@ -113,7 +127,7 @@ mod tests {
 
         let mut parser = ParserITSLinkTokenStarted::new(tx, address).await.unwrap();
 
-        assert!(parser.is_match().await.unwrap());
+        assert!(parser.check_match().await.unwrap());
         assert!(parser.message_id().await.is_ok());
 
         parser.parse().await.unwrap();
@@ -146,7 +160,7 @@ mod tests {
                 let meta = &common.meta.as_ref().unwrap();
                 assert_eq!(
                     meta.tx_id.as_deref(),
-                    Some("Det6b7Uh8FfP7N3e6pqb4guD71ZJj5WxN49Y/QezJQM=")
+                    Some("Jfq+NTo1X/4gXQri4fUs4goCq4+zRoz4oHBq+rHI3KM=")
                 );
             }
             _ => panic!("Expected ITSLinkTokenStarted event"),
@@ -162,9 +176,9 @@ mod tests {
         )
         .unwrap();
         let tx = traces[20].transactions[3].clone();
-        let parser = ParserITSLinkTokenStarted::new(tx, address.clone())
+        let mut parser = ParserITSLinkTokenStarted::new(tx, address.clone())
             .await
             .unwrap();
-        assert!(!parser.is_match().await.unwrap());
+        assert!(!parser.check_match().await.unwrap());
     }
 }

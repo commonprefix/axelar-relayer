@@ -22,18 +22,14 @@ pub fn is_log_emmitted_in_opcode(
         .unwrap_or(false))
 }
 
-pub fn is_log_emitted(
-    tx: &Transaction,
-    op_code: u32,
-    out_msg_log_index: usize,
-) -> Result<bool, TransactionParsingError> {
-    Ok(tx
-        .out_msgs
-        .get(out_msg_log_index)
-        .filter(|out_msg| out_msg.destination.is_none())
-        .and_then(|out_msg| out_msg.opcode)
-        .map(|opcode| opcode == op_code)
-        .unwrap_or(false))
+pub fn is_log_emitted(tx: &Transaction, op_code: u32) -> Result<isize, TransactionParsingError> {
+    for (i, msg) in tx.out_msgs.clone().into_iter().enumerate() {
+        if msg.destination.is_none() && msg.opcode == Some(op_code) {
+            return Ok(i as isize);
+        }
+    }
+
+    Ok(-1)
 }
 
 pub fn hash_to_message_id(hash: &str) -> Result<String, TONRpcError> {

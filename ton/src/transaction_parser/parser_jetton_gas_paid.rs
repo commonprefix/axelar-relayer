@@ -40,7 +40,7 @@ impl Parser for ParserJettonGasPaid {
         Ok(true)
     }
 
-    async fn is_match(&self) -> Result<bool, TransactionParsingError> {
+    async fn check_match(&mut self) -> Result<bool, TransactionParsingError> {
         if self.tx.account != self.allowed_address {
             return Ok(false);
         }
@@ -126,7 +126,7 @@ mod tests {
         let address = tx.clone().account;
 
         let mut parser = ParserJettonGasPaid::new(tx, address).await.unwrap();
-        assert!(parser.is_match().await.unwrap());
+        assert!(parser.check_match().await.unwrap());
         assert!(parser.message_id().await.is_ok());
         parser.parse().await.unwrap();
         let event = parser.event(Some("foo".to_string())).await.unwrap();
@@ -163,7 +163,7 @@ mod tests {
         )
         .unwrap();
         let tx = traces[10].transactions[3].clone();
-        let parser = ParserJettonGasPaid::new(tx, address.clone()).await.unwrap();
-        assert!(!parser.is_match().await.unwrap());
+        let mut parser = ParserJettonGasPaid::new(tx, address.clone()).await.unwrap();
+        assert!(!parser.check_match().await.unwrap());
     }
 }

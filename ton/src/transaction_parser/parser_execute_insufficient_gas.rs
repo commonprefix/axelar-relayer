@@ -46,7 +46,7 @@ impl Parser for ParserExecuteInsufficientGas {
         Ok(true)
     }
 
-    async fn is_match(&self) -> Result<bool, TransactionParsingError> {
+    async fn check_match(&mut self) -> Result<bool, TransactionParsingError> {
         let txs = &self.trace.transactions;
 
         if let (Some(tx1), Some(tx2)) = (txs.get(1), txs.get(2)) {
@@ -133,7 +133,7 @@ mod tests {
         let mut parser = ParserExecuteInsufficientGas::new(tr, address.clone(), "ton2".to_string())
             .await
             .unwrap();
-        assert!(parser.is_match().await.unwrap());
+        assert!(parser.check_match().await.unwrap());
         parser.parse().await.unwrap();
         let event = parser.event(None).await.unwrap();
         match event {
@@ -157,10 +157,10 @@ mod tests {
         .unwrap();
 
         let tr = traces[12].clone();
-        let parser = ParserExecuteInsufficientGas::new(tr, address.clone(), "ton2".to_string())
+        let mut parser = ParserExecuteInsufficientGas::new(tr, address.clone(), "ton2".to_string())
             .await
             .unwrap();
-        assert!(!parser.is_match().await.unwrap());
+        assert!(!parser.check_match().await.unwrap());
     }
 
     #[tokio::test]
@@ -176,7 +176,7 @@ mod tests {
         let mut parser = ParserExecuteInsufficientGas::new(tr, address.clone(), "ton2".to_string())
             .await
             .unwrap();
-        assert!(parser.is_match().await.unwrap());
+        assert!(parser.check_match().await.unwrap());
         parser.parse().await.unwrap();
         let event = parser.event(None).await.unwrap();
         match event {

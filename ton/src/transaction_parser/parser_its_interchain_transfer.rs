@@ -14,6 +14,7 @@ pub struct ParserITSInterchainTransfer {
     log: Option<LogITSInterchainTransferMessage>,
     tx: Transaction,
     allowed_address: TonAddress,
+    log_position: isize,
 }
 
 impl ParserITSInterchainTransfer {
@@ -25,6 +26,7 @@ impl ParserITSInterchainTransfer {
             log: None,
             tx,
             allowed_address,
+            log_position: -1,
         })
     }
 }
@@ -32,23 +34,36 @@ impl ParserITSInterchainTransfer {
 #[async_trait]
 impl Parser for ParserITSInterchainTransfer {
     async fn parse(&mut self) -> Result<bool, TransactionParsingError> {
+        if self.log_position < 0 {
+            return Ok(false);
+        }
+
         if self.log.is_none() {
-            self.log = Some(
-                LogITSInterchainTransferMessage::from_boc_b64(
-                    &self.tx.out_msgs[1].message_content.body,
-                )
-                .map_err(|e| TransactionParsingError::BocParsing(e.to_string()))?,
-            );
+            for tx in &self.tx.out_msgs.clone() {
+                if tx.destination.is_none() && tx.opcode == Some(OP_INTERCHAIN_TRANSFER_LOG) {
+                    self.log = Some(
+                        LogITSInterchainTransferMessage::from_boc_b64(&tx.message_content.body)
+                            .map_err(|e| TransactionParsingError::BocParsing(e.to_string()))?,
+                    );
+                    break;
+                }
+            }
         }
         Ok(true)
     }
 
-    async fn is_match(&self) -> Result<bool, TransactionParsingError> {
+    async fn check_match(&mut self) -> Result<bool, TransactionParsingError> {
         if self.tx.account != self.allowed_address {
             return Ok(false);
         }
 
-        is_log_emitted(&self.tx, OP_INTERCHAIN_TRANSFER_LOG, 1)
+        let pos = is_log_emitted(&self.tx, OP_INTERCHAIN_TRANSFER_LOG)?;
+        if pos >= 0 {
+            self.log_position = pos;
+            return Ok(true);
+        };
+
+        Ok(false)
     }
 
     async fn key(&self) -> Result<MessageMatchingKey, TransactionParsingError> {
@@ -122,7 +137,7 @@ mod tests {
 
         let mut parser = ParserITSInterchainTransfer::new(tx, address).await.unwrap();
 
-        assert!(parser.is_match().await.unwrap());
+        assert!(parser.check_match().await.unwrap());
         assert!(parser.message_id().await.is_ok());
 
         parser.parse().await.unwrap();
@@ -160,7 +175,58 @@ mod tests {
                     Some("whzah8/IAGKVzmJNgD5/w9xygsneoYXrMtaluuPp1vs=")
                 );
             }
-            _ => panic!("Expected ITSInterchainTokenDeploymentStartedEvent event"),
+            _ => panic!("Expected ITSInterchainTransfer event"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_parser_different_position() {
+        let traces = fixture_traces();
+
+        let tx = traces[23].transactions[7].clone();
+        let address = tx.clone().account;
+
+        let mut parser = ParserITSInterchainTransfer::new(tx, address).await.unwrap();
+
+        assert!(parser.check_match().await.unwrap());
+        assert!(parser.message_id().await.is_ok());
+
+        parser.parse().await.unwrap();
+        let event = parser.event(Some("foo".to_string())).await.unwrap();
+        match event {
+            Event::ITSInterchainTransfer {
+                common,
+                destination_chain,
+                message_id,
+                token_spent,
+                source_address,
+                destination_address,
+                data_hash,
+            } => {
+                assert_eq!(message_id, "foo");
+
+                assert_eq!(destination_chain, "avalanche-fuji");
+                assert_eq!(
+                    token_spent.token_id.unwrap(),
+                    "0x448414de01bef5762e7341b7bcdddd806c31989ce5c552b206b314bae4eb8685"
+                );
+                assert_eq!(token_spent.amount, "100");
+                assert_eq!(
+                    source_address,
+                    "0:1fe0fa0e78288928ca05908c617fb90bdc7edde429e146ca048bdcd31c890e76"
+                );
+                assert_eq!(
+                    destination_address,
+                    "0x51990c837551917363e75636d6eb87d7f68dd6c8"
+                );
+                assert_eq!(data_hash, "00000000000000000000000000000000");
+                let meta = &common.meta.as_ref().unwrap();
+                assert_eq!(
+                    meta.tx_id.as_deref(),
+                    Some("+rzq0roTNGHBDmHs09pgaqgNYGpp5NsjBBhyOPbjhPE=")
+                );
+            }
+            _ => panic!("Expected ITSInterchainTransfer event"),
         }
     }
 
@@ -173,9 +239,9 @@ mod tests {
         )
         .unwrap();
         let tx = traces[20].transactions[3].clone();
-        let parser = ParserITSInterchainTransfer::new(tx, address.clone())
+        let mut parser = ParserITSInterchainTransfer::new(tx, address.clone())
             .await
             .unwrap();
-        assert!(!parser.is_match().await.unwrap());
+        assert!(!parser.check_match().await.unwrap());
     }
 }
