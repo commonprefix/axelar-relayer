@@ -6966,6 +6966,7 @@ dependencies = [
  "serde_yaml",
  "solana-sdk",
  "solana-transaction-status",
+ "solana_types",
  "sqlx",
  "testcontainers",
  "testcontainers-modules",
@@ -8429,6 +8430,7 @@ dependencies = [
  "chrono",
  "dotenv",
  "error-stack 0.5.0",
+ "futures 0.3.31",
  "hex",
  "interchain-token-service 1.1.0",
  "mockall 0.13.1",
@@ -8447,6 +8449,7 @@ dependencies = [
  "solana-rpc-client-api",
  "solana-sdk",
  "solana-transaction-status",
+ "solana_types",
  "sqlx",
  "testcontainers",
  "testcontainers-modules",
@@ -10620,6 +10623,17 @@ dependencies = [
  "scroll",
  "thiserror 1.0.69",
  "winapi 0.3.9",
+]
+
+[[package]]
+name = "solana_types"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "serde",
+ "serde_json",
+ "solana-sdk",
+ "tracing",
 ]
 
 [[package]]

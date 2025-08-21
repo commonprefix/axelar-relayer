@@ -7,6 +7,7 @@ relayer-base = { path = "relayer_base" }
 xrpl = { path = "xrpl" }
 solana = { path = "solana" }
 ton_types = { path = "ton_types" }
+solana_types = { path = "solana_types" }
 recovery-tools = { path = "recovery_tools" }
 anyhow = "1.0.93"
 async-stream = "0.3.6"
