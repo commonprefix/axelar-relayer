@@ -3,12 +3,14 @@ use dotenv::dotenv;
 use relayer_base::config::config_from_yaml;
 use relayer_base::redis::connection_manager;
 use relayer_base::{
-    database::PostgresDB,
     queue::Queue,
     subscriber::Subscriber,
     utils::{setup_heartbeat, setup_logging},
 };
-use solana::{client::SolanaClient, config::SolanaConfig, subscriber::SolanaSubscriber};
+use solana::{
+    client::SolanaClient, config::SolanaConfig, models::solana_subscriber_cursor::PostgresDB,
+    subscriber::SolanaSubscriber,
+};
 use solana_sdk::commitment_config::CommitmentConfig;
 use solana_sdk::pubkey::Pubkey;
 use std::str::FromStr;
@@ -24,7 +26,7 @@ async fn main() -> anyhow::Result<()> {
     let _guard = setup_logging(&config.common_config);
 
     let events_queue = Queue::new(&config.common_config.queue_address, "events").await;
-    let postgres_db = PostgresDB::new(&config.common_config.postgres_url).await?;
+    let postgres_cursor = PostgresDB::new(&config.common_config.postgres_url).await?;
 
     let mut sigint = signal(SignalKind::interrupt())?;
     let mut sigterm = signal(SignalKind::terminate())?;
@@ -32,7 +34,7 @@ async fn main() -> anyhow::Result<()> {
     let solana_client: SolanaClient =
         SolanaClient::new(&config.solana_rpc, config.solana_commitment, 3)?;
     let solana_subscriber =
-        SolanaSubscriber::new(solana_client, postgres_db, "default".to_string()).await?;
+        SolanaSubscriber::new(solana_client, "default".to_string(), postgres_cursor).await?;
 
     let mut subscriber = Subscriber::new(solana_subscriber);
     let redis_client = redis::Client::open(config.common_config.redis_server.clone())?;

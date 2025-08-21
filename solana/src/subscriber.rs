@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::client::SolanaClientTrait;
+use crate::{client::SolanaClientTrait, models::solana_subscriber_cursor::SubscriberCursor};
 use anyhow::anyhow;
 use relayer_base::{
     database::Database,
@@ -13,19 +13,23 @@ use solana_transaction_status::EncodedConfirmedTransactionWithStatusMeta;
 use solana_types::solana_types::SolanaTransaction;
 use tracing::error;
 
-pub struct SolanaSubscriber<DB: Database, X: SolanaClientTrait> {
+pub struct SolanaSubscriber<X: SolanaClientTrait, SC: SubscriberCursor> {
     client: X,
     last_signature_checked: Option<Signature>,
-    db: DB,
+    cursor_model: SC,
     context: String,
 }
 
-impl<DB: Database, X: SolanaClientTrait> SolanaSubscriber<DB, X> {
-    pub async fn new(client: X, db: DB, context: String) -> Result<Self, SubscriberError> {
+impl<X: SolanaClientTrait, SC: SubscriberCursor> SolanaSubscriber<X, SC> {
+    pub async fn new(
+        client: X,
+        context: String,
+        cursor_model: SC,
+    ) -> Result<Self, SubscriberError> {
         Ok(SolanaSubscriber {
             client,
             last_signature_checked: None,
-            db,
+            cursor_model,
             context,
         })
     }
@@ -39,7 +43,7 @@ impl<DB: Database, X: SolanaClientTrait> SolanaSubscriber<DB, X> {
     }
 }
 
-impl<DB: Database, X: SolanaClientTrait> TransactionPoller for SolanaSubscriber<DB, X> {
+impl<X: SolanaClientTrait, SC: SubscriberCursor> TransactionPoller for SolanaSubscriber<X, SC> {
     type Transaction = SolanaTransaction;
     type Account = Pubkey;
 
