@@ -320,6 +320,15 @@ pub struct MessageExecutedEventMetadata {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct SignersRotatedEventMetadata {
+    #[serde(flatten)]
+    pub common_meta: EventMetadata,
+    #[serde(rename = "signersHash")]
+    pub signers_hash: Option<String>,
+    pub epoch: Option<u64>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct ScopedMessage {
     #[serde(rename = "messageID")]
     pub message_id: String,
@@ -490,6 +499,12 @@ pub enum Event {
         destination_chain: String,
         #[serde(rename = "token")]
         token: InterchainTokenDefinition,
+    },
+    SignersRotated {
+        #[serde(flatten)]
+        common: CommonEventFields<SignersRotatedEventMetadata>,
+        #[serde(rename = "messageID")]
+        message_id: String,
     },
 }
 

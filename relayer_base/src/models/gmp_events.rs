@@ -78,6 +78,11 @@ impl EventModel {
                 common.r#type.clone(),
                 Some(message.message_id.clone()),
             ),
+            Event::SignersRotated { common, message_id } => (
+                common.event_id.clone(),
+                common.r#type.clone(),
+                Some(message_id.clone()),
+            ),
         };
 
         Self {
