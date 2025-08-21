@@ -30,7 +30,7 @@ async fn main() -> anyhow::Result<()> {
     let mut sigterm = signal(SignalKind::terminate())?;
 
     let solana_client: SolanaClient =
-        SolanaClient::new(&config.solana_rpc, CommitmentConfig::confirmed(), 3)?;
+        SolanaClient::new(&config.solana_rpc, config.solana_commitment, 3)?;
     let solana_subscriber =
         SolanaSubscriber::new(solana_client, postgres_db, "default".to_string()).await?;
 
