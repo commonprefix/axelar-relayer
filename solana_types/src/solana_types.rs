@@ -7,7 +7,7 @@ pub struct SolanaTransaction {
     pub signature: Signature,
     pub transaction: String,
     pub timestamp: Option<DateTime<Utc>>,
-    pub logs: Vec<String>,
+    pub logs: Option<Vec<String>>,
     pub slot: u64,
     pub cost_in_lamports: u64,
 }

@@ -14,11 +14,11 @@ use solana_rpc_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::commitment_config::CommitmentConfig;
 use solana_sdk::pubkey::Pubkey;
 use solana_sdk::signature::Signature;
-use solana_transaction_status::{EncodedConfirmedTransactionWithStatusMeta, UiTransactionEncoding};
+use solana_transaction_status::UiTransactionEncoding;
 use solana_types::solana_types::SolanaTransaction;
 use tracing::{debug, error, info};
 
-const LIMIT: usize = 50;
+const LIMIT: usize = 10;
 
 pub trait SolanaClientTrait: Send + Sync {
     fn inner(&self) -> &RpcClient;
