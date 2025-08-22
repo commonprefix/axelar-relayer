@@ -37,7 +37,7 @@ pub enum SolanaStatus {
 #[derive(Debug, Serialize, Deserialize, Clone, sqlx::FromRow)]
 pub struct SolanaTransaction {
     pub signature: String,
-    pub signatures: Option<Vec<String>>, // optional additional signatures
+    pub signatures: Option<Vec<String>>,
     pub tx: String,
     pub status: SolanaStatus,
     pub source: SolanaTransactionSource,
@@ -48,7 +48,7 @@ pub struct SolanaTransaction {
     pub route_tx: Option<String>,
     pub block_time: Option<chrono::DateTime<chrono::Utc>>,
     pub logs: Vec<String>,
-    /// The accounts that were passed to an instructoin.
+    /// The accounts that were passed to an instruction.
     /// - first item: the program id
     /// - second item: the Pubkeys provided to the ix
     /// - third item: payload data

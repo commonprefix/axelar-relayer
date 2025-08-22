@@ -9,7 +9,7 @@ use relayer_base::{
 };
 use solana::{
     client::SolanaRpcClient, config::SolanaConfig, models::solana_subscriber_cursor::PostgresDB,
-    subscriber::SolanaSubscriber,
+    subscriber::SolanaPoller,
 };
 use solana_sdk::pubkey::Pubkey;
 use std::str::FromStr;
@@ -33,7 +33,7 @@ async fn main() -> anyhow::Result<()> {
     let solana_rpc_client: SolanaRpcClient =
         SolanaRpcClient::new(&config.solana_rpc, config.solana_commitment, 3)?;
     let solana_subscriber =
-        SolanaSubscriber::new(solana_rpc_client, "default".to_string(), postgres_cursor).await?;
+        SolanaPoller::new(solana_rpc_client, "default".to_string(), postgres_cursor).await?;
 
     let mut subscriber = Subscriber::new(solana_subscriber);
     let redis_client = redis::Client::open(config.common_config.redis_server.clone())?;

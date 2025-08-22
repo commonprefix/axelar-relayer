@@ -12,14 +12,14 @@ use solana_sdk::signature::Signature;
 use solana_types::solana_types::SolanaTransaction;
 use tracing::error;
 
-pub struct SolanaSubscriber<X: SolanaRpcClientTrait, SC: SubscriberCursor> {
+pub struct SolanaPoller<X: SolanaRpcClientTrait, SC: SubscriberCursor> {
     client: X,
     last_signature_checked: Option<Signature>,
     cursor_model: SC,
     context: String,
 }
 
-impl<X: SolanaRpcClientTrait, SC: SubscriberCursor> SolanaSubscriber<X, SC> {
+impl<X: SolanaRpcClientTrait, SC: SubscriberCursor> SolanaPoller<X, SC> {
     pub async fn new(
         client: X,
         context: String,
@@ -47,7 +47,7 @@ impl<X: SolanaRpcClientTrait, SC: SubscriberCursor> SolanaSubscriber<X, SC> {
             }
         };
 
-        Ok(SolanaSubscriber {
+        Ok(SolanaPoller {
             client,
             last_signature_checked,
             cursor_model,
@@ -67,7 +67,7 @@ impl<X: SolanaRpcClientTrait, SC: SubscriberCursor> SolanaSubscriber<X, SC> {
     }
 }
 
-impl<X: SolanaRpcClientTrait, SC: SubscriberCursor> TransactionPoller for SolanaSubscriber<X, SC> {
+impl<X: SolanaRpcClientTrait, SC: SubscriberCursor> TransactionPoller for SolanaPoller<X, SC> {
     type Transaction = SolanaTransaction;
     type Account = Pubkey;
 
@@ -105,9 +105,7 @@ impl<X: SolanaRpcClientTrait, SC: SubscriberCursor> TransactionPoller for Solana
     }
 }
 
-impl<X: SolanaRpcClientTrait, SC: SubscriberCursor> TransactionListener
-    for SolanaSubscriber<X, SC>
-{
+impl<X: SolanaRpcClientTrait, SC: SubscriberCursor> TransactionListener for SolanaPoller<X, SC> {
     type Transaction = SolanaTransaction;
     type Account = Pubkey;
 
@@ -185,7 +183,7 @@ mod tests {
         let solana_client: SolanaRpcClient =
             SolanaRpcClient::new(&config.solana_rpc, CommitmentConfig::confirmed(), 3).unwrap();
         let mut solana_subscriber =
-            SolanaSubscriber::new(solana_client, "default".to_string(), postgres_cursor)
+            SolanaPoller::new(solana_client, "default".to_string(), postgres_cursor)
                 .await
                 .unwrap();
 
