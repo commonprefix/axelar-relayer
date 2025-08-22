@@ -10,19 +10,19 @@ use crate::{
     subscriber::ChainTransaction,
 };
 use async_trait::async_trait;
-use futures::StreamExt;
-use lapin::{options::BasicAckOptions, Consumer};
+use lapin::options::BasicAckOptions;
 use redis::aio::ConnectionManager;
 use std::sync::Arc;
+use lapin::message::Delivery;
 use tokio::select;
 use tokio::signal::unix::{signal, SignalKind};
 use tokio_util::sync::CancellationToken;
 use tokio_util::task::TaskTracker;
 use tracing::{debug, error, info, warn};
+use crate::queue_consumer::QueueConsumer;
 
 pub struct Ingestor<W: IngestorWorkerTrait + Clone + ThreadSafe> {
     worker: W,
-    token: CancellationToken,
 }
 
 #[async_trait]
@@ -38,76 +38,59 @@ pub trait IngestorTrait: ThreadSafe {
     async fn handle_retriable_task(&self, task: RetryTask) -> Result<(), IngestorError>;
 }
 
+#[async_trait]
+impl<W> QueueConsumer for Ingestor<W>
+where
+    W: IngestorWorkerTrait + Clone + ThreadSafe
+{
+    async fn on_delivery(
+        &self,
+        delivery: Delivery,
+        queue: Arc<Queue>,
+        tracker: &TaskTracker,
+    ) {
+        let worker = self.worker.clone();
+        let queue_clone = Arc::clone(&queue);
+        tracker.spawn(async move {
+            debug!("Spawned new ingestor task");
+            let data = delivery.data.clone();
+            if let Err(e) = worker.process_delivery(&data).await {
+                let mut force_requeue = false;
+                match e {
+                    IngestorError::IrrelevantTask => {
+                        debug!("Skipping irrelevant task");
+                        force_requeue = true;
+                    }
+                    _ => {
+                        error!("Failed to consume delivery: {:?}", e);
+                    }
+                }
+
+                if let Err(nack_err) =
+                    queue_clone.republish(delivery, force_requeue).await
+                {
+                    error!("Failed to republish message: {:?}", nack_err);
+                }
+            } else if let Err(ack_err) = delivery.ack(BasicAckOptions::default()).await
+            {
+                let item = serde_json::from_slice::<QueueItem>(&delivery.data);
+                error!("Failed to ack item {:?}: {:?}", item, ack_err);
+            }
+            debug!("Ingestor task finished");
+        });
+    }
+
+}
+
 impl<W> Ingestor<W>
 where
     W: IngestorWorkerTrait + Clone + ThreadSafe,
 {
-    pub fn new(worker: W, token: CancellationToken) -> Self {
-        Self { worker, token }
+    pub fn new(worker: W) -> Self {
+        Self { worker }
     }
 
-    async fn work(&self, consumer: &mut Consumer, queue: Arc<Queue>) {
-        let tracker = TaskTracker::new();
-
-        loop {
-            debug!("Ingestor task tracker size: {}", tracker.len());
-            info!("Waiting for messages from {}..", consumer.queue());
-            select! {
-                _ = self.token.cancelled() => {
-                    info!("Cancellation requested; no longer awaiting consumer.next()");
-                    break;
-                }
-                maybe_msg = consumer.next() => {
-                    match maybe_msg {
-                        Some(Ok(delivery)) => {
-                            let worker = self.worker.clone();
-                            let queue_clone = Arc::clone(&queue);
-                            tracker.spawn(async move {
-                                debug!("Spawned new ingestor task");
-                                let data = delivery.data.clone();
-                                if let Err(e) = worker.process_delivery(&data).await {
-                                    let mut force_requeue = false;
-                                    match e {
-                                        IngestorError::IrrelevantTask => {
-                                            debug!("Skipping irrelevant task");
-                                            force_requeue = true;
-                                        }
-                                        _ => {
-                                            error!("Failed to consume delivery: {:?}", e);
-                                        }
-                                    }
-
-                                    if let Err(nack_err) =
-                                        queue_clone.republish(delivery, force_requeue).await
-                                    {
-                                        error!("Failed to republish message: {:?}", nack_err);
-                                    }
-                                } else if let Err(ack_err) = delivery.ack(BasicAckOptions::default()).await
-                                {
-                                    let item = serde_json::from_slice::<QueueItem>(&delivery.data);
-                                    error!("Failed to ack item {:?}: {:?}", item, ack_err);
-                                }
-                                debug!("Ingestor task finished");
-                            });
-                        }
-                        Some(Err(e)) => {
-                            error!("Failed to receive delivery: {:?}", e);
-                        }
-                        None => {
-                            //TODO:  Consumer stream ended. Possibly handle reconnection logic here if needed.
-                            warn!("No more messages from consumer.");
-                        }
-                    }
-                }
-            }
-        }
-
-        info!("Awaiting {} ingestor tasks", tracker.len());
-        tracker.close();
-        tracker.wait().await
-    }
-
-    pub async fn run(&self, events_queue: Arc<Queue>, tasks_queue: Arc<Queue>) {
+    pub async fn run(&self, events_queue: Arc<Queue>, tasks_queue: Arc<Queue>, token: CancellationToken) {
         let mut events_consumer = match events_queue.consumer().await {
             Ok(consumer) => consumer,
             Err(e) => {
@@ -126,10 +109,10 @@ where
         info!("Ingestor is alive.");
 
         select! {
-            _ = self.work(&mut events_consumer, Arc::clone(&events_queue)) => {
+            _ = self.work(&mut events_consumer, Arc::clone(&events_queue), token.clone()) => {
                 warn!("Events consumer ended");
             },
-            _ = self.work(&mut tasks_consumer, Arc::clone(&tasks_queue)) => {
+            _ = self.work(&mut tasks_consumer, Arc::clone(&tasks_queue), token.clone()) => {
                 warn!("Tasks consumer ended");
             }
         }
@@ -145,7 +128,7 @@ pub async fn run_ingestor(
 ) -> anyhow::Result<()> {
     let worker = IngestorWorker::new(gmp_api, Arc::clone(&chain_ingestor));
     let token = CancellationToken::new();
-    let ingestor = Ingestor::new(worker, token.clone());
+    let ingestor = Ingestor::new(worker);
     let mut sigint = signal(SignalKind::interrupt())?;
     let mut sigterm = signal(SignalKind::terminate())?;
     setup_heartbeat(
@@ -159,7 +142,8 @@ pub async fn run_ingestor(
     let handle = tokio::spawn({
         let events = Arc::clone(events_queue);
         let tasks = Arc::clone(tasks_queue);
-        async move { ingestor.run(events, tasks).await }
+        let token_clone = token.clone();
+        async move { ingestor.run(events, tasks, token_clone).await }
     });
 
     tokio::pin!(handle);

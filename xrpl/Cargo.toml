@@ -36,6 +36,7 @@ rust_decimal = { workspace = true }
 xrpl_amplifier_types = { workspace = true }
 regex = { workspace = true }
 async-trait = { workspace = true }
+tokio-util = { workspace = true }
 
 [dev-dependencies]
 relayer-base = { workspace = true }

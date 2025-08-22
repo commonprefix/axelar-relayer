@@ -8,6 +8,7 @@ use relayer_base::{
 use sqlx::PgPool;
 use std::sync::Arc;
 use tokio::signal::unix::{signal, SignalKind};
+use tokio_util::sync::CancellationToken;
 use ton::config::TONConfig;
 use ton::high_load_query_id_db_wrapper::HighLoadQueryIdDbWrapper;
 use ton::includer::TONIncluder;
@@ -53,7 +54,7 @@ async fn main() -> anyhow::Result<()> {
     tokio::select! {
         _ = sigint.recv()  => {},
         _ = sigterm.recv() => {},
-        _ = ton_includer.run(Arc::clone(&tasks_queue)) => {},
+        _ = ton_includer.run(Arc::clone(&tasks_queue), CancellationToken::new()) => {},
     }
 
     tasks_queue.close().await;

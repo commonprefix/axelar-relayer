@@ -30,10 +30,12 @@ use relayer_base::{
 };
 use std::str::FromStr;
 use std::sync::Arc;
+use async_trait::async_trait;
 use tonlib_core::tlb_types::block::out_action::OutAction;
 use tonlib_core::tlb_types::tlb::TLB;
 use tonlib_core::{TonAddress, TonHash};
 use tracing::{debug, error, info};
+use relayer_base::utils::ThreadSafe;
 
 pub struct TONBroadcaster<GE> {
     wallet_manager: Arc<WalletManager>,
@@ -45,7 +47,10 @@ pub struct TONBroadcaster<GE> {
     gas_estimator: GE,
 }
 
-impl<GE: GasEstimator> TONBroadcaster<GE> {
+impl<GE> TONBroadcaster<GE>
+where
+    GE: GasEstimator + ThreadSafe
+{
     pub fn new(
         wallet_manager: Arc<WalletManager>,
         client: Arc<dyn RestClient>,
@@ -105,7 +110,11 @@ impl<GE: GasEstimator> TONBroadcaster<GE> {
 
 pub struct TONTransaction;
 
-impl<GE: GasEstimator> Broadcaster for TONBroadcaster<GE> {
+#[async_trait]
+impl<GE> Broadcaster for TONBroadcaster<GE>
+where
+    GE: GasEstimator + ThreadSafe
+{
     type Transaction = TONTransaction;
 
     async fn broadcast_prover_message(
@@ -416,10 +425,10 @@ mod tests {
         let mut gas_estimator = MockGasEstimator::new();
         gas_estimator
             .expect_approve_send()
-            .returning(|_| Box::pin(async { 42u64 }));
+            .returning(|_| 42u64);
         gas_estimator
             .expect_highload_wallet_send()
-            .returning(|_| Box::pin(async { 1024u64 }));
+            .returning(|_| 1024u64);
 
         let broadcaster = TONBroadcaster {
             wallet_manager: Arc::new(wallet_manager),
@@ -530,13 +539,13 @@ mod tests {
         let mut gas_estimator = MockGasEstimator::new();
         gas_estimator
             .expect_execute_estimate()
-            .returning(|_| Box::pin(async { 42u64 }));
+            .returning(|_| 42u64);
         gas_estimator
             .expect_execute_send()
-            .returning(|_| Box::pin(async { 42u64 }));
+            .returning(|_| 42u64);
         gas_estimator
             .expect_highload_wallet_send()
-            .returning(|_| Box::pin(async { 1024u64 }));
+            .returning(|_| 1024u64);
 
         let broadcaster = TONBroadcaster {
             wallet_manager: Arc::new(wallet_manager),
@@ -605,10 +614,10 @@ mod tests {
         let mut gas_estimator = MockGasEstimator::new();
         gas_estimator
             .expect_execute_estimate()
-            .returning(|_| Box::pin(async { 42u64 }));
+            .returning(|_| 42u64);
         gas_estimator
             .expect_highload_wallet_send()
-            .returning(|_| Box::pin(async { 1024u64 }));
+            .returning(|_| 1024u64);
 
         let broadcaster = TONBroadcaster {
             wallet_manager: Arc::new(wallet_manager),
@@ -674,10 +683,10 @@ mod tests {
         let mut gas_estimator = MockGasEstimator::new();
         gas_estimator
             .expect_native_gas_refund_estimate()
-            .returning(|| Box::pin(async { 42u64 }));
+            .returning(|| 42u64);
         gas_estimator
             .expect_highload_wallet_send()
-            .returning(|_| Box::pin(async { 1024u64 }));
+            .returning(|_| 1024u64);
 
         let broadcaster = TONBroadcaster {
             wallet_manager: Arc::new(wallet_manager),
@@ -717,10 +726,10 @@ mod tests {
         let mut gas_estimator = MockGasEstimator::new();
         gas_estimator
             .expect_native_gas_refund_estimate()
-            .returning(|| Box::pin(async { 1000u64 }));
+            .returning(|| 1000u64);
         gas_estimator
             .expect_highload_wallet_send()
-            .returning(|_| Box::pin(async { 1000u64 }));
+            .returning(|_| 1000u64);
 
         let broadcaster = TONBroadcaster {
             wallet_manager: Arc::new(wallet_manager),

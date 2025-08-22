@@ -104,6 +104,7 @@ impl<X: XRPLClientTrait> XRPLRefundManager<X> {
     }
 }
 
+#[async_trait::async_trait]
 impl<X: XRPLClientTrait> RefundManager for XRPLRefundManager<X> {
     type Wallet = (SecretKey, PublicKey, AccountId);
 

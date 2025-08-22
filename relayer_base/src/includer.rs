@@ -1,15 +1,19 @@
+use async_trait::async_trait;
 use base64::{prelude::BASE64_STANDARD, Engine};
-use futures::StreamExt;
-use lapin::{options::BasicAckOptions, Consumer};
+use lapin::message::Delivery;
+use lapin::options::BasicAckOptions;
 use redis::aio::ConnectionManager;
 use redis::AsyncCommands;
 use router_api::CrossChainId;
-use std::{future::Future, sync::Arc};
+use std::sync::Arc;
+use tokio_util::sync::CancellationToken;
+use tokio_util::task::TaskTracker;
 use tracing::{debug, error, info, warn};
 
 use crate::gmp_api::gmp_types::{ExecuteTaskFields, RefundTaskFields};
 use crate::gmp_api::GmpApiTrait;
 use crate::payload_cache::PayloadCacheTrait;
+use crate::queue_consumer::QueueConsumer;
 use crate::utils::ThreadSafe;
 use crate::{
     database::Database,
@@ -19,27 +23,28 @@ use crate::{
     queue::{Queue, QueueItem},
 };
 
-pub trait RefundManager {
+#[async_trait]
+pub trait RefundManager
+where
+    Self::Wallet: Send,
+{
     type Wallet;
     fn is_refund_manager_managed(&self) -> bool;
 
-    fn build_refund_tx(
+    async fn build_refund_tx(
         &self,
         recipient: String,
         amount: String,
         refund_id: &str,
         wallet: &Self::Wallet,
-    ) -> impl Future<Output = Result<Option<(String, String, String)>, RefundManagerError>>;
-    fn is_refund_processed(
+    ) -> Result<Option<(String, String, String)>, RefundManagerError>;
+    async fn is_refund_processed(
         &self,
         refund_task: &RefundTask,
         refund_id: &str,
-    ) -> impl Future<Output = Result<bool, RefundManagerError>>;
-    fn get_wallet_lock(&self) -> impl Future<Output = Result<Self::Wallet, RefundManagerError>>;
-    fn release_wallet_lock(
-        &self,
-        wallet: Self::Wallet,
-    ) -> impl Future<Output = Result<(), RefundManagerError>>;
+    ) -> Result<bool, RefundManagerError>;
+    async fn get_wallet_lock(&self) -> Result<Self::Wallet, RefundManagerError>;
+    async fn release_wallet_lock(&self, wallet: Self::Wallet) -> Result<(), RefundManagerError>;
 }
 
 #[derive(PartialEq, Debug)]
@@ -51,32 +56,34 @@ pub struct BroadcastResult<T> {
     pub source_chain: Option<String>,
 }
 
-pub trait Broadcaster {
+#[async_trait]
+pub trait Broadcaster
+where
+    Self::Transaction: ThreadSafe,
+{
     type Transaction;
 
-    fn broadcast_prover_message(
+    async fn broadcast_prover_message(
         &self,
         tx_blob: String,
-    ) -> impl Future<Output = Result<BroadcastResult<Self::Transaction>, BroadcasterError>>;
+    ) -> Result<BroadcastResult<Self::Transaction>, BroadcasterError>;
 
-    fn broadcast_refund(
-        &self,
-        tx_blob: String,
-    ) -> impl Future<Output = Result<String, BroadcasterError>>;
-    fn broadcast_execute_message(
+    async fn broadcast_refund(&self, tx_blob: String) -> Result<String, BroadcasterError>;
+    async fn broadcast_execute_message(
         &self,
         message: ExecuteTaskFields,
-    ) -> impl Future<Output = Result<BroadcastResult<Self::Transaction>, BroadcasterError>>;
-    fn broadcast_refund_message(
+    ) -> Result<BroadcastResult<Self::Transaction>, BroadcasterError>;
+    async fn broadcast_refund_message(
         &self,
         refund_task: RefundTaskFields,
-    ) -> impl Future<Output = Result<String, BroadcasterError>>;
+    ) -> Result<String, BroadcasterError>;
 }
 
 pub struct Includer<B, C, R, DB, G>
 where
-    B: Broadcaster,
-    R: RefundManager,
+    C: ThreadSafe,
+    B: Broadcaster + ThreadSafe,
+    R: RefundManager + ThreadSafe,
     DB: Database + ThreadSafe,
     G: GmpApiTrait + ThreadSafe,
 {
@@ -89,70 +96,72 @@ where
     pub redis_conn: ConnectionManager,
 }
 
-impl<B, C, R, DB, G> Includer<B, C, R, DB, G>
+#[async_trait]
+impl<B, C, R, DB, G> QueueConsumer for Includer<B, C, R, DB, G>
 where
-    B: Broadcaster,
-    R: RefundManager,
+    C: ThreadSafe,
+    B: Broadcaster + ThreadSafe,
+    R: RefundManager + ThreadSafe,
     DB: Database + ThreadSafe,
     G: GmpApiTrait + ThreadSafe,
 {
-    async fn work(&self, consumer: &mut Consumer, queue: Arc<Queue>) {
-        match consumer.next().await {
-            Some(Ok(delivery)) => {
-                let data = delivery.data.clone();
-                let maybe_task = serde_json::from_slice::<QueueItem>(&data);
+    async fn on_delivery(&self, delivery: Delivery, queue: Arc<Queue>, tracker: &TaskTracker) {
+        let data = delivery.data.clone();
+        let maybe_task = serde_json::from_slice::<QueueItem>(&data);
 
-                let task = match maybe_task {
-                    Ok(task) => task,
-                    Err(e) => {
-                        error!("Failed to parse task: {:?}", e);
-                        if let Err(e) = delivery.ack(BasicAckOptions::default()).await {
-                            error!("Failed to ack message: {:?}", e);
-                        }
-                        return;
-                    }
-                };
+        let task = match maybe_task {
+            Ok(task) => task,
+            Err(e) => {
+                error!("Failed to parse task: {:?}", e);
+                if let Err(e) = delivery.ack(BasicAckOptions::default()).await {
+                    error!("Failed to ack message: {:?}", e);
+                }
+                return;
+            }
+        };
 
-                let consume_res = self.consume(task).await;
-                match consume_res {
-                    Ok(_) => {
-                        info!("Successfully consumed delivery");
-                        if let Err(e) = delivery.ack(BasicAckOptions::default()).await {
-                            error!("Failed to ack message: {:?}", e);
-                        }
-                    }
-                    Err(e) => {
-                        let mut force_requeue = false;
-                        match e {
-                            IncluderError::IrrelevantTask => {
-                                debug!("Skipping irrelevant task");
-                                force_requeue = true;
-                            }
-                            _ => {
-                                error!("Failed to consume delivery: {:?}", e);
-                            }
-                        }
-
-                        if let Err(nack_err) = queue.republish(delivery, force_requeue).await {
-                            error!("Failed to republish message: {:?}", nack_err);
-                        }
-                    }
+        let consume_res = self.consume(task).await;
+        match consume_res {
+            Ok(_) => {
+                info!("Successfully consumed delivery");
+                if let Err(e) = delivery.ack(BasicAckOptions::default()).await {
+                    error!("Failed to ack message: {:?}", e);
                 }
             }
-            Some(Err(e)) => {
-                error!("Failed to receive delivery: {:?}", e);
-            }
-            None => {
-                warn!("No more messages from consumer.");
+            Err(e) => {
+                let mut force_requeue = false;
+                match e {
+                    IncluderError::IrrelevantTask => {
+                        debug!("Skipping irrelevant task");
+                        force_requeue = true;
+                    }
+                    _ => {
+                        error!("Failed to consume delivery: {:?}", e);
+                    }
+                }
+
+                if let Err(nack_err) = queue.republish(delivery, force_requeue).await {
+                    error!("Failed to republish message: {:?}", nack_err);
+                }
             }
         }
     }
+}
 
-    pub async fn run(&self, queue: Arc<Queue>) {
+impl<B, C, R, DB, G> Includer<B, C, R, DB, G>
+where
+    C: ThreadSafe,
+    B: Broadcaster + ThreadSafe,
+    R: RefundManager + ThreadSafe,
+    DB: Database + ThreadSafe,
+    G: GmpApiTrait + ThreadSafe,
+{
+    pub async fn run(&self, queue: Arc<Queue>, token: CancellationToken) {
         if let Ok(mut consumer) = queue.consumer().await {
             loop {
                 info!("Includer is alive.");
-                self.work(&mut consumer, Arc::clone(&queue)).await;
+                self.work(&mut consumer, Arc::clone(&queue), token.clone())
+                    .await;
             }
         } else {
             error!("Failed to create consumer");

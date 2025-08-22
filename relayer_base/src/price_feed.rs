@@ -1,18 +1,16 @@
-use std::{collections::HashMap, future::Future, pin::Pin};
-
+use async_trait::async_trait;
 use coingecko::CoinGeckoClient;
 use rust_decimal::prelude::FromPrimitive;
 use rust_decimal::Decimal;
+use std::collections::HashMap;
 use tracing::{error, info, warn};
 
 use crate::config::{Config, PriceFeedConfig};
 use crate::database::Database;
 
-trait PriceFeed: Send + Sync {
-    fn fetch<'a>(
-        &'a self,
-        pairs: &'a [String],
-    ) -> Pin<Box<dyn Future<Output = FetchResult> + Send + 'a>>;
+#[async_trait]
+trait PriceFeed {
+    async fn fetch(&self, pairs: &[String]) -> FetchResult;
 }
 
 type FetchResult = Result<Vec<Option<Decimal>>, anyhow::Error>;
@@ -50,55 +48,51 @@ impl CoinGeckoPriceFeed {
     }
 }
 
+#[async_trait]
 impl PriceFeed for CoinGeckoPriceFeed {
-    fn fetch<'a>(
-        &'a self,
-        pairs: &'a [String],
-    ) -> Pin<Box<dyn Future<Output = FetchResult> + Send + 'a>> {
-        Box::pin(async move {
-            let (coin_ids, vs_currencies): (Vec<_>, Vec<_>) = pairs
-                .iter()
-                .filter_map(|pair| {
-                    let Some((token_a, token_b)) = pair.split_once('/') else {
-                        warn!("Bad pair format: {pair}");
-                        return None;
-                    };
+    async fn fetch(&self, pairs: &[String]) -> FetchResult {
+        let (coin_ids, vs_currencies): (Vec<_>, Vec<_>) = pairs
+            .iter()
+            .filter_map(|pair| {
+                let Some((token_a, token_b)) = pair.split_once('/') else {
+                    warn!("Bad pair format: {pair}");
+                    return None;
+                };
 
-                    let vs = token_b.to_lowercase();
-                    if !self.supported_vs_currencies.contains(&vs) {
-                        warn!("{vs} is not supported as a vs_currency");
-                        return None;
+                let vs = token_b.to_lowercase();
+                if !self.supported_vs_currencies.contains(&vs) {
+                    warn!("{vs} is not supported as a vs_currency");
+                    return None;
+                }
+
+                match self.get_coin_id(token_a) {
+                    Some(coin_id) => Some((coin_id, vs)),
+                    None => {
+                        warn!("Couldn't find coin_id for {token_a}");
+                        None
                     }
+                }
+            })
+            .unzip();
 
-                    match self.get_coin_id(token_a) {
-                        Some(coin_id) => Some((coin_id, vs)),
-                        None => {
-                            warn!("Couldn't find coin_id for {token_a}");
-                            None
-                        }
-                    }
+        let quotes = self
+            .client
+            .price(&coin_ids, &vs_currencies, false, false, false, true)
+            .await?;
+
+        Ok(pairs
+            .iter()
+            .map(|pair| {
+                let (token_a, token_b) = pair.split_once('/')?;
+                self.get_coin_id(token_a).and_then(|coin_id| {
+                    quotes
+                        .get(&coin_id)
+                        .and_then(|p| serde_json::to_value(p).ok()) // `price` returns a struct that needs a detour through `serde_json::Value`
+                        .and_then(|v| v.get(token_b.to_lowercase()).cloned())
+                        .and_then(|v| v.as_f64().and_then(Decimal::from_f64))
                 })
-                .unzip();
-
-            let quotes = self
-                .client
-                .price(&coin_ids, &vs_currencies, false, false, false, true)
-                .await?;
-
-            Ok(pairs
-                .iter()
-                .map(|pair| {
-                    let (token_a, token_b) = pair.split_once('/')?;
-                    self.get_coin_id(token_a).and_then(|coin_id| {
-                        quotes
-                            .get(&coin_id)
-                            .and_then(|p| serde_json::to_value(p).ok()) // `price` returns a struct that needs a detour through `serde_json::Value`
-                            .and_then(|v| v.get(token_b.to_lowercase()).cloned())
-                            .and_then(|v| v.as_f64().and_then(Decimal::from_f64))
-                    })
-                })
-                .collect())
-        })
+            })
+            .collect())
     }
 }
 

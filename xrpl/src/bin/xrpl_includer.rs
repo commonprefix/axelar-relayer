@@ -18,6 +18,7 @@ use xrpl::{
     client::XRPLClient, config::XRPLConfig, includer::XrplIncluder,
     models::queued_transactions::PgQueuedTransactionsModel,
 };
+use tokio_util::sync::CancellationToken;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -66,7 +67,7 @@ async fn main() -> anyhow::Result<()> {
     tokio::select! {
         _ = sigint.recv()  => {},
         _ = sigterm.recv() => {},
-        _ = xrpl_includer.run(Arc::clone(&tasks_queue)) => {},
+        _ = xrpl_includer.run(Arc::clone(&tasks_queue), CancellationToken::new()) => {},
     }
 
     tasks_queue.close().await;

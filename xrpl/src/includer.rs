@@ -19,9 +19,9 @@ pub struct XrplIncluder {}
 impl XrplIncluder {
     #[allow(clippy::new_ret_no_self)]
     pub async fn new<
-        X: XRPLClientTrait,
+        X: XRPLClientTrait + ThreadSafe,
         DB: Database + ThreadSafe,
-        QM: QueuedTransactionsModel,
+        QM: QueuedTransactionsModel + ThreadSafe,
         G: GmpApiTrait + ThreadSafe,
     >(
         config: XRPLConfig,
