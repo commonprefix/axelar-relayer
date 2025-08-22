@@ -1,5 +1,6 @@
 use crate::models::ton_trace::{EventSummary, UpdateEvents};
 use crate::parser::TraceParserTrait;
+use async_trait::async_trait;
 use relayer_base::error::IngestorError;
 use relayer_base::gmp_api::gmp_types::{
     ConstructProofTask, Event, ReactToWasmEventTask, RetryTask, VerifyTask,
@@ -7,8 +8,8 @@ use relayer_base::gmp_api::gmp_types::{
 use relayer_base::ingestor::IngestorTrait;
 use relayer_base::models::gmp_events::EventModel;
 use relayer_base::subscriber::ChainTransaction;
-use tracing::{info, warn};
 use relayer_base::utils::ThreadSafe;
+use tracing::{info, warn};
 
 #[derive(Clone)]
 pub struct TONIngestor<TP: TraceParserTrait + Sync, TM: UpdateEvents + ThreadSafe> {
@@ -25,6 +26,7 @@ impl<TP: TraceParserTrait + Sync, TM: UpdateEvents + ThreadSafe> TONIngestor<TP,
     }
 }
 
+#[async_trait]
 impl<TP, TM> IngestorTrait for TONIngestor<TP, TM>
 where
     TP: TraceParserTrait + ThreadSafe,

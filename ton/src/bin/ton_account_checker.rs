@@ -5,7 +5,6 @@ use relayer_base::redis::connection_manager;
 use relayer_base::utils::{setup_heartbeat, setup_logging};
 use std::str::FromStr;
 use tokio::signal::unix::{signal, SignalKind};
-use tokio_util::sync::CancellationToken;
 use ton::check_accounts::check_accounts;
 use ton::client::TONRpcClient;
 use ton::config::TONConfig;

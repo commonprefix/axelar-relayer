@@ -1,7 +1,6 @@
 use dotenv::dotenv;
 use sqlx::PgPool;
 use std::sync::Arc;
-use tokio::signal::unix::{signal, SignalKind};
 
 use xrpl::{
     ingestor::{XrplIngestor, XrplIngestorModels},
@@ -9,17 +8,11 @@ use xrpl::{
 };
 
 use relayer_base::config::config_from_yaml;
-use relayer_base::ingestor_worker::IngestorWorker;
+use relayer_base::ingestor::run_ingestor;
 use relayer_base::redis::connection_manager;
 use relayer_base::{
-    database::PostgresDB,
-    gmp_api,
-    ingestor::Ingestor,
-    models::task_retries::PgTaskRetriesModel,
-    payload_cache::PayloadCache,
-    price_view::PriceView,
-    queue::Queue,
-    utils::{setup_heartbeat, setup_logging},
+    database::PostgresDB, gmp_api, models::task_retries::PgTaskRetriesModel,
+    payload_cache::PayloadCache, price_view::PriceView, queue::Queue, utils::setup_logging,
 };
 use xrpl::config::XRPLConfig;
 
@@ -52,25 +45,16 @@ async fn main() -> anyhow::Result<()> {
         payload_cache,
         models,
     );
-    let worker = IngestorWorker::new(gmp_api, Arc::new(xrpl_ingestor));
-    let ingestor = Ingestor::new(worker);
-
-    let mut sigint = signal(SignalKind::interrupt())?;
-    let mut sigterm = signal(SignalKind::terminate())?;
-
     let redis_client = redis::Client::open(config.common_config.redis_server.clone())?;
     let redis_conn = connection_manager(redis_client, None, None, None).await?;
 
-    setup_heartbeat("heartbeat:price_feed".to_owned(), redis_conn, None);
-
-    tokio::select! {
-        _ = sigint.recv()  => {},
-        _ = sigterm.recv() => {},
-        _ = ingestor.run(Arc::clone(&events_queue), Arc::clone(&tasks_queue)) => {},
-    }
-
-    tasks_queue.close().await;
-    events_queue.close().await;
-
+    run_ingestor(
+        &tasks_queue,
+        &events_queue,
+        gmp_api,
+        redis_conn,
+        Arc::new(xrpl_ingestor),
+    )
+    .await?;
     Ok(())
 }

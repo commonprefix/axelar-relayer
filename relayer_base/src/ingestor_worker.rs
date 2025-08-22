@@ -4,15 +4,14 @@ use crate::gmp_api::GmpApiTrait;
 use crate::ingestor::IngestorTrait;
 use crate::queue::QueueItem;
 use crate::subscriber::ChainTransaction;
-use crate::utils::ThreadSafe;
 use async_trait::async_trait;
 use std::sync::Arc;
 use tracing::{error, info};
 
 #[derive(Clone)]
-pub struct IngestorWorker<I: IngestorTrait + ThreadSafe, G: GmpApiTrait + ThreadSafe> {
-    gmp_api: Arc<G>,
-    ingestor: Arc<I>,
+pub struct IngestorWorker {
+    gmp_api: Arc<dyn GmpApiTrait + Send + Sync>,
+    ingestor: Arc<dyn IngestorTrait>,
 }
 
 #[async_trait]
@@ -21,16 +20,28 @@ pub trait IngestorWorkerTrait {
     async fn process_delivery(&self, data: &[u8]) -> Result<(), IngestorError>;
 }
 
-impl<I, G> IngestorWorker<I, G>
-where
-    I: IngestorTrait + ThreadSafe,
-    G: GmpApiTrait + ThreadSafe,
-{
-    pub fn new(gmp_api: Arc<G>, ingestor: Arc<I>) -> Self {
+#[async_trait]
+trait IngestorWorkerPrivateTrait {
+    async fn consume(&self, item: QueueItem) -> Result<(), IngestorError>;
+    async fn consume_transaction(
+        &self,
+        transaction: Box<ChainTransaction>,
+    ) -> Result<(), IngestorError>;
+    async fn consume_task(&self, task: Task) -> Result<(), IngestorError>;
+}
+
+impl IngestorWorker {
+    pub fn new(
+        gmp_api: Arc<dyn GmpApiTrait + Send + Sync>,
+        ingestor: Arc<dyn IngestorTrait>,
+    ) -> Self {
         Self { gmp_api, ingestor }
     }
+}
 
-    pub async fn consume(&self, item: QueueItem) -> Result<(), IngestorError> {
+#[async_trait]
+impl IngestorWorkerPrivateTrait for IngestorWorker {
+    async fn consume(&self, item: QueueItem) -> Result<(), IngestorError> {
         match item {
             QueueItem::Task(task) => self.consume_task(*task).await,
             QueueItem::Transaction(chain_transaction) => {
@@ -40,7 +51,7 @@ where
         }
     }
 
-    pub async fn consume_transaction(
+    async fn consume_transaction(
         &self,
         transaction: Box<ChainTransaction>,
     ) -> Result<(), IngestorError> {
@@ -74,7 +85,7 @@ where
         Ok(()) // TODO: better error handling
     }
 
-    pub async fn consume_task(&self, task: Task) -> Result<(), IngestorError> {
+    async fn consume_task(&self, task: Task) -> Result<(), IngestorError> {
         match task {
             Task::Verify(verify_task) => {
                 info!("Consuming task: {:?}", verify_task);
@@ -117,11 +128,7 @@ where
 }
 
 #[async_trait]
-impl<I, G> IngestorWorkerTrait for IngestorWorker<I, G>
-where
-    I: IngestorTrait + ThreadSafe,
-    G: GmpApiTrait + ThreadSafe,
-{
+impl IngestorWorkerTrait for IngestorWorker {
     async fn process_delivery(&self, data: &[u8]) -> Result<(), IngestorError> {
         let item = serde_json::from_slice::<QueueItem>(data)
             .map_err(|e| IngestorError::ParseError(format!("Invalid JSON: {}", e)))?;

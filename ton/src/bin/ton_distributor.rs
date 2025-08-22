@@ -1,8 +1,4 @@
 use dotenv::dotenv;
-use sqlx::PgPool;
-use std::sync::Arc;
-use tokio::signal::unix::{signal, SignalKind};
-use tokio_util::sync::CancellationToken;
 use relayer_base::config::config_from_yaml;
 use relayer_base::gmp_api::gmp_types::TaskKind;
 use relayer_base::redis::connection_manager;
@@ -13,6 +9,9 @@ use relayer_base::{
     queue::Queue,
     utils::{setup_heartbeat, setup_logging},
 };
+use sqlx::PgPool;
+use std::sync::Arc;
+use tokio::signal::unix::{signal, SignalKind};
 use ton::config::TONConfig;
 
 #[tokio::main]

@@ -3,11 +3,11 @@ pub mod gmp_types;
 pub use gmp_api_db_audit_decorator::construct_gmp_api;
 pub use gmp_api_db_audit_decorator::GmpApiDbAuditDecorator;
 
+use async_trait::async_trait;
 use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
 use reqwest_retry::{policies::ExponentialBackoff, RetryTransientMiddleware};
 use serde::de::DeserializeOwned;
 use serde_json::Value;
-use std::future::Future;
 use std::{
     collections::HashMap,
     fs::{self},
@@ -165,6 +165,7 @@ impl GmpApi {
 }
 
 #[cfg_attr(test, mockall::automock)]
+#[async_trait]
 impl GmpApiTrait for GmpApi {
     fn get_chain(&self) -> &str {
         &self.chain
@@ -466,48 +467,37 @@ impl GmpApiTrait for GmpApi {
 }
 
 #[cfg_attr(test, mockall::automock)]
+#[async_trait]
 pub trait GmpApiTrait {
     fn get_chain(&self) -> &str;
-    fn get_tasks_action(
-        &self,
-        after: Option<String>,
-    ) -> impl Future<Output = Result<Vec<Task>, GmpApiError>> + Send;
-    fn post_events(
-        &self,
-        events: Vec<Event>,
-    ) -> impl Future<Output = Result<Vec<PostEventResult>, GmpApiError>> + Send;
-    fn post_broadcast(
+    async fn get_tasks_action(&self, after: Option<String>) -> Result<Vec<Task>, GmpApiError>;
+    async fn post_events(&self, events: Vec<Event>) -> Result<Vec<PostEventResult>, GmpApiError>;
+    async fn post_broadcast(
         &self,
         contract_address: String,
         data: &BroadcastRequest,
-    ) -> impl Future<Output = Result<String, GmpApiError>> + Send;
-    fn get_broadcast_result(
+    ) -> Result<String, GmpApiError>;
+    async fn get_broadcast_result(
         &self,
         contract_address: String,
         broadcast_id: String,
-    ) -> impl Future<Output = Result<String, GmpApiError>> + Send;
-    fn post_query(
+    ) -> Result<String, GmpApiError>;
+    async fn post_query(
         &self,
         contract_address: String,
         data: &QueryRequest,
-    ) -> impl Future<Output = Result<String, GmpApiError>> + Send;
-    fn post_payload(
-        &self,
-        payload: &[u8],
-    ) -> impl Future<Output = Result<String, GmpApiError>> + Send;
-    fn get_payload(&self, hash: &str) -> impl Future<Output = Result<String, GmpApiError>> + Send;
-    fn cannot_execute_message(
+    ) -> Result<String, GmpApiError>;
+    async fn post_payload(&self, payload: &[u8]) -> Result<String, GmpApiError>;
+    async fn get_payload(&self, hash: &str) -> Result<String, GmpApiError>;
+    async fn cannot_execute_message(
         &self,
         id: String,
         message_id: String,
         source_chain: String,
         details: String,
         reason: CannotExecuteMessageReason,
-    ) -> impl Future<Output = Result<(), GmpApiError>> + Send;
-    fn its_interchain_transfer(
-        &self,
-        xrpl_message: XRPLMessage,
-    ) -> impl Future<Output = Result<(), GmpApiError>> + Send;
+    ) -> Result<(), GmpApiError>;
+    async fn its_interchain_transfer(&self, xrpl_message: XRPLMessage) -> Result<(), GmpApiError>;
 
     fn map_cannot_execute_message_to_event(
         &self,

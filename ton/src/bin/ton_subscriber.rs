@@ -10,7 +10,6 @@ use sqlx::PgPool;
 use std::sync::Arc;
 use tokio::signal::unix::{signal, SignalKind};
 use tokio::task::JoinHandle;
-use tokio_util::sync::CancellationToken;
 use ton::client::TONRpcClient;
 use ton::config::TONConfig;
 use ton::retry_subscriber::RetryTONSubscriber;

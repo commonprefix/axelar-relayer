@@ -1,15 +1,21 @@
-use crate::ingestor_worker::IngestorWorkerTrait;
-use crate::utils::ThreadSafe;
+use crate::gmp_api::{GmpApi, GmpApiDbAuditDecorator};
+use crate::ingestor_worker::{IngestorWorker, IngestorWorkerTrait};
+use crate::models::gmp_events::PgGMPEvents;
+use crate::models::gmp_tasks::PgGMPTasks;
+use crate::utils::{setup_heartbeat, ThreadSafe};
 use crate::{
     error::IngestorError,
     gmp_api::gmp_types::{ConstructProofTask, Event, ReactToWasmEventTask, RetryTask, VerifyTask},
     queue::{Queue, QueueItem},
     subscriber::ChainTransaction,
 };
+use async_trait::async_trait;
 use futures::StreamExt;
 use lapin::{options::BasicAckOptions, Consumer};
-use std::{future::Future, sync::Arc};
+use redis::aio::ConnectionManager;
+use std::sync::Arc;
 use tokio::select;
+use tokio::signal::unix::{signal, SignalKind};
 use tokio_util::sync::CancellationToken;
 use tokio_util::task::TaskTracker;
 use tracing::{debug, error, info, warn};
@@ -19,28 +25,17 @@ pub struct Ingestor<W: IngestorWorkerTrait + Clone + ThreadSafe> {
     token: CancellationToken,
 }
 
+#[async_trait]
 #[cfg_attr(any(test), mockall::automock)]
 pub trait IngestorTrait: ThreadSafe {
-    fn handle_verify(
-        &self,
-        task: VerifyTask,
-    ) -> impl Future<Output = Result<(), IngestorError>> + Send;
-    fn handle_transaction(
+    async fn handle_verify(&self, task: VerifyTask) -> Result<(), IngestorError>;
+    async fn handle_transaction(
         &self,
         transaction: ChainTransaction,
-    ) -> impl Future<Output = Result<Vec<Event>, IngestorError>> + Send;
-    fn handle_wasm_event(
-        &self,
-        task: ReactToWasmEventTask,
-    ) -> impl Future<Output = Result<(), IngestorError>> + Send;
-    fn handle_construct_proof(
-        &self,
-        task: ConstructProofTask,
-    ) -> impl Future<Output = Result<(), IngestorError>> + Send;
-    fn handle_retriable_task(
-        &self,
-        task: RetryTask,
-    ) -> impl Future<Output = Result<(), IngestorError>> + Send;
+    ) -> Result<Vec<Event>, IngestorError>;
+    async fn handle_wasm_event(&self, task: ReactToWasmEventTask) -> Result<(), IngestorError>;
+    async fn handle_construct_proof(&self, task: ConstructProofTask) -> Result<(), IngestorError>;
+    async fn handle_retriable_task(&self, task: RetryTask) -> Result<(), IngestorError>;
 }
 
 impl<W> Ingestor<W>
@@ -139,4 +134,51 @@ where
             }
         }
     }
+}
+
+pub async fn run_ingestor(
+    tasks_queue: &Arc<Queue>,
+    events_queue: &Arc<Queue>,
+    gmp_api: Arc<GmpApiDbAuditDecorator<GmpApi, PgGMPTasks, PgGMPEvents>>,
+    redis_conn: ConnectionManager,
+    chain_ingestor: Arc<dyn IngestorTrait>,
+) -> anyhow::Result<()> {
+    let worker = IngestorWorker::new(gmp_api, Arc::clone(&chain_ingestor));
+    let token = CancellationToken::new();
+    let ingestor = Ingestor::new(worker, token.clone());
+    let mut sigint = signal(SignalKind::interrupt())?;
+    let mut sigterm = signal(SignalKind::terminate())?;
+    setup_heartbeat(
+        "heartbeat:price_feed".to_owned(),
+        redis_conn,
+        Some(token.clone()),
+    );
+    let sigint_cloned_token = token.clone();
+    let sigterm_cloned_token = token.clone();
+    let ingestor_cloned_token = token.clone();
+    let handle = tokio::spawn({
+        let events = Arc::clone(events_queue);
+        let tasks = Arc::clone(tasks_queue);
+        async move { ingestor.run(events, tasks).await }
+    });
+
+    tokio::pin!(handle);
+
+    tokio::select! {
+        _ = sigint.recv()  => {
+            sigint_cloned_token.cancel();
+        },
+        _ = sigterm.recv() => {
+            sigterm_cloned_token.cancel();
+        },
+        _ = &mut handle => {
+            info!("Ingestor stopped");
+            ingestor_cloned_token.cancel();
+        }
+    }
+
+    tasks_queue.close().await;
+    events_queue.close().await;
+    let _ = handle.await;
+    Ok(())
 }

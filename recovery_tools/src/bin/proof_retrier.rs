@@ -11,7 +11,6 @@ use relayer_base::{
     utils::{setup_heartbeat, setup_logging},
 };
 use std::sync::Arc;
-use tokio_util::sync::CancellationToken;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {

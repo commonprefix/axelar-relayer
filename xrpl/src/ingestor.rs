@@ -1,6 +1,7 @@
 use crate::config::XRPLConfig;
 use crate::utils::message_id_from_retry_task;
 use crate::xrpl_transaction::{PgXrplTransactionModel, XrplTransaction, XrplTransactionStatus};
+use async_trait::async_trait;
 use axelar_wasm_std::{msg_id::HexTxHash, nonempty};
 use base64::prelude::*;
 use interchain_token_service::TokenId;
@@ -1175,6 +1176,7 @@ where
     }
 }
 
+#[async_trait]
 impl<DB, G> IngestorTrait for XrplIngestor<DB, G>
 where
     DB: Database + ThreadSafe,

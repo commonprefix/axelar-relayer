@@ -257,7 +257,11 @@ pub fn parse_message_from_context(
     })
 }
 
-pub fn setup_heartbeat(service: String, redis_conn: ConnectionManager, cancel_token: Option<CancellationToken>) {
+pub fn setup_heartbeat(
+    service: String,
+    redis_conn: ConnectionManager,
+    cancel_token: Option<CancellationToken>,
+) {
     let cancel_token = cancel_token.unwrap_or_default();
 
     tokio::spawn(async move {
