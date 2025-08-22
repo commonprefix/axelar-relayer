@@ -2,7 +2,6 @@ use std::{
     future::{ready, Future},
     pin::Pin,
     str::FromStr,
-    sync::Arc,
     time::Duration,
 };
 
@@ -12,7 +11,7 @@ use futures::{
     future::{join_all, Either},
     lock::Mutex,
 };
-use futures_util::{future::BoxFuture, stream::BoxStream};
+use futures_util::stream::BoxStream;
 use relayer_base::error::ClientError;
 use solana_client::{
     rpc_client::GetConfirmedSignaturesForAddress2Config,
