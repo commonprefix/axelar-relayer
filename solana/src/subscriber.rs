@@ -1,24 +1,25 @@
-use std::str::FromStr;
+use std::{pin::Pin, str::FromStr};
 
-use crate::{client::SolanaClientTrait, models::solana_subscriber_cursor::SubscriberCursor};
+use crate::{client::SolanaRpcClientTrait, models::solana_subscriber_cursor::SubscriberCursor};
 use anyhow::anyhow;
+use futures::Stream;
 use relayer_base::{
     error::SubscriberError,
-    subscriber::{ChainTransaction, TransactionPoller},
+    subscriber::{ChainTransaction, TransactionListener, TransactionPoller},
 };
 use solana_sdk::pubkey::Pubkey;
 use solana_sdk::signature::Signature;
 use solana_types::solana_types::SolanaTransaction;
 use tracing::error;
 
-pub struct SolanaSubscriber<X: SolanaClientTrait, SC: SubscriberCursor> {
+pub struct SolanaSubscriber<X: SolanaRpcClientTrait, SC: SubscriberCursor> {
     client: X,
     last_signature_checked: Option<Signature>,
     cursor_model: SC,
     context: String,
 }
 
-impl<X: SolanaClientTrait, SC: SubscriberCursor> SolanaSubscriber<X, SC> {
+impl<X: SolanaRpcClientTrait, SC: SubscriberCursor> SolanaSubscriber<X, SC> {
     pub async fn new(
         client: X,
         context: String,
@@ -66,7 +67,7 @@ impl<X: SolanaClientTrait, SC: SubscriberCursor> SolanaSubscriber<X, SC> {
     }
 }
 
-impl<X: SolanaClientTrait, SC: SubscriberCursor> TransactionPoller for SolanaSubscriber<X, SC> {
+impl<X: SolanaRpcClientTrait, SC: SubscriberCursor> TransactionPoller for SolanaSubscriber<X, SC> {
     type Transaction = SolanaTransaction;
     type Account = Pubkey;
 
@@ -104,6 +105,41 @@ impl<X: SolanaClientTrait, SC: SubscriberCursor> TransactionPoller for SolanaSub
     }
 }
 
+impl<X: SolanaRpcClientTrait, SC: SubscriberCursor> TransactionListener
+    for SolanaSubscriber<X, SC>
+{
+    type Transaction = SolanaTransaction;
+    type Account = Pubkey;
+
+    fn make_queue_item(&mut self, tx: Self::Transaction) -> ChainTransaction {
+        ChainTransaction::Solana(Box::new(tx))
+    }
+
+    async fn subscribe(&mut self, account: Self::Account) -> Result<(), anyhow::Error> {
+        // let (mut sub, _unsub) = self
+        //     .client
+        //     .logs_subscribe(
+        //         // we subscribe to all txs that contain the pubkey
+        //         RpcTransactionLogsFilter::Mentions(vec![
+        //             "DaejccUfXqoAFTiDTxDuMQfQ9oa6crjtR9cT52v1AvGK".to_string(),
+        //         ]),
+        //         RpcTransactionLogsConfig {
+        //             commitment: Some(CommitmentConfig::confirmed()),
+        //         },
+        //     )
+        //     .await?;
+        Err(anyhow!("Not implemented"))
+    }
+
+    async fn unsubscribe(&mut self, accounts: Self::Account) -> Result<(), anyhow::Error> {
+        Err(anyhow!("Not implemented"))
+    }
+
+    async fn transaction_stream(&mut self) -> Pin<Box<dyn Stream<Item = Self::Transaction> + '_>> {
+        todo!()
+    }
+}
+
 #[cfg(test)]
 mod tests {
 
@@ -116,7 +152,7 @@ mod tests {
     use testcontainers_modules::postgres;
 
     use crate::{
-        client::SolanaClient, config::SolanaConfig, models::solana_subscriber_cursor::PostgresDB,
+        client::SolanaRpcClient, config::SolanaConfig, models::solana_subscriber_cursor::PostgresDB,
     };
 
     use super::*;
@@ -146,8 +182,8 @@ mod tests {
         let (postgres_cursor, _container) = setup_test_container().await;
         let network = std::env::var("NETWORK").expect("NETWORK must be set");
         let config: SolanaConfig = config_from_yaml(&format!("config.{}.yaml", network)).unwrap();
-        let solana_client: SolanaClient =
-            SolanaClient::new(&config.solana_rpc, CommitmentConfig::confirmed(), 3).unwrap();
+        let solana_client: SolanaRpcClient =
+            SolanaRpcClient::new(&config.solana_rpc, CommitmentConfig::confirmed(), 3).unwrap();
         let mut solana_subscriber =
             SolanaSubscriber::new(solana_client, "default".to_string(), postgres_cursor)
                 .await

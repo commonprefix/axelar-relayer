@@ -20,7 +20,7 @@ use tracing::{debug, error, info};
 
 const LIMIT: usize = 10;
 
-pub trait SolanaClientTrait: Send + Sync {
+pub trait SolanaRpcClientTrait: Send + Sync {
     fn inner(&self) -> &RpcClient;
 
     fn get_transaction_by_signature(
@@ -36,12 +36,12 @@ pub trait SolanaClientTrait: Send + Sync {
     ) -> impl Future<Output = Result<Vec<SolanaTransaction>, anyhow::Error>>;
 }
 
-pub struct SolanaClient {
+pub struct SolanaRpcClient {
     client: RpcClient,
     max_retries: usize,
 }
 
-impl SolanaClient {
+impl SolanaRpcClient {
     pub fn new(
         url: &str,
         commitment: CommitmentConfig,
@@ -54,7 +54,7 @@ impl SolanaClient {
     }
 }
 
-impl SolanaClientTrait for SolanaClient {
+impl SolanaRpcClientTrait for SolanaRpcClient {
     fn inner(&self) -> &RpcClient {
         &self.client
     }
@@ -159,6 +159,8 @@ impl SolanaClientTrait for SolanaClient {
                         info!("No more signatures to fetch, empty response");
                         return Ok(txs);
                     }
+
+                    debug!("Fetched {} signatures", response.len());
 
                     let futures = response.iter().map(|status_with_signature| {
                         let sig_str = status_with_signature.signature.clone();

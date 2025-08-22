@@ -13,16 +13,16 @@ use tracing::debug;
 
 pub struct SolanaWallet;
 
-use super::client::SolanaClientTrait;
+use super::client::SolanaRpcClientTrait;
 use super::config::SolanaConfig;
 
-pub struct SolanaRefundManager<S: SolanaClientTrait> {
+pub struct SolanaRefundManager<S: SolanaRpcClientTrait> {
     client: Arc<S>,
     redis_conn: ConnectionManager,
     config: SolanaConfig,
 }
 
-impl<S: SolanaClientTrait> SolanaRefundManager<S> {
+impl<S: SolanaRpcClientTrait> SolanaRefundManager<S> {
     pub fn new(
         client: Arc<S>,
         config: SolanaConfig,
@@ -36,7 +36,7 @@ impl<S: SolanaClientTrait> SolanaRefundManager<S> {
     }
 }
 
-impl<S: SolanaClientTrait> RefundManager for SolanaRefundManager<S> {
+impl<S: SolanaRpcClientTrait> RefundManager for SolanaRefundManager<S> {
     type Wallet = SolanaWallet;
 
     fn is_refund_manager_managed(&self) -> bool {

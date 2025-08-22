@@ -8,7 +8,7 @@ use relayer_base::{
     utils::{setup_heartbeat, setup_logging},
 };
 use solana::{
-    client::SolanaClient, config::SolanaConfig, models::solana_subscriber_cursor::PostgresDB,
+    client::SolanaRpcClient, config::SolanaConfig, models::solana_subscriber_cursor::PostgresDB,
     subscriber::SolanaSubscriber,
 };
 use solana_sdk::pubkey::Pubkey;
@@ -30,10 +30,10 @@ async fn main() -> anyhow::Result<()> {
     let mut sigint = signal(SignalKind::interrupt())?;
     let mut sigterm = signal(SignalKind::terminate())?;
 
-    let solana_client: SolanaClient =
-        SolanaClient::new(&config.solana_rpc, config.solana_commitment, 3)?;
+    let solana_rpc_client: SolanaRpcClient =
+        SolanaRpcClient::new(&config.solana_rpc, config.solana_commitment, 3)?;
     let solana_subscriber =
-        SolanaSubscriber::new(solana_client, "default".to_string(), postgres_cursor).await?;
+        SolanaSubscriber::new(solana_rpc_client, "default".to_string(), postgres_cursor).await?;
 
     let mut subscriber = Subscriber::new(solana_subscriber);
     let redis_client = redis::Client::open(config.common_config.redis_server.clone())?;
