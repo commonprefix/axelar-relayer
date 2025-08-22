@@ -23,9 +23,18 @@ async fn main() -> anyhow::Result<()> {
 
     let _guard = setup_logging(&config.common_config);
 
-    let tasks_queue = Queue::new(&config.common_config.queue_address, "includer_tasks").await;
-    let construct_proof_queue =
-        Queue::new(&config.common_config.queue_address, "construct_proof").await;
+    let tasks_queue = Queue::new(
+        &config.common_config.queue_address,
+        "includer_tasks",
+        config.common_config.num_workers,
+    )
+    .await;
+    let construct_proof_queue = Queue::new(
+        &config.common_config.queue_address,
+        "construct_proof",
+        config.common_config.num_workers,
+    )
+    .await;
     let redis_client = redis::Client::open(config.common_config.redis_server.clone())?;
     let redis_conn = connection_manager(redis_client.clone(), None, None, None).await?;
 

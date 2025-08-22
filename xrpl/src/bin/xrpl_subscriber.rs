@@ -21,7 +21,12 @@ async fn main() -> anyhow::Result<()> {
 
     let _guard = setup_logging(&config.common_config);
 
-    let events_queue = Queue::new(&config.common_config.queue_address, "events").await;
+    let events_queue = Queue::new(
+        &config.common_config.queue_address,
+        "events",
+        config.common_config.num_workers,
+    )
+    .await;
     let postgres_db = PostgresDB::new(&config.common_config.postgres_url).await?;
 
     let account = AccountId::from_address(&config.xrpl_multisig)?;

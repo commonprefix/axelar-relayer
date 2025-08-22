@@ -20,7 +20,7 @@ async fn main() -> anyhow::Result<()> {
 
     let _guard = setup_logging(&config.common_config);
 
-    let events_queue = Queue::new(&config.common_config.queue_address, "events").await;
+    let events_queue = Queue::new(&config.common_config.queue_address, "events", 1).await;
     let postgres_db = PostgresDB::new(&config.common_config.postgres_url)
         .await
         .map_err(|e| anyhow::anyhow!("Failed to create PostgresDB: {}", e))?;

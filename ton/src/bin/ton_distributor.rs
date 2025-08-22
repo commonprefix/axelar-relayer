@@ -22,10 +22,18 @@ async fn main() -> anyhow::Result<()> {
 
     let _guard = setup_logging(&config.common_config);
 
-    let includer_tasks_queue =
-        Queue::new(&config.common_config.queue_address, "includer_tasks").await;
-    let ingestor_tasks_queue =
-        Queue::new(&config.common_config.queue_address, "ingestor_tasks").await;
+    let includer_tasks_queue = Queue::new(
+        &config.common_config.queue_address,
+        "includer_tasks",
+        config.common_config.num_workers,
+    )
+    .await;
+    let ingestor_tasks_queue = Queue::new(
+        &config.common_config.queue_address,
+        "ingestor_tasks",
+        config.common_config.num_workers,
+    )
+    .await;
     let postgres_db = PostgresDB::new(&config.common_config.postgres_url).await?;
 
     let pg_pool = PgPool::connect(&config.common_config.postgres_url).await?;
