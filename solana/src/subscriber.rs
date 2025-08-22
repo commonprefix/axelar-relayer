@@ -24,9 +24,31 @@ impl<X: SolanaClientTrait, SC: SubscriberCursor> SolanaSubscriber<X, SC> {
         context: String,
         cursor_model: SC,
     ) -> Result<Self, SubscriberError> {
+        let maybe_last_signature_checked = cursor_model.get_latest_signature(&context).await;
+
+        let last_signature_checked = match maybe_last_signature_checked {
+            Ok(signature_option) => match signature_option {
+                Some(signature_str) => {
+                    let maybe_sig = match Signature::from_str(&signature_str) {
+                        Ok(sig) => Some(sig),
+                        Err(e) => {
+                            error!("Error parsing signature: {:?}", e);
+                            None
+                        }
+                    };
+                    maybe_sig
+                }
+                None => None,
+            },
+            Err(e) => {
+                error!("Error getting latest signature: {:?}", e);
+                None
+            }
+        };
+
         Ok(SolanaSubscriber {
             client,
-            last_signature_checked: None,
+            last_signature_checked,
             cursor_model,
             context,
         })
