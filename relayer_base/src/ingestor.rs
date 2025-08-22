@@ -149,7 +149,7 @@ pub async fn run_ingestor(
     let mut sigint = signal(SignalKind::interrupt())?;
     let mut sigterm = signal(SignalKind::terminate())?;
     setup_heartbeat(
-        "heartbeat:price_feed".to_owned(),
+        "heartbeat:ingestor".to_owned(),
         redis_conn,
         Some(token.clone()),
     );

@@ -26,7 +26,7 @@ async fn main() -> anyhow::Result<()> {
     let redis_client = redis::Client::open(config.common_config.redis_server.clone())?;
     let redis_conn = connection_manager(redis_client, None, None, None).await?;
 
-    setup_heartbeat("heartbeat:price_feed".to_owned(), redis_conn, None);
+    setup_heartbeat("heartbeat:ticket_monitor".to_owned(), redis_conn, None);
 
     loop {
         debug!("Checking tickets for account: {}", account.to_address());

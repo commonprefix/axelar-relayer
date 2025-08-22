@@ -22,7 +22,7 @@ async fn main() -> anyhow::Result<()> {
     let redis_client = redis::Client::open(config.common_config.redis_server.clone())?;
     let redis_conn = connection_manager(redis_client, None, None, None).await?;
 
-    setup_heartbeat("heartbeat:price_feed".to_owned(), redis_conn, None);
+    setup_heartbeat("heartbeat:ticket_creator".to_owned(), redis_conn, None);
 
     let pg_pool = PgPool::connect(&config.common_config.postgres_url).await?;
     let gmp_api = gmp_api::construct_gmp_api(pg_pool, &config.common_config, false)?;
