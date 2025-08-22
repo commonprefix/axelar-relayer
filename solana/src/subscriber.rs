@@ -1,15 +1,13 @@
-use std::sync::Arc;
+use std::str::FromStr;
 
 use crate::{client::SolanaClientTrait, models::solana_subscriber_cursor::SubscriberCursor};
 use anyhow::anyhow;
 use relayer_base::{
-    database::Database,
     error::SubscriberError,
     subscriber::{ChainTransaction, TransactionPoller},
 };
 use solana_sdk::pubkey::Pubkey;
 use solana_sdk::signature::Signature;
-use solana_transaction_status::EncodedConfirmedTransactionWithStatusMeta;
 use solana_types::solana_types::SolanaTransaction;
 use tracing::error;
 
@@ -74,7 +72,82 @@ impl<X: SolanaClientTrait, SC: SubscriberCursor> TransactionPoller for SolanaSub
         Ok(transactions)
     }
 
-    async fn poll_tx(&mut self, tx_hash: String) -> Result<Self::Transaction, anyhow::Error> {
-        Err(anyhow!("Not implemented"))
+    async fn poll_tx(&mut self, signature: String) -> Result<Self::Transaction, anyhow::Error> {
+        let transaction = self
+            .client
+            .get_transaction_by_signature(Signature::from_str(&signature).unwrap())
+            .await?;
+
+        Ok(transaction)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+    use std::str::FromStr;
+
+    use dotenv::dotenv;
+    use relayer_base::config::config_from_yaml;
+    use solana_sdk::commitment_config::CommitmentConfig;
+    use testcontainers::{runners::AsyncRunner, ContainerAsync};
+    use testcontainers_modules::postgres;
+
+    use crate::{
+        client::SolanaClient, config::SolanaConfig, models::solana_subscriber_cursor::PostgresDB,
+    };
+
+    use super::*;
+
+    async fn setup_test_container() -> (PostgresDB, ContainerAsync<postgres::Postgres>) {
+        dotenv().ok();
+        let container = postgres::Postgres::default()
+            .with_init_sql(
+                include_str!("../../migrations/0015_solana_subscriber_cursors.sql")
+                    .to_string()
+                    .into_bytes(),
+            )
+            .start()
+            .await
+            .unwrap();
+        let connection_string = format!(
+            "postgres://postgres:postgres@{}:{}/postgres",
+            container.get_host().await.unwrap(),
+            container.get_host_port_ipv4(5432).await.unwrap()
+        );
+        let model = PostgresDB::new(&connection_string).await.unwrap();
+        (model, container)
+    }
+
+    #[tokio::test]
+    async fn test_poll_account() {
+        let (postgres_cursor, _container) = setup_test_container().await;
+        let network = std::env::var("NETWORK").expect("NETWORK must be set");
+        let config: SolanaConfig = config_from_yaml(&format!("config.{}.yaml", network)).unwrap();
+        let solana_client: SolanaClient =
+            SolanaClient::new(&config.solana_rpc, CommitmentConfig::confirmed(), 3).unwrap();
+        let mut solana_subscriber =
+            SolanaSubscriber::new(solana_client, "default".to_string(), postgres_cursor)
+                .await
+                .unwrap();
+
+        let transactions = solana_subscriber
+            .poll_account(Pubkey::from_str("9EHADvhP1vnYsk1XVYjJ4qpZ9jP33nHy84wo2CGnDDij").unwrap())
+            .await
+            .unwrap();
+
+        println!("{:?}", transactions);
+        assert_eq!(transactions.len(), 18);
+
+        let transactions = solana_subscriber
+            .poll_account(Pubkey::from_str("9EHADvhP1vnYsk1XVYjJ4qpZ9jP33nHy84wo2CGnDDij").unwrap())
+            .await
+            .unwrap();
+
+        println!(
+            "Second time it should be empty becasue cursor is updated and no other tx happened"
+        );
+        println!("{:?}", transactions);
+        assert_eq!(transactions.len(), 0);
     }
 }
