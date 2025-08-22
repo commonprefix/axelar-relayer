@@ -8,6 +8,8 @@ pub trait TransactionListener {
     type Transaction;
     type Account;
 
+    fn make_queue_item(&mut self, tx: Self::Transaction) -> ChainTransaction;
+
     fn subscribe(
         &mut self,
         account: Self::Account,
