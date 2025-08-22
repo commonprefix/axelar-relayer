@@ -9,19 +9,19 @@ use relayer_base::{
     includer::{BroadcastResult, Broadcaster},
 };
 
-use super::client::SolanaClientTrait;
+use super::client::SolanaRpcClientTrait;
 
-pub struct SolanaBroadcaster<S: SolanaClientTrait> {
+pub struct SolanaBroadcaster<S: SolanaRpcClientTrait> {
     client: Arc<S>,
 }
 
-impl<S: SolanaClientTrait> SolanaBroadcaster<S> {
+impl<S: SolanaRpcClientTrait> SolanaBroadcaster<S> {
     pub fn new(client: Arc<S>) -> error_stack::Result<Self, BroadcasterError> {
         Ok(SolanaBroadcaster { client })
     }
 }
 
-impl<S: SolanaClientTrait> Broadcaster for SolanaBroadcaster<S> {
+impl<S: SolanaRpcClientTrait> Broadcaster for SolanaBroadcaster<S> {
     type Transaction = Transaction;
 
     async fn broadcast_prover_message(

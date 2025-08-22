@@ -5,7 +5,7 @@ use relayer_base::{
     payload_cache::PayloadCache, queue::Queue,
 };
 
-use crate::client::SolanaClientTrait;
+use crate::client::SolanaRpcClientTrait;
 
 use super::{broadcaster::SolanaBroadcaster, refund_manager::SolanaRefundManager};
 
@@ -18,7 +18,7 @@ pub struct SolanaIncluder {}
 
 impl SolanaIncluder {
     #[allow(clippy::new_ret_no_self)]
-    pub async fn new<S: SolanaClientTrait, DB: Database, G: GmpApiTrait + ThreadSafe>(
+    pub async fn new<S: SolanaRpcClientTrait, DB: Database, G: GmpApiTrait + ThreadSafe>(
         config: SolanaConfig,
         gmp_api: Arc<G>,
         redis_conn: ConnectionManager,

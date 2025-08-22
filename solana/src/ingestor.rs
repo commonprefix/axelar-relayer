@@ -1,4 +1,4 @@
-use crate::client::SolanaClient;
+use crate::client::SolanaRpcClient;
 use crate::config::SolanaConfig;
 use crate::models::solana_transaction::{
     PgSolanaTransactionModel, SolanaTransaction, SolanaTransactionStatus,
@@ -45,7 +45,7 @@ pub struct SolanaIngestorModels {
 }
 
 pub struct SolanaIngestor<DB: Database, G: GmpApiTrait + ThreadSafe> {
-    client: SolanaClient,
+    client: SolanaRpcClient,
     gmp_api: Arc<G>,
     config: SolanaConfig,
     price_view: PriceView<DB>,
@@ -65,7 +65,7 @@ where
         payload_cache: PayloadCache<DB>,
         models: SolanaIngestorModels,
     ) -> Self {
-        let client = SolanaClient::new(&config.solana_rpc, CommitmentConfig::confirmed(), 3)
+        let client = SolanaRpcClient::new(&config.solana_rpc, CommitmentConfig::confirmed(), 3)
             .expect("failed to create Solana RPC client");
         Self {
             gmp_api,

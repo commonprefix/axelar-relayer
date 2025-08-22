@@ -1,5 +1,5 @@
 use dotenv::dotenv;
-use solana::client::SolanaClient;
+use solana::client::SolanaRpcClient;
 use solana::config::SolanaConfig;
 use solana::includer::SolanaIncluder;
 use solana_sdk::commitment_config::CommitmentConfig;
@@ -36,12 +36,13 @@ async fn main() -> anyhow::Result<()> {
     let postgres_db = PostgresDB::new(&config.common_config.postgres_url).await?;
 
     let payload_cache = PayloadCache::new(postgres_db.clone());
-    let solana_client = SolanaClient::new(&config.solana_rpc, CommitmentConfig::confirmed(), 3)?;
+    let solana_rpc_client =
+        SolanaRpcClient::new(&config.solana_rpc, CommitmentConfig::confirmed(), 3)?;
     let pg_pool = PgPool::connect(&config.common_config.postgres_url).await?;
     let gmp_api = gmp_api::construct_gmp_api(pg_pool.clone(), &config.common_config, true)?;
 
     let solana_includer = SolanaIncluder::new::<
-        SolanaClient,
+        SolanaRpcClient,
         PostgresDB,
         gmp_api::GmpApiDbAuditDecorator<gmp_api::GmpApi, PgGMPTasks, PgGMPEvents>,
     >(
@@ -50,7 +51,7 @@ async fn main() -> anyhow::Result<()> {
         redis_conn.clone(),
         payload_cache,
         Arc::clone(&construct_proof_queue),
-        Arc::new(solana_client),
+        Arc::new(solana_rpc_client),
     )
     .await
     .map_err(|e| anyhow::anyhow!("Failed to create SolanaIncluder: {}", e))?;
