@@ -1,16 +1,27 @@
 use std::{
     future::{ready, Future},
+    pin::Pin,
     str::FromStr,
+    sync::Arc,
     time::Duration,
 };
 
 use anyhow::anyhow;
 
-use futures::future::{join_all, Either};
+use futures::{
+    future::{join_all, Either},
+    lock::Mutex,
+};
+use futures_util::{future::BoxFuture, stream::BoxStream};
 use relayer_base::error::ClientError;
-use solana_client::rpc_client::GetConfirmedSignaturesForAddress2Config;
-use solana_client::rpc_config::RpcTransactionConfig;
+use solana_client::{
+    rpc_client::GetConfirmedSignaturesForAddress2Config,
+    rpc_config::{RpcTransactionConfig, RpcTransactionLogsConfig, RpcTransactionLogsFilter},
+    rpc_response::RpcLogsResponse,
+};
+use solana_pubsub_client::nonblocking::pubsub_client::PubsubClient;
 use solana_rpc_client::nonblocking::rpc_client::RpcClient;
+use solana_rpc_client_api::response::Response as RpcResponse;
 use solana_sdk::commitment_config::CommitmentConfig;
 use solana_sdk::pubkey::Pubkey;
 use solana_sdk::signature::Signature;
@@ -19,6 +30,14 @@ use solana_types::solana_types::SolanaTransaction;
 use tracing::{debug, error, info};
 
 const LIMIT: usize = 10;
+
+// Match the nonblocking PubsubClient logs_subscribe return type
+// (BoxStream<'a, RpcResponse<RpcLogsResponse>>, UnsubscribeFn)
+// UnsubscribeFn = Box<dyn FnOnce() -> BoxFuture<'static, ()> + Send>
+pub type LogsSubscription<'a> = BoxStream<'a, RpcResponse<RpcLogsResponse>>;
+
+type UnsubFn =
+    Box<dyn FnOnce() -> Pin<Box<dyn core::future::Future<Output = ()> + Send>> + Send + 'static>;
 
 pub trait SolanaRpcClientTrait: Send + Sync {
     fn inner(&self) -> &RpcClient;
@@ -36,9 +55,27 @@ pub trait SolanaRpcClientTrait: Send + Sync {
     ) -> impl Future<Output = Result<Vec<SolanaTransaction>, anyhow::Error>>;
 }
 
+pub trait SolanaStreamClientTrait: Send + Sync {
+    fn inner(&self) -> &PubsubClient;
+
+    fn logs_subscriber(
+        &self,
+        account: String,
+    ) -> impl Future<Output = Result<LogsSubscription<'_>, anyhow::Error>>;
+
+    fn unsubscribe(&self) -> impl Future<Output = ()>;
+}
+
 pub struct SolanaRpcClient {
     client: RpcClient,
     max_retries: usize,
+}
+
+pub struct SolanaStreamClient {
+    client: PubsubClient,
+    commitment: CommitmentConfig,
+    max_retries: usize,
+    unsub: Mutex<Option<UnsubFn>>,
 }
 
 impl SolanaRpcClient {
@@ -228,6 +265,53 @@ impl SolanaRpcClientTrait for SolanaRpcClient {
                     delay = delay.mul_f32(2.0);
                 }
             }
+        }
+    }
+}
+
+impl SolanaStreamClient {
+    pub async fn new(
+        url: &str,
+        commitment: CommitmentConfig,
+        max_retries: usize,
+    ) -> Result<Self, ClientError> {
+        Ok(Self {
+            client: PubsubClient::new(url)
+                .await
+                .map_err(|e| ClientError::ConnectionFailed(e.to_string()))?,
+            max_retries,
+            commitment,
+            unsub: Mutex::new(None),
+        })
+    }
+}
+
+impl SolanaStreamClientTrait for SolanaStreamClient {
+    fn inner(&self) -> &PubsubClient {
+        &self.client
+    }
+
+    async fn logs_subscriber(
+        &self,
+        account: String,
+    ) -> Result<LogsSubscription<'_>, anyhow::Error> {
+        let (sub, unsub) = self
+            .client
+            .logs_subscribe(
+                RpcTransactionLogsFilter::Mentions(vec![account]),
+                RpcTransactionLogsConfig {
+                    commitment: Some(self.commitment),
+                },
+            )
+            .await
+            .map_err(|e| anyhow!(e.to_string()))?;
+        *self.unsub.lock().await = Some(unsub);
+        Ok(sub)
+    }
+
+    async fn unsubscribe(&self) {
+        if let Some(unsub) = self.unsub.lock().await.take() {
+            unsub().await; // consume the FnOnce
         }
     }
 }
