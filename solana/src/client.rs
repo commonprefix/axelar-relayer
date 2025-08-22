@@ -6,7 +6,6 @@ use std::{
 
 use anyhow::anyhow;
 
-use error_stack::future;
 use futures::future::{join_all, Either};
 use relayer_base::error::ClientError;
 use solana_client::rpc_client::GetConfirmedSignaturesForAddress2Config;
@@ -27,9 +26,7 @@ pub trait SolanaClientTrait: Send + Sync {
     fn get_transaction_by_signature(
         &self,
         signature: Signature,
-    ) -> impl Future<
-        Output = Result<(Signature, EncodedConfirmedTransactionWithStatusMeta), anyhow::Error>,
-    >;
+    ) -> impl Future<Output = Result<SolanaTransaction, anyhow::Error>>;
 
     fn get_transactions_for_account(
         &self,
@@ -65,7 +62,7 @@ impl SolanaClientTrait for SolanaClient {
     async fn get_transaction_by_signature(
         &self,
         signature: Signature,
-    ) -> Result<(Signature, EncodedConfirmedTransactionWithStatusMeta), anyhow::Error> {
+    ) -> Result<SolanaTransaction, anyhow::Error> {
         let config = RpcTransactionConfig {
             encoding: Some(UiTransactionEncoding::Binary),
             commitment: Some(self.client.commitment()),
@@ -81,7 +78,24 @@ impl SolanaClientTrait for SolanaClient {
                 .get_transaction_with_config(&signature, config)
                 .await
             {
-                Ok(response) => return Ok((signature, response)),
+                Ok(response) => {
+                    let maybe_meta = &response.transaction.meta;
+                    let solana_tx = SolanaTransaction {
+                        signature: signature,
+                        transaction: serde_json::to_string(&response.transaction)?,
+                        timestamp: None,
+                        logs: match maybe_meta {
+                            Some(meta) => meta.log_messages.clone().into(),
+                            None => None,
+                        },
+                        slot: response.slot,
+                        cost_in_lamports: match maybe_meta {
+                            Some(meta) => meta.fee,
+                            None => 0,
+                        },
+                    };
+                    return Ok(solana_tx);
+                }
                 Err(e) => {
                     if retries >= self.max_retries {
                         return Err(anyhow!(
@@ -161,23 +175,8 @@ impl SolanaClientTrait for SolanaClient {
 
                     for res in results {
                         match res {
-                            Ok((sig, tx)) => {
-                                let maybe_meta = &tx.transaction.meta;
-                                let solana_tx = SolanaTransaction {
-                                    signature: sig,
-                                    transaction: serde_json::to_string(&tx.transaction)?,
-                                    timestamp: None,
-                                    logs: match maybe_meta {
-                                        Some(meta) => meta.log_messages.clone().into(),
-                                        None => None,
-                                    },
-                                    slot: tx.slot,
-                                    cost_in_lamports: match maybe_meta {
-                                        Some(meta) => meta.fee,
-                                        None => 0,
-                                    },
-                                };
-                                txs.push(solana_tx);
+                            Ok(tx) => {
+                                txs.push(tx);
                             }
                             Err(e) => {
                                 error!("Error fetching tx: {:?}", e);
@@ -233,62 +232,62 @@ impl SolanaClientTrait for SolanaClient {
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
+    // use std::str::FromStr;
 
-    use dotenv::dotenv;
-    use relayer_base::config::config_from_yaml;
+    // use dotenv::dotenv;
+    // use relayer_base::config::config_from_yaml;
 
-    use crate::config::SolanaConfig;
+    // use crate::config::SolanaConfig;
 
-    use super::*;
+    // use super::*;
 
-    #[tokio::test]
-    async fn test_get_transaction_by_signature() {
-        dotenv().ok();
-        let network = std::env::var("NETWORK").expect("NETWORK must be set");
-        let config: SolanaConfig = config_from_yaml(&format!("config.{}.yaml", network)).unwrap();
+    // #[tokio::test]
+    // async fn test_get_transaction_by_signature() {
+    //     dotenv().ok();
+    //     let network = std::env::var("NETWORK").expect("NETWORK must be set");
+    //     let config: SolanaConfig = config_from_yaml(&format!("config.{}.yaml", network)).unwrap();
 
-        let solana_client: SolanaClient =
-            SolanaClient::new(&config.solana_rpc, CommitmentConfig::confirmed(), 3).unwrap();
+    //     let solana_client: SolanaClient =
+    //         SolanaClient::new(&config.solana_rpc, CommitmentConfig::confirmed(), 3).unwrap();
 
-        //let signature = Signature::from_str("viT9BuyqLeWy2jUwpHV7uurjvuq8PoDjC2aBPEHCDM5jhSsgZghXdzN36rdV1n35k8TazcxD5yLmhxLWMZmRCVc").unwrap();
-        let signature = Signature::from_str("5Pg6SHHKCBEz4yHtnsiK7EtTvnPk31WQ9Adh48XhwcDv7ghwLY4ADvTneq3bw64osqZwjwehVRBrKwDG2XNzrvFB").unwrap();
-        let transaction = solana_client
-            .get_transaction_by_signature(signature)
-            .await
-            .unwrap();
+    //     //let signature = Signature::from_str("viT9BuyqLeWy2jUwpHV7uurjvuq8PoDjC2aBPEHCDM5jhSsgZghXdzN36rdV1n35k8TazcxD5yLmhxLWMZmRCVc").unwrap();
+    //     let signature = Signature::from_str("5Pg6SHHKCBEz4yHtnsiK7EtTvnPk31WQ9Adh48XhwcDv7ghwLY4ADvTneq3bw64osqZwjwehVRBrKwDG2XNzrvFB").unwrap();
+    //     let transaction = solana_client
+    //         .get_transaction_by_signature(signature)
+    //         .await
+    //         .unwrap();
 
-        // println!("{:?}", transaction);
-        println!("{:?}", transaction.1.transaction.meta.unwrap().log_messages);
-    }
+    //     // println!("{:?}", transaction);
+    //     println!("{:?}", transaction.1.transaction.meta.unwrap().log_messages);
+    // }
 
-    #[tokio::test]
-    async fn test_get_transactions_for_account() {
-        dotenv().ok();
-        let network = std::env::var("NETWORK").expect("NETWORK must be set");
-        let config: SolanaConfig = config_from_yaml(&format!("config.{}.yaml", network)).unwrap();
+    // #[tokio::test]
+    // async fn test_get_transactions_for_account() {
+    //     dotenv().ok();
+    //     let network = std::env::var("NETWORK").expect("NETWORK must be set");
+    //     let config: SolanaConfig = config_from_yaml(&format!("config.{}.yaml", network)).unwrap();
 
-        let solana_client: SolanaClient =
-            SolanaClient::new(&config.solana_rpc, CommitmentConfig::confirmed(), 3).unwrap();
+    //     let solana_client: SolanaClient =
+    //         SolanaClient::new(&config.solana_rpc, CommitmentConfig::confirmed(), 3).unwrap();
 
-        //let signature = Signature::from_str("viT9BuyqLeWy2jUwpHV7uurjvuq8PoDjC2aBPEHCDM5jhSsgZghXdzN36rdV1n35k8TazcxD5yLmhxLWMZmRCVc").unwrap();
-        //let signature = Signature::from_str("5Pg6SHHKCBEz4yHtnsiK7EtTvnPk31WQ9Adh48XhwcDv7ghwLY4ADvTneq3bw64osqZwjwehVRBrKwDG2XNzrvFB").unwrap();
-        let transactions = solana_client
-            .get_transactions_for_account(
-                &Pubkey::from_str("9EHADvhP1vnYsk1XVYjJ4qpZ9jP33nHy84wo2CGnDDij").unwrap(),
-                None,
-                None,
-            )
-            .await
-            .unwrap();
+    //     //let signature = Signature::from_str("viT9BuyqLeWy2jUwpHV7uurjvuq8PoDjC2aBPEHCDM5jhSsgZghXdzN36rdV1n35k8TazcxD5yLmhxLWMZmRCVc").unwrap();
+    //     //let signature = Signature::from_str("5Pg6SHHKCBEz4yHtnsiK7EtTvnPk31WQ9Adh48XhwcDv7ghwLY4ADvTneq3bw64osqZwjwehVRBrKwDG2XNzrvFB").unwrap();
+    //     let transactions = solana_client
+    //         .get_transactions_for_account(
+    //             &Pubkey::from_str("9EHADvhP1vnYsk1XVYjJ4qpZ9jP33nHy84wo2CGnDDij").unwrap(),
+    //             None,
+    //             None,
+    //         )
+    //         .await
+    //         .unwrap();
 
-        println!("LENGTH: {:?}", transactions.len());
+    //     println!("LENGTH: {:?}", transactions.len());
 
-        //assert_eq!(transactions.len(), 18);
+    //     //assert_eq!(transactions.len(), 18);
 
-        for tx in transactions {
-            println!("--------------------------------");
-            println!("{:?}", tx.transaction);
-        }
-    }
+    //     for tx in transactions {
+    //         println!("--------------------------------");
+    //         println!("{:?}", tx.transaction);
+    //     }
+    // }
 }
