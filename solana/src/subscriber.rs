@@ -1,27 +1,55 @@
-use std::{pin::Pin, str::FromStr};
+use std::{future::Future, pin::Pin, str::FromStr};
 
-use crate::{client::SolanaRpcClientTrait, models::solana_subscriber_cursor::SubscriberCursor};
+use crate::{
+    client::{LogsSubscription, SolanaRpcClientTrait, SolanaStreamClientTrait},
+    models::solana_subscriber_cursor::SubscriberCursor,
+};
 use anyhow::anyhow;
 use futures::Stream;
 use relayer_base::{
     error::SubscriberError,
-    subscriber::{ChainTransaction, TransactionListener, TransactionPoller},
+    subscriber::{ChainTransaction, TransactionPoller},
 };
 use solana_sdk::pubkey::Pubkey;
 use solana_sdk::signature::Signature;
 use solana_types::solana_types::SolanaTransaction;
 use tracing::error;
 
-pub struct SolanaPoller<X: SolanaRpcClientTrait, SC: SubscriberCursor> {
-    client: X,
+pub struct SolanaPoller<RPC: SolanaRpcClientTrait, SC: SubscriberCursor> {
+    client: RPC,
     last_signature_checked: Option<Signature>,
     cursor_model: SC,
     context: String,
 }
 
-impl<X: SolanaRpcClientTrait, SC: SubscriberCursor> SolanaPoller<X, SC> {
+pub struct SolanaListener<STR: SolanaStreamClientTrait, SC: SubscriberCursor> {
+    client: STR,
+    last_signature_checked: Option<Signature>,
+    cursor_model: SC,
+    context: String,
+}
+
+pub trait TransactionListener {
+    type Transaction;
+    type Account;
+
+    fn make_queue_item(&mut self, tx: Self::Transaction) -> ChainTransaction;
+
+    fn subscribe(
+        &mut self,
+        account: Self::Account,
+    ) -> impl Future<Output = Result<LogsSubscription<'_>, anyhow::Error>>;
+
+    fn unsubscribe(&mut self) -> impl Future<Output = ()>;
+
+    fn transaction_stream(
+        &mut self,
+    ) -> impl Future<Output = Pin<Box<dyn Stream<Item = Self::Transaction> + '_>>>;
+}
+
+impl<RPC: SolanaRpcClientTrait, SC: SubscriberCursor> SolanaPoller<RPC, SC> {
     pub async fn new(
-        client: X,
+        client: RPC,
         context: String,
         cursor_model: SC,
     ) -> Result<Self, SubscriberError> {
@@ -67,7 +95,7 @@ impl<X: SolanaRpcClientTrait, SC: SubscriberCursor> SolanaPoller<X, SC> {
     }
 }
 
-impl<X: SolanaRpcClientTrait, SC: SubscriberCursor> TransactionPoller for SolanaPoller<X, SC> {
+impl<RPC: SolanaRpcClientTrait, SC: SubscriberCursor> TransactionPoller for SolanaPoller<RPC, SC> {
     type Transaction = SolanaTransaction;
     type Account = Pubkey;
 
@@ -105,7 +133,9 @@ impl<X: SolanaRpcClientTrait, SC: SubscriberCursor> TransactionPoller for Solana
     }
 }
 
-impl<X: SolanaRpcClientTrait, SC: SubscriberCursor> TransactionListener for SolanaPoller<X, SC> {
+impl<STR: SolanaStreamClientTrait, SC: SubscriberCursor> TransactionListener
+    for SolanaListener<STR, SC>
+{
     type Transaction = SolanaTransaction;
     type Account = Pubkey;
 
@@ -113,24 +143,15 @@ impl<X: SolanaRpcClientTrait, SC: SubscriberCursor> TransactionListener for Sola
         ChainTransaction::Solana(Box::new(tx))
     }
 
-    async fn subscribe(&mut self, account: Self::Account) -> Result<(), anyhow::Error> {
-        // let (mut sub, _unsub) = self
-        //     .client
-        //     .logs_subscribe(
-        //         // we subscribe to all txs that contain the pubkey
-        //         RpcTransactionLogsFilter::Mentions(vec![
-        //             "DaejccUfXqoAFTiDTxDuMQfQ9oa6crjtR9cT52v1AvGK".to_string(),
-        //         ]),
-        //         RpcTransactionLogsConfig {
-        //             commitment: Some(CommitmentConfig::confirmed()),
-        //         },
-        //     )
-        //     .await?;
-        Err(anyhow!("Not implemented"))
+    async fn subscribe(
+        &mut self,
+        account: Self::Account,
+    ) -> Result<LogsSubscription<'_>, anyhow::Error> {
+        self.client.logs_subscriber(account.to_string()).await
     }
 
-    async fn unsubscribe(&mut self, accounts: Self::Account) -> Result<(), anyhow::Error> {
-        Err(anyhow!("Not implemented"))
+    async fn unsubscribe(&mut self) {
+        self.client.unsubscribe().await;
     }
 
     async fn transaction_stream(&mut self) -> Pin<Box<dyn Stream<Item = Self::Transaction> + '_>> {

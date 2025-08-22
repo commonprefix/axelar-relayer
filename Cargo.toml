@@ -12,6 +12,7 @@ recovery-tools = { path = "recovery_tools" }
 anyhow = "1.0.93"
 async-stream = "0.3.6"
 futures = "0.3.31"
+futures-util = "0.3.31"
 lapin = "2.5.0"
 serde_json = "1.0.133"
 serde_derive = "1.0.215"
@@ -75,6 +76,7 @@ solana-program = "~2.1"
 solana-sdk = "~2.1"
 solana-transaction-status = "~2.1"
 solana-compute-budget = "~2.1"
+solana-pubsub-client = "~2.1"
 
 # switch between warn and allow to enable/disable more restrictive clippy lints
 [workspace.lints.clippy]
