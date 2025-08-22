@@ -7,6 +7,7 @@ This might be overly simplistic right now, we will test more to find a better wa
 use crate::config::GasEstimates;
 use async_trait::async_trait;
 
+#[derive(Clone)]
 pub struct TONGasEstimator {
     config: GasEstimates,
 }

@@ -19,24 +19,25 @@ use crate::relayer_execute_message::RelayerExecuteMessage;
 use crate::ton_constants::REFUND_DUST;
 use crate::ton_wallet_high_load_v3::TonWalletHighLoadV3;
 use crate::wallet_manager::WalletManager;
+use async_trait::async_trait;
 use base64::engine::general_purpose;
 use base64::Engine;
 use num_bigint::BigUint;
 use relayer_base::error::BroadcasterError::RPCCallFailed;
 use relayer_base::gmp_api::gmp_types::{ExecuteTaskFields, RefundTaskFields};
+use relayer_base::utils::ThreadSafe;
 use relayer_base::{
     error::BroadcasterError,
     includer::{BroadcastResult, Broadcaster},
 };
 use std::str::FromStr;
 use std::sync::Arc;
-use async_trait::async_trait;
 use tonlib_core::tlb_types::block::out_action::OutAction;
 use tonlib_core::tlb_types::tlb::TLB;
 use tonlib_core::{TonAddress, TonHash};
 use tracing::{debug, error, info};
-use relayer_base::utils::ThreadSafe;
 
+#[derive(Clone)]
 pub struct TONBroadcaster<GE> {
     wallet_manager: Arc<WalletManager>,
     query_id_wrapper: Arc<dyn HighLoadQueryIdWrapper>,
@@ -49,7 +50,7 @@ pub struct TONBroadcaster<GE> {
 
 impl<GE> TONBroadcaster<GE>
 where
-    GE: GasEstimator + ThreadSafe
+    GE: GasEstimator + ThreadSafe,
 {
     pub fn new(
         wallet_manager: Arc<WalletManager>,
@@ -108,12 +109,13 @@ where
     }
 }
 
+#[derive(Clone)]
 pub struct TONTransaction;
 
 #[async_trait]
 impl<GE> Broadcaster for TONBroadcaster<GE>
 where
-    GE: GasEstimator + ThreadSafe
+    GE: GasEstimator + ThreadSafe,
 {
     type Transaction = TONTransaction;
 
@@ -423,9 +425,7 @@ mod tests {
         .unwrap();
 
         let mut gas_estimator = MockGasEstimator::new();
-        gas_estimator
-            .expect_approve_send()
-            .returning(|_| 42u64);
+        gas_estimator.expect_approve_send().returning(|_| 42u64);
         gas_estimator
             .expect_highload_wallet_send()
             .returning(|_| 1024u64);
@@ -537,12 +537,8 @@ mod tests {
         .unwrap();
 
         let mut gas_estimator = MockGasEstimator::new();
-        gas_estimator
-            .expect_execute_estimate()
-            .returning(|_| 42u64);
-        gas_estimator
-            .expect_execute_send()
-            .returning(|_| 42u64);
+        gas_estimator.expect_execute_estimate().returning(|_| 42u64);
+        gas_estimator.expect_execute_send().returning(|_| 42u64);
         gas_estimator
             .expect_highload_wallet_send()
             .returning(|_| 1024u64);
@@ -612,9 +608,7 @@ mod tests {
         .unwrap();
 
         let mut gas_estimator = MockGasEstimator::new();
-        gas_estimator
-            .expect_execute_estimate()
-            .returning(|_| 42u64);
+        gas_estimator.expect_execute_estimate().returning(|_| 42u64);
         gas_estimator
             .expect_highload_wallet_send()
             .returning(|_| 1024u64);

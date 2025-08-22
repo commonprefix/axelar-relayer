@@ -28,10 +28,7 @@ pub trait XRPLClientTrait: Send + Sync {
         Req: Request + Serialize + std::fmt::Debug + std::clone::Clone + Send + 'static,
         Req::Response: DeserializeOwned + Send + 'static;
 
-    async fn get_transaction_by_id(
-        &self,
-        tx_id: String,
-    ) -> Result<Transaction, anyhow::Error>;
+    async fn get_transaction_by_id(&self, tx_id: String) -> Result<Transaction, anyhow::Error>;
 
     async fn get_transactions_for_account(
         &self,
@@ -45,6 +42,7 @@ pub trait XRPLClientTrait: Send + Sync {
     ) -> Result<Vec<Ticket>, anyhow::Error>;
 }
 
+#[derive(Clone)]
 pub struct XRPLClient {
     client: xrpl_http_client::Client,
     max_retries: usize,

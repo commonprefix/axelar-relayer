@@ -1,29 +1,24 @@
+use crate::queue::Queue;
 use async_std::stream::StreamExt;
-use std::sync::Arc;
 use async_trait::async_trait;
 use lapin::message::Delivery;
 use lapin::Consumer;
+use std::sync::Arc;
 use tokio::select;
 use tokio_util::sync::CancellationToken;
 use tokio_util::task::TaskTracker;
 use tracing::{debug, error, info, warn};
-use crate::queue::Queue;
 
 #[async_trait]
 pub trait QueueConsumer {
-    async fn on_delivery(
-        &self,
-        delivery: Delivery,
-        queue: Arc<Queue>,
-        tracker: &TaskTracker,
-    );
+    async fn on_delivery(&self, delivery: Delivery, queue: Arc<Queue>, tracker: &TaskTracker);
 
     async fn work(&self, consumer: &mut Consumer, queue: Arc<Queue>, token: CancellationToken) {
         let tracker = TaskTracker::new();
 
         loop {
-            debug!("Ingestor task tracker size: {}", tracker.len());
-            info!("Waiting for messages from {}..", consumer.queue());
+            debug!("Task tracker size: {}", tracker.len());
+            info!("Waiting for messages from {}", consumer.queue());
             select! {
                 _ = token.cancelled() => {
                     info!("Cancellation requested; no longer awaiting consumer.next()");
@@ -45,5 +40,9 @@ pub trait QueueConsumer {
                 }
             }
         }
+
+        info!("Task tracker size: {}", tracker.len());
+        tracker.close();
+        tracker.wait().await;
     }
 }

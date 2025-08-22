@@ -13,6 +13,7 @@ use ton::config::TONConfig;
 use ton::high_load_query_id_db_wrapper::HighLoadQueryIdDbWrapper;
 use ton::includer::TONIncluder;
 use ton::ton_wallet_query_id::PgTONWalletQueryIdModel;
+use tracing::log::info;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -49,16 +50,39 @@ async fn main() -> anyhow::Result<()> {
     let mut sigint = signal(SignalKind::interrupt())?;
     let mut sigterm = signal(SignalKind::terminate())?;
 
-    setup_heartbeat("heartbeat:includer".to_owned(), redis_conn, None);
+    let token = CancellationToken::new();
+    setup_heartbeat(
+        "heartbeat:includer".to_owned(),
+        redis_conn,
+        Some(token.clone()),
+    );
+    let sigint_cloned_token = token.clone();
+    let sigterm_cloned_token = token.clone();
+    let includer_cloned_token = token.clone();
+
+    let handle = tokio::spawn({
+        let tasks = Arc::clone(&tasks_queue);
+        let token_clone = token.clone();
+        async move { ton_includer.run(tasks, token_clone).await }
+    });
+
+    tokio::pin!(handle);
 
     tokio::select! {
-        _ = sigint.recv()  => {},
-        _ = sigterm.recv() => {},
-        _ = ton_includer.run(Arc::clone(&tasks_queue), CancellationToken::new()) => {},
+        _ = sigint.recv()  => {
+            sigint_cloned_token.cancel();
+        },
+        _ = sigterm.recv() => {
+            sigterm_cloned_token.cancel();
+        },
+        _ = &mut handle => {
+            info!("Includer stopped");
+            includer_cloned_token.cancel();
+        }
     }
-
     tasks_queue.close().await;
     construct_proof_queue.close().await;
+    let _ = handle.await;
 
     Ok(())
 }

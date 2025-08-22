@@ -14,11 +14,12 @@ use relayer_base::{
     queue::Queue,
     utils::{setup_heartbeat, setup_logging},
 };
+use tokio_util::sync::CancellationToken;
+use tracing::info;
 use xrpl::{
     client::XRPLClient, config::XRPLConfig, includer::XrplIncluder,
     models::queued_transactions::PgQueuedTransactionsModel,
 };
-use tokio_util::sync::CancellationToken;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -62,16 +63,39 @@ async fn main() -> anyhow::Result<()> {
     let mut sigint = signal(SignalKind::interrupt())?;
     let mut sigterm = signal(SignalKind::terminate())?;
 
-    setup_heartbeat("heartbeat:includer".to_owned(), redis_conn, None);
+    let token = CancellationToken::new();
+    setup_heartbeat(
+        "heartbeat:includer".to_owned(),
+        redis_conn,
+        Some(token.clone()),
+    );
+    let sigint_cloned_token = token.clone();
+    let sigterm_cloned_token = token.clone();
+    let includer_cloned_token = token.clone();
+
+    let handle = tokio::spawn({
+        let tasks = Arc::clone(&tasks_queue);
+        let token_clone = token.clone();
+        async move { xrpl_includer.run(tasks, token_clone).await }
+    });
+
+    tokio::pin!(handle);
 
     tokio::select! {
-        _ = sigint.recv()  => {},
-        _ = sigterm.recv() => {},
-        _ = xrpl_includer.run(Arc::clone(&tasks_queue), CancellationToken::new()) => {},
+        _ = sigint.recv()  => {
+            sigint_cloned_token.cancel();
+        },
+        _ = sigterm.recv() => {
+            sigterm_cloned_token.cancel();
+        },
+        _ = &mut handle => {
+            info!("Includer stopped");
+            includer_cloned_token.cancel();
+        }
     }
-
     tasks_queue.close().await;
     construct_proof_queue.close().await;
+    let _ = handle.await;
 
     Ok(())
 }

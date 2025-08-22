@@ -78,7 +78,8 @@ impl HighLoadQueryId {
     }
 
     pub async fn query_id(&self) -> u64 {
-        std::future::ready(((self.shift as u64) << Self::BITNUMBER_SIZE) + self.bitnumber as u64).await
+        std::future::ready(((self.shift as u64) << Self::BITNUMBER_SIZE) + self.bitnumber as u64)
+            .await
     }
 }
 

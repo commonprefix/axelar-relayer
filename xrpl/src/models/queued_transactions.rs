@@ -33,9 +33,7 @@ pub trait QueuedTransactionsModel {
         tx_hash: &str,
         status: QueuedTransactionStatus,
     ) -> Result<()>;
-    async fn get_queued_transactions_ready_for_check(
-        &self,
-    ) -> Result<Vec<QueuedTransaction>>;
+    async fn get_queued_transactions_ready_for_check(&self) -> Result<Vec<QueuedTransaction>>;
     async fn store_queued_transaction(
         &self,
         tx_hash: &str,

@@ -1,5 +1,5 @@
-use std::sync::Arc;
 use async_trait::async_trait;
+use std::sync::Arc;
 use tracing::{debug, error, warn};
 use xrpl_api::{
     ResultCategory, SubmitRequest, SubmitResponse, Transaction, TransactionResult, TxRequest,
@@ -16,6 +16,7 @@ use crate::models::queued_transactions::QueuedTransactionsModel;
 
 use super::client::XRPLClientTrait;
 
+#[derive(Clone)]
 pub struct XRPLBroadcaster<QM: QueuedTransactionsModel, X: XRPLClientTrait> {
     client: Arc<X>,
     queued_tx_model: QM,
@@ -71,9 +72,9 @@ fn log_and_return_error(
 }
 
 #[async_trait]
-impl<QM: QueuedTransactionsModel, X: XRPLClientTrait> Broadcaster for XRPLBroadcaster<QM, X> 
+impl<QM: QueuedTransactionsModel, X: XRPLClientTrait> Broadcaster for XRPLBroadcaster<QM, X>
 where
-    QM: QueuedTransactionsModel + Send + Sync, 
+    QM: QueuedTransactionsModel + Send + Sync,
     X: XRPLClientTrait + Send + Sync,
     Transaction: Send + Sync,
 {

@@ -2,6 +2,7 @@ use crate::gmp_api::{GmpApi, GmpApiDbAuditDecorator};
 use crate::ingestor_worker::{IngestorWorker, IngestorWorkerTrait};
 use crate::models::gmp_events::PgGMPEvents;
 use crate::models::gmp_tasks::PgGMPTasks;
+use crate::queue_consumer::QueueConsumer;
 use crate::utils::{setup_heartbeat, ThreadSafe};
 use crate::{
     error::IngestorError,
@@ -10,16 +11,15 @@ use crate::{
     subscriber::ChainTransaction,
 };
 use async_trait::async_trait;
+use lapin::message::Delivery;
 use lapin::options::BasicAckOptions;
 use redis::aio::ConnectionManager;
 use std::sync::Arc;
-use lapin::message::Delivery;
 use tokio::select;
 use tokio::signal::unix::{signal, SignalKind};
 use tokio_util::sync::CancellationToken;
 use tokio_util::task::TaskTracker;
 use tracing::{debug, error, info, warn};
-use crate::queue_consumer::QueueConsumer;
 
 pub struct Ingestor<W: IngestorWorkerTrait + Clone + ThreadSafe> {
     worker: W,
@@ -41,14 +41,9 @@ pub trait IngestorTrait: ThreadSafe {
 #[async_trait]
 impl<W> QueueConsumer for Ingestor<W>
 where
-    W: IngestorWorkerTrait + Clone + ThreadSafe
+    W: IngestorWorkerTrait + Clone + ThreadSafe,
 {
-    async fn on_delivery(
-        &self,
-        delivery: Delivery,
-        queue: Arc<Queue>,
-        tracker: &TaskTracker,
-    ) {
+    async fn on_delivery(&self, delivery: Delivery, queue: Arc<Queue>, tracker: &TaskTracker) {
         let worker = self.worker.clone();
         let queue_clone = Arc::clone(&queue);
         tracker.spawn(async move {
@@ -66,20 +61,16 @@ where
                     }
                 }
 
-                if let Err(nack_err) =
-                    queue_clone.republish(delivery, force_requeue).await
-                {
+                if let Err(nack_err) = queue_clone.republish(delivery, force_requeue).await {
                     error!("Failed to republish message: {:?}", nack_err);
                 }
-            } else if let Err(ack_err) = delivery.ack(BasicAckOptions::default()).await
-            {
+            } else if let Err(ack_err) = delivery.ack(BasicAckOptions::default()).await {
                 let item = serde_json::from_slice::<QueueItem>(&delivery.data);
                 error!("Failed to ack item {:?}: {:?}", item, ack_err);
             }
             debug!("Ingestor task finished");
         });
     }
-
 }
 
 impl<W> Ingestor<W>
@@ -90,7 +81,12 @@ where
         Self { worker }
     }
 
-    pub async fn run(&self, events_queue: Arc<Queue>, tasks_queue: Arc<Queue>, token: CancellationToken) {
+    pub async fn run(
+        &self,
+        events_queue: Arc<Queue>,
+        tasks_queue: Arc<Queue>,
+        token: CancellationToken,
+    ) {
         let mut events_consumer = match events_queue.consumer().await {
             Ok(consumer) => consumer,
             Err(e) => {

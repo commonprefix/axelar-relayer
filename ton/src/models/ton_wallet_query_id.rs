@@ -1,5 +1,5 @@
-use sqlx::{PgPool, Row};
 use async_trait::async_trait;
+use sqlx::{PgPool, Row};
 
 const PG_TABLE_NAME: &str = "ton_wallet_query_id";
 

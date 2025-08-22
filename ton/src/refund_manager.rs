@@ -1,9 +1,10 @@
 use async_trait::async_trait;
+use relayer_base::utils::ThreadSafe;
 use relayer_base::{
     error::RefundManagerError, gmp_api::gmp_types::RefundTask, includer::RefundManager,
 };
-use relayer_base::utils::ThreadSafe;
 
+#[derive(Clone)]
 pub struct TONRefundManager;
 
 impl TONRefundManager {
@@ -15,9 +16,9 @@ impl TONRefundManager {
 pub struct TONWallet;
 
 #[async_trait]
-impl RefundManager for TONRefundManager 
+impl RefundManager for TONRefundManager
 where
-    TONWallet: ThreadSafe
+    TONWallet: ThreadSafe,
 {
     type Wallet = TONWallet;
 

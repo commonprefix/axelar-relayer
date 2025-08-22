@@ -9,7 +9,7 @@ use redis::aio::ConnectionManager;
 use relayer_base::utils::ThreadSafe;
 use relayer_base::{
     database::Database, error::BroadcasterError, gmp_api::GmpApiTrait, includer::Includer,
-    payload_cache::PayloadCache, queue::Queue,
+    includer_worker::IncluderWorker, payload_cache::PayloadCache, queue::Queue,
 };
 use std::sync::Arc;
 use tonlib_core::TonAddress;
@@ -18,7 +18,7 @@ pub struct TONIncluder {}
 
 impl TONIncluder {
     #[allow(clippy::new_ret_no_self)]
-    pub async fn new<DB: Database + ThreadSafe, G: GmpApiTrait + ThreadSafe>(
+    pub async fn new<DB: Database + ThreadSafe + Clone, G: GmpApiTrait + ThreadSafe + Clone>(
         config: TONConfig,
         gmp_api: Arc<G>,
         redis_conn: ConnectionManager,
@@ -63,15 +63,17 @@ impl TONIncluder {
         let refund_manager = TONRefundManager::new()
             .map_err(|e| error_stack::report!(BroadcasterError::GenericError(e.to_string())))?;
 
-        let includer = Includer {
-            chain_client: client,
+        let worker = IncluderWorker::new(
+            client,
             broadcaster,
             refund_manager,
             gmp_api,
-            payload_cache: payload_cache_for_includer,
+            payload_cache_for_includer,
             construct_proof_queue,
             redis_conn,
-        };
+        );
+
+        let includer = Includer::new(worker);
 
         Ok(includer)
     }
