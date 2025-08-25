@@ -351,7 +351,7 @@ impl<PV: PriceViewTrait> TraceParser<PV> {
                 continue;
             }
             let mut parser =
-                ParserSignersRotated::new(tx.clone(), self.its_address.clone()).await?;
+                ParserSignersRotated::new(tx.clone(), self.gateway_address.clone()).await?;
             if parser.check_match().await? {
                 info!("ParserSignersRotated matched, trace_id={}", trace.trace_id);
                 parser.parse().await?;

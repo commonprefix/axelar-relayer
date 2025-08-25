@@ -126,7 +126,7 @@ mod tests {
     async fn test_parser() {
         let traces = fixture_traces();
 
-        let tx = traces[24].transactions[0].clone();
+        let tx = traces[24].transactions[1].clone();
         let address = tx.clone().account;
 
         let mut parser = ParserSignersRotated::new(tx, address).await.unwrap();
@@ -140,19 +140,19 @@ mod tests {
             Event::SignersRotated { common, message_id } => {
                 assert_eq!(
                     message_id,
-                    "0xf8fa8946b22867e5220d6ec3f3d72c631920d1e87f8b4a3498b3e0fe1fb15203"
+                    "0x409645b0e14243e7344db15d1b1bbccd1a2f74bde0dccfc7b0a777f4c340d02f"
                 );
 
                 let meta = &common.meta.as_ref().unwrap();
                 assert_eq!(
                     meta.common_meta.tx_id.as_deref(),
-                    Some("+PqJRrIoZ+UiDW7D89csYxkg0eh/i0o0mLPg/h+xUgM=")
+                    Some("QJZFsOFCQ+c0TbFdGxu8zRovdL3g3M/HsKd39MNA0C8=")
                 );
                 assert_eq!(meta.epoch, Some(2u64));
                 assert_eq!(
                     meta.signers_hash,
                     Some(
-                        "0xee044ccbcda39fe78af84a5d50e144236fdfaa118a081f4b00d5077ceaf041f5"
+                        "0x4b163171177cefe9be70322b61eb0bf141920bb8f6faea9c79271a5c331aacd5"
                             .to_string()
                     )
                 );
