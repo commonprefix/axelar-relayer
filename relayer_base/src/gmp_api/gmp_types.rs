@@ -320,11 +320,35 @@ pub struct MessageExecutedEventMetadata {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct SignersRotatedEventMetadata {
+    #[serde(flatten)]
+    pub common_meta: EventMetadata,
+    #[serde(rename = "signersHash")]
+    pub signers_hash: Option<String>,
+    pub epoch: Option<u64>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct ScopedMessage {
     #[serde(rename = "messageID")]
     pub message_id: String,
     #[serde(rename = "sourceChain")]
     pub source_chain: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct InterchainTokenDefinition {
+    pub id: String,
+    pub name: String,
+    pub symbol: String,
+    pub decimals: u8,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct InterchainTransferToken {
+    pub token_address: String,
+    pub amount: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -357,6 +381,16 @@ pub enum VerificationStatus {
     InProgress,
     #[serde(rename = "unknown")]
     Unknown,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum TokenManagerType {
+    NativeInterchainToken,
+    MintBurnFrom,
+    LockUnlock,
+    LockUnlockFee,
+    MintBurn,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -431,6 +465,46 @@ pub enum Event {
         destination_address: String,
         #[serde(rename = "dataHash")]
         data_hash: String,
+    },
+    ITSTokenMetadataRegistered {
+        #[serde(flatten)]
+        common: CommonEventFields<EventMetadata>,
+        #[serde(rename = "messageID")]
+        message_id: String,
+        address: String,
+        decimals: u8,
+    },
+    ITSLinkTokenStarted {
+        #[serde(flatten)]
+        common: CommonEventFields<EventMetadata>,
+        #[serde(rename = "messageID")]
+        message_id: String,
+        #[serde(rename = "tokenID")]
+        token_id: String,
+        #[serde(rename = "destinationChain")]
+        destination_chain: String,
+        #[serde(rename = "sourceTokenAddress")]
+        source_token_address: String,
+        #[serde(rename = "destinationTokenAddress")]
+        destination_token_address: String,
+        #[serde(rename = "tokenManagerType")]
+        token_manager_type: TokenManagerType,
+    },
+    ITSInterchainTokenDeploymentStarted {
+        #[serde(flatten)]
+        common: CommonEventFields<EventMetadata>,
+        #[serde(rename = "messageID")]
+        message_id: String,
+        #[serde(rename = "destinationChain")]
+        destination_chain: String,
+        #[serde(rename = "token")]
+        token: InterchainTokenDefinition,
+    },
+    SignersRotated {
+        #[serde(flatten)]
+        common: CommonEventFields<SignersRotatedEventMetadata>,
+        #[serde(rename = "messageID")]
+        message_id: String,
     },
 }
 

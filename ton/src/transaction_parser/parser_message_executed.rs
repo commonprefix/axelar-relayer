@@ -9,7 +9,7 @@ use tonlib_core::TonAddress;
 use crate::boc::nullified_message::NullifiedSuccessfullyMessage;
 use crate::error::TransactionParsingError;
 use crate::ton_constants::{OP_GATEWAY_EXECUTE, OP_NULLIFIED_SUCCESSFULLY};
-use crate::transaction_parser::common::is_log_emmitted;
+use crate::transaction_parser::common::is_log_emmitted_in_opcode;
 use crate::transaction_parser::message_matching_key::MessageMatchingKey;
 use crate::transaction_parser::parser::Parser;
 
@@ -47,16 +47,16 @@ impl Parser for ParserMessageExecuted {
         Ok(true)
     }
 
-    async fn is_match(&self) -> Result<bool, TransactionParsingError> {
+    async fn check_match(&mut self) -> Result<bool, TransactionParsingError> {
         if self.tx.account != self.allowed_address {
             return Ok(false);
         }
 
         let mut msg_idx = 1usize;
         let mut second_log = false;
-        let first_log = is_log_emmitted(&self.tx, OP_NULLIFIED_SUCCESSFULLY, 0)?;
+        let first_log = is_log_emmitted_in_opcode(&self.tx, OP_NULLIFIED_SUCCESSFULLY, 0)?;
         if !first_log {
-            second_log = is_log_emmitted(&self.tx, OP_NULLIFIED_SUCCESSFULLY, 1)?;
+            second_log = is_log_emmitted_in_opcode(&self.tx, OP_NULLIFIED_SUCCESSFULLY, 1)?;
             msg_idx = 0;
         }
 
@@ -131,7 +131,7 @@ mod tests {
         let address = tx.clone().account;
 
         let mut parser = ParserMessageExecuted::new(tx, address).await.unwrap();
-        assert!(parser.is_match().await.unwrap());
+        assert!(parser.check_match().await.unwrap());
         parser.parse().await.unwrap();
         let event = parser.event(None).await.unwrap();
         match event {
@@ -167,7 +167,7 @@ mod tests {
         let address = tx.clone().account;
 
         let mut parser = ParserMessageExecuted::new(tx, address).await.unwrap();
-        assert!(parser.is_match().await.unwrap());
+        assert!(parser.check_match().await.unwrap());
         parser.parse().await.unwrap();
         let event = parser.event(None).await.unwrap();
         match event {
@@ -207,9 +207,9 @@ mod tests {
         )
         .unwrap();
         let tx = traces[1].transactions[0].clone();
-        let parser = ParserMessageExecuted::new(tx, address.clone())
+        let mut parser = ParserMessageExecuted::new(tx, address.clone())
             .await
             .unwrap();
-        assert!(!parser.is_match().await.unwrap());
+        assert!(!parser.check_match().await.unwrap());
     }
 }

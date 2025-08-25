@@ -12,6 +12,7 @@ let approve_messages = ApproveMessages::from_boc_hex(boc);
 */
 
 use crate::boc::cell_to::CellTo;
+use crate::boc::op_code::compare_op_code;
 use crate::error::BocError;
 use crate::error::BocError::{BocParsingError, InvalidOpCode};
 use crate::ton_constants::OP_APPROVE_MESSAGES;
@@ -45,11 +46,11 @@ impl ApproveMessages {
         let op_code = parser
             .load_bits(32)
             .map_err(|err| BocParsingError(err.to_string()))?;
-        if hex::encode(&op_code) != format!("{OP_APPROVE_MESSAGES:08X}") {
+        if !compare_op_code(OP_APPROVE_MESSAGES, &op_code) {
             return Err(InvalidOpCode(format!(
-                "Expected {:?}, got {:?}",
+                "Expected {:08X}, got {}",
                 OP_APPROVE_MESSAGES,
-                hex::encode(op_code)
+                hex::encode(&op_code)
             )));
         }
         let proof = parser

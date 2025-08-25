@@ -33,7 +33,9 @@ use std::sync::Arc;
 use tonlib_core::tlb_types::block::out_action::OutAction;
 use tonlib_core::tlb_types::tlb::TLB;
 use tonlib_core::{TonAddress, TonHash};
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
+
+const HIGHLOAD_WALLET_ALREADY_EXECUTED: &str = "THROWIF 36";
 
 pub struct TONBroadcaster<GE> {
     wallet_manager: Arc<WalletManager>,
@@ -70,10 +72,19 @@ impl<GE: GasEstimator> TONBroadcaster<GE> {
         &self,
         wallet: &TonWalletHighLoadV3,
         actions: Vec<OutAction>,
+        retries_left: Option<u32>,
     ) -> Result<V3MessageResponse, BroadcasterError> {
+        if let Some(1) = retries_left {
+            error!("Last retry attempt for send_to_chain operation");
+        }
+
         let query_id = self
             .query_id_wrapper
-            .next(wallet.address.to_string().as_str(), wallet.timeout)
+            .next(
+                wallet.address.to_string().as_str(),
+                wallet.timeout,
+                retries_left.is_some(),
+            )
             .await
             .map_err(|e| {
                 BroadcasterError::GenericError(format!("Query Id acquiring failed: {e:?}"))
@@ -96,10 +107,33 @@ impl<GE: GasEstimator> TONBroadcaster<GE> {
             "Sending boc: {:?} to post_v3_message with query_id: {:?}",
             boc, query_id
         );
-        self.client
-            .post_v3_message(boc)
-            .await
-            .map_err(|e| RPCCallFailed(e.to_string()))
+
+        let result = self.client.post_v3_message(boc.clone()).await;
+
+        match result {
+            Ok(response) => Ok(response),
+            Err(e) => {
+                let error_str = e.to_string();
+                // High load wallet "already executed" error
+                if error_str.contains(HIGHLOAD_WALLET_ALREADY_EXECUTED) {
+                    let retries = match retries_left {
+                        Some(r) if r > 0 => Some(r - 1),
+                        None => Some(10),
+                        _ => None,
+                    };
+
+                    if retries.is_some() {
+                        warn!(
+                            "Encountered {} error, retrying. Retries left: {:?}",
+                            HIGHLOAD_WALLET_ALREADY_EXECUTED, retries
+                        );
+                        // https://rust-lang.github.io/async-book/07_workarounds/04_recursion.html
+                        return Box::pin(self.send_to_chain(wallet, actions, retries)).await;
+                    }
+                }
+                Err(RPCCallFailed(error_str))
+            }
+        }
     }
 }
 
@@ -146,7 +180,7 @@ impl<GE: GasEstimator> Broadcaster for TONBroadcaster<GE> {
             })?;
 
         let result = async {
-            let res = self.send_to_chain(wallet, actions.clone()).await;
+            let res = self.send_to_chain(wallet, actions.clone(), None).await;
             let (tx_hash, status) = match res {
                 Ok(response) => (response.message_hash, Ok(())),
                 Err(err) => (String::new(), Err(err)),
@@ -248,7 +282,7 @@ impl<GE: GasEstimator> Broadcaster for TONBroadcaster<GE> {
             )
             .map_err(|e| BroadcasterError::GenericError(e.to_string()))?];
 
-            let res = self.send_to_chain(wallet, actions.clone()).await;
+            let res = self.send_to_chain(wallet, actions.clone(), None).await;
             let (tx_hash, status) = match res {
                 Ok(response) => (response.message_hash, Ok(())),
                 Err(err) => (String::new(), Err(err)),
@@ -337,7 +371,7 @@ impl<GE: GasEstimator> Broadcaster for TONBroadcaster<GE> {
                         .map_err(|e| BroadcasterError::GenericError(e.to_string()))?,
                 ];
 
-            let res = self.send_to_chain(wallet, actions.clone()).await;
+            let res = self.send_to_chain(wallet, actions.clone(), None).await;
             let (tx_hash, _status) = match res {
                 Ok(response) => (response.message_hash, Ok(())),
                 Err(err) => (String::new(), Err(err)),
@@ -384,6 +418,7 @@ mod tests {
             &self,
             _address: &str,
             _timeout: u64,
+            _force_shift_increase: bool,
         ) -> Result<HighLoadQueryId, HighLoadQueryIdWrapperError> {
             Ok(HighLoadQueryId::from_shift_and_bitnumber(0u32, 0u32)
                 .await
@@ -736,6 +771,110 @@ mod tests {
 
         let res = broadcaster.broadcast_refund_message(refund_task).await;
         assert!(res.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_send_to_chain_retry_on_throwif_36() {
+        use crate::out_action::out_action;
+        use base64::prelude::BASE64_STANDARD;
+        use base64::Engine;
+        use hex;
+        use num_bigint::BigUint;
+        use relayer_base::error::ClientError;
+        use std::sync::atomic::{AtomicU32, Ordering};
+        use std::sync::{Arc, Mutex};
+
+        struct TestQueryIdWrapper {
+            // It allows us to keep track easily without making &self mutable.
+            // The execution is sequential though.
+            force_shift_increase_count: Arc<AtomicU32>,
+        }
+
+        #[async_trait::async_trait]
+        impl HighLoadQueryIdWrapper for TestQueryIdWrapper {
+            async fn next(
+                &self,
+                _address: &str,
+                _timeout: u64,
+                force_shift_increase: bool,
+            ) -> Result<HighLoadQueryId, HighLoadQueryIdWrapperError> {
+                if force_shift_increase {
+                    self.force_shift_increase_count
+                        .fetch_add(1, Ordering::SeqCst);
+                }
+                Ok(HighLoadQueryId::from_shift_and_bitnumber(0u32, 0u32)
+                    .await
+                    .unwrap())
+            }
+        }
+
+        let call_count = Arc::new(Mutex::new(0));
+        let call_count_clone = Arc::clone(&call_count);
+
+        let mut client = MockRestClient::new();
+        client.expect_post_v3_message().returning(move |_| {
+            let mut count = call_count_clone.lock().unwrap();
+            *count += 1;
+            if *count <= 5 {
+                // First call fails with THROWIF 36
+                Err(ClientError::BadResponse(
+                    "THROWIF 36 error occurred".to_string(),
+                ))
+            } else {
+                // Subsequent calls succeed
+                Ok(V3MessageResponse {
+                    message_hash: "abc".to_string(),
+                    message_hash_norm: "ABC".to_string(),
+                })
+            }
+        });
+
+        let wallet_manager = load_wallets().await;
+
+        let force_shift_increase_count = Arc::new(AtomicU32::new(0));
+
+        let query_id_wrapper = TestQueryIdWrapper {
+            force_shift_increase_count: Arc::clone(&force_shift_increase_count),
+        };
+
+        let gateway_address = TonAddress::from_str(
+            "0:0000000000000000000000000000000000000000000000000000000000000000",
+        )
+        .unwrap();
+
+        let gas_service_address = TonAddress::from_str(
+            "0:0000000000000000000000000000000000000000000000000000000000000fff",
+        )
+        .unwrap();
+
+        let mut gas_estimator = MockGasEstimator::new();
+        gas_estimator
+            .expect_highload_wallet_send()
+            .returning(|_| Box::pin(async { 1024u64 }));
+
+        let broadcaster = TONBroadcaster {
+            wallet_manager: Arc::new(wallet_manager),
+            query_id_wrapper: Arc::new(query_id_wrapper),
+            client: Arc::new(client),
+            gateway_address,
+            gas_service_address,
+            chain_name: "ton2".to_string(),
+            gas_estimator,
+        };
+
+        let wallet = broadcaster.wallet_manager.acquire().await.unwrap();
+        let approve_message = hex::encode(BASE64_STANDARD.decode("te6cckECDAEAAYsAAggAAAAoAQIBYYAAAAAAAAAAAAAAAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADf5gkADAQHABADi0LAAUYmshNOh1nWEdwB3eJHd51H6EH1kg3v2M30y32eQAAAAAAAAAAAAAAAAAAAAAQ+j+g0KWjWTaPqB9qQHuWZQn7IPz7x3xzwbprT1a85sjh0UlPlFU84LDdRcD4GZ6n6GJlEKKTlRW5QtlzKGrAsBAtAFBECeAcQjykQMXsK+7MnQoVK1T8jnpBbJMbcInq8iFgWvFwYHCAkAiDB4MTdmZDdkYTNkODE5Y2ZiYzQ2ZmYyOGYzZDgwOTgwNzcwZWMxYjgwZmQ3ZDFiMjI5Y2VjMzI1MTkzOWI5YjIzZi0xABxhdmFsYW5jaGUtZnVqaQBUMHhkNzA2N0FlM0MzNTllODM3ODkwYjI4QjdCRDBkMjA4NENmRGY0OWI1AgAKCwBAuHpKD2RLehhu5xoUVGNPcMIqYqyhprpna1F1wh1/2TAACHRvbjJLddsV").unwrap());
+        let actions = vec![out_action(
+            &approve_message,
+            BigUint::from(100u32),
+            broadcaster.gateway_address.clone(),
+        )
+        .unwrap()];
+        let result = broadcaster.send_to_chain(wallet, actions, None).await;
+        broadcaster.wallet_manager.release(wallet).await;
+        assert!(result.is_ok());
+        assert_eq!(*call_count.lock().unwrap(), 6);
+        assert_eq!(force_shift_increase_count.load(Ordering::SeqCst), 5);
     }
 
     fn mock_rest_client() -> MockRestClient {

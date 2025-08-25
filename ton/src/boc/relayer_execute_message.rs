@@ -30,11 +30,11 @@ let ton_cell = message.to_cell().unwrap();
 use crate::boc::buffer_to_cell;
 use crate::error::BocError;
 use crate::error::BocError::{BocEncodingError, BocParsingError};
+use crate::hashing::payload_hash;
 use crate::ton_constants::OP_RELAYER_EXECUTE;
 use num_bigint::BigUint;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use tiny_keccak::{Hasher, Keccak};
 use tonlib_core::cell::{Cell, CellBuilder};
 use tonlib_core::TonAddress;
 
@@ -70,14 +70,6 @@ impl RelayerExecuteMessage {
         }
     }
 
-    fn payload_hash(payload: &[u8]) -> BigUint {
-        let mut output = [0u8; 32];
-        let mut hasher = Keccak::v256();
-        hasher.update(payload);
-        hasher.finalize(&mut output);
-        BigUint::from_bytes_be(&output)
-    }
-
     pub fn to_cell(&self) -> Result<Cell, BocError> {
         let message_id = buffer_to_cell::buffer_to_cell(&self.message_id.as_bytes().to_vec())?;
         let source_chain = buffer_to_cell::buffer_to_cell(&self.source_chain.as_bytes().to_vec())?;
@@ -90,7 +82,7 @@ impl RelayerExecuteMessage {
         let payload_bytes = hex::decode(&self.payload)
             .map_err(|e| BocParsingError(format!("Invalid hex payload: {e}")))?;
 
-        let payload_hash = Self::payload_hash(&payload_bytes);
+        let payload_hash = payload_hash(&payload_bytes);
         let payload = buffer_to_cell::buffer_to_cell(&payload_bytes)?;
 
         let mut inner = CellBuilder::new();
@@ -142,28 +134,8 @@ impl RelayerExecuteMessage {
 
 #[cfg(test)]
 mod tests {
-    use num_bigint::BigUint;
-    use std::str::FromStr;
     use tonlib_core::tlb_types::tlb::TLB;
     use tonlib_core::TonAddress;
-
-    #[test]
-    fn test_payload_hash() {
-        let payload: [u8; 96] = [
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 19, 72, 101, 108, 108, 111, 32, 102, 114, 111, 109, 32, 114, 101, 108,
-            97, 121, 101, 114, 33, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        ];
-        let hash = super::RelayerExecuteMessage::payload_hash(payload.as_ref());
-        assert_eq!(
-            hash,
-            BigUint::from_str(
-                "71468550630404048420691790219403539000788302635511547374558478410759778184983"
-            )
-            .unwrap()
-        );
-    }
 
     #[test]
     fn test_to_cell() {

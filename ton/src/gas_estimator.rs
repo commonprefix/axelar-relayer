@@ -32,9 +32,12 @@ impl GasEstimator for TONGasEstimator {
     }
 
     async fn execute_estimate(&self, payload: usize) -> u64 {
-        self.config.execute_base
-            + self.config.execute_payload * payload as u64
-            + self.config.execute_storage_slippage
+        std::cmp::max(
+            self.config.execute_base
+                + self.config.execute_payload * payload as u64
+                + self.config.execute_storage_slippage,
+            self.config.its_execute_minimum,
+        )
     }
 
     async fn execute_send(&self, payload: usize) -> u64 {
@@ -69,6 +72,7 @@ mod tests {
             execute_storage_slippage: 1,
             approve_send: 500000000,
             highload_wallet_send: 1,
+            its_execute_minimum: 0,
         };
 
         let estimator = TONGasEstimator::new(config);
@@ -87,6 +91,7 @@ mod tests {
             execute_storage_slippage: 0,
             approve_send: 500000000,
             highload_wallet_send: 1,
+            its_execute_minimum: 100,
         };
 
         let estimator = TONGasEstimator::new(config);
@@ -109,6 +114,7 @@ mod tests {
             execute_storage_slippage: 1,
             highload_wallet_send: 1,
             approve_send: 500000000,
+            its_execute_minimum: 0,
         };
 
         let estimator = TONGasEstimator::new(config);
@@ -127,6 +133,7 @@ mod tests {
             execute_storage_slippage: 1,
             approve_send: 500000000,
             highload_wallet_send: 42,
+            its_execute_minimum: 0,
         };
 
         let estimator = TONGasEstimator::new(config);
@@ -145,6 +152,7 @@ mod tests {
             execute_storage_slippage: 0,
             highload_wallet_send: 0,
             approve_send: 0,
+            its_execute_minimum: 0,
         };
 
         let estimator = TONGasEstimator::new(config);
@@ -169,6 +177,7 @@ mod tests {
             execute_storage_slippage: 0,
             approve_send: 500000000,
             highload_wallet_send: 0,
+            its_execute_minimum: 0,
         };
 
         let estimator = TONGasEstimator::new(config);

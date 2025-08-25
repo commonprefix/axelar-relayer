@@ -1,7 +1,7 @@
 use crate::boc::jetton_gas_paid::JettonGasPaidMessage;
 use crate::error::TransactionParsingError;
-use crate::ton_constants::OP_USER_BALANCE_SUBTRACTED;
-use crate::transaction_parser::common::is_log_emmitted;
+use crate::ton_constants::OP_TRANSFER_NOTIFICATION;
+use crate::transaction_parser::common::is_log_emmitted_in_opcode;
 use crate::transaction_parser::message_matching_key::MessageMatchingKey;
 use crate::transaction_parser::parser::Parser;
 use async_trait::async_trait;
@@ -40,12 +40,12 @@ impl Parser for ParserJettonGasPaid {
         Ok(true)
     }
 
-    async fn is_match(&self) -> Result<bool, TransactionParsingError> {
+    async fn check_match(&mut self) -> Result<bool, TransactionParsingError> {
         if self.tx.account != self.allowed_address {
             return Ok(false);
         }
 
-        let candidate = is_log_emmitted(&self.tx, OP_USER_BALANCE_SUBTRACTED, 0)?;
+        let candidate = is_log_emmitted_in_opcode(&self.tx, OP_TRANSFER_NOTIFICATION, 0)?;
 
         if !candidate {
             return Ok(false);
@@ -126,7 +126,7 @@ mod tests {
         let address = tx.clone().account;
 
         let mut parser = ParserJettonGasPaid::new(tx, address).await.unwrap();
-        assert!(parser.is_match().await.unwrap());
+        assert!(parser.check_match().await.unwrap());
         assert!(parser.message_id().await.is_ok());
         parser.parse().await.unwrap();
         let event = parser.event(Some("foo".to_string())).await.unwrap();
@@ -162,8 +162,8 @@ mod tests {
             "0:0000000000000000000000000000000000000000000000000000000000000000",
         )
         .unwrap();
-        let tx = traces[10].transactions[3].clone(); // ADDED message
-        let parser = ParserJettonGasPaid::new(tx, address.clone()).await.unwrap();
-        assert!(!parser.is_match().await.unwrap());
+        let tx = traces[10].transactions[3].clone();
+        let mut parser = ParserJettonGasPaid::new(tx, address.clone()).await.unwrap();
+        assert!(!parser.check_match().await.unwrap());
     }
 }

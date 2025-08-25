@@ -22,6 +22,8 @@ pub struct GasEstimates {
     // Approve will always be refunded to us, and theoretical maximum is 0.5 ton
     pub approve_send: u64,
     pub highload_wallet_send: u64,
+    // Safe minimum to execute ITS. We will refund if it's less than this
+    pub its_execute_minimum: u64,
 }
 
 #[derive(Debug, Clone, Deserialize, Default)]
@@ -32,6 +34,7 @@ pub struct TONConfig {
     pub wallets: Vec<WalletConfig>,
     pub ton_gateway: String,
     pub ton_gas_service: String,
+    pub ton_its: String,
     pub ton_rpc: String,
     pub ton_api_key: String,
     pub gas_estimates: GasEstimates,

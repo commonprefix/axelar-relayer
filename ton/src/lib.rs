@@ -24,6 +24,7 @@ pub(crate) use boc::relayer_execute_message;
 pub use transaction_parser::parser;
 
 pub mod check_accounts;
+pub mod hashing;
 pub mod retry_subscriber;
 #[cfg(test)]
 mod test_utils;

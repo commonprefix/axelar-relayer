@@ -32,6 +32,8 @@ pub enum TransactionParsingError {
     Message(String),
     #[error("GasError: {0}")]
     Gas(String),
+    #[error("ITSWithoutPair: {0}")]
+    ITSWithoutPair(String),
     #[error("GeneralError: {0}")]
     Generic(String),
 }

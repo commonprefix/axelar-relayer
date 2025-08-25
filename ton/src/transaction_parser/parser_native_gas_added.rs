@@ -1,7 +1,7 @@
 use crate::boc::native_gas_added::NativeGasAddedMessage;
 use crate::error::TransactionParsingError;
 use crate::ton_constants::OP_ADD_NATIVE_GAS;
-use crate::transaction_parser::common::is_log_emmitted;
+use crate::transaction_parser::common::is_log_emmitted_in_opcode;
 use crate::transaction_parser::message_matching_key::MessageMatchingKey;
 use crate::transaction_parser::parser::Parser;
 use async_trait::async_trait;
@@ -40,12 +40,12 @@ impl Parser for ParserNativeGasAdded {
         Ok(true)
     }
 
-    async fn is_match(&self) -> Result<bool, TransactionParsingError> {
+    async fn check_match(&mut self) -> Result<bool, TransactionParsingError> {
         if self.tx.account != self.allowed_address {
             return Ok(false);
         }
 
-        is_log_emmitted(&self.tx, OP_ADD_NATIVE_GAS, 0)
+        is_log_emmitted_in_opcode(&self.tx, OP_ADD_NATIVE_GAS, 0)
     }
 
     async fn key(&self) -> Result<MessageMatchingKey, TransactionParsingError> {
@@ -114,7 +114,7 @@ mod tests {
         let address = tx.clone().account;
 
         let mut parser = ParserNativeGasAdded::new(tx, address).await.unwrap();
-        assert!(parser.is_match().await.unwrap());
+        assert!(parser.check_match().await.unwrap());
         parser.parse().await.unwrap();
         assert_eq!(
             parser.message_id().await.unwrap().unwrap(),
@@ -157,9 +157,9 @@ mod tests {
         )
         .unwrap();
         let tx = traces[1].transactions[0].clone();
-        let parser = ParserNativeGasAdded::new(tx, address.clone())
+        let mut parser = ParserNativeGasAdded::new(tx, address.clone())
             .await
             .unwrap();
-        assert!(!parser.is_match().await.unwrap());
+        assert!(!parser.check_match().await.unwrap());
     }
 }

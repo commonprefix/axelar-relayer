@@ -35,8 +35,8 @@ pub struct HighLoadQueryId {
 }
 
 impl HighLoadQueryId {
-    const MAX_SHIFT: u32 = 8191;
-    const MAX_BITNUMBER: u32 = 1022;
+    pub(crate) const MAX_SHIFT: u32 = 8191;
+    pub(crate) const MAX_BITNUMBER: u32 = 1022;
     const BITNUMBER_SIZE: u8 = 10;
 
     pub async fn from_shift_and_bitnumber(

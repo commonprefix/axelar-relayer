@@ -65,7 +65,7 @@ async fn main() {
     match wallet_manager.acquire().await {
         Ok(wallet) => {
             let timeout = 60 * 60;
-            let query_id = wrapper.next("wallet1", timeout).await.unwrap();
+            let query_id = wrapper.next("wallet1", timeout, true).await.unwrap();
 
             wallet_manager.release(wallet).await;
         }
@@ -73,6 +73,13 @@ async fn main() {
     }
 }
 ```
+
+# Force shift increase
+
+Sometimes, we can run into trying to reuse the same queryid through no logic fault, e.g. accidentally
+reusing the same wallet address on two different deployments (e.g. testing locally and then deploying
+to a devnet server) - in that case, we can use force_shift_increase parameter to force the query_id
+to change significantly, which will reduce the chance of query_id becoming a problem.
 
 # See also
 - https://docs.ton.org/v3/guidelines/smart-contracts/howto/wallet#replay-protection
@@ -103,6 +110,7 @@ pub trait HighLoadQueryIdWrapper {
         &self,
         address: &str,
         timeout: u64,
+        force_shift_increase: bool,
     ) -> Result<HighLoadQueryId, HighLoadQueryIdWrapperError>;
 }
 
@@ -118,12 +126,22 @@ impl HighLoadQueryIdWrapper for HighLoadQueryIdDbWrapper {
         &self,
         address: &str,
         timeout: u64,
+        force_shift_increase: bool,
     ) -> Result<HighLoadQueryId, HighLoadQueryIdWrapperError> {
-        let (shift, bitnumber) = self
+        let (mut shift, bitnumber) = self
             .model
             .get_query_id(address)
             .await
             .map_err(|_| HighLoadQueryIdWrapperError::DatabaseError)?;
+
+        if force_shift_increase {
+            if shift < 0 {
+                shift = 1
+            }
+            if shift + 1 < HighLoadQueryId::MAX_SHIFT as i32 {
+                shift += 1;
+            }
+        }
 
         let query_id = if shift < 0 || bitnumber < 0 {
             HighLoadQueryId::from_shift_and_bitnumber(0u32, 0u32)
@@ -196,17 +214,21 @@ mod tests {
 
         let wrapper = HighLoadQueryIdDbWrapper::new(model).await;
 
-        let query_id_a = wrapper.next("wallet1", 60).await.unwrap();
+        let query_id_a = wrapper.next("wallet1", 60, false).await.unwrap();
         assert_eq!(query_id_a.query_id().await, 0);
-        let query_id_b = wrapper.next("wallet2", 60).await.unwrap();
+        let query_id_b = wrapper.next("wallet2", 60, false).await.unwrap();
         assert_eq!(query_id_b.query_id().await, 0);
-        let query_id_c = wrapper.next("wallet1", 60).await.unwrap();
+        let query_id_c = wrapper.next("wallet1", 60, false).await.unwrap();
         assert_eq!(query_id_c.query_id().await, 1);
-
-        let query_id_d = wrapper.next("wallet3", 0).await.unwrap();
+        let query_id_d = wrapper.next("wallet3", 0, false).await.unwrap();
         assert_eq!(query_id_d.query_id().await, 0);
-
-        let query_id_e = wrapper.next("wallet3", 60).await.unwrap();
+        let query_id_e = wrapper.next("wallet3", 60, false).await.unwrap();
         assert_eq!(query_id_e.query_id().await, 0);
+        let query_id_e = wrapper.next("wallet3", 60, false).await.unwrap();
+        assert_eq!(query_id_e.query_id().await, 1);
+        let query_id_e = wrapper.next("wallet3", 60, true).await.unwrap();
+        assert_eq!(query_id_e.query_id().await, 1026);
+        let query_id_e = wrapper.next("wallet3", 60, false).await.unwrap();
+        assert_eq!(query_id_e.query_id().await, 1027);
     }
 }
