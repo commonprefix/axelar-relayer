@@ -7,10 +7,11 @@ pub trait SubscriberCursor {
     // Subscriber functions
     fn store_latest_signature(
         &self,
-        context: &str,
+        context: String,
         signature: String,
     ) -> impl Future<Output = Result<()>>;
-    fn get_latest_signature(&self, context: &str) -> impl Future<Output = Result<Option<String>>>;
+    fn get_latest_signature(&self, context: String)
+        -> impl Future<Output = Result<Option<String>>>;
 }
 
 #[derive(Clone, Debug)]
@@ -26,7 +27,7 @@ impl PostgresDB {
 }
 
 impl SubscriberCursor for PostgresDB {
-    async fn store_latest_signature(&self, context: &str, signature: String) -> Result<()> {
+    async fn store_latest_signature(&self, context: String, signature: String) -> Result<()> {
         let query =
             "INSERT INTO solana_subscriber_cursors (context, signature) VALUES ($1, $2) ON CONFLICT (context) DO UPDATE SET signature = $2, updated_at = now() RETURNING context, signature";
 
@@ -38,7 +39,7 @@ impl SubscriberCursor for PostgresDB {
         Ok(())
     }
 
-    async fn get_latest_signature(&self, context: &str) -> Result<Option<String>> {
+    async fn get_latest_signature(&self, context: String) -> Result<Option<String>> {
         let query = "SELECT signature FROM solana_subscriber_cursors WHERE context = $1";
         let signature = sqlx::query_scalar(query)
             .bind(context)

@@ -8,8 +8,10 @@ use relayer_base::{
     utils::{setup_heartbeat, setup_logging},
 };
 use solana::{
-    client::SolanaRpcClient, config::SolanaConfig, models::solana_subscriber_cursor::PostgresDB,
-    subscriber::SolanaPoller,
+    client::{SolanaRpcClient, SolanaStreamClient},
+    config::SolanaConfig,
+    models::solana_subscriber_cursor::PostgresDB,
+    subscriber::{SolanaListener, SolanaPoller},
 };
 use solana_sdk::pubkey::Pubkey;
 use std::str::FromStr;
@@ -30,12 +32,21 @@ async fn main() -> anyhow::Result<()> {
     let mut sigint = signal(SignalKind::interrupt())?;
     let mut sigterm = signal(SignalKind::terminate())?;
 
-    let solana_rpc_client: SolanaRpcClient =
-        SolanaRpcClient::new(&config.solana_rpc, config.solana_commitment, 3)?;
-    let solana_subscriber =
-        SolanaPoller::new(solana_rpc_client, "default".to_string(), postgres_cursor).await?;
+    let solana_stream_client =
+        SolanaStreamClient::new(&config.solana_rpc, config.solana_commitment).await?;
 
-    let mut subscriber = Subscriber::new(solana_subscriber);
+    // let solana_rpc_client: SolanaRpcClient =
+    //     SolanaRpcClient::new(&config.solana_rpc, config.solana_commitment, 3)?;
+    // let solana_subscriber =
+    //     SolanaPoller::new(solana_rpc_client, "default".to_string(), postgres_cursor).await?;
+    let mut solana_subscriber = SolanaListener::new(
+        solana_stream_client,
+        "default".to_string(),
+        postgres_cursor.clone(),
+    )
+    .await?;
+
+    //  let mut subscriber = Subscriber::new(solana_subscriber);
     let redis_client = redis::Client::open(config.common_config.redis_server.clone())?;
     let redis_conn = connection_manager(redis_client, None, None, None).await?;
 
@@ -46,7 +57,8 @@ async fn main() -> anyhow::Result<()> {
     tokio::select! {
         _ = sigint.recv()  => {},
         _ = sigterm.recv() => {},
-        _ = subscriber.run(account, Arc::clone(&events_queue)) => {},
+      //  _ = subscriber.run(account, Arc::clone(&events_queue)) => {},
+      _ = solana_subscriber.run(account, Arc::clone(&events_queue), Arc::new(postgres_cursor)) => {},
     }
 
     events_queue.close().await;
