@@ -20,8 +20,9 @@ async fn main() -> anyhow::Result<()> {
 
     let _guard = setup_logging(&config);
 
-    let construct_proof_queue = Queue::new(&config.queue_address, "construct_proof").await;
-    let tasks_queue = Queue::new(&config.queue_address, "ingestor_tasks").await;
+    let construct_proof_queue =
+        Queue::new(&config.queue_address, "construct_proof", config.num_workers).await;
+    let tasks_queue = Queue::new(&config.queue_address, "ingestor_tasks", config.num_workers).await;
     let postgres_db = PostgresDB::new(&config.postgres_url).await?;
     let payload_cache = PayloadCache::new(postgres_db);
 
@@ -38,7 +39,7 @@ async fn main() -> anyhow::Result<()> {
     let mut sigint = signal(SignalKind::interrupt())?;
     let mut sigterm = signal(SignalKind::terminate())?;
 
-    setup_heartbeat("heartbeat:proof_retrier".to_owned(), redis_conn);
+    setup_heartbeat("heartbeat:proof_retrier".to_owned(), redis_conn, None);
 
     tokio::select! {
         _ = sigint.recv()  => {},

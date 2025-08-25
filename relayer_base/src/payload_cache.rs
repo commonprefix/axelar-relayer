@@ -1,10 +1,11 @@
+use async_trait::async_trait;
 use router_api::CrossChainId;
 use serde::{Deserialize, Serialize};
-use std::future::Future;
 use tracing::debug;
 
 use crate::database::Database;
 use crate::gmp_api::gmp_types::GatewayV2Message;
+use crate::utils::ThreadSafe;
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct PayloadCacheValue {
@@ -12,31 +13,34 @@ pub struct PayloadCacheValue {
     pub payload: String,
 }
 
-pub struct PayloadCache<DB: Database> {
+#[derive(Clone)]
+pub struct PayloadCache<DB: Database + ThreadSafe> {
     db: DB,
 }
 
 #[cfg_attr(any(test, feature = "mocks"), mockall::automock)]
-pub trait PayloadCacheTrait {
-    fn get(
-        &self,
-        cc_id: CrossChainId,
-    ) -> impl Future<Output = Result<Option<PayloadCacheValue>, anyhow::Error>>;
-    fn store(
+#[async_trait]
+pub trait PayloadCacheTrait: Send + Sync {
+    async fn get(&self, cc_id: CrossChainId) -> Result<Option<PayloadCacheValue>, anyhow::Error>;
+    async fn store(
         &self,
         cc_id: CrossChainId,
         value: PayloadCacheValue,
-    ) -> impl Future<Output = Result<(), anyhow::Error>>;
-    fn clear(&self, cc_id: CrossChainId) -> impl Future<Output = Result<(), anyhow::Error>>;
+    ) -> Result<(), anyhow::Error>;
+    async fn clear(&self, cc_id: CrossChainId) -> Result<(), anyhow::Error>;
 }
 
-impl<DB: Database> PayloadCache<DB> {
+impl<DB: Database + ThreadSafe> PayloadCache<DB> {
     pub fn new(db: DB) -> Self {
         Self { db }
     }
 }
 
-impl<DB: Database> PayloadCacheTrait for PayloadCache<DB> {
+#[async_trait]
+impl<DB> PayloadCacheTrait for PayloadCache<DB>
+where
+    DB: Database + ThreadSafe,
+{
     async fn get(&self, cc_id: CrossChainId) -> Result<Option<PayloadCacheValue>, anyhow::Error> {
         let value = self
             .db
@@ -114,7 +118,7 @@ mod tests {
         mock_db
             .expect_store_payload()
             .with(eq(cc_id.clone()), eq(serialized.to_string()))
-            .returning(|_, _| Box::pin(async { Ok(()) }));
+            .returning(|_, _| Ok(()));
 
         let cache = PayloadCache::new(mock_db);
         let result = cache.store(cc_id, value).await;
@@ -129,7 +133,7 @@ mod tests {
 
         mock_db
             .expect_store_payload()
-            .returning(|_, _| Box::pin(async { Err(anyhow::anyhow!("error")) }));
+            .returning(|_, _| Err(anyhow::anyhow!("error")));
 
         let cache = PayloadCache::new(mock_db);
         let result = cache.store(cc_id, value).await;
@@ -151,7 +155,7 @@ mod tests {
             .with(eq(cc_id.clone()))
             .returning(move |_| {
                 let result = Some(serialized.clone());
-                Box::pin(async move { Ok(result) })
+                Ok(result)
             });
 
         let cache = PayloadCache::new(mock_db);
@@ -168,7 +172,7 @@ mod tests {
         mock_db
             .expect_get_payload()
             .with(eq(cc_id.clone()))
-            .returning(move |_| Box::pin(async move { Ok(None) }));
+            .returning(move |_| Ok(None));
 
         let cache = PayloadCache::new(mock_db);
         let result = cache.get(cc_id).await.unwrap();
@@ -184,7 +188,7 @@ mod tests {
         mock_db
             .expect_get_payload()
             .with(eq(cc_id.clone()))
-            .returning(|_| Box::pin(async { Err(anyhow::anyhow!("db get failure")) }));
+            .returning(|_| Err(anyhow::anyhow!("db get failure")));
 
         let cache = PayloadCache::new(mock_db);
         let result = cache.get(cc_id).await;
@@ -204,7 +208,7 @@ mod tests {
         mock_db
             .expect_clear_payload()
             .with(eq(cc_id.clone()))
-            .returning(|_| Box::pin(async { Ok(()) }));
+            .returning(|_| Ok(()));
 
         let cache = PayloadCache::new(mock_db);
         let result = cache.clear(cc_id).await;
@@ -220,7 +224,7 @@ mod tests {
         mock_db
             .expect_clear_payload()
             .with(eq(cc_id.clone()))
-            .returning(|_| Box::pin(async { Err(anyhow::anyhow!("clear error")) }));
+            .returning(|_| Err(anyhow::anyhow!("clear error")));
 
         let cache = PayloadCache::new(mock_db);
         let result = cache.clear(cc_id).await;

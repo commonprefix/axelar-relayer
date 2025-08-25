@@ -23,9 +23,9 @@ async fn main() -> Result<()> {
     //let channel: Channel = conn.create_channel().await?;
     info!("Connected to {}", &config.queue_address);
 
-    let tasks_queue = Queue::new(&config.queue_address, "tasks").await;
-    let includer_tasks_queue = Queue::new(&config.queue_address, "includer_tasks").await;
-    let ingestor_tasks_queue = Queue::new(&config.queue_address, "ingestor_tasks").await;
+    let tasks_queue = Queue::new(&config.queue_address, "tasks", 1).await;
+    let includer_tasks_queue = Queue::new(&config.queue_address, "includer_tasks", 1).await;
+    let ingestor_tasks_queue = Queue::new(&config.queue_address, "ingestor_tasks", 1).await;
 
     let mut consumer = tasks_queue.consumer().await?;
     info!(

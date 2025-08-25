@@ -139,7 +139,7 @@ mod tests {
         mock_db
             .expect_get_latest_height()
             .with(eq("test-chain"), eq("test-context"))
-            .returning(|_, _| Box::pin(async { Ok(None) }));
+            .returning(|_, _| Ok(None));
 
         let subscriber = TONSubscriber::new(
             MockRestClient::new(),
@@ -160,7 +160,7 @@ mod tests {
         mock_db
             .expect_get_latest_height()
             .with(eq("test-chain"), eq("test-context"))
-            .returning(|_, _| Box::pin(async { Ok(Some(12345)) }));
+            .returning(|_, _| Ok(Some(12345)));
 
         let subscriber = TONSubscriber::new(
             MockRestClient::new(),
@@ -181,7 +181,7 @@ mod tests {
         mock_db
             .expect_get_latest_height()
             .with(eq("test-chain"), eq("test-context"))
-            .returning(|_, _| Box::pin(async { Ok(Some(12345)) }));
+            .returning(|_, _| Ok(Some(12345)));
 
         let mut mock_client = MockRestClient::new();
 
@@ -215,11 +215,11 @@ mod tests {
         let mut mock_db = MockDatabase::new();
         mock_db
             .expect_get_latest_height()
-            .returning(|_, _| Box::pin(async { Ok(Some(0)) }));
+            .returning(|_, _| Ok(Some(0)));
 
         mock_db
             .expect_store_latest_height()
-            .returning(|_, _, _| Box::pin(async { Ok(()) }));
+            .returning(|_, _, _| Ok(()));
 
         let mut mock_client = MockRestClient::new();
         let trace1 = sample_trace("trace_1", 1, 2);

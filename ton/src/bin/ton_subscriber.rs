@@ -25,7 +25,12 @@ async fn main() -> anyhow::Result<()> {
 
     let _guard = setup_logging(&config.common_config);
 
-    let events_queue = Queue::new(&config.common_config.queue_address, "events").await;
+    let events_queue = Queue::new(
+        &config.common_config.queue_address,
+        "events",
+        config.common_config.num_workers,
+    )
+    .await;
     let postgres_db = PostgresDB::new(&config.common_config.postgres_url).await?;
 
     let ton_gateway = config.ton_gateway;
@@ -39,7 +44,7 @@ async fn main() -> anyhow::Result<()> {
     let redis_client = redis::Client::open(config.common_config.redis_server.clone())?;
     let redis_conn = connection_manager(redis_client, None, None, None).await?;
 
-    setup_heartbeat("heartbeat:subscriber".to_owned(), redis_conn);
+    setup_heartbeat("heartbeat:subscriber".to_owned(), redis_conn, None);
 
     let pg_pool = PgPool::connect(&config.common_config.postgres_url).await?;
 

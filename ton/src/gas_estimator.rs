@@ -5,8 +5,9 @@ This might be overly simplistic right now, we will test more to find a better wa
 */
 
 use crate::config::GasEstimates;
-use std::future::Future;
+use async_trait::async_trait;
 
+#[derive(Clone)]
 pub struct TONGasEstimator {
     config: GasEstimates,
 }
@@ -18,14 +19,16 @@ impl TONGasEstimator {
 }
 
 #[cfg_attr(test, mockall::automock)]
+#[async_trait]
 pub trait GasEstimator {
-    fn native_gas_refund_estimate(&self) -> impl Future<Output = u64>;
-    fn execute_send(&self, payload: usize) -> impl Future<Output = u64>;
-    fn execute_estimate(&self, payload: usize) -> impl Future<Output = u64>;
-    fn approve_send(&self, num_message: usize) -> impl Future<Output = u64>;
-    fn highload_wallet_send(&self, num_actions: usize) -> impl Future<Output = u64>;
+    async fn native_gas_refund_estimate(&self) -> u64;
+    async fn execute_send(&self, payload: usize) -> u64;
+    async fn execute_estimate(&self, payload: usize) -> u64;
+    async fn approve_send(&self, num_message: usize) -> u64;
+    async fn highload_wallet_send(&self, num_actions: usize) -> u64;
 }
 
+#[async_trait]
 impl GasEstimator for TONGasEstimator {
     async fn native_gas_refund_estimate(&self) -> u64 {
         self.config.native_gas_refund + self.config.native_gas_refund_storage_slippage

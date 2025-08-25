@@ -1,5 +1,6 @@
 use crate::models::ton_trace::{EventSummary, UpdateEvents};
 use crate::parser::TraceParserTrait;
+use async_trait::async_trait;
 use relayer_base::error::IngestorError;
 use relayer_base::gmp_api::gmp_types::{
     ConstructProofTask, Event, ReactToWasmEventTask, RetryTask, VerifyTask,
@@ -7,14 +8,16 @@ use relayer_base::gmp_api::gmp_types::{
 use relayer_base::ingestor::IngestorTrait;
 use relayer_base::models::gmp_events::EventModel;
 use relayer_base::subscriber::ChainTransaction;
+use relayer_base::utils::ThreadSafe;
 use tracing::{info, warn};
 
-pub struct TONIngestor<TP: TraceParserTrait, TM: UpdateEvents + Send + Sync> {
+#[derive(Clone)]
+pub struct TONIngestor<TP: TraceParserTrait + Sync, TM: UpdateEvents + ThreadSafe> {
     trace_parser: TP,
     ton_trace_model: TM,
 }
 
-impl<TP: TraceParserTrait, TM: UpdateEvents + Send + Sync> TONIngestor<TP, TM> {
+impl<TP: TraceParserTrait + Sync, TM: UpdateEvents + ThreadSafe> TONIngestor<TP, TM> {
     pub fn new(trace_parser: TP, ton_trace_model: TM) -> Self {
         Self {
             trace_parser,
@@ -23,7 +26,12 @@ impl<TP: TraceParserTrait, TM: UpdateEvents + Send + Sync> TONIngestor<TP, TM> {
     }
 }
 
-impl<TP: TraceParserTrait, TM: UpdateEvents + Send + Sync> IngestorTrait for TONIngestor<TP, TM> {
+#[async_trait]
+impl<TP, TM> IngestorTrait for TONIngestor<TP, TM>
+where
+    TP: TraceParserTrait + ThreadSafe,
+    TM: UpdateEvents + ThreadSafe,
+{
     async fn handle_verify(&self, task: VerifyTask) -> Result<(), IngestorError> {
         warn!("handle_verify: {:?}", task);
 
@@ -295,7 +303,7 @@ mod tests {
         // Setup mock parser to return our test events
         mock_parser.expect_parse_trace().returning(move |_| {
             let events = events.clone();
-            Box::pin(async move { Ok(events) })
+            Ok(events)
         });
 
         let mut mock_ton_trace_model = MockUpdateEvents::new();

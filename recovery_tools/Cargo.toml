@@ -18,6 +18,7 @@ sqlx = { workspace = true }
 relayer-base = { workspace = true }
 xrpl = { workspace = true }
 redis = { workspace = true, features = ["tokio-rustls-comp"] }
+tokio-util = { workspace = true }
 
 [dev-dependencies]
 

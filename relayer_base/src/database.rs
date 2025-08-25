@@ -1,49 +1,30 @@
 use anyhow::Result;
+use async_trait::async_trait;
+use router_api::CrossChainId;
 use rust_decimal::Decimal;
 use sqlx::{PgPool, Row};
-use std::future::Future;
 use std::str::FromStr;
-
-use router_api::CrossChainId;
 
 // TODO: split to models
 #[cfg_attr(any(test, feature = "mocks"), mockall::automock)]
+#[async_trait]
 pub trait Database {
     // Subscriber functions
-    fn store_latest_height(
-        &self,
-        chain: &str,
-        context: &str,
-        height: i64,
-    ) -> impl Future<Output = Result<()>>;
-    fn get_latest_height(
-        &self,
-        chain: &str,
-        context: &str,
-    ) -> impl Future<Output = Result<Option<i64>>>;
+    async fn store_latest_height(&self, chain: &str, context: &str, height: i64) -> Result<()>;
+    async fn get_latest_height(&self, chain: &str, context: &str) -> Result<Option<i64>>;
 
     // Distributor functions
-    fn store_latest_task_id(
-        &self,
-        chain: &str,
-        context: &str,
-        task_id: &str,
-    ) -> impl Future<Output = Result<()>>;
-    fn get_latest_task_id(
-        &self,
-        chain: &str,
-        context: &str,
-    ) -> impl Future<Output = Result<Option<String>>>;
+    async fn store_latest_task_id(&self, chain: &str, context: &str, task_id: &str) -> Result<()>;
+    async fn get_latest_task_id(&self, chain: &str, context: &str) -> Result<Option<String>>;
 
     // Payload cache functions
-    fn store_payload(&self, cc_id: CrossChainId, value: String)
-        -> impl Future<Output = Result<()>>;
-    fn get_payload(&self, cc_id: CrossChainId) -> impl Future<Output = Result<Option<String>>>;
-    fn clear_payload(&self, cc_id: CrossChainId) -> impl Future<Output = Result<()>>;
+    async fn store_payload(&self, cc_id: CrossChainId, value: String) -> Result<()>;
+    async fn get_payload(&self, cc_id: CrossChainId) -> Result<Option<String>>;
+    async fn clear_payload(&self, cc_id: CrossChainId) -> Result<()>;
 
     // Price view functions
-    fn get_price(&self, pair: &str) -> impl Future<Output = Result<Option<Decimal>>>;
-    fn store_price(&self, pair: &str, price: Decimal) -> impl Future<Output = Result<()>>;
+    async fn get_price(&self, pair: &str) -> Result<Option<Decimal>>;
+    async fn store_price(&self, pair: &str, price: Decimal) -> Result<()>;
 }
 
 #[derive(Clone, Debug)]
@@ -58,6 +39,7 @@ impl PostgresDB {
     }
 }
 
+#[async_trait]
 impl Database for PostgresDB {
     async fn store_latest_height(&self, chain: &str, context: &str, height: i64) -> Result<()> {
         let query =

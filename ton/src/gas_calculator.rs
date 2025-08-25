@@ -5,7 +5,7 @@ use std::str::FromStr;
 use ton_types::ton_types::{Transaction, TransactionMessage};
 use tonlib_core::TonAddress;
 
-#[derive(Default)]
+#[derive(Clone)]
 pub struct GasCalculator {
     our_addresses: Vec<TonAddress>,
 }
