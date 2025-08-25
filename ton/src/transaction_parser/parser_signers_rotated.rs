@@ -87,11 +87,8 @@ impl Parser for ParserSignersRotated {
 
         Ok(Event::SignersRotated {
             common: CommonEventFields {
-                r#type: "ITS/INTERCHAIN_TOKEN_DEPLOYMENT_STARTED".to_owned(),
-                event_id: format!(
-                    "{}-its-interchain-token-deployment-started",
-                    tx.hash.clone()
-                ),
+                r#type: "SIGNERS_ROTATED".to_owned(),
+                event_id: format!("{}-signers-rotated", tx.hash.clone()),
                 meta: Some(SignersRotatedEventMetadata {
                     common_meta: EventMetadata {
                         tx_id: Some(tx.hash.clone()),

@@ -355,7 +355,7 @@ impl<PV: PriceViewTrait> TraceParser<PV> {
             if parser.check_match().await? {
                 info!("ParserSignersRotated matched, trace_id={}", trace.trace_id);
                 parser.parse().await?;
-                its.push(Box::new(parser));
+                parsers.push(Box::new(parser));
                 continue;
             }
         }
