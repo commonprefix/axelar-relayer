@@ -73,7 +73,6 @@ pub struct SolanaRpcClient {
 pub struct SolanaStreamClient {
     client: PubsubClient,
     commitment: CommitmentConfig,
-    max_retries: usize,
     unsub: Mutex<Option<UnsubFn>>,
 }
 
@@ -118,17 +117,12 @@ impl SolanaRpcClientTrait for SolanaRpcClient {
                     let maybe_meta = &response.transaction.meta;
                     let solana_tx = SolanaTransaction {
                         signature: signature,
-                        transaction: serde_json::to_string(&response.transaction)?,
                         timestamp: None,
                         logs: match maybe_meta {
                             Some(meta) => meta.log_messages.clone().into(),
                             None => None,
                         },
                         slot: response.slot,
-                        cost_in_lamports: match maybe_meta {
-                            Some(meta) => meta.fee,
-                            None => 0,
-                        },
                     };
                     return Ok(solana_tx);
                 }
@@ -269,16 +263,11 @@ impl SolanaRpcClientTrait for SolanaRpcClient {
 }
 
 impl SolanaStreamClient {
-    pub async fn new(
-        url: &str,
-        commitment: CommitmentConfig,
-        max_retries: usize,
-    ) -> Result<Self, ClientError> {
+    pub async fn new(url: &str, commitment: CommitmentConfig) -> Result<Self, ClientError> {
         Ok(Self {
             client: PubsubClient::new(url)
                 .await
                 .map_err(|e| ClientError::ConnectionFailed(e.to_string()))?,
-            max_retries,
             commitment,
             unsub: Mutex::new(None),
         })

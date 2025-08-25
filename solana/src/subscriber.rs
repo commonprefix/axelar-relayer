@@ -1,19 +1,22 @@
-use std::{future::Future, pin::Pin, str::FromStr};
+use std::{future::Future, str::FromStr, sync::Arc};
 
 use crate::{
     client::{LogsSubscription, SolanaRpcClientTrait, SolanaStreamClientTrait},
     models::solana_subscriber_cursor::SubscriberCursor,
+    utils::create_solana_tx_from_rpc_response,
 };
 use anyhow::anyhow;
-use futures::Stream;
+use futures::StreamExt;
+use relayer_base::queue::QueueItem;
 use relayer_base::{
     error::SubscriberError,
+    queue::Queue,
     subscriber::{ChainTransaction, TransactionPoller},
 };
 use solana_sdk::pubkey::Pubkey;
 use solana_sdk::signature::Signature;
 use solana_types::solana_types::SolanaTransaction;
-use tracing::error;
+use tracing::{debug, error, info, warn};
 
 pub struct SolanaPoller<RPC: SolanaRpcClientTrait, SC: SubscriberCursor> {
     client: RPC,
@@ -35,16 +38,105 @@ pub trait TransactionListener {
 
     fn make_queue_item(&mut self, tx: Self::Transaction) -> ChainTransaction;
 
-    fn subscribe(
+    fn subscriber(
         &mut self,
         account: Self::Account,
     ) -> impl Future<Output = Result<LogsSubscription<'_>, anyhow::Error>>;
 
     fn unsubscribe(&mut self) -> impl Future<Output = ()>;
+}
 
-    fn transaction_stream(
-        &mut self,
-    ) -> impl Future<Output = Pin<Box<dyn Stream<Item = Self::Transaction> + '_>>>;
+impl<STR: SolanaStreamClientTrait, SC: SubscriberCursor> SolanaListener<STR, SC> {
+    pub async fn new(
+        client: STR,
+        context: String,
+        cursor_model: SC,
+    ) -> Result<Self, SubscriberError> {
+        let maybe_last_signature_checked = cursor_model.get_latest_signature(context.clone()).await;
+
+        let last_signature_checked = match maybe_last_signature_checked {
+            Ok(signature_option) => match signature_option {
+                Some(signature_str) => {
+                    let maybe_sig = match Signature::from_str(&signature_str) {
+                        Ok(sig) => Some(sig),
+                        Err(e) => {
+                            error!("Error parsing signature: {:?}", e);
+                            None
+                        }
+                    };
+                    maybe_sig
+                }
+                None => None,
+            },
+            Err(e) => {
+                error!("Error getting latest signature: {:?}", e);
+                None
+            }
+        };
+
+        Ok(SolanaListener {
+            client,
+            last_signature_checked,
+            cursor_model,
+            context,
+        })
+    }
+
+    pub async fn run(&mut self, account: Pubkey, queue: Arc<Queue>, subscriber_cursor: Arc<SC>) {
+        loop {
+            let context = self.context.clone();
+            let subscriber_stream_res = self.subscriber(account.clone()).await;
+            if let Ok(mut subscriber_stream) = subscriber_stream_res {
+                loop {
+                    match Self::work(&mut subscriber_stream, Arc::clone(&queue)).await {
+                        Ok(Some(signature)) => {
+                            if let Err(e) = subscriber_cursor
+                                .store_latest_signature(context.clone(), signature.to_string())
+                                .await
+                            {
+                                error!("Error storing latest signature: {:?}", e);
+                            }
+                        }
+                        Ok(None) => {}
+                        Err(e) => {
+                            error!("Error processing stream: {:?}", e);
+                        }
+                    }
+                }
+            } else {
+                error!(
+                    "Error getting subscriber stream: {:?}",
+                    subscriber_stream_res.err()
+                );
+                debug!("Retrying in 2 seconds");
+            }
+            tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+        }
+    }
+
+    // TOOD: Create a general stream work function and seperate it from poll work
+    async fn work(
+        subscriber_stream: &mut LogsSubscription<'_>,
+        queue: Arc<Queue>,
+    ) -> Result<Option<Signature>, anyhow::Error> {
+        info!("Waiting for messages from solana subscriber...");
+        match subscriber_stream.next().await {
+            Some(response) => {
+                let tx = create_solana_tx_from_rpc_response(response)?;
+                let chain_transaction = ChainTransaction::Solana(Box::new(tx.clone()));
+
+                let item = &QueueItem::Transaction(Box::new(chain_transaction.clone()));
+                info!("Publishing transaction: {:?}", chain_transaction);
+                queue.publish(item.clone()).await;
+                debug!("Published tx: {:?}", item);
+                Ok(Some(tx.signature))
+            }
+            None => {
+                warn!("Stream was closed");
+                Err(anyhow!("Stream was closed"))
+            }
+        }
+    }
 }
 
 impl<RPC: SolanaRpcClientTrait, SC: SubscriberCursor> SolanaPoller<RPC, SC> {
@@ -53,7 +145,7 @@ impl<RPC: SolanaRpcClientTrait, SC: SubscriberCursor> SolanaPoller<RPC, SC> {
         context: String,
         cursor_model: SC,
     ) -> Result<Self, SubscriberError> {
-        let maybe_last_signature_checked = cursor_model.get_latest_signature(&context).await;
+        let maybe_last_signature_checked = cursor_model.get_latest_signature(context.clone()).await;
 
         let last_signature_checked = match maybe_last_signature_checked {
             Ok(signature_option) => match signature_option {
@@ -87,7 +179,7 @@ impl<RPC: SolanaRpcClientTrait, SC: SubscriberCursor> SolanaPoller<RPC, SC> {
         match self.last_signature_checked {
             Some(signature) => self
                 .cursor_model
-                .store_latest_signature(&self.context, signature.to_string())
+                .store_latest_signature(self.context.clone(), signature.to_string())
                 .await
                 .map_err(|e| anyhow!("Error storing latest signature: {:?}", e)),
             None => Err(anyhow!("No signature to store")),
@@ -143,7 +235,7 @@ impl<STR: SolanaStreamClientTrait, SC: SubscriberCursor> TransactionListener
         ChainTransaction::Solana(Box::new(tx))
     }
 
-    async fn subscribe(
+    async fn subscriber(
         &mut self,
         account: Self::Account,
     ) -> Result<LogsSubscription<'_>, anyhow::Error> {
@@ -152,10 +244,6 @@ impl<STR: SolanaStreamClientTrait, SC: SubscriberCursor> TransactionListener
 
     async fn unsubscribe(&mut self) {
         self.client.unsubscribe().await;
-    }
-
-    async fn transaction_stream(&mut self) -> Pin<Box<dyn Stream<Item = Self::Transaction> + '_>> {
-        todo!()
     }
 }
 
