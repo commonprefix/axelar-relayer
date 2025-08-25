@@ -23,6 +23,9 @@ reqwest-retry = { workspace = true }
 reqwest-middleware = { workspace = true, features = ["json"] }
 ton_types = { workspace = true }
 tonlib-core = { workspace = true }
+testcontainers = { workspace = true }
+testcontainers-modules = { workspace = true, features = ["postgres"] }
+opentelemetry = { workspace = true }
 
 nacl = "0.5.3"
 num-bigint = "0.4.6"

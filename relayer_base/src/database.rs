@@ -82,6 +82,7 @@ impl Database for PostgresDB {
         Ok(height)
     }
 
+    #[tracing::instrument(skip(self))]
     async fn store_latest_task_id(&self, chain: &str, context: &str, task_id: &str) -> Result<()> {
         let query = "INSERT INTO distributor_cursors (chain, context, task_id) VALUES ($1, $2, $3) ON CONFLICT (chain, context) DO UPDATE SET task_id = $3, updated_at = now()";
         sqlx::query(query)

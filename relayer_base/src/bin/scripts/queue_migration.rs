@@ -3,10 +3,10 @@ use dotenv::dotenv;
 use futures::StreamExt;
 use lapin::options::BasicAckOptions;
 use relayer_base::config::config_from_yaml;
+use relayer_base::logging::setup_logging;
 use relayer_base::{
     gmp_api::gmp_types::TaskKind,
     queue::{Queue, QueueItem},
-    utils::setup_logging,
 };
 use std::env;
 use std::sync::Arc;
@@ -17,7 +17,7 @@ async fn main() -> Result<()> {
     dotenv().ok();
     let network = env::var("NETWORK").expect("NETWORK must be set");
     let config = config_from_yaml(&format!("config.{}.yaml", network))?;
-    let _guard = setup_logging(&config);
+    let (_sentry_guard, otel_guard) = setup_logging(&config);
 
     //let conn = Connection::connect(&config.queue_address, ConnectionProperties::default()).await?;
     //let channel: Channel = conn.create_channel().await?;
@@ -69,6 +69,10 @@ async fn main() -> Result<()> {
             }
         }
     }
+
+    otel_guard
+        .force_flush()
+        .expect("Failed to flush OTEL messages");
 
     Ok(())
 }
