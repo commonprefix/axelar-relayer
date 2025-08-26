@@ -1,8 +1,6 @@
 use crate::client::SolanaRpcClient;
 use crate::config::SolanaConfig;
-use crate::models::solana_transaction::{
-    PgSolanaTransactionModel, SolanaTransaction, SolanaTransactionStatus,
-};
+use crate::models::solana_transaction::{PgSolanaTransactionModel, SolanaTransaction};
 use axelar_wasm_std::{msg_id::HexTxHash, nonempty};
 use base64::prelude::*;
 use interchain_token_service::TokenId;

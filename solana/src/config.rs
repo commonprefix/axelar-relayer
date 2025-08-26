@@ -12,5 +12,6 @@ pub struct SolanaConfig {
     pub solana_rpc: String,
     pub solana_faucet_url: String,
     pub solana_multisig: String,
+    pub solana_gateway: String,
     pub solana_commitment: CommitmentConfig,
 }

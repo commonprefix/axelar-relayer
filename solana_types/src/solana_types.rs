@@ -5,9 +5,7 @@ use solana_sdk::signature::Signature;
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct SolanaTransaction {
     pub signature: Signature,
-    pub transaction: String,
     pub timestamp: Option<DateTime<Utc>>,
     pub logs: Option<Vec<String>>,
     pub slot: u64,
-    pub cost_in_lamports: u64,
 }

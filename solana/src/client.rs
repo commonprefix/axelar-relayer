@@ -108,6 +108,7 @@ impl SolanaRpcClientTrait for SolanaRpcClient {
         let mut delay = Duration::from_millis(500);
 
         loop {
+            // TODO: Batching
             match self
                 .client
                 .get_transaction_with_config(&signature, config)
