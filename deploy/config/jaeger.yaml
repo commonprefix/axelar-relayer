@@ -3,6 +3,8 @@ extensions:
     backends:
       os:
         opensearch:
+          tags_as_fields:
+            all: true
           # no auth since we disabled security in dev
           server_urls:
             - http://opensearch:9200
