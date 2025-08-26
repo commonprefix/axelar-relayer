@@ -484,35 +484,46 @@ where
                         let xrpl_token_id = self
                             .config
                             .common_config
-                            .deployed_tokens
-                            .iter()
-                            .find(|(_, token_symbol)| token_symbol == &"XRP")
+                            .get_token_by_symbol("XRP")
                             .ok_or(IngestorError::GenericError(
                                 "XRP token id not found".to_string(),
                             ))?
-                            .0;
-                        (amount.to_string(), xrpl_token_id.to_owned())
+                            .id
+                            .clone();
+                        (amount.to_string(), xrpl_token_id)
                     }
                     XRPLPaymentAmount::Issued(_, amount) => {
                         if let Some(token_id) = maybe_token_id {
-                            let amount =
-                                Decimal::from_scientific(&amount.to_string()).map_err(|e| {
+                            let original_amount = Decimal::from_scientific(&amount.to_string())
+                                .map_err(|e| {
                                     IngestorError::GenericError(format!(
                                         "Failed to parse amount {}: {}",
                                         amount, e
                                     ))
                                 })?;
+                            let token_decimals = self
+                                .config
+                                .common_config
+                                .get_token_decimals(&token_id.to_string())
+                                .ok_or(IngestorError::GenericError(
+                                    "Token id not found".to_string(),
+                                ))?;
+                            let amount_with_decimals = original_amount
+                                .checked_mul(Decimal::from(10_i128.pow(token_decimals as u32)))
+                                .ok_or(IngestorError::GenericError(
+                                    "Failed to multiply amount by token decimals".to_string(),
+                                ))?;
 
-                            let amount = convert_token_amount_to_drops(
-                                &self.config.common_config,
-                                amount,
-                                &token_id.to_string(),
-                                &self.price_view,
-                            )
-                            .await
-                            .map_err(|e| IngestorError::GenericError(e.to_string()))?;
+                            if amount_with_decimals.fract() != Decimal::ZERO {
+                                warn!(
+                                    "Losing precision, amount has decimal places: {}",
+                                    amount_with_decimals
+                                );
+                            }
 
-                            (amount, token_id.to_string())
+                            let amount = amount_with_decimals.trunc();
+
+                            (amount.to_string(), token_id.to_string())
                         } else {
                             return Err(IngestorError::GenericError(
                                 "Token id can't be None for IOU transfer".to_owned(),
@@ -1219,7 +1230,7 @@ where
                         "Skipping payment that is not for or from the multisig: {:?}",
                         payment
                     );
-                    return Ok(vec![]);
+                    Ok(vec![])
                 }
             }
             Transaction::TicketCreate(_) => self.handle_prover_tx(*tx).await,

@@ -155,13 +155,13 @@ impl<QM: QueuedTransactionsModel, X: XRPLClientTrait> Broadcaster for XRPLBroadc
                 debug!("Successfully stored queued transaction");
             }
 
-            return Ok(BroadcastResult {
+            Ok(BroadcastResult {
                 transaction: tx.clone(),
                 tx_hash,
                 status: Ok(()),
                 message_id,
                 source_chain,
-            });
+            })
         } else {
             log_and_return_error(&tx, &response, message_id, source_chain)
         }
