@@ -132,6 +132,7 @@ impl Database for PostgresDB {
         Ok(())
     }
 
+    #[tracing::instrument(skip(self))]
     async fn store_price(&self, pair: &str, price: Decimal) -> Result<()> {
         let query = "INSERT INTO pair_prices (pair, price) VALUES ($1, $2) ON CONFLICT (pair) DO UPDATE SET price = $2, updated_at = now()";
         sqlx::query(query)
