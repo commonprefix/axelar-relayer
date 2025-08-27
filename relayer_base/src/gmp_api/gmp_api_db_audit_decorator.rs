@@ -111,6 +111,7 @@ where
         self.gmp_api.get_chain()
     }
 
+    #[tracing::instrument(skip(self))]
     async fn get_tasks_action(&self, after: Option<String>) -> Result<Vec<Task>, GmpApiError> {
         let tasks = self.gmp_api.get_tasks_action(after).await?;
         let gmp_tasks = Arc::clone(&self.gmp_tasks);
