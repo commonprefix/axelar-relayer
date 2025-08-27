@@ -4,7 +4,6 @@ use relayer_base::config::config_from_yaml;
 use relayer_base::redis::connection_manager;
 use relayer_base::{
     queue::Queue,
-    subscriber::Subscriber,
     utils::{setup_heartbeat, setup_logging},
 };
 use solana::{

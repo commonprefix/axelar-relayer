@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use solana_sdk::transaction::Transaction;
-use tracing::{debug, error, warn};
 
 use relayer_base::gmp_api::gmp_types::{ExecuteTaskFields, RefundTaskFields};
 use relayer_base::{

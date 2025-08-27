@@ -1,11 +1,7 @@
 use std::{future::Future, str::FromStr, sync::Arc, time::Duration};
 
 use crate::{
-    client::{
-        LogsSubscription, SolanaRpcClient, SolanaRpcClientTrait, SolanaStreamClient,
-        SolanaStreamClientTrait,
-    },
-    config::SolanaConfig,
+    client::{LogsSubscription, SolanaRpcClientTrait, SolanaStreamClientTrait},
     models::{
         solana_signature::SolanaSignatureModel,
         solana_subscriber_cursor::{AccountPollerEnum, SubscriberCursor},
@@ -56,6 +52,11 @@ pub trait TransactionListener {
     fn unsubscribe(&self) -> impl Future<Output = ()>;
 }
 
+#[derive(Clone, Debug)]
+pub enum ListenerCmd {
+    Reconnect,
+    Refresh,
+}
 pub struct SolanaPoller<RPC: SolanaRpcClientTrait, SC: SubscriberCursor, SM: SolanaSignatureModel> {
     client: RPC,
     cursor_model: Arc<SC>,
@@ -189,7 +190,6 @@ impl<STR: SolanaStreamClientTrait, SM: SolanaSignatureModel> SolanaListener<STR,
         }
     }
 }
-
 impl<RPC: SolanaRpcClientTrait, SC: SubscriberCursor, SM: SolanaSignatureModel>
     SolanaPoller<RPC, SC, SM>
 {
@@ -427,3 +427,42 @@ mod tests {
         //assert_eq!(transactions.len(), 18);
     }
 }
+
+// possible messaging :
+
+// pub struct SolanaListener<...> {
+//     // ...
+//     rx: tokio::sync::mpsc::Receiver<ListenerCmd>,
+// }
+
+// async fn work(
+//     &self,
+//     subscriber_stream: &mut LogsSubscription<'_>,
+//     stream_name: &str,
+//     rx: &mut tokio::sync::mpsc::Receiver<ListenerCmd>,
+// ) {
+//     loop {
+//         tokio::select! {
+//             // normal WS processing
+//             maybe = subscriber_stream.next() => {
+//                 match maybe {
+//                     Some(response) => { /* existing processing */ }
+//                     None => { tracing::warn!("{stream_name} closed"); break; }
+//                 }
+//             }
+//             // react to poller
+//             cmd = rx.recv() => {
+//                 match cmd {
+//                     Some(ListenerCmd::Refresh(_which)) => {
+//                         // do whatever you need: e.g., fast-path a check, flush, etc.
+//                     }
+//                     Some(ListenerCmd::Reconnect(_which)) => {
+//                         // break to outer loop to resubscribe
+//                         break;
+//                     }
+//                     None => { /* sender dropped; optional shutdown */ break; }
+//                 }
+//             }
+//         }
+//     }
+// }

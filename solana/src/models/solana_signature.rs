@@ -1,12 +1,13 @@
 use anyhow::Result;
-use futures::Future;
+use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 
+#[async_trait]
 pub trait SolanaSignatureModel {
-    fn find(&self, id: String) -> impl Future<Output = Result<Option<SolanaSignature>>> + Send;
-    fn upsert(&self, tx: SolanaSignature) -> impl Future<Output = Result<bool>> + Send;
-    fn delete(&self, tx: SolanaSignature) -> impl Future<Output = Result<()>> + Send;
+    async fn find(&self, id: String) -> Result<Option<SolanaSignature>>;
+    async fn upsert(&self, tx: SolanaSignature) -> Result<bool>;
+    async fn delete(&self, tx: SolanaSignature) -> Result<()>;
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, sqlx::FromRow)]
@@ -21,6 +22,7 @@ pub struct PgSolanaSignatureModel {
     pool: PgPool,
 }
 
+#[async_trait]
 impl SolanaSignatureModel for PgSolanaSignatureModel {
     async fn find(&self, id: String) -> Result<Option<SolanaSignature>> {
         let query = format!("SELECT * FROM {} WHERE signature = $1", PG_TABLE_NAME);
