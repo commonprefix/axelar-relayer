@@ -9,7 +9,8 @@ pub struct SolanaConfig {
 
     pub refund_manager_addresses: String,
     pub includer_secrets: String,
-    pub solana_rpc: String,
+    pub solana_poll_rpc: String,
+    pub solana_stream_rpc: String,
     pub solana_faucet_url: String,
     pub solana_multisig: String,
     pub solana_gateway: String,

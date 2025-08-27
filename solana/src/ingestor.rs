@@ -63,8 +63,9 @@ where
         payload_cache: PayloadCache<DB>,
         models: SolanaIngestorModels,
     ) -> Self {
-        let client = SolanaRpcClient::new(&config.solana_rpc, CommitmentConfig::confirmed(), 3)
-            .expect("failed to create Solana RPC client");
+        let client =
+            SolanaRpcClient::new(&config.solana_poll_rpc, CommitmentConfig::confirmed(), 3)
+                .expect("failed to create Solana RPC client");
         Self {
             gmp_api,
             config,

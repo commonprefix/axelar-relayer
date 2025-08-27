@@ -18,6 +18,7 @@ use sqlx::PgPool;
 use std::str::FromStr;
 use std::sync::Arc;
 use tokio::signal::unix::{signal, SignalKind};
+use tokio::task::JoinHandle;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -37,10 +38,10 @@ async fn main() -> anyhow::Result<()> {
     let mut sigterm = signal(SignalKind::terminate())?;
 
     let solana_stream_client =
-        SolanaStreamClient::new(&config.solana_rpc, config.solana_commitment).await?;
+        SolanaStreamClient::new(&config.solana_stream_rpc, config.solana_commitment).await?;
 
     let solana_rpc_client: SolanaRpcClient =
-        SolanaRpcClient::new(&config.solana_rpc, config.solana_commitment, 3)?;
+        SolanaRpcClient::new(&config.solana_poll_rpc, config.solana_commitment, 3)?;
 
     let solana_poller = SolanaPoller::new(
         solana_rpc_client,
@@ -66,11 +67,27 @@ async fn main() -> anyhow::Result<()> {
     let gas_service_account = Pubkey::from_str(&config.solana_multisig)?;
     let gateway_account = Pubkey::from_str(&config.solana_gateway)?;
 
+    let mut handles: Vec<JoinHandle<()>> = vec![];
+
+    handles.push(tokio::spawn(async move {
+        solana_poller
+            .run(gas_service_account, gateway_account)
+            .await;
+    }));
+
+    handles.push(tokio::spawn(async move {
+        solana_listener
+            .run(gas_service_account, gateway_account)
+            .await;
+    }));
+
     tokio::select! {
         _ = sigint.recv()  => {},
         _ = sigterm.recv() => {},
-        _ = solana_poller.run(gas_service_account, gateway_account) => {},
-        _ = solana_listener.run(gas_service_account, gateway_account) => {},
+    }
+
+    for handle in handles {
+        handle.abort();
     }
 
     events_queue.close().await;

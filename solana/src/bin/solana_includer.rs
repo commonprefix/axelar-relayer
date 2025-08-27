@@ -37,7 +37,7 @@ async fn main() -> anyhow::Result<()> {
 
     let payload_cache = PayloadCache::new(postgres_db.clone());
     let solana_rpc_client =
-        SolanaRpcClient::new(&config.solana_rpc, CommitmentConfig::confirmed(), 3)?;
+        SolanaRpcClient::new(&config.solana_poll_rpc, CommitmentConfig::confirmed(), 3)?;
     let pg_pool = PgPool::connect(&config.common_config.postgres_url).await?;
     let gmp_api = gmp_api::construct_gmp_api(pg_pool.clone(), &config.common_config, true)?;
 
