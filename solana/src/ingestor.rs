@@ -1,6 +1,6 @@
 use crate::client::SolanaRpcClient;
 use crate::config::SolanaConfig;
-use crate::models::solana_transaction::{PgSolanaTransactionModel, SolanaTransaction};
+use crate::models::solana_signature::{PgSolanaSignatureModel, SolanaSignature};
 use axelar_wasm_std::{msg_id::HexTxHash, nonempty};
 use base64::prelude::*;
 use interchain_token_service::TokenId;
@@ -38,7 +38,7 @@ use tracing::{debug, error, info, warn};
 const MAX_TASK_RETRIES: i32 = 5;
 
 pub struct SolanaIngestorModels {
-    pub solana_transaction_model: PgSolanaTransactionModel,
+    pub solana_signature_model: PgSolanaSignatureModel,
     pub task_retries: PgTaskRetriesModel,
 }
 

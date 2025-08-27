@@ -9,4 +9,4 @@ pub mod models;
 pub mod refund_manager;
 pub mod subscriber;
 pub mod utils;
-pub use models::solana_transaction;
+pub use models::solana_signature;

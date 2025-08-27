@@ -5,7 +5,7 @@ use tokio::signal::unix::{signal, SignalKind};
 
 use solana::{
     ingestor::{SolanaIngestor, SolanaIngestorModels},
-    solana_transaction::PgSolanaTransactionModel,
+    solana_signature::PgSolanaSignatureModel,
 };
 
 use relayer_base::config::config_from_yaml;
@@ -40,7 +40,7 @@ async fn main() -> anyhow::Result<()> {
     let price_view = PriceView::new(postgres_db.clone());
     let payload_cache = PayloadCache::new(postgres_db.clone());
     let models = SolanaIngestorModels {
-        solana_transaction_model: PgSolanaTransactionModel::new(pg_pool.clone()),
+        solana_signature_model: PgSolanaSignatureModel::new(pg_pool.clone()),
         task_retries: PgTaskRetriesModel::new(pg_pool.clone()),
     };
     // make an xrpl ingestor

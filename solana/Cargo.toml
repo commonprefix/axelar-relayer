@@ -35,6 +35,7 @@ futures = { workspace = true }
 futures-util = { workspace = true }
 solana_types = { workspace = true }
 solana-pubsub-client = { workspace = true }
+async-trait = { workspace = true }
 
 [dev-dependencies]
 relayer-base = { workspace = true, features = ["mocks"] }

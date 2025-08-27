@@ -10,10 +10,11 @@ use relayer_base::{
 use solana::{
     client::{SolanaRpcClient, SolanaStreamClient},
     config::SolanaConfig,
-    models::{solana_subscriber_cursor::PostgresDB, solana_transaction::PgSolanaTransactionModel},
+    models::{solana_signature::PgSolanaSignatureModel, solana_subscriber_cursor::PostgresDB},
     subscriber::{SolanaListener, SolanaPoller},
 };
 use solana_sdk::pubkey::Pubkey;
+use sqlx::PgPool;
 use std::str::FromStr;
 use std::sync::Arc;
 use tokio::signal::unix::{signal, SignalKind};
@@ -28,8 +29,9 @@ async fn main() -> anyhow::Result<()> {
 
     let events_queue = Queue::new(&config.common_config.queue_address, "events").await;
     let postgres_db = PostgresDB::new(&config.common_config.postgres_url).await?;
+    let pg_pool = PgPool::connect(&config.common_config.postgres_url).await?;
 
-    let solana_transaction_model = PgSolanaTransactionModel::new(postgres_db.clone());
+    let solana_signature_model = PgSolanaSignatureModel::new(pg_pool.clone());
 
     let mut sigint = signal(SignalKind::interrupt())?;
     let mut sigterm = signal(SignalKind::terminate())?;
@@ -40,8 +42,21 @@ async fn main() -> anyhow::Result<()> {
     let solana_rpc_client: SolanaRpcClient =
         SolanaRpcClient::new(&config.solana_rpc, config.solana_commitment, 3)?;
 
-    let solana_subscriber =
-        SolanaSubscriber::new(solana_stream_client, solana_rpc_client, postgres_db.clone()).await?;
+    let solana_poller = SolanaPoller::new(
+        solana_rpc_client,
+        "solana_poller".to_string(),
+        Arc::new(solana_signature_model.clone()),
+        Arc::new(postgres_db),
+        Arc::clone(&events_queue),
+    )
+    .await?;
+
+    let solana_listener = SolanaListener::new(
+        solana_stream_client,
+        Arc::new(solana_signature_model),
+        Arc::clone(&events_queue),
+    )
+    .await?;
 
     let redis_client = redis::Client::open(config.common_config.redis_server.clone())?;
     let redis_conn = connection_manager(redis_client, None, None, None).await?;
@@ -54,7 +69,8 @@ async fn main() -> anyhow::Result<()> {
     tokio::select! {
         _ = sigint.recv()  => {},
         _ = sigterm.recv() => {},
-      _ = solana_subscriber.run(gas_service_account, gateway_account, Arc::clone(&events_queue), Arc::new(postgres_db)) => {},
+        _ = solana_poller.run(gas_service_account, gateway_account) => {},
+        _ = solana_listener.run(gas_service_account, gateway_account) => {},
     }
 
     events_queue.close().await;

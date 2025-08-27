@@ -1,55 +1,57 @@
 use anyhow::Result;
+use futures::Future;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 
-pub trait SolanaTransactionModel {
-    async fn find(&self, id: String) -> Result<Option<SolanaTransaction>>;
-    async fn upsert(&self, tx: SolanaTransaction) -> Result<()>;
-    async fn delete(&self, tx: SolanaTransaction) -> Result<()>;
+pub trait SolanaSignatureModel {
+    fn find(&self, id: String) -> impl Future<Output = Result<Option<SolanaSignature>>> + Send;
+    fn upsert(&self, tx: SolanaSignature) -> impl Future<Output = Result<bool>> + Send;
+    fn delete(&self, tx: SolanaSignature) -> impl Future<Output = Result<()>> + Send;
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, sqlx::FromRow)]
-pub struct SolanaTransaction {
+pub struct SolanaSignature {
     pub signature: String,
     pub created_at: chrono::DateTime<chrono::Utc>,
 }
 
-const PG_TABLE_NAME: &str = "solana_transactions";
+const PG_TABLE_NAME: &str = "solana_signatures";
 #[derive(Debug, Clone)]
-pub struct PgSolanaTransactionModel {
+pub struct PgSolanaSignatureModel {
     pool: PgPool,
 }
 
-impl SolanaTransactionModel for PgSolanaTransactionModel {
-    async fn find(&self, id: String) -> Result<Option<SolanaTransaction>> {
+impl SolanaSignatureModel for PgSolanaSignatureModel {
+    async fn find(&self, id: String) -> Result<Option<SolanaSignature>> {
         let query = format!("SELECT * FROM {} WHERE signature = $1", PG_TABLE_NAME);
-        let tx = sqlx::query_as::<_, SolanaTransaction>(&query)
+        let tx = sqlx::query_as::<_, SolanaSignature>(&query)
             .bind(id)
             .fetch_optional(&self.pool)
             .await?;
         Ok(tx)
     }
 
-    async fn upsert(&self, tx: SolanaTransaction) -> Result<()> {
+    async fn upsert(&self, tx: SolanaSignature) -> Result<bool> {
         let query = format!(
             "INSERT INTO {} \
              (signature, created_at) \
              VALUES ($1,NOW()) \
-             ON CONFLICT (signature) DO UPDATE SET \
-               created_at = NOW() \
+             ON CONFLICT (signature) DO NOTHING \
             ",
             PG_TABLE_NAME
         );
 
-        sqlx::query(&query)
+        let res = sqlx::query(&query)
             .bind(tx.signature)
             .execute(&self.pool)
             .await?;
 
-        Ok(())
+        let inserted = res.rows_affected() > 0;
+
+        Ok(inserted)
     }
 
-    async fn delete(&self, tx: SolanaTransaction) -> Result<()> {
+    async fn delete(&self, tx: SolanaSignature) -> Result<()> {
         let query = format!("DELETE FROM {} WHERE signature = $1", PG_TABLE_NAME);
         sqlx::query(&query)
             .bind(tx.signature)
@@ -60,7 +62,7 @@ impl SolanaTransactionModel for PgSolanaTransactionModel {
     }
 }
 
-impl PgSolanaTransactionModel {
+impl PgSolanaSignatureModel {
     pub fn new(pool: PgPool) -> Self {
         Self { pool }
     }
