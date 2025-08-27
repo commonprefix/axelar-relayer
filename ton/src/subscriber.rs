@@ -52,6 +52,7 @@ impl<DB: Database, TM: AtomicUpsert, CL: RestClient> TONSubscriber<DB, TM, CL> {
         })
     }
 
+    #[tracing::instrument(skip(self))]
     async fn store_latest_height(&mut self) -> Result<(), SubscriberError> {
         self.db
             .store_latest_height(&self.chain_name, &self.context, self.latest_lt)

@@ -40,6 +40,7 @@ impl<DB: Database, X: XRPLClientTrait> XrplSubscriber<DB, X> {
         })
     }
 
+    #[tracing::instrument(skip(self))]
     pub async fn store_latest_ledger(&mut self) -> Result<(), anyhow::Error> {
         self.db
             .store_latest_height("xrpl", &self.context, self.latest_ledger)
