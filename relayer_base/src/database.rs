@@ -133,7 +133,7 @@ impl Database for PostgresDB {
         Ok(())
     }
 
-    #[tracing::instrument(skip(self))]
+    #[tracing::instrument(skip(self), name = "INSERT pair_prices")]
     async fn store_price(&self, pair: &str, price: Decimal) -> Result<()> {
         let query = "INSERT INTO pair_prices (pair, price) VALUES ($1, $2) ON CONFLICT (pair) DO UPDATE SET price = $2, updated_at = now()";
         sqlx::query(query)
@@ -144,7 +144,7 @@ impl Database for PostgresDB {
         Ok(())
     }
 
-    #[tracing::instrument(skip(self))]
+    #[tracing::instrument(skip(self), name = "SELECT pair_prices")]
     async fn get_price(&self, pair: &str) -> Result<Option<Decimal>> {
         let query = "SELECT price FROM pair_prices WHERE pair = $1";
         let maybe_row = sqlx::query(query)
