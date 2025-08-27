@@ -38,7 +38,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-region: ${{ vars.AWS_REGION }}
-          role-to-assume: arn:aws:iam::{{ vars.AWS_ACCOUNT_ID }}:role/GithubActions
+          role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/GithubActions
 
       - name: Configure AWS (keys for local act)
         if: env.ACT == 'true'
