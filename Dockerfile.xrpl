@@ -85,9 +85,10 @@ WORKDIR /app
 # Set the base path environment variable
 ENV BASE_PATH=/app
 
+# Since these are not available to Github Actions, they will need to be mounted as volumes, until we get to Secrets Manager
 # Copy config and certs
-COPY certs/ ./certs/
-COPY config/ ./config/
+# COPY certs/ ./certs/
+# COPY config/ ./config/
 
 # Build argument to decide which binary to include in this image
 ARG BINARY_NAME

@@ -63,4 +63,4 @@ jobs:
           REPOSITORY="${{ vars.AWS_ACCOUNT_ID }}.dkr.ecr.${{ vars.AWS_REGION }}.amazonaws.com"
           docker build -f Dockerfile.${CHAIN} -t ${REPOSITORY}/${TAG} .
           docker push ${REPOSITORY}/${TAG}
-          echo "Pushed ${TAG} to ${REPOSITORY}"
+          echo "::notice::Pushed image ${TAG} to ${REPOSITORY}"
