@@ -1,5 +1,8 @@
 name: Deploy Relayer
 
+concurrency:
+  group: deploy-relayer
+
 on:
   push:
     branches:
