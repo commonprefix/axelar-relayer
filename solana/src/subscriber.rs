@@ -13,8 +13,8 @@ use crate::{
 use anyhow::anyhow;
 use chrono::Utc;
 use futures::StreamExt;
+use relayer_base::queue::QueueItem;
 use relayer_base::{error::SubscriberError, queue::Queue, subscriber::ChainTransaction};
-use relayer_base::{queue::QueueItem, utils::ThreadSafe};
 use solana_sdk::pubkey::Pubkey;
 use solana_sdk::signature::Signature;
 use solana_types::solana_types::SolanaTransaction;
@@ -237,50 +237,58 @@ impl<STR: SolanaStreamClientTrait, SM: SolanaSignatureModel> SolanaListener<STR,
     ) {
         loop {
             info!("Waiting for messages from {}...", stream_name);
-            match subscriber_stream.next().await {
-                // TODO : Spawn a task to handle the response
-                Some(response) => {
-                    let tx = match create_solana_tx_from_rpc_response(response.clone()) {
-                        Ok(tx) => tx,
-                        Err(e) => {
-                            error!(
-                                "Error creating solana transaction: {:?} from response: {:?}",
-                                e, response
-                            );
-                            continue;
-                        }
-                    };
+            select! {
+                _ = tokio::time::sleep(Duration::from_secs(30)) => {
+                    warn!("Restarting {} stream", stream_name);
+                    break;
+                }
+                maybe_response = subscriber_stream.next() => {
+                    // TODO : Spawn a task to handle the response
+                    match maybe_response {
+                        Some(response) => {
+                            let tx = match create_solana_tx_from_rpc_response(response.clone()) {
+                                Ok(tx) => tx,
+                                Err(e) => {
+                                    error!(
+                                        "Error creating solana transaction: {:?} from response: {:?}",
+                                        e, response
+                                    );
+                                    continue;
+                                }
+                            };
 
-                    match signature_model
-                        .upsert(SolanaSignature {
-                            signature: tx.signature.to_string(),
-                            created_at: Utc::now(),
-                        })
-                        .await
-                    {
-                        Ok(inserted) => {
-                            if inserted {
-                                let chain_transaction =
-                                    ChainTransaction::Solana(Box::new(tx.clone()));
+                            match signature_model
+                                .upsert(SolanaSignature {
+                                    signature: tx.signature.to_string(),
+                                    created_at: Utc::now(),
+                                })
+                                .await
+                            {
+                                Ok(inserted) => {
+                                    if inserted {
+                                        let chain_transaction =
+                                            ChainTransaction::Solana(Box::new(tx.clone()));
 
-                                let item =
-                                    &QueueItem::Transaction(Box::new(chain_transaction.clone()));
-                                info!("Publishing transaction: {:?}", chain_transaction);
-                                queue.publish(item.clone()).await;
-                                debug!("Published tx: {:?}", item);
-                            } else {
-                                debug!("Transaction already exists: {:?}", tx.signature);
+                                        let item =
+                                            &QueueItem::Transaction(Box::new(chain_transaction.clone()));
+                                        info!("Publishing transaction: {:?}", chain_transaction);
+                                        queue.publish(item.clone()).await;
+                                        debug!("Published tx: {:?}", item);
+                                    } else {
+                                        debug!("Transaction already exists: {:?}", tx.signature);
+                                    }
+                                }
+                                Err(e) => {
+                                    error!("Error upserting transaction: {:?}", e);
+                                    continue;
+                                }
                             }
                         }
-                        Err(e) => {
-                            error!("Error upserting transaction: {:?}", e);
-                            continue;
+                        None => {
+                            warn!("Stream was closed");
+                            break;
                         }
                     }
-                }
-                None => {
-                    warn!("Stream was closed");
-                    break;
                 }
             }
         }
