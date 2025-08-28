@@ -18,6 +18,7 @@ use std::str::FromStr;
 use std::sync::Arc;
 use tokio::signal::unix::{signal, SignalKind};
 use tokio::task::JoinHandle;
+use tracing::info;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -63,7 +64,7 @@ async fn main() -> anyhow::Result<()> {
 
     setup_heartbeat("heartbeat:subscriber".to_owned(), redis_conn);
 
-    let gas_service_account = Pubkey::from_str(&config.solana_multisig)?;
+    let gas_service_account = Pubkey::from_str(&config.solana_gas_service)?;
     let gateway_account = Pubkey::from_str(&config.solana_gateway)?;
 
     let mut handles: Vec<JoinHandle<()>> = vec![];
@@ -76,7 +77,7 @@ async fn main() -> anyhow::Result<()> {
 
     handles.push(tokio::spawn(async move {
         solana_listener
-            .run(gas_service_account, gateway_account)
+            .run(gas_service_account, gateway_account, config)
             .await;
     }));
 

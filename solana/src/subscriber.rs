@@ -1,7 +1,8 @@
 use std::{future::Future, str::FromStr, sync::Arc, time::Duration};
 
 use crate::{
-    client::{LogsSubscription, SolanaRpcClientTrait, SolanaStreamClientTrait},
+    client::{LogsSubscription, SolanaRpcClientTrait, SolanaStreamClient, SolanaStreamClientTrait},
+    config::SolanaConfig,
     models::{
         solana_signature::SolanaSignatureModel,
         solana_subscriber_cursor::{AccountPollerEnum, SubscriberCursor},
@@ -12,12 +13,16 @@ use crate::{
 use anyhow::anyhow;
 use chrono::Utc;
 use futures::StreamExt;
-use relayer_base::queue::QueueItem;
 use relayer_base::{error::SubscriberError, queue::Queue, subscriber::ChainTransaction};
+use relayer_base::{queue::QueueItem, utils::ThreadSafe};
 use solana_sdk::pubkey::Pubkey;
 use solana_sdk::signature::Signature;
 use solana_types::solana_types::SolanaTransaction;
-use tokio::select;
+use tokio::{
+    select,
+    signal::unix::{signal, SignalKind},
+    task::JoinHandle,
+};
 use tracing::{debug, error, info, warn};
 
 pub trait TransactionPoller {
@@ -106,42 +111,134 @@ impl<STR: SolanaStreamClientTrait, SM: SolanaSignatureModel> SolanaListener<STR,
         })
     }
 
-    pub async fn run(&self, gas_service_account: Pubkey, gateway_account: Pubkey) {
-        loop {
-            let mut gas_service_subscriber_stream =
-                match self.subscriber(gas_service_account.clone()).await {
-                    Ok(consumer) => consumer,
+    pub async fn run(
+        &self,
+        gas_service_account: Pubkey,
+        gateway_account: Pubkey,
+        config: SolanaConfig,
+    ) {
+        let mut sigint = match signal(SignalKind::interrupt()) {
+            Ok(sigint) => sigint,
+            Err(e) => {
+                error!("Error creating interrupt signal: {:?}", e);
+                return;
+            }
+        };
+        let mut sigterm = match signal(SignalKind::terminate()) {
+            Ok(sigterm) => sigterm,
+            Err(e) => {
+                error!("Error creating terminate signal: {:?}", e);
+                return;
+            }
+        };
+
+        let mut handles: Vec<JoinHandle<()>> = vec![];
+
+        let solana_stream_rpc = config.clone().solana_stream_rpc;
+        let solana_commitment = config.clone().solana_commitment;
+
+        let queue = Arc::clone(&self.queue);
+        let signature_model = Arc::clone(&self.signature_model);
+
+        handles.push(tokio::spawn(async move {
+            loop {
+                let solana_stream_client_gs =
+                    match SolanaStreamClient::new(&solana_stream_rpc, solana_commitment).await {
+                        Ok(solana_stream_client_gs) => solana_stream_client_gs,
+                        Err(e) => {
+                            error!("Error creating solana stream client: {:?}", e);
+                            break;
+                        }
+                    };
+
+                let mut gas_service_subscriber_stream = match solana_stream_client_gs
+                    .logs_subscriber(gas_service_account.to_string())
+                    .await
+                {
+                    Ok(subscriber) => subscriber,
                     Err(e) => {
-                        error!("Failed to create subscriber stream: {:?}", e);
-                        return;
+                        error!("Error creating gas service subscriber stream: {:?}", e);
+                        break;
                     }
                 };
-            let mut gateway_subscriber_stream = match self.subscriber(gateway_account.clone()).await
-            {
-                Ok(consumer) => consumer,
-                Err(e) => {
-                    error!("Failed to create subscriber stream: {:?}", e);
-                    return;
-                }
-            };
+                Self::work(
+                    &mut gas_service_subscriber_stream,
+                    "gas_service",
+                    &queue,
+                    &signature_model,
+                )
+                .await;
 
-            select! {
-                _ = self.work(&mut gas_service_subscriber_stream, "gas_service") => {
-                    warn!("Gas service subscriber stream ended");
-                },
-                _ = self.work(&mut gateway_subscriber_stream, "gateway") => {
-                    warn!("Gateway subscriber stream ended");
-                }
-            };
-            tokio::time::sleep(Duration::from_secs(2)).await;
+                drop(gas_service_subscriber_stream);
+
+                solana_stream_client_gs.shutdown().await;
+            }
+        }));
+
+        let solana_stream_rpc = config.clone().solana_stream_rpc;
+        let solana_commitment = config.clone().solana_commitment;
+
+        let queue = Arc::clone(&self.queue);
+        let signature_model = Arc::clone(&self.signature_model);
+
+        handles.push(tokio::spawn(async move {
+            loop {
+                let solana_stream_client_gw =
+                    match SolanaStreamClient::new(&solana_stream_rpc, solana_commitment).await {
+                        Ok(solana_stream_client_gw) => solana_stream_client_gw,
+                        Err(e) => {
+                            error!("Error creating solana stream client: {:?}", e);
+                            break;
+                        }
+                    };
+
+                let mut gateway_subscriber_stream = match solana_stream_client_gw
+                    .logs_subscriber(gateway_account.to_string())
+                    .await
+                {
+                    Ok(subscriber) => subscriber,
+                    Err(e) => {
+                        error!("Error creating gateway subscriber stream: {:?}", e);
+                        break;
+                    }
+                };
+                Self::work(
+                    &mut gateway_subscriber_stream,
+                    "gateway",
+                    &queue,
+                    &signature_model,
+                )
+                .await;
+
+                drop(gateway_subscriber_stream);
+
+                solana_stream_client_gw.shutdown().await;
+            }
+        }));
+
+        tokio::select! {
+            _ = sigint.recv()  => {},
+            _ = sigterm.recv() => {},
         }
+
+        for handle in handles {
+            handle.abort();
+        }
+
+        info!("Shut down solana listener");
     }
 
     // TODO: Create a general stream work function and seperate it from poll work
-    async fn work(&self, subscriber_stream: &mut LogsSubscription<'_>, stream_name: &str) {
+    async fn work(
+        subscriber_stream: &mut LogsSubscription<'_>,
+        stream_name: &str,
+        queue: &Queue,
+        signature_model: &Arc<SM>,
+    ) {
         loop {
             info!("Waiting for messages from {}...", stream_name);
             match subscriber_stream.next().await {
+                // TODO : Spawn a task to handle the response
                 Some(response) => {
                     let tx = match create_solana_tx_from_rpc_response(response.clone()) {
                         Ok(tx) => tx,
@@ -154,8 +251,7 @@ impl<STR: SolanaStreamClientTrait, SM: SolanaSignatureModel> SolanaListener<STR,
                         }
                     };
 
-                    match self
-                        .signature_model
+                    match signature_model
                         .upsert(SolanaSignature {
                             signature: tx.signature.to_string(),
                             created_at: Utc::now(),
@@ -170,7 +266,7 @@ impl<STR: SolanaStreamClientTrait, SM: SolanaSignatureModel> SolanaListener<STR,
                                 let item =
                                     &QueueItem::Transaction(Box::new(chain_transaction.clone()));
                                 info!("Publishing transaction: {:?}", chain_transaction);
-                                self.queue.publish(item.clone()).await;
+                                queue.publish(item.clone()).await;
                                 debug!("Published tx: {:?}", item);
                             } else {
                                 debug!("Transaction already exists: {:?}", tx.signature);

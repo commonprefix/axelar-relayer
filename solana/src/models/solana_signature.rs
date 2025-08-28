@@ -1,10 +1,11 @@
 use anyhow::Result;
 use async_trait::async_trait;
+use relayer_base::utils::ThreadSafe;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 
 #[async_trait]
-pub trait SolanaSignatureModel {
+pub trait SolanaSignatureModel: ThreadSafe {
     async fn find(&self, id: String) -> Result<Option<SolanaSignature>>;
     async fn upsert(&self, tx: SolanaSignature) -> Result<bool>;
     async fn delete(&self, tx: SolanaSignature) -> Result<()>;

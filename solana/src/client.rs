@@ -273,6 +273,10 @@ impl SolanaStreamClient {
             unsub: Mutex::new(None),
         })
     }
+
+    pub async fn shutdown(self) {
+        self.client.shutdown().await;
+    }
 }
 
 impl SolanaStreamClientTrait for SolanaStreamClient {
