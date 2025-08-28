@@ -1,10 +1,13 @@
 terraform {
+  required_version = ">= 1.11.0"
+
   backend "s3" {
     bucket       = "relayer-terraform-state"
     use_lockfile = true
     encrypt      = true
     region       = "us-east-1"
     key          = "state"
+    profile      = "relayer-terraform-profile"
   }
   required_providers {
     aws = {
