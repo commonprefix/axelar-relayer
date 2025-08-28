@@ -68,7 +68,7 @@ To map AZ names to ZoneIDs run:
 aws ec2 describe-availability-zones --region us-east-1
 ```
 
-# Structure
+# Setup
 
 ## Secrets manager
 
@@ -88,3 +88,28 @@ So please modify your configuration to always point to:
 client_cert_path: "certs/ton.crt"
 client_key_path: "certs/ton.key"
 ```
+
+Once we deploy to ECS, we will also move everything from .env into a structured (key => value) secret in Secrets Manager
+and load it as environment variable, if still needed.
+
+## IAM
+
+To fetch secrets, the AWS IAM Role **`relayer_role`** must first be assumed.  
+This role has the attached policy **`relayer_secrets_policy`**, which grants the necessary permissions to access the
+secrets.
+
+### Who can assume this role?
+
+- When Relayer is deployed to **EC2** or **ECS**, we can configure the corresponding instance or task roles to assume
+  `relayer_role`.
+- A more secure, long-term solution for workloads outside AWS would be to use [**IAM Roles Anywhere
+  **](https://aws.amazon.com/blogs/security/use-iam-roles-anywhere-to-help-you-improve-security-in-on-premises-container-workloads/),
+  which provides temporary credentials without requiring an IAM user.
+
+### Current (temporary) solution
+
+Since setting up IAM Roles Anywhere would require signing and maintaining a certificate, a simpler temporary approach is
+to create an **IAM user `relayer_user`**.
+
+- This user is allowed to assume `relayer_role`.
+- Applications can authenticate as this user and then assume the role to access secrets.  

@@ -10,10 +10,18 @@ RUN cargo build --release --bins --package relayer-base --package ton
 FROM debian:bookworm-slim
 WORKDIR /usr/local/bin
 
-RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        ca-certificates \
+        jq \
+        awscli && \
+    rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /app/target/release/* ./
 COPY entrypoint-ton.sh /usr/local/bin/entrypoint.sh
+COPY deploy/scripts/fetch_secrets.sh /usr/local/bin/fetch_secrets.sh
+
 RUN chmod +x /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/fetch_secrets.sh
 
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
