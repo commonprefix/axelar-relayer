@@ -1,16 +1,9 @@
-use std::{
-    future::{ready, Future},
-    pin::Pin,
-    str::FromStr,
-    time::Duration,
-};
+use std::{future::Future, pin::Pin, str::FromStr, time::Duration};
 
 use anyhow::anyhow;
+use serde_json::Value;
 
-use futures::{
-    future::{join_all, Either},
-    lock::Mutex,
-};
+use futures::lock::Mutex;
 use futures_util::stream::BoxStream;
 use relayer_base::error::ClientError;
 use solana_client::{
@@ -25,8 +18,12 @@ use solana_sdk::commitment_config::CommitmentConfig;
 use solana_sdk::pubkey::Pubkey;
 use solana_sdk::signature::Signature;
 use solana_transaction_status::UiTransactionEncoding;
-use solana_types::solana_types::SolanaTransaction;
-use tracing::{debug, error, info};
+use solana_types::solana_types::{RpcGetTransactionResponse, SolanaTransaction};
+use tracing::{debug, info};
+
+use crate::utils::{exec_curl_batch, get_tx_batch_command};
+
+// use crate::utils::{exec_curl_batch, get_tx_batch_command};
 
 const LIMIT: usize = 10;
 
@@ -68,6 +65,7 @@ pub trait SolanaStreamClientTrait: Send + Sync {
 pub struct SolanaRpcClient {
     client: RpcClient,
     max_retries: usize,
+    rpc_url: String,
 }
 
 pub struct SolanaStreamClient {
@@ -85,6 +83,7 @@ impl SolanaRpcClient {
         Ok(Self {
             client: RpcClient::new_with_commitment(url.to_string(), commitment),
             max_retries,
+            rpc_url: url.to_string(),
         })
     }
 }
@@ -108,7 +107,6 @@ impl SolanaRpcClientTrait for SolanaRpcClient {
         let mut delay = Duration::from_millis(500);
 
         loop {
-            // TODO: Batching
             match self
                 .client
                 .get_transaction_with_config(&signature, config)
@@ -117,7 +115,7 @@ impl SolanaRpcClientTrait for SolanaRpcClient {
                 Ok(response) => {
                     let maybe_meta = &response.transaction.meta;
                     let solana_tx = SolanaTransaction {
-                        signature: signature,
+                        signature,
                         timestamp: None,
                         logs: match maybe_meta {
                             Some(meta) => meta.log_messages.clone().into(),
@@ -168,8 +166,6 @@ impl SolanaRpcClientTrait for SolanaRpcClient {
         let mut before_sig = before;
         let until_sig = until;
 
-        // NOT READY YET, NEEDS PAGE LOGIC IMPLEMENTED + SCALABILITY ISSUES
-
         loop {
             // Config needs to be inside the loop because it does not implement clone
             let config = GetConfirmedSignaturesForAddress2Config {
@@ -193,29 +189,22 @@ impl SolanaRpcClientTrait for SolanaRpcClient {
 
                     debug!("Fetched {} signatures", response.len());
 
-                    let futures = response.iter().map(|status_with_signature| {
-                        let sig_str = status_with_signature.signature.clone();
+                    let body_json_str =
+                        get_tx_batch_command(response.clone(), self.client.commitment());
+                    let raw = exec_curl_batch(&self.rpc_url, &body_json_str)
+                        .await
+                        .map_err(|e| anyhow!(format!("batch curl failed: {}", e)))?;
 
-                        match Signature::from_str(&sig_str) {
-                            Ok(sig) => Either::Left(self.get_transaction_by_signature(sig)),
-                            Err(e) => {
-                                Either::Right(ready(Err(anyhow!("Error parsing signature: {}", e))))
-                            }
-                        }
-                    });
+                    let parsed: Vec<Value> = serde_json::from_str(&raw)
+                        .map_err(|e| anyhow!(format!("batch parse failed: {}", e)))?;
 
-                    let results = join_all(futures).await;
+                    for entry in parsed.into_iter() {
+                        let rpc_response: RpcGetTransactionResponse =
+                            serde_json::from_value(entry)?;
 
-                    for res in results {
-                        match res {
-                            Ok(tx) => {
-                                txs.push(tx);
-                            }
-                            Err(e) => {
-                                error!("Error fetching tx: {:?}", e);
-                                return Err(anyhow!("Error fetching tx: {:?}", e));
-                            }
-                        }
+                        let tx = SolanaTransaction::from_rpc_response(rpc_response)?;
+                        txs.push(tx.clone());
+                        info!("Pushed tx to vector: {:?}", tx);
                     }
 
                     // If we have less than LIMIT txs, we can return since there are no more pages
@@ -274,8 +263,11 @@ impl SolanaStreamClient {
         })
     }
 
-    pub async fn shutdown(self) {
-        self.client.shutdown().await;
+    pub async fn shutdown(self) -> Result<(), ClientError> {
+        self.client
+            .shutdown()
+            .await
+            .map_err(|e| ClientError::ConnectionFailed(e.to_string()))
     }
 }
 

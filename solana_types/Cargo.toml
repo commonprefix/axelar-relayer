@@ -9,6 +9,7 @@ serde_json = { workspace = true }
 chrono = { workspace = true }
 solana-sdk = { workspace = true }
 tracing = { workspace = true }
+anyhow = { workspace = true }
 
 [lints]
 workspace = true

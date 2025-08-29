@@ -18,7 +18,6 @@ use std::str::FromStr;
 use std::sync::Arc;
 use tokio::signal::unix::{signal, SignalKind};
 use tokio::task::JoinHandle;
-use tracing::info;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -75,11 +74,11 @@ async fn main() -> anyhow::Result<()> {
             .await;
     }));
 
-    handles.push(tokio::spawn(async move {
-        solana_listener
-            .run(gas_service_account, gateway_account, config)
-            .await;
-    }));
+    // handles.push(tokio::spawn(async move {
+    //     solana_listener
+    //         .run(gas_service_account, gateway_account, config)
+    //         .await;
+    // }));
 
     tokio::select! {
         _ = sigint.recv()  => {},

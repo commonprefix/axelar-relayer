@@ -10632,6 +10632,7 @@ dependencies = [
 name = "solana_types"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "chrono",
  "serde",
  "serde_json",

@@ -171,7 +171,9 @@ impl<STR: SolanaStreamClientTrait, SM: SolanaSignatureModel> SolanaListener<STR,
 
                 drop(gas_service_subscriber_stream);
 
-                solana_stream_client_gs.shutdown().await;
+                if let Err(e) = solana_stream_client_gs.shutdown().await {
+                    error!("Error shutting down solana stream client: {:?}", e);
+                }
             }
         }));
 
@@ -212,7 +214,9 @@ impl<STR: SolanaStreamClientTrait, SM: SolanaSignatureModel> SolanaListener<STR,
 
                 drop(gateway_subscriber_stream);
 
-                solana_stream_client_gw.shutdown().await;
+                if let Err(e) = solana_stream_client_gw.shutdown().await {
+                    error!("Error shutting down solana stream client: {:?}", e);
+                }
             }
         }));
 
@@ -237,6 +241,7 @@ impl<STR: SolanaStreamClientTrait, SM: SolanaSignatureModel> SolanaListener<STR,
     ) {
         loop {
             info!("Waiting for messages from {}...", stream_name);
+            // If the stream has not received any messages in 30 seconds, re-establish the connection to avoid silent failures
             select! {
                 _ = tokio::time::sleep(Duration::from_secs(30)) => {
                     warn!("Restarting {} stream", stream_name);
@@ -336,10 +341,14 @@ impl<RPC: SolanaRpcClientTrait, SC: SubscriberCursor, SM: SolanaSignatureModel>
     // TODO: Create a general stream work function and seperate it from poll work
     async fn work(&self, account: Pubkey, account_type: AccountPollerEnum) {
         loop {
-            let transactions = self
-                .poll_account(account, account_type.clone())
-                .await
-                .unwrap();
+            let transactions = match self.poll_account(account, account_type.clone()).await {
+                Ok(transactions) => transactions,
+                Err(e) => {
+                    error!("Error polling account: {:?}", e);
+                    continue;
+                }
+            };
+
             for tx in transactions.clone() {
                 match self
                     .signature_model
@@ -446,7 +455,7 @@ impl<RPC: SolanaRpcClientTrait, SC: SubscriberCursor, SM: SolanaSignatureModel> 
     async fn poll_tx(&self, signature: String) -> Result<Self::Transaction, anyhow::Error> {
         let transaction = self
             .client
-            .get_transaction_by_signature(Signature::from_str(&signature).unwrap())
+            .get_transaction_by_signature(Signature::from_str(&signature)?)
             .await?;
 
         Ok(transaction)
