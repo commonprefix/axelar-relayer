@@ -310,24 +310,23 @@ mod tests {
 
     // use super::*;
 
+    //comment out tests to not spam RPC on every push
+
     // #[tokio::test]
     // async fn test_get_transaction_by_signature() {
     //     dotenv().ok();
     //     let network = std::env::var("NETWORK").expect("NETWORK must be set");
     //     let config: SolanaConfig = config_from_yaml(&format!("config.{}.yaml", network)).unwrap();
 
-    //     let solana_client: SolanaClient =
-    //         SolanaClient::new(&config.solana_rpc, CommitmentConfig::confirmed(), 3).unwrap();
+    //     let solana_client: SolanaRpcClient =
+    //         SolanaRpcClient::new(&config.solana_poll_rpc, CommitmentConfig::confirmed(), 3)
+    //             .unwrap();
 
-    //     //let signature = Signature::from_str("viT9BuyqLeWy2jUwpHV7uurjvuq8PoDjC2aBPEHCDM5jhSsgZghXdzN36rdV1n35k8TazcxD5yLmhxLWMZmRCVc").unwrap();
     //     let signature = Signature::from_str("5Pg6SHHKCBEz4yHtnsiK7EtTvnPk31WQ9Adh48XhwcDv7ghwLY4ADvTneq3bw64osqZwjwehVRBrKwDG2XNzrvFB").unwrap();
-    //     let transaction = solana_client
+    //     let _transaction = solana_client
     //         .get_transaction_by_signature(signature)
     //         .await
     //         .unwrap();
-
-    //     // println!("{:?}", transaction);
-    //     println!("{:?}", transaction.1.transaction.meta.unwrap().log_messages);
     // }
 
     // #[tokio::test]
@@ -336,12 +335,11 @@ mod tests {
     //     let network = std::env::var("NETWORK").expect("NETWORK must be set");
     //     let config: SolanaConfig = config_from_yaml(&format!("config.{}.yaml", network)).unwrap();
 
-    //     let solana_client: SolanaClient =
-    //         SolanaClient::new(&config.solana_rpc, CommitmentConfig::confirmed(), 3).unwrap();
+    //     let solana_client: SolanaRpcClient =
+    //         SolanaRpcClient::new(&config.solana_poll_rpc, CommitmentConfig::confirmed(), 3)
+    //             .unwrap();
 
-    //     //let signature = Signature::from_str("viT9BuyqLeWy2jUwpHV7uurjvuq8PoDjC2aBPEHCDM5jhSsgZghXdzN36rdV1n35k8TazcxD5yLmhxLWMZmRCVc").unwrap();
-    //     //let signature = Signature::from_str("5Pg6SHHKCBEz4yHtnsiK7EtTvnPk31WQ9Adh48XhwcDv7ghwLY4ADvTneq3bw64osqZwjwehVRBrKwDG2XNzrvFB").unwrap();
-    //     let transactions = solana_client
+    //     let _transactions = solana_client
     //         .get_transactions_for_account(
     //             &Pubkey::from_str("9EHADvhP1vnYsk1XVYjJ4qpZ9jP33nHy84wo2CGnDDij").unwrap(),
     //             None,
@@ -349,14 +347,5 @@ mod tests {
     //         )
     //         .await
     //         .unwrap();
-
-    //     println!("LENGTH: {:?}", transactions.len());
-
-    //     //assert_eq!(transactions.len(), 18);
-
-    //     for tx in transactions {
-    //         println!("--------------------------------");
-    //         println!("{:?}", tx.transaction);
-    //     }
     // }
 }
