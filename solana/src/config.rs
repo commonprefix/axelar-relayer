@@ -1,5 +1,5 @@
 use relayer_base::config::Config;
-use serde_derive::Deserialize;
+use serde::Deserialize;
 use solana_sdk::commitment_config::CommitmentConfig;
 
 #[derive(Debug, Clone, Deserialize, Default)]

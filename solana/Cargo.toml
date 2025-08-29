@@ -8,29 +8,19 @@ relayer-base = { workspace = true }
 dotenv = { workspace = true }
 tokio = { workspace = true }
 anyhow = { workspace = true }
-serde = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
-serde_derive = { workspace = true }
-error-stack = { workspace = true }
 redis = { workspace = true, features = ["tokio-rustls-comp"] }
-hex = { workspace = true }
 tracing = { workspace = true }
-thiserror = { workspace = true }
-base64 = { workspace = true }
 sqlx = { workspace = true }
 chrono = { workspace = true }
 solana-client = { workspace = true }
 solana-rpc-client = { workspace = true }
 solana-rpc = { workspace = true }
 solana-rpc-client-api = { workspace = true }
-solana-program = { workspace = true }
 solana-sdk = { workspace = true }
 solana-transaction-status = { workspace = true }
-solana-compute-budget = { workspace = true }
-axelar-wasm-std = { workspace = true }
 interchain-token-service = { workspace = true }
-regex = { workspace = true }
-rust_decimal = { workspace = true }
 futures = { workspace = true }
 futures-util = { workspace = true }
 solana_types = { workspace = true }
@@ -44,7 +34,6 @@ testcontainers = { workspace = true }
 testcontainers-modules = { workspace = true, features = ["postgres"] }
 tracing-test = "0.2.5"
 
-
 [lints]
 workspace = true
 
@@ -53,13 +42,5 @@ name = "solana_subscriber"
 path = "src/bin/solana_subscriber.rs"
 
 [[bin]]
-name = "solana_ingestor"
-path = "src/bin/solana_ingestor.rs"
-
-[[bin]]
 name = "solana_distributor"
 path = "src/bin/solana_distributor.rs"
-
-[[bin]]
-name = "solana_includer"
-path = "src/bin/solana_includer.rs"

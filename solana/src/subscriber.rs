@@ -121,37 +121,35 @@ impl<STR: SolanaStreamClientTrait, SM: SolanaSignatureModel> SolanaListener<STR,
 
         let mut handles: Vec<JoinHandle<()>> = vec![];
 
-        let solana_stream_rpc = config.clone().solana_stream_rpc;
-        let solana_commitment = config.clone().solana_commitment;
-
-        let queue = Arc::clone(&self.queue);
-        let signature_model = Arc::clone(&self.signature_model);
+        let solana_stream_rpc_clone = config.clone().solana_stream_rpc;
+        let solana_commitment_clone = config.clone().solana_commitment;
+        let queue_clone = Arc::clone(&self.queue);
+        let signature_model_clone = Arc::clone(&self.signature_model);
 
         handles.push(tokio::spawn(async move {
             Self::setup_connection_and_work(
-                &solana_stream_rpc,
-                solana_commitment,
+                &solana_stream_rpc_clone,
+                solana_commitment_clone,
                 gas_service_account,
-                &queue,
-                &signature_model,
+                &queue_clone,
+                &signature_model_clone,
                 "gas_service",
             )
             .await;
         }));
 
-        let solana_stream_rpc = config.clone().solana_stream_rpc;
-        let solana_commitment = config.clone().solana_commitment;
-
-        let queue = Arc::clone(&self.queue);
-        let signature_model = Arc::clone(&self.signature_model);
+        let solana_stream_rpc_clone = config.clone().solana_stream_rpc;
+        let solana_commitment_clone = config.clone().solana_commitment;
+        let queue_clone = Arc::clone(&self.queue);
+        let signature_model_clone = Arc::clone(&self.signature_model);
 
         handles.push(tokio::spawn(async move {
             Self::setup_connection_and_work(
-                &solana_stream_rpc,
-                solana_commitment,
+                &solana_stream_rpc_clone,
+                solana_commitment_clone,
                 gateway_account,
-                &queue,
-                &signature_model,
+                &queue_clone,
+                &signature_model_clone,
                 "gateway",
             )
             .await;
@@ -173,7 +171,7 @@ impl<STR: SolanaStreamClientTrait, SM: SolanaSignatureModel> SolanaListener<STR,
         solana_stream_rpc: &str,
         solana_commitment: CommitmentConfig,
         account: Pubkey,
-        queue: &Queue,
+        queue: &Arc<Queue>,
         signature_model: &Arc<SM>,
         stream_name: &str,
     ) {
@@ -202,6 +200,8 @@ impl<STR: SolanaStreamClientTrait, SM: SolanaSignatureModel> SolanaListener<STR,
             };
             Self::work(&mut subscriber_stream, stream_name, queue, signature_model).await;
 
+            solana_stream_client.unsubscribe().await;
+
             drop(subscriber_stream);
 
             if let Err(e) = solana_stream_client.shutdown().await {
@@ -210,11 +210,11 @@ impl<STR: SolanaStreamClientTrait, SM: SolanaSignatureModel> SolanaListener<STR,
         }
     }
 
-    // TODO: Create a general stream work function and seperate it from poll work
+    // TODO: Create a general stream work function and separate it from poll work
     async fn work(
         subscriber_stream: &mut LogsSubscription<'_>,
         stream_name: &str,
-        queue: &Queue,
+        queue: &Arc<Queue>,
         signature_model: &Arc<SM>,
     ) {
         loop {
@@ -240,33 +240,30 @@ impl<STR: SolanaStreamClientTrait, SM: SolanaSignatureModel> SolanaListener<STR,
                                 }
                             };
 
-                            match signature_model
-                                .upsert(SolanaSignature {
-                                    signature: tx.signature.to_string(),
-                                    created_at: Utc::now(),
-                                })
-                                .await
+                            match upsert_and_publish(
+                                signature_model,
+                                queue,
+                                &tx,
+                                stream_name,
+                            )
+                            .await
                             {
                                 Ok(inserted) => {
                                     if inserted {
-                                        let chain_transaction = ChainTransaction::Solana(Box::new(tx.clone()));
-                                        let item =
-                                            &QueueItem::Transaction(Box::new(chain_transaction.clone()));
-                                        info!("Publishing transaction: {:?}", chain_transaction);
-                                        queue.publish(item.clone()).await;
-                                        debug!("Published tx: {:?}", item);
-                                    } else {
-                                        debug!("Transaction already exists: {:?}", tx.signature);
+                                        info!(
+                                            "Upserted and published transaction by {} stream: {:?}",
+                                            stream_name, tx
+                                        );
                                     }
                                 }
                                 Err(e) => {
-                                    error!("Error upserting transaction: {:?}", e);
+                                    error!("Error upserting and publishing transaction: {:?}", e);
                                     continue;
                                 }
                             }
                         }
                         None => {
-                            warn!("Stream was closed");
+                            warn!("Stream {} was closed", stream_name);
                             break;
                         }
                     }
@@ -309,12 +306,12 @@ impl<RPC: SolanaRpcClientTrait, SC: SubscriberCursor, SM: SolanaSignatureModel>
     }
 
     // Poller runs in the background and polls every X seconds for all transactions
-    // that happened for the specified account since its last poll. It only wriites
+    // that happened for the specified account since its last poll. It only writes
     // to the queue if the transaction has not been processed already.
     // It acts as a backup to the listener for when it's initiated or restarted to not
     // miss any transactions.
 
-    // TODO: Create a general stream work function and seperate it from poll work
+    // TODO: Create a general stream work function and separate it from poll work
     async fn work(&self, account: Pubkey, account_type: AccountPollerEnum) {
         loop {
             let transactions = match self.poll_account(account, account_type.clone()).await {
@@ -326,28 +323,14 @@ impl<RPC: SolanaRpcClientTrait, SC: SubscriberCursor, SM: SolanaSignatureModel>
             };
 
             for tx in transactions.clone() {
-                match self
-                    .signature_model
-                    .upsert(SolanaSignature {
-                        signature: tx.signature.to_string(),
-                        created_at: Utc::now(),
-                    })
-                    .await
-                {
+                match upsert_and_publish(&self.signature_model, &self.queue, &tx, "poller").await {
                     Ok(inserted) => {
                         if inserted {
-                            let chain_transaction = ChainTransaction::Solana(Box::new(tx.clone()));
-
-                            let item = &QueueItem::Transaction(Box::new(chain_transaction.clone()));
-                            info!("Publishing transaction: {:?}", chain_transaction);
-                            self.queue.publish(item.clone()).await;
-                            debug!("Published tx: {:?}", item);
-                        } else {
-                            debug!("Transaction already exists: {:?}", tx.signature);
+                            info!("Upserted and published transaction by poller: {:?}", tx);
                         }
                     }
                     Err(e) => {
-                        error!("Error upserting transaction: {:?}", e);
+                        error!("Error upserting and publishing transaction: {:?}", e);
                         continue;
                     }
                 }
@@ -432,6 +415,35 @@ impl<RPC: SolanaRpcClientTrait, SC: SubscriberCursor, SM: SolanaSignatureModel> 
 
         Ok(transaction)
     }
+}
+
+async fn upsert_and_publish<SM: SolanaSignatureModel>(
+    signature_model: &Arc<SM>,
+    queue: &Arc<Queue>,
+    tx: &SolanaTransaction,
+    from_service: &str,
+) -> Result<bool, anyhow::Error> {
+    let inserted = signature_model
+        .upsert(SolanaSignature {
+            signature: tx.signature.to_string(),
+            created_at: Utc::now(),
+        })
+        .await
+        .map_err(|e| anyhow!("Error upserting transaction: {:?}", e))?;
+
+    if inserted {
+        let chain_transaction = ChainTransaction::Solana(Box::new(tx.clone()));
+
+        let item = &QueueItem::Transaction(Box::new(chain_transaction.clone()));
+        debug!(
+            "Publishing transaction from {}: {:?}",
+            from_service, chain_transaction
+        );
+        queue.publish(item.clone()).await;
+    } else {
+        debug!("Transaction already exists: {:?}", tx.signature);
+    }
+    Ok(inserted)
 }
 
 #[cfg(test)]

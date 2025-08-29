@@ -23,7 +23,7 @@ use tracing::{debug, info};
 
 use crate::utils::{exec_curl_batch, get_tx_batch_command};
 
-const LIMIT: usize = 10;
+const SIGNATURE_PAGE_LIMIT: usize = 100;
 
 // Match the nonblocking PubsubClient logs_subscribe return type
 // (BoxStream<'a, RpcResponse<RpcLogsResponse>>, UnsubscribeFn)
@@ -168,10 +168,11 @@ impl SolanaRpcClientTrait for SolanaRpcClient {
             // Config needs to be inside the loop because it does not implement clone
             let config = GetConfirmedSignaturesForAddress2Config {
                 commitment: Some(self.client.commitment()),
-                limit: Some(LIMIT),
+                limit: Some(SIGNATURE_PAGE_LIMIT),
                 before: before_sig,
                 until: until_sig,
             };
+            // This function returns the signatures. We then need to get the transactions for each signature
             match self
                 .client
                 .get_signatures_for_address_with_config(address, config)
@@ -201,15 +202,15 @@ impl SolanaRpcClientTrait for SolanaRpcClient {
 
                         let tx = SolanaTransaction::from_rpc_response(rpc_response)?;
                         txs.push(tx.clone());
-                        info!("Pushed tx to vector: {:?}", tx);
+                        debug!("Pushed tx to vector: {:?}", tx.signature);
                     }
 
                     // If we have less than LIMIT txs, we can return since there are no more pages
-                    if response.len() < LIMIT {
+                    if response.len() < SIGNATURE_PAGE_LIMIT {
                         info!(
                             "No more signatures to fetch, fetched {} and limit is {}",
                             response.len(),
-                            LIMIT
+                            SIGNATURE_PAGE_LIMIT
                         );
                         return Ok(txs);
                     }
@@ -226,14 +227,14 @@ impl SolanaRpcClientTrait for SolanaRpcClient {
                 Err(e) => {
                     if retries >= self.max_retries {
                         return Err(anyhow!(
-                            "Failed to get transaction with config: {:?}",
+                            "Failed to get signatures for address with config: {:?}",
                             e.to_string()
                         ));
                     }
 
                     debug!(
                         "RPC call ({}) failed (retry {}/{}): {}. Retrying in {:?}...",
-                        "get_transaction_with_config",
+                        "get_signatures_for_address_with_config",
                         retries + 1,
                         self.max_retries,
                         e,
