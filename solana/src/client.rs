@@ -23,8 +23,6 @@ use tracing::{debug, info};
 
 use crate::utils::{exec_curl_batch, get_tx_batch_command};
 
-// use crate::utils::{exec_curl_batch, get_tx_batch_command};
-
 const LIMIT: usize = 10;
 
 // Match the nonblocking PubsubClient logs_subscribe return type
@@ -174,7 +172,6 @@ impl SolanaRpcClientTrait for SolanaRpcClient {
                 before: before_sig,
                 until: until_sig,
             };
-            // This function returns the signatures. We then need to get the transactions for each signature
             match self
                 .client
                 .get_signatures_for_address_with_config(address, config)

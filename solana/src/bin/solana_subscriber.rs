@@ -74,11 +74,11 @@ async fn main() -> anyhow::Result<()> {
             .await;
     }));
 
-    // handles.push(tokio::spawn(async move {
-    //     solana_listener
-    //         .run(gas_service_account, gateway_account, config)
-    //         .await;
-    // }));
+    handles.push(tokio::spawn(async move {
+        solana_listener
+            .run(gas_service_account, gateway_account, config)
+            .await;
+    }));
 
     tokio::select! {
         _ = sigint.recv()  => {},
