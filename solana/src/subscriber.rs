@@ -15,8 +15,8 @@ use chrono::Utc;
 use futures::StreamExt;
 use relayer_base::queue::QueueItem;
 use relayer_base::{error::SubscriberError, queue::Queue, subscriber::ChainTransaction};
-use solana_sdk::pubkey::Pubkey;
 use solana_sdk::signature::Signature;
+use solana_sdk::{commitment_config::CommitmentConfig, pubkey::Pubkey};
 use solana_types::solana_types::SolanaTransaction;
 use tokio::{
     select,
@@ -28,8 +28,6 @@ use tracing::{debug, error, info, warn};
 pub trait TransactionPoller {
     type Transaction;
     type Account;
-
-    fn make_queue_item(&mut self, tx: Self::Transaction) -> ChainTransaction;
 
     fn poll_account(
         &self,
@@ -47,8 +45,6 @@ pub trait TransactionListener {
     type Transaction;
     type Account;
 
-    fn make_queue_item(&mut self, tx: Self::Transaction) -> ChainTransaction;
-
     fn subscriber(
         &self,
         account: Self::Account,
@@ -57,11 +53,6 @@ pub trait TransactionListener {
     fn unsubscribe(&self) -> impl Future<Output = ()>;
 }
 
-#[derive(Clone, Debug)]
-pub enum ListenerCmd {
-    Reconnect,
-    Refresh,
-}
 pub struct SolanaPoller<RPC: SolanaRpcClientTrait, SC: SubscriberCursor, SM: SolanaSignatureModel> {
     client: RPC,
     cursor_model: Arc<SC>,
@@ -81,10 +72,6 @@ impl<STR: SolanaStreamClientTrait, SM: SolanaSignatureModel> TransactionListener
 {
     type Transaction = SolanaTransaction;
     type Account = Pubkey;
-
-    fn make_queue_item(&mut self, tx: Self::Transaction) -> ChainTransaction {
-        ChainTransaction::Solana(Box::new(tx))
-    }
 
     async fn subscriber(
         &self,
@@ -141,40 +128,15 @@ impl<STR: SolanaStreamClientTrait, SM: SolanaSignatureModel> SolanaListener<STR,
         let signature_model = Arc::clone(&self.signature_model);
 
         handles.push(tokio::spawn(async move {
-            loop {
-                let solana_stream_client_gs =
-                    match SolanaStreamClient::new(&solana_stream_rpc, solana_commitment).await {
-                        Ok(solana_stream_client_gs) => solana_stream_client_gs,
-                        Err(e) => {
-                            error!("Error creating solana stream client: {:?}", e);
-                            break;
-                        }
-                    };
-
-                let mut gas_service_subscriber_stream = match solana_stream_client_gs
-                    .logs_subscriber(gas_service_account.to_string())
-                    .await
-                {
-                    Ok(subscriber) => subscriber,
-                    Err(e) => {
-                        error!("Error creating gas service subscriber stream: {:?}", e);
-                        break;
-                    }
-                };
-                Self::work(
-                    &mut gas_service_subscriber_stream,
-                    "gas_service",
-                    &queue,
-                    &signature_model,
-                )
-                .await;
-
-                drop(gas_service_subscriber_stream);
-
-                if let Err(e) = solana_stream_client_gs.shutdown().await {
-                    error!("Error shutting down solana stream client: {:?}", e);
-                }
-            }
+            Self::setup_connection_and_work(
+                &solana_stream_rpc,
+                solana_commitment,
+                gas_service_account,
+                &queue,
+                &signature_model,
+                "gas_service",
+            )
+            .await;
         }));
 
         let solana_stream_rpc = config.clone().solana_stream_rpc;
@@ -184,40 +146,15 @@ impl<STR: SolanaStreamClientTrait, SM: SolanaSignatureModel> SolanaListener<STR,
         let signature_model = Arc::clone(&self.signature_model);
 
         handles.push(tokio::spawn(async move {
-            loop {
-                let solana_stream_client_gw =
-                    match SolanaStreamClient::new(&solana_stream_rpc, solana_commitment).await {
-                        Ok(solana_stream_client_gw) => solana_stream_client_gw,
-                        Err(e) => {
-                            error!("Error creating solana stream client: {:?}", e);
-                            break;
-                        }
-                    };
-
-                let mut gateway_subscriber_stream = match solana_stream_client_gw
-                    .logs_subscriber(gateway_account.to_string())
-                    .await
-                {
-                    Ok(subscriber) => subscriber,
-                    Err(e) => {
-                        error!("Error creating gateway subscriber stream: {:?}", e);
-                        break;
-                    }
-                };
-                Self::work(
-                    &mut gateway_subscriber_stream,
-                    "gateway",
-                    &queue,
-                    &signature_model,
-                )
-                .await;
-
-                drop(gateway_subscriber_stream);
-
-                if let Err(e) = solana_stream_client_gw.shutdown().await {
-                    error!("Error shutting down solana stream client: {:?}", e);
-                }
-            }
+            Self::setup_connection_and_work(
+                &solana_stream_rpc,
+                solana_commitment,
+                gateway_account,
+                &queue,
+                &signature_model,
+                "gateway",
+            )
+            .await;
         }));
 
         tokio::select! {
@@ -230,6 +167,47 @@ impl<STR: SolanaStreamClientTrait, SM: SolanaSignatureModel> SolanaListener<STR,
         }
 
         info!("Shut down solana listener");
+    }
+
+    async fn setup_connection_and_work(
+        solana_stream_rpc: &str,
+        solana_commitment: CommitmentConfig,
+        account: Pubkey,
+        queue: &Queue,
+        signature_model: &Arc<SM>,
+        stream_name: &str,
+    ) {
+        loop {
+            let solana_stream_client =
+                match SolanaStreamClient::new(solana_stream_rpc, solana_commitment).await {
+                    Ok(solana_stream_client) => solana_stream_client,
+                    Err(e) => {
+                        error!(
+                            "Error creating solana stream client for {}: {:?}",
+                            stream_name, e
+                        );
+                        break;
+                    }
+                };
+
+            let mut subscriber_stream = match solana_stream_client
+                .logs_subscriber(account.to_string())
+                .await
+            {
+                Ok(subscriber) => subscriber,
+                Err(e) => {
+                    error!("Error creating {} subscriber stream: {:?}", stream_name, e);
+                    break;
+                }
+            };
+            Self::work(&mut subscriber_stream, stream_name, queue, signature_model).await;
+
+            drop(subscriber_stream);
+
+            if let Err(e) = solana_stream_client.shutdown().await {
+                error!("Error shutting down solana stream client: {:?}", e);
+            }
+        }
     }
 
     // TODO: Create a general stream work function and seperate it from poll work
@@ -271,9 +249,7 @@ impl<STR: SolanaStreamClientTrait, SM: SolanaSignatureModel> SolanaListener<STR,
                             {
                                 Ok(inserted) => {
                                     if inserted {
-                                        let chain_transaction =
-                                            ChainTransaction::Solana(Box::new(tx.clone()));
-
+                                        let chain_transaction = ChainTransaction::Solana(Box::new(tx.clone()));
                                         let item =
                                             &QueueItem::Transaction(Box::new(chain_transaction.clone()));
                                         info!("Publishing transaction: {:?}", chain_transaction);
@@ -432,10 +408,6 @@ impl<RPC: SolanaRpcClientTrait, SC: SubscriberCursor, SM: SolanaSignatureModel> 
     type Transaction = SolanaTransaction;
     type Account = Pubkey;
 
-    fn make_queue_item(&mut self, tx: Self::Transaction) -> ChainTransaction {
-        ChainTransaction::Solana(Box::new(tx))
-    }
-
     async fn poll_account(
         &self,
         account_id: Pubkey,
@@ -540,42 +512,3 @@ mod tests {
         //assert_eq!(transactions.len(), 18);
     }
 }
-
-// possible messaging :
-
-// pub struct SolanaListener<...> {
-//     // ...
-//     rx: tokio::sync::mpsc::Receiver<ListenerCmd>,
-// }
-
-// async fn work(
-//     &self,
-//     subscriber_stream: &mut LogsSubscription<'_>,
-//     stream_name: &str,
-//     rx: &mut tokio::sync::mpsc::Receiver<ListenerCmd>,
-// ) {
-//     loop {
-//         tokio::select! {
-//             // normal WS processing
-//             maybe = subscriber_stream.next() => {
-//                 match maybe {
-//                     Some(response) => { /* existing processing */ }
-//                     None => { tracing::warn!("{stream_name} closed"); break; }
-//                 }
-//             }
-//             // react to poller
-//             cmd = rx.recv() => {
-//                 match cmd {
-//                     Some(ListenerCmd::Refresh(_which)) => {
-//                         // do whatever you need: e.g., fast-path a check, flush, etc.
-//                     }
-//                     Some(ListenerCmd::Reconnect(_which)) => {
-//                         // break to outer loop to resubscribe
-//                         break;
-//                     }
-//                     None => { /* sender dropped; optional shutdown */ break; }
-//                 }
-//             }
-//         }
-//     }
-// }
