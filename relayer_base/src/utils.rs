@@ -330,10 +330,6 @@ where
     Ok(drops.trunc().to_string())
 }
 
-pub fn convert_https_to_wss(url: &str) -> String {
-    url.replace("https://", "wss://")
-}
-
 #[cfg(test)]
 mod tests {
     use std::{collections::BTreeMap, fs};
@@ -1086,12 +1082,5 @@ mod tests {
         }
 
         assert_eq!(val, Some("1".to_string()));
-    }
-
-    #[test]
-    fn test_convert_https_to_wss() {
-        let url = "https://example.com";
-        let wss_url = convert_https_to_wss(url);
-        assert_eq!(wss_url, "wss://example.com");
     }
 }
