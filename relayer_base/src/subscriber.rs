@@ -1,4 +1,3 @@
-use crate::logging::maybe_to_string;
 use crate::queue::{Queue, QueueItem};
 use futures::Stream;
 use serde::{Deserialize, Serialize};
@@ -30,6 +29,10 @@ pub trait TransactionPoller {
     type Account;
 
     fn make_queue_item(&mut self, tx: Self::Transaction) -> ChainTransaction;
+
+    fn transaction_id(&self, tx: &Self::Transaction) -> Option<String>;
+
+    fn account_id(&self, account: &Self::Account) -> Option<String>;
 
     fn poll_account(
         &mut self,
@@ -70,10 +73,10 @@ where
             Ok(txs) => {
                 for tx in txs {
                     let span = info_span!("chain_transaction");
-                    if let Some(s) = maybe_to_string(&account) {
+                    if let Some(s) = self.transaction_poller.account_id(&account) {
                         span.set_attribute("chain_account_id", s);
                     }
-                    if let Some(s) = maybe_to_string(&tx) {
+                    if let Some(s) = self.transaction_poller.transaction_id(&tx) {
                         span.set_attribute("chain_transaction_id", s);
                     }
 

@@ -57,6 +57,14 @@ impl<DB: Database, X: XRPLClientTrait> TransactionPoller for XrplSubscriber<DB, 
         ChainTransaction::Xrpl(Box::new(tx))
     }
 
+    fn transaction_id(&self, tx: &Self::Transaction) -> Option<String> {
+        tx.common().hash.clone()
+    }
+
+    fn account_id(&self, account: &Self::Account) -> Option<String> {
+        Some(account.to_address())
+    }
+
     #[tracing::instrument(skip(self))]
     async fn poll_account(
         &mut self,
@@ -90,5 +98,75 @@ impl<DB: Database, X: XRPLClientTrait> TransactionPoller for XrplSubscriber<DB, 
         let response = res.map_err(|e| anyhow!("Error getting tx: {:?}", e.to_string()))?;
 
         Ok(response.tx)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use xrpl_api::{PaymentTransaction, Transaction, TransactionCommon};
+    use xrpl_types::AccountId;
+
+    // Simple test struct to test the transaction_id and account_id methods
+    struct TestXrplPoller;
+
+    impl TransactionPoller for TestXrplPoller {
+        type Transaction = Transaction;
+        type Account = AccountId;
+
+        fn make_queue_item(&mut self, tx: Self::Transaction) -> ChainTransaction {
+            ChainTransaction::Xrpl(Box::new(tx))
+        }
+
+        fn transaction_id(&self, tx: &Self::Transaction) -> Option<String> {
+            tx.common().hash.clone()
+        }
+
+        fn account_id(&self, account: &Self::Account) -> Option<String> {
+            Some(account.to_address())
+        }
+
+        async fn poll_account(
+            &mut self,
+            _account: Self::Account,
+        ) -> Result<Vec<Self::Transaction>, anyhow::Error> {
+            unimplemented!()
+        }
+
+        async fn poll_tx(&mut self, _tx_hash: String) -> Result<Self::Transaction, anyhow::Error> {
+            unimplemented!()
+        }
+    }
+
+    #[test]
+    fn test_transaction_id() {
+        let poller = TestXrplPoller;
+
+        let tx_hash =
+            "0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF".to_string();
+        let tx = Transaction::Payment(PaymentTransaction {
+            common: TransactionCommon {
+                hash: Some(tx_hash.clone()),
+                ..Default::default()
+            },
+            ..Default::default()
+        });
+
+        let result = poller.transaction_id(&tx);
+
+        assert_eq!(result, Some(tx_hash));
+    }
+
+    #[test]
+    fn test_account_id() {
+        let poller = TestXrplPoller;
+
+        let account_id = AccountId::from_address("rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh").unwrap();
+        let result = poller.account_id(&account_id);
+
+        assert_eq!(
+            result,
+            Some("rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh".to_string())
+        );
     }
 }
