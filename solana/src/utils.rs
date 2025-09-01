@@ -23,9 +23,9 @@ pub fn create_solana_tx_from_rpc_response(
     }
     let solana_tx = SolanaTransaction {
         signature: Signature::from_str(&response.value.signature)?,
-        slot: response.context.slot,
+        slot: response.context.slot as i64,
         timestamp: Some(Utc::now()),
-        logs: Some(response.value.logs),
+        logs: response.value.logs,
     };
 
     Ok(solana_tx)

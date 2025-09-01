@@ -9,7 +9,7 @@ use relayer_base::{
 use solana::{
     client::{SolanaRpcClient, SolanaStreamClient},
     config::SolanaConfig,
-    models::{solana_signature::PgSolanaSignatureModel, solana_subscriber_cursor::PostgresDB},
+    models::{solana_subscriber_cursor::PostgresDB, solana_transaction::PgSolanaTransactionModel},
     subscriber::{SolanaListener, SolanaPoller},
 };
 use solana_sdk::pubkey::Pubkey;
@@ -36,7 +36,7 @@ async fn main() -> anyhow::Result<()> {
     let postgres_db = PostgresDB::new(&config.common_config.postgres_url).await?;
     let pg_pool = PgPool::connect(&config.common_config.postgres_url).await?;
 
-    let solana_signature_model = PgSolanaSignatureModel::new(pg_pool.clone());
+    let solana_transaction_model = PgSolanaTransactionModel::new(pg_pool.clone());
 
     let mut sigint = signal(SignalKind::interrupt())?;
     let mut sigterm = signal(SignalKind::terminate())?;
@@ -50,7 +50,7 @@ async fn main() -> anyhow::Result<()> {
     let solana_poller = SolanaPoller::new(
         solana_rpc_client,
         "solana_poller".to_string(),
-        Arc::new(solana_signature_model.clone()),
+        Arc::new(solana_transaction_model.clone()),
         Arc::new(postgres_db),
         Arc::clone(&events_queue),
     )
@@ -58,7 +58,7 @@ async fn main() -> anyhow::Result<()> {
 
     let solana_listener = SolanaListener::new(
         solana_stream_client,
-        Arc::new(solana_signature_model),
+        Arc::new(solana_transaction_model),
         Arc::clone(&events_queue),
     )
     .await?;

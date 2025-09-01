@@ -116,10 +116,10 @@ impl SolanaRpcClientTrait for SolanaRpcClient {
                         signature,
                         timestamp: None,
                         logs: match maybe_meta {
-                            Some(meta) => meta.log_messages.clone().into(),
-                            None => None,
+                            Some(meta) => meta.log_messages.clone().unwrap_or(vec![]),
+                            None => vec![],
                         },
-                        slot: response.slot,
+                        slot: response.slot as i64,
                     };
                     return Ok(solana_tx);
                 }

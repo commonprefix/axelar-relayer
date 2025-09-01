@@ -7399,6 +7399,7 @@ dependencies = [
  "sqlx",
  "testcontainers",
  "testcontainers-modules",
+ "thiserror 2.0.12",
  "tokio",
  "tracing",
  "tracing-test",
@@ -8704,6 +8705,7 @@ dependencies = [
  "serde",
  "serde_json",
  "solana-sdk",
+ "sqlx",
  "tracing",
 ]
 

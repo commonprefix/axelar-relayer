@@ -1,6 +1,11 @@
 pub mod client;
 pub mod config;
+pub mod error;
+pub mod gas_calculator;
+pub mod ingestor;
+pub mod message_matching_key;
 pub mod models;
+pub mod parser;
 pub mod subscriber;
 pub mod utils;
-pub use models::solana_signature;
+pub use models::solana_transaction;

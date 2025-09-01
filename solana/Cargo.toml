@@ -25,6 +25,7 @@ futures-util = { workspace = true }
 solana_types = { workspace = true }
 solana-pubsub-client = { workspace = true }
 async-trait = { workspace = true }
+thiserror = { workspace = true }
 
 [dev-dependencies]
 relayer-base = { workspace = true, features = ["mocks"] }
@@ -43,3 +44,7 @@ path = "src/bin/solana_subscriber.rs"
 [[bin]]
 name = "solana_distributor"
 path = "src/bin/solana_distributor.rs"
+
+[[bin]]
+name = "solana_ingestor"
+path = "src/bin/solana_ingestor.rs"

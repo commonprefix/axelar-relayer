@@ -15,4 +15,14 @@ pub struct SolanaConfig {
     pub solana_gas_service: String,
     pub solana_gateway: String,
     pub solana_commitment: CommitmentConfig,
+    pub wallets: Vec<WalletConfig>,
+}
+
+#[derive(Debug, Clone, Deserialize, Default)]
+pub struct WalletConfig {
+    pub public_key: String,
+    pub secret_key: String,
+    // pub subwallet_id: u32,
+    // pub timeout: u64,
+    // pub address: String,
 }

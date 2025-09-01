@@ -10,8 +10,8 @@ use solana_sdk::signature::Signature;
 pub struct SolanaTransaction {
     pub signature: Signature,
     pub timestamp: Option<DateTime<Utc>>,
-    pub logs: Option<Vec<String>>,
-    pub slot: u64,
+    pub logs: Vec<String>,
+    pub slot: i64,
 }
 
 impl SolanaTransaction {
@@ -21,7 +21,7 @@ impl SolanaTransaction {
         let result = rpc_response
             .result
             .ok_or_else(|| anyhow!("No result found"))?;
-        let log_messages = result
+        let logs = result
             .meta
             .as_ref()
             .ok_or_else(|| anyhow!("No meta found"))?
@@ -29,7 +29,7 @@ impl SolanaTransaction {
             .clone()
             .ok_or_else(|| anyhow!("No log messages found"))?;
 
-        let slot = result.slot;
+        let slot = result.slot as i64;
         let signature = result
             .transaction
             .signatures
@@ -42,7 +42,7 @@ impl SolanaTransaction {
         Ok(Self {
             signature,
             timestamp,
-            logs: Some(log_messages),
+            logs,
             slot,
         })
     }
@@ -60,7 +60,7 @@ pub struct RpcTransactionResult {
     #[serde(rename = "blockTime")]
     pub block_time: Option<i64>,
     pub meta: Option<RpcTransactionMeta>,
-    pub slot: u64,
+    pub slot: i64,
     pub transaction: RpcTransaction,
     pub version: Option<Value>,
 }

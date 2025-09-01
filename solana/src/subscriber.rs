@@ -4,10 +4,10 @@ use crate::{
     client::{LogsSubscription, SolanaRpcClientTrait, SolanaStreamClient, SolanaStreamClientTrait},
     config::SolanaConfig,
     models::{
-        solana_signature::SolanaSignatureModel,
         solana_subscriber_cursor::{AccountPollerEnum, SubscriberCursor},
+        solana_transaction::SolanaTransactionModel,
     },
-    solana_signature::SolanaSignature,
+    solana_transaction::SolanaTransactionData,
     utils::create_solana_tx_from_rpc_response,
 };
 use anyhow::anyhow;
@@ -53,21 +53,22 @@ pub trait TransactionListener {
     fn unsubscribe(&self) -> impl Future<Output = ()>;
 }
 
-pub struct SolanaPoller<RPC: SolanaRpcClientTrait, SC: SubscriberCursor, SM: SolanaSignatureModel> {
+pub struct SolanaPoller<RPC: SolanaRpcClientTrait, SC: SubscriberCursor, SM: SolanaTransactionModel>
+{
     client: RPC,
     cursor_model: Arc<SC>,
     context: String,
-    signature_model: Arc<SM>,
+    transaction_model: Arc<SM>,
     queue: Arc<Queue>,
 }
 
-pub struct SolanaListener<STR: SolanaStreamClientTrait, SM: SolanaSignatureModel> {
+pub struct SolanaListener<STR: SolanaStreamClientTrait, SM: SolanaTransactionModel> {
     client: STR,
-    signature_model: Arc<SM>,
+    transaction_model: Arc<SM>,
     queue: Arc<Queue>,
 }
 
-impl<STR: SolanaStreamClientTrait, SM: SolanaSignatureModel> TransactionListener
+impl<STR: SolanaStreamClientTrait, SM: SolanaTransactionModel> TransactionListener
     for SolanaListener<STR, SM>
 {
     type Transaction = SolanaTransaction;
@@ -85,15 +86,15 @@ impl<STR: SolanaStreamClientTrait, SM: SolanaSignatureModel> TransactionListener
     }
 }
 
-impl<STR: SolanaStreamClientTrait, SM: SolanaSignatureModel> SolanaListener<STR, SM> {
+impl<STR: SolanaStreamClientTrait, SM: SolanaTransactionModel> SolanaListener<STR, SM> {
     pub async fn new(
         client: STR,
-        signature_model: Arc<SM>,
+        transaction_model: Arc<SM>,
         queue: Arc<Queue>,
     ) -> Result<Self, SubscriberError> {
         Ok(SolanaListener {
             client,
-            signature_model,
+            transaction_model,
             queue,
         })
     }
@@ -124,7 +125,7 @@ impl<STR: SolanaStreamClientTrait, SM: SolanaSignatureModel> SolanaListener<STR,
         let solana_stream_rpc_clone = config.clone().solana_stream_rpc;
         let solana_commitment_clone = config.clone().solana_commitment;
         let queue_clone = Arc::clone(&self.queue);
-        let signature_model_clone = Arc::clone(&self.signature_model);
+        let transaction_model_clone = Arc::clone(&self.transaction_model);
 
         handles.push(tokio::spawn(async move {
             Self::setup_connection_and_work(
@@ -132,7 +133,7 @@ impl<STR: SolanaStreamClientTrait, SM: SolanaSignatureModel> SolanaListener<STR,
                 solana_commitment_clone,
                 gas_service_account,
                 &queue_clone,
-                &signature_model_clone,
+                &transaction_model_clone,
                 "gas_service",
             )
             .await;
@@ -141,7 +142,7 @@ impl<STR: SolanaStreamClientTrait, SM: SolanaSignatureModel> SolanaListener<STR,
         let solana_stream_rpc_clone = config.clone().solana_stream_rpc;
         let solana_commitment_clone = config.clone().solana_commitment;
         let queue_clone = Arc::clone(&self.queue);
-        let signature_model_clone = Arc::clone(&self.signature_model);
+        let transaction_model_clone = Arc::clone(&self.transaction_model);
 
         handles.push(tokio::spawn(async move {
             Self::setup_connection_and_work(
@@ -149,7 +150,7 @@ impl<STR: SolanaStreamClientTrait, SM: SolanaSignatureModel> SolanaListener<STR,
                 solana_commitment_clone,
                 gateway_account,
                 &queue_clone,
-                &signature_model_clone,
+                &transaction_model_clone,
                 "gateway",
             )
             .await;
@@ -172,7 +173,7 @@ impl<STR: SolanaStreamClientTrait, SM: SolanaSignatureModel> SolanaListener<STR,
         solana_commitment: CommitmentConfig,
         account: Pubkey,
         queue: &Arc<Queue>,
-        signature_model: &Arc<SM>,
+        transaction_model: &Arc<SM>,
         stream_name: &str,
     ) {
         loop {
@@ -198,7 +199,13 @@ impl<STR: SolanaStreamClientTrait, SM: SolanaSignatureModel> SolanaListener<STR,
                     break;
                 }
             };
-            Self::work(&mut subscriber_stream, stream_name, queue, signature_model).await;
+            Self::work(
+                &mut subscriber_stream,
+                stream_name,
+                queue,
+                transaction_model,
+            )
+            .await;
 
             solana_stream_client.unsubscribe().await;
 
@@ -215,7 +222,7 @@ impl<STR: SolanaStreamClientTrait, SM: SolanaSignatureModel> SolanaListener<STR,
         subscriber_stream: &mut LogsSubscription<'_>,
         stream_name: &str,
         queue: &Arc<Queue>,
-        signature_model: &Arc<SM>,
+        transaction_model: &Arc<SM>,
     ) {
         loop {
             info!("Waiting for messages from {}...", stream_name);
@@ -241,7 +248,7 @@ impl<STR: SolanaStreamClientTrait, SM: SolanaSignatureModel> SolanaListener<STR,
                             };
 
                             match upsert_and_publish(
-                                signature_model,
+                                transaction_model,
                                 queue,
                                 &tx,
                                 stream_name,
@@ -272,13 +279,13 @@ impl<STR: SolanaStreamClientTrait, SM: SolanaSignatureModel> SolanaListener<STR,
         }
     }
 }
-impl<RPC: SolanaRpcClientTrait, SC: SubscriberCursor, SM: SolanaSignatureModel>
+impl<RPC: SolanaRpcClientTrait, SC: SubscriberCursor, SM: SolanaTransactionModel>
     SolanaPoller<RPC, SC, SM>
 {
     pub async fn new(
         client: RPC,
         context: String,
-        signature_model: Arc<SM>,
+        transaction_model: Arc<SM>,
         cursor_model: Arc<SC>,
         queue: Arc<Queue>,
     ) -> Result<Self, SubscriberError> {
@@ -286,7 +293,7 @@ impl<RPC: SolanaRpcClientTrait, SC: SubscriberCursor, SM: SolanaSignatureModel>
             client,
             context,
             cursor_model,
-            signature_model,
+            transaction_model,
             queue,
         })
     }
@@ -323,7 +330,8 @@ impl<RPC: SolanaRpcClientTrait, SC: SubscriberCursor, SM: SolanaSignatureModel>
             };
 
             for tx in transactions.clone() {
-                match upsert_and_publish(&self.signature_model, &self.queue, &tx, "poller").await {
+                match upsert_and_publish(&self.transaction_model, &self.queue, &tx, "poller").await
+                {
                     Ok(inserted) => {
                         if inserted {
                             info!("Upserted and published transaction by poller: {:?}", tx);
@@ -338,7 +346,7 @@ impl<RPC: SolanaRpcClientTrait, SC: SubscriberCursor, SM: SolanaSignatureModel>
             let maybe_transaction_with_max_slot = transactions.iter().max_by_key(|tx| tx.slot);
             if let Some(transaction) = maybe_transaction_with_max_slot {
                 if let Err(err) = self
-                    .store_last_signature_checked(transaction.signature, account_type.clone())
+                    .store_last_transaction_checked(transaction.signature, account_type.clone())
                     .await
                 {
                     error!("{:?}", err);
@@ -349,7 +357,7 @@ impl<RPC: SolanaRpcClientTrait, SC: SubscriberCursor, SM: SolanaSignatureModel>
         }
     }
 
-    pub async fn store_last_signature_checked(
+    pub async fn store_last_transaction_checked(
         &self,
         signature: Signature,
         account_type: AccountPollerEnum,
@@ -385,7 +393,7 @@ impl<RPC: SolanaRpcClientTrait, SC: SubscriberCursor, SM: SolanaSignatureModel>
     }
 }
 
-impl<RPC: SolanaRpcClientTrait, SC: SubscriberCursor, SM: SolanaSignatureModel> TransactionPoller
+impl<RPC: SolanaRpcClientTrait, SC: SubscriberCursor, SM: SolanaTransactionModel> TransactionPoller
     for SolanaPoller<RPC, SC, SM>
 {
     type Transaction = SolanaTransaction;
@@ -417,16 +425,19 @@ impl<RPC: SolanaRpcClientTrait, SC: SubscriberCursor, SM: SolanaSignatureModel> 
     }
 }
 
-async fn upsert_and_publish<SM: SolanaSignatureModel>(
-    signature_model: &Arc<SM>,
+async fn upsert_and_publish<SM: SolanaTransactionModel>(
+    transaction_model: &Arc<SM>,
     queue: &Arc<Queue>,
     tx: &SolanaTransaction,
     from_service: &str,
 ) -> Result<bool, anyhow::Error> {
-    let inserted = signature_model
-        .upsert(SolanaSignature {
+    let inserted = transaction_model
+        .upsert(SolanaTransactionData {
             signature: tx.signature.to_string(),
-            created_at: Utc::now(),
+            slot: tx.slot as i64,
+            logs: tx.logs.clone(),
+            retries: 3,
+            created_at: None,
         })
         .await
         .map_err(|e| anyhow!("Error upserting transaction: {:?}", e))?;
@@ -448,78 +459,78 @@ async fn upsert_and_publish<SM: SolanaSignatureModel>(
 
 // comment out tests to not spam RPC on every push
 
-// #[cfg(test)]
-// mod tests {
+#[cfg(test)]
+mod tests {
 
-//     use std::str::FromStr;
+    use std::str::FromStr;
 
-//     use dotenv::dotenv;
-//     use relayer_base::config::config_from_yaml;
-//     use solana_sdk::commitment_config::CommitmentConfig;
-//     use testcontainers::{runners::AsyncRunner, ContainerAsync};
-//     use testcontainers_modules::postgres;
+    use dotenv::dotenv;
+    use relayer_base::config::config_from_yaml;
+    use solana_sdk::commitment_config::CommitmentConfig;
+    use testcontainers::{runners::AsyncRunner, ContainerAsync};
+    use testcontainers_modules::postgres;
 
-//     use crate::{
-//         client::SolanaRpcClient, config::SolanaConfig,
-//         models::solana_subscriber_cursor::PostgresDB, solana_signature::PgSolanaSignatureModel,
-//     };
+    use crate::{
+        client::SolanaRpcClient, config::SolanaConfig,
+        models::solana_subscriber_cursor::PostgresDB, solana_transaction::PgSolanaTransactionModel,
+    };
 
-//     use super::*;
+    use super::*;
 
-//     async fn setup_test_container() -> (
-//         PostgresDB,
-//         PgSolanaSignatureModel,
-//         Arc<Queue>,
-//         ContainerAsync<postgres::Postgres>,
-//     ) {
-//         dotenv().ok();
-//         let init_sql = format!(
-//             "{}\n{}",
-//             include_str!("../../migrations/0015_solana_subscriber_cursors.sql"),
-//             include_str!("../../migrations/0014_solana_signatures.sql")
-//         );
-//         let container = postgres::Postgres::default()
-//             .with_init_sql(init_sql.into_bytes())
-//             .start()
-//             .await
-//             .unwrap();
-//         let connection_string = format!(
-//             "postgres://postgres:postgres@{}:{}/postgres",
-//             container.get_host().await.unwrap(),
-//             container.get_host_port_ipv4(5432).await.unwrap()
-//         );
-//         let pool = sqlx::PgPool::connect(&connection_string).await.unwrap();
-//         let cursor_model = PostgresDB::new(&connection_string).await.unwrap();
-//         let transaction_model = PgSolanaSignatureModel::new(pool);
-//         let queue = Queue::new("amqp://guest:guest@localhost:5672", "test").await;
+    async fn setup_test_container() -> (
+        PostgresDB,
+        PgSolanaTransactionModel,
+        Arc<Queue>,
+        ContainerAsync<postgres::Postgres>,
+    ) {
+        dotenv().ok();
+        let init_sql = format!(
+            "{}\n{}",
+            include_str!("../../migrations/0015_solana_subscriber_cursors.sql"),
+            include_str!("../../migrations/0014_solana_transactions.sql")
+        );
+        let container = postgres::Postgres::default()
+            .with_init_sql(init_sql.into_bytes())
+            .start()
+            .await
+            .unwrap();
+        let connection_string = format!(
+            "postgres://postgres:postgres@{}:{}/postgres",
+            container.get_host().await.unwrap(),
+            container.get_host_port_ipv4(5432).await.unwrap()
+        );
+        let pool = sqlx::PgPool::connect(&connection_string).await.unwrap();
+        let cursor_model = PostgresDB::new(&connection_string).await.unwrap();
+        let transaction_model = PgSolanaTransactionModel::new(pool);
+        let queue = Queue::new("amqp://guest:guest@localhost:5672", "test", 1).await;
 
-//         (cursor_model, transaction_model, queue, container)
-//     }
+        (cursor_model, transaction_model, queue, container)
+    }
 
-//     #[tokio::test]
-//     async fn test_poll_account() {
-//         let (cursor_model, transaction_model, queue, _container) = setup_test_container().await;
-//         let network = std::env::var("NETWORK").expect("NETWORK must be set");
-//         let config: SolanaConfig = config_from_yaml(&format!("config.{}.yaml", network)).unwrap();
-//         let solana_client: SolanaRpcClient =
-//             SolanaRpcClient::new(&config.solana_poll_rpc, CommitmentConfig::confirmed(), 3)
-//                 .unwrap();
-//         let solana_subscriber = SolanaPoller::new(
-//             solana_client,
-//             "test".to_string(),
-//             Arc::new(transaction_model),
-//             Arc::new(cursor_model),
-//             queue,
-//         )
-//         .await
-//         .unwrap();
+    #[tokio::test]
+    async fn test_poll_account() {
+        let (cursor_model, transaction_model, queue, _container) = setup_test_container().await;
+        let network = std::env::var("NETWORK").expect("NETWORK must be set");
+        let config: SolanaConfig = config_from_yaml(&format!("config.{}.yaml", network)).unwrap();
+        let solana_client: SolanaRpcClient =
+            SolanaRpcClient::new(&config.solana_poll_rpc, CommitmentConfig::confirmed(), 3)
+                .unwrap();
+        let solana_subscriber = SolanaPoller::new(
+            solana_client,
+            "test".to_string(),
+            Arc::new(transaction_model),
+            Arc::new(cursor_model),
+            queue,
+        )
+        .await
+        .unwrap();
 
-//         let _transactions = solana_subscriber
-//             .poll_account(
-//                 Pubkey::from_str("DaejccUfXqoAFTiDTxDuMQfQ9oa6crjtR9cT52v1AvGK").unwrap(),
-//                 AccountPollerEnum::GasService,
-//             )
-//             .await
-//             .unwrap();
-//     }
-// }
+        let _transactions = solana_subscriber
+            .poll_account(
+                Pubkey::from_str("DaejccUfXqoAFTiDTxDuMQfQ9oa6crjtR9cT52v1AvGK").unwrap(),
+                AccountPollerEnum::GasService,
+            )
+            .await
+            .unwrap();
+    }
+}
