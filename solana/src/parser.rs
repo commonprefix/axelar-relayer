@@ -19,8 +19,6 @@ use relayer_base::utils::ThreadSafe;
 use solana_sdk::pubkey::Pubkey;
 use solana_types::solana_types::SolanaTransaction;
 use std::collections::HashMap;
-use std::str::FromStr;
-use tracing::{info, warn};
 
 #[async_trait]
 pub trait Parser {

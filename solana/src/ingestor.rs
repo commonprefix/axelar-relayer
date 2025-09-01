@@ -1,5 +1,3 @@
-use std::future::Future;
-
 use async_trait::async_trait;
 use relayer_base::error::IngestorError;
 use relayer_base::gmp_api::gmp_types::{

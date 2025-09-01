@@ -11,7 +11,6 @@ use crate::{
     utils::create_solana_tx_from_rpc_response,
 };
 use anyhow::anyhow;
-use chrono::Utc;
 use futures::StreamExt;
 use relayer_base::queue::QueueItem;
 use relayer_base::{error::SubscriberError, queue::Queue, subscriber::ChainTransaction};
