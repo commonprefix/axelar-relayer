@@ -14,10 +14,10 @@ use solana_client::{
 use solana_pubsub_client::nonblocking::pubsub_client::PubsubClient;
 use solana_rpc_client::nonblocking::rpc_client::RpcClient;
 use solana_rpc_client_api::response::Response as RpcResponse;
+use solana_sdk::commitment_config::CommitmentConfig;
 use solana_sdk::pubkey::Pubkey;
 use solana_sdk::signature::Signature;
-use solana_sdk::{commitment_config::CommitmentConfig, instruction::Instruction};
-use solana_transaction_status::{UiInstruction, UiTransactionEncoding};
+use solana_transaction_status::UiTransactionEncoding;
 use solana_types::solana_types::{RpcGetTransactionResponse, SolanaTransaction};
 use tracing::{debug, info};
 

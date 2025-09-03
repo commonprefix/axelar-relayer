@@ -16,8 +16,8 @@ use anyhow::anyhow;
 use futures::StreamExt;
 use relayer_base::queue::QueueItem;
 use relayer_base::{error::SubscriberError, queue::Queue, subscriber::ChainTransaction};
+use solana_sdk::pubkey::Pubkey;
 use solana_sdk::signature::Signature;
-use solana_sdk::{commitment_config::CommitmentConfig, pubkey::Pubkey};
 use solana_types::solana_types::SolanaTransaction;
 use tokio::{
     select,

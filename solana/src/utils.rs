@@ -1,17 +1,12 @@
-use chrono::Utc;
 use serde_json::json;
-use solana_transaction_status::UiInstruction;
 use std::str::FromStr;
 use tracing::error;
 
-use solana_rpc_client_api::response::{
-    Response, RpcConfirmedTransactionStatusWithSignature, RpcLogsResponse,
-};
+use solana_rpc_client_api::response::RpcConfirmedTransactionStatusWithSignature;
 use solana_sdk::{
     commitment_config::{CommitmentConfig, CommitmentLevel},
     signature::Signature,
 };
-use solana_types::solana_types::SolanaTransaction;
 
 pub fn get_tx_batch_command(
     txs: Vec<RpcConfirmedTransactionStatusWithSignature>,
