@@ -230,6 +230,7 @@ impl<STR: SolanaStreamClientTrait, SM: SolanaTransactionModel> SolanaListener<ST
             solana_stream_client.unsubscribe().await;
 
             drop(subscriber_stream);
+            drop(solana_rpc_client);
 
             if let Err(e) = solana_stream_client.shutdown().await {
                 error!("Error shutting down solana stream client: {:?}", e);
