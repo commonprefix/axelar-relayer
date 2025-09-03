@@ -1,6 +1,8 @@
 use super::message_matching_key::MessageMatchingKey;
-use crate::error::TransactionParsingError;
 use crate::gas_calculator::GasCalculator;
+use crate::{
+    error::TransactionParsingError, // transaction_parser::parser_call_contract::ParserCallContract,
+};
 // use crate::transaction_parser::common::convert_jetton_to_native;
 // use crate::transaction_parser::parser_call_contract::ParserCallContract;
 // use crate::transaction_parser::parser_execute_insufficient_gas::ParserExecuteInsufficientGas;
@@ -19,6 +21,7 @@ use relayer_base::utils::ThreadSafe;
 use solana_sdk::pubkey::Pubkey;
 use solana_types::solana_types::SolanaTransaction;
 use std::collections::HashMap;
+use tracing::{info, warn};
 
 #[async_trait]
 pub trait Parser {
@@ -59,140 +62,144 @@ where
         &self,
         transaction: SolanaTransaction,
     ) -> Result<Vec<Event>, TransactionParsingError> {
-        // let mut events: Vec<Event> = Vec::new();
-        // let mut parsers: Vec<Box<dyn Parser + Send + Sync>> = Vec::new();
-        // let mut call_contract: Vec<Box<dyn Parser + Send + Sync>> = Vec::new();
-        // let mut gas_credit_map: HashMap<MessageMatchingKey, Box<dyn Parser + Send + Sync>> =
-        //     HashMap::new();
+        let mut events: Vec<Event> = Vec::new();
+        let mut parsers: Vec<Box<dyn Parser + Send + Sync>> = Vec::new();
+        let mut call_contract: Vec<Box<dyn Parser + Send + Sync>> = Vec::new();
+        let mut gas_credit_map: HashMap<MessageMatchingKey, Box<dyn Parser + Send + Sync>> =
+            HashMap::new();
 
-        // let (total_gas_used, refund_gas_used) = self.gas_used(&trace)?;
+        let (total_gas_used, refund_gas_used) = self.gas_used(&transaction)?;
 
-        // let trace_id = trace.trace_id.clone();
-        // let message_approved_count = self
-        //     .create_parsers(
-        //         trace,
-        //         &mut parsers,
-        //         &mut call_contract,
-        //         &mut gas_credit_map,
-        //         self.chain_name.clone(),
-        //     )
-        //     .await?;
+        let transaction_id = transaction.signature.clone();
+        let message_approved_count = self
+            .create_parsers(
+                transaction,
+                &mut parsers,
+                &mut call_contract,
+                &mut gas_credit_map,
+                self.chain_name.clone(),
+            )
+            .await?;
 
-        // info!(
-        //     "Parsing results: trace_id={} parsers={}, call_contract={}, gas_credit_map={}",
-        //     trace_id,
-        //     parsers.len(),
-        //     call_contract.len(),
-        //     gas_credit_map.len()
-        // );
+        info!(
+            "Parsing results: transaction_id={} parsers={}, call_contract={}, gas_credit_map={}",
+            transaction_id,
+            parsers.len(),
+            call_contract.len(),
+            gas_credit_map.len()
+        );
 
-        // if (parsers.len() + call_contract.len() + gas_credit_map.len()) == 0 {
-        //     warn!("Trace did not produce any parsers: trace_id={}", trace_id);
-        // }
+        if (parsers.len() + call_contract.len() + gas_credit_map.len()) == 0 {
+            warn!(
+                "Transaction did not produce any parsers: transaction_id={}",
+                transaction_id
+            );
+        }
 
-        // for cc in call_contract {
-        //     let cc_key = cc.key().await?;
-        //     events.push(cc.event(None).await?);
-        //     if let Some(parser) = gas_credit_map.get(&cc_key) {
-        //         let message_id = cc.message_id().await?.ok_or_else(|| {
-        //             TransactionParsingError::Message("Missing message_id".to_string())
-        //         })?;
+        for cc in call_contract {
+            let cc_key = cc.key().await?;
+            events.push(cc.event(None).await?);
+            if let Some(parser) = gas_credit_map.get(&cc_key) {
+                let message_id = cc.message_id().await?.ok_or_else(|| {
+                    TransactionParsingError::Message("Missing message_id".to_string())
+                })?;
 
-        //         let event = parser.event(Some(message_id)).await?;
-        //         events.push(event);
-        //     }
-        // }
+                let event = parser.event(Some(message_id)).await?;
+                events.push(event);
+            }
+        }
 
-        // for parser in parsers {
-        //     let event = parser.event(None).await?;
-        //     events.push(event);
-        // }
+        for parser in parsers {
+            let event = parser.event(None).await?;
+            events.push(event);
+        }
 
-        // let mut parsed_events: Vec<Event> = Vec::new();
+        let mut parsed_events: Vec<Event> = Vec::new();
 
-        // for event in events {
-        //     let event = match event {
-        //         Event::GasCredit {
-        //             common,
-        //             message_id,
-        //             refund_address,
-        //             mut payment,
-        //         } => {
-        //             let mut p = payment.clone();
-        //             if let Some(token_id) = p.token_id {
-        //                 let msg_value = convert_jetton_to_native(
-        //                     token_id,
-        //                     &BigUint::from_str(&p.amount)
-        //                         .map_err(|e| TransactionParsingError::Generic(e.to_string()))?,
-        //                     &self.price_view,
-        //                 )
-        //                 .await
-        //                 .map_err(|e| TransactionParsingError::Generic(e.to_string()))?;
-        //                 p.amount = msg_value.to_string();
-        //                 p.token_id = None;
-        //                 payment = p;
-        //             }
-        //             Event::GasCredit {
-        //                 common,
-        //                 message_id,
-        //                 refund_address,
-        //                 payment,
-        //             }
-        //         }
-        //         Event::MessageApproved {
-        //             common,
-        //             message,
-        //             mut cost,
-        //         } => {
-        //             cost.amount = (total_gas_used / message_approved_count).to_string();
-        //             Event::MessageApproved {
-        //                 common,
-        //                 message,
-        //                 cost,
-        //             }
-        //         }
-        //         Event::MessageExecuted {
-        //             common,
-        //             message_id,
-        //             source_chain,
-        //             status,
-        //             mut cost,
-        //         } => {
-        //             cost.amount = total_gas_used.to_string();
-        //             Event::MessageExecuted {
-        //                 common,
-        //                 message_id,
-        //                 source_chain,
-        //                 status,
-        //                 cost,
-        //             }
-        //         }
-        //         Event::GasRefunded {
-        //             common,
-        //             message_id,
-        //             recipient_address,
-        //             refunded_amount,
-        //             mut cost,
-        //         } => {
-        //             cost.amount = refund_gas_used.to_string();
-        //             Event::GasRefunded {
-        //                 common,
-        //                 message_id,
-        //                 recipient_address,
-        //                 refunded_amount,
-        //                 cost,
-        //             }
-        //         }
+        for event in events {
+            let event = match event {
+                Event::GasCredit {
+                    common,
+                    message_id,
+                    refund_address,
+                    mut payment,
+                } => {
+                    return Err(TransactionParsingError::Generic(
+                        "not implemented".to_string(),
+                    ));
 
-        //         other => other,
-        //     };
-        //     parsed_events.push(event);
-        // }
+                    // let mut p = payment.clone();
+                    // if let Some(token_id) = p.token_id {
+                    //     let msg_value = convert_jetton_to_native(
+                    //         token_id,
+                    //         &BigUint::from_str(&p.amount)
+                    //             .map_err(|e| TransactionParsingError::Generic(e.to_string()))?,
+                    //         &self.price_view,
+                    //     )
+                    //     .await
+                    //     .map_err(|e| TransactionParsingError::Generic(e.to_string()))?;
+                    //     p.amount = msg_value.to_string();
+                    //     p.token_id = None;
+                    //     payment = p;
+                    // }
+                    // Event::GasCredit {
+                    //     common,
+                    //     message_id,
+                    //     refund_address,
+                    //     payment,
+                    // }
+                }
+                Event::MessageApproved {
+                    common,
+                    message,
+                    mut cost,
+                } => {
+                    cost.amount = (total_gas_used / message_approved_count).to_string();
+                    Event::MessageApproved {
+                        common,
+                        message,
+                        cost,
+                    }
+                }
+                Event::MessageExecuted {
+                    common,
+                    message_id,
+                    source_chain,
+                    status,
+                    mut cost,
+                } => {
+                    cost.amount = total_gas_used.to_string();
+                    Event::MessageExecuted {
+                        common,
+                        message_id,
+                        source_chain,
+                        status,
+                        cost,
+                    }
+                }
+                Event::GasRefunded {
+                    common,
+                    message_id,
+                    recipient_address,
+                    refunded_amount,
+                    mut cost,
+                } => {
+                    cost.amount = refund_gas_used.to_string();
+                    Event::GasRefunded {
+                        common,
+                        message_id,
+                        recipient_address,
+                        refunded_amount,
+                        cost,
+                    }
+                }
 
-        // Ok(parsed_events)
-        Err(TransactionParsingError::Generic(
-            "Not implemented".to_string(),
-        ))
+                other => other,
+            };
+            parsed_events.push(event);
+        }
+
+        Ok(parsed_events)
     }
 }
 
@@ -218,27 +225,27 @@ impl<PV: PriceViewTrait> TransactionParser<PV> {
         transaction: SolanaTransaction,
         parsers: &mut Vec<Box<dyn Parser + Send + Sync>>,
         call_contract: &mut Vec<Box<dyn Parser + Send + Sync>>,
-        gas_credit_map: &mut HashMap<Pubkey, Box<dyn Parser + Send + Sync>>,
+        gas_credit_map: &mut HashMap<MessageMatchingKey, Box<dyn Parser + Send + Sync>>,
         chain_name: String,
     ) -> Result<u64, TransactionParsingError> {
-        // let mut message_approved_count = 0u64;
+        let mut message_approved_count = 0u64;
 
         // let mut parser = ParserExecuteInsufficientGas::new(
-        //     trace.clone(),
+        //     transaction.clone(),
         //     self.gateway_address.clone(),
         //     chain_name.clone(),
         // )
         // .await?;
         // if parser.is_match().await? {
         //     info!(
-        //         "ParserExecuteInsufficientGas matched, trace_id={}",
-        //         trace.trace_id
+        //         "ParserExecuteInsufficientGas matched, transaction_id={}",
+        //         transaction.signature
         //     );
         //     parser.parse().await?;
         //     parsers.push(Box::new(parser));
         // }
 
-        // for tx in trace.transactions {
+        // for tx in transaction.transactions {
         //     let mut parser = ParserCallContract::new(
         //         tx.clone(),
         //         self.gateway_address.clone(),
@@ -246,78 +253,94 @@ impl<PV: PriceViewTrait> TransactionParser<PV> {
         //     )
         //     .await?;
         //     if parser.is_match().await? {
-        //         info!("ParserCallContract matched, trace_id={}", trace.trace_id);
+        //         info!(
+        //             "ParserCallContract matched, transaction_id={}",
+        //             transaction.signature
+        //         );
         //         parser.parse().await?;
         //         call_contract.push(Box::new(parser));
         //         continue;
         //     }
-        //     let mut parser =
-        //         ParserMessageExecuted::new(tx.clone(), self.gateway_address.clone()).await?;
-        //     if parser.is_match().await? {
-        //         info!("ParserMessageExecuted matched, trace_id={}", trace.trace_id);
-        //         parser.parse().await?;
-        //         parsers.push(Box::new(parser));
-        //         continue;
-        //     }
-        //     let mut parser =
-        //         ParserMessageApproved::new(tx.clone(), self.gateway_address.clone()).await?;
-        //     if parser.is_match().await? {
-        //         info!("ParserMessageApproved matched, trace_id={}", trace.trace_id);
-        //         parser.parse().await?;
-        //         parsers.push(Box::new(parser));
-        //         message_approved_count += 1;
-        //         continue;
-        //     }
-        //     let mut parser =
-        //         ParserNativeGasPaid::new(tx.clone(), self.gas_service_address.clone()).await?;
-        //     if parser.is_match().await? {
-        //         info!("ParserNativeGasPaid matched, trace_id={}", trace.trace_id);
-        //         parser.parse().await?;
-        //         let key = parser.key().await?;
-        //         gas_credit_map.insert(key, Box::new(parser));
-        //         continue;
-        //     }
-        //     let mut parser =
-        //         ParserNativeGasAdded::new(tx.clone(), self.gas_service_address.clone()).await?;
-        //     if parser.is_match().await? {
-        //         info!("ParserNativeGasAdded matched, trace_id={}", trace.trace_id);
-        //         parser.parse().await?;
-        //         parsers.push(Box::new(parser));
-        //         continue;
-        //     }
-        //     let mut parser =
-        //         ParserJettonGasAdded::new(tx.clone(), self.gas_service_address.clone()).await?;
-        //     if parser.is_match().await? {
-        //         info!("ParserJettonGasAdded matched, trace_id={}", trace.trace_id);
-        //         parser.parse().await?;
-        //         parsers.push(Box::new(parser));
-        //         continue;
-        //     }
-        //     let mut parser =
-        //         ParserJettonGasPaid::new(tx.clone(), self.gas_service_address.clone()).await?;
-        //     if parser.is_match().await? {
-        //         info!("ParserJettonGasPaid matched, trace_id={}", trace.trace_id);
-        //         parser.parse().await?;
-        //         let key = parser.key().await?;
-        //         gas_credit_map.insert(key, Box::new(parser));
-        //         continue;
-        //     }
-        //     let mut parser =
-        //         ParserNativeGasRefunded::new(tx.clone(), self.gas_service_address.clone()).await?;
-        //     if parser.is_match().await? {
-        //         info!(
-        //             "ParserNativeGasRefunded matched, trace_id={}",
-        //             trace.trace_id
-        //         );
-        //         parser.parse().await?;
-        //         parsers.push(Box::new(parser));
-        //         continue;
-        //     }
+        // let mut parser =
+        //     ParserMessageExecuted::new(tx.clone(), self.gateway_address.clone()).await?;
+        // if parser.is_match().await? {
+        //     info!(
+        //         "ParserMessageExecuted matched, transaction_id={}",
+        //         transaction.signature
+        //     );
+        //     parser.parse().await?;
+        //     parsers.push(Box::new(parser));
+        //     continue;
         // }
-        // Ok(message_approved_count)
+        // let mut parser =
+        //     ParserMessageApproved::new(tx.clone(), self.gateway_address.clone()).await?;
+        // if parser.is_match().await? {
+        //     info!(
+        //         "ParserMessageApproved matched, transaction_id={}",
+        //         transaction.signature
+        //     );
+        //     parser.parse().await?;
+        //     parsers.push(Box::new(parser));
+        //     message_approved_count += 1;
+        //     continue;
+        // }
+        // let mut parser =
+        //     ParserNativeGasPaid::new(tx.clone(), self.gas_service_address.clone()).await?;
+        // if parser.is_match().await? {
+        //     info!(
+        //         "ParserNativeGasPaid matched, transaction_id={}",
+        //         transaction.signature
+        //     );
+        //     parser.parse().await?;
+        //     let key = parser.key().await?;
+        //     gas_credit_map.insert(key, Box::new(parser));
+        //     continue;
+        // }
+        // let mut parser =
+        //     ParserNativeGasAdded::new(tx.clone(), self.gas_service_address.clone()).await?;
+        // if parser.is_match().await? {
+        //     info!(
+        //         "ParserNativeGasAdded matched, transaction_id={}",
+        //         transaction.signature
+        //     );
+        //     parser.parse().await?;
+        //     parsers.push(Box::new(parser));
+        //     continue;
+        // }
+        // let mut parser =
+        //     ParserJettonGasAdded::new(tx.clone(), self.gas_service_address.clone()).await?;
+        // if parser.is_match().await? {
+        //     info!("ParserJettonGasAdded matched, transaction_id={}", transaction.signature);
+        //     parser.parse().await?;
+        //     parsers.push(Box::new(parser));
+        //     continue;
+        // }
+        // let mut parser =
+        //     ParserJettonGasPaid::new(tx.clone(), self.gas_service_address.clone()).await?;
+        // if parser.is_match().await? {
+        //     info!("ParserJettonGasPaid matched, transaction_id={}", transaction.signature);
+        //     parser.parse().await?;
+        //     let key = parser.key().await?;
+        //     gas_credit_map.insert(key, Box::new(parser));
+        //     continue;
+        // }
+        // let mut parser =
+        //     ParserNativeGasRefunded::new(tx.clone(), self.gas_service_address.clone()).await?;
+        // if parser.is_match().await? {
+        //     info!(
+        //         "ParserNativeGasRefunded matched, transaction_id={}",
+        //         transaction.signature
+        //     );
+        //     parser.parse().await?;
+        //     parsers.push(Box::new(parser));
+        //     continue;
+        // }
         Err(TransactionParsingError::Generic(
-            "Not implemented".to_string(),
+            "not implemented".to_string(),
         ))
+
+        //  }
+        // Ok(message_approved_count)
     }
 
     fn gas_used(

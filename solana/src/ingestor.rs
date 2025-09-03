@@ -52,13 +52,47 @@ where
             )));
         };
 
-        let signature = transaction.signature.clone();
+        let tx = *transaction;
+        let signature = tx.signature.clone();
 
-        let events = self
-            .solana_parser
-            .parse_transaction(*transaction)
-            .await
-            .map_err(|e| IngestorError::GenericError(e.to_string()))?;
+        let events = match self.solana_parser.parse_transaction(tx.clone()).await {
+            Ok(events) => {
+                info!(
+                    "Parsed {} event(s) for signature {}",
+                    events.len(),
+                    signature
+                );
+                for (idx, ev) in events.iter().enumerate() {
+                    info!("event[{}]={:?}", idx, ev);
+                }
+                events
+            }
+            Err(e) => {
+                // Temporary fallback: parse and print a simple event directly from logs
+                warn!(
+                    "Structured Solana parser not implemented or failed: {}. Falling back to log-based print.",
+                    e.to_string()
+                );
+                // let maybe_instr = tx.logs.iter().find(|l| l.contains("Instruction:")).cloned();
+                // let maybe_data = tx
+                //     .logs
+                //     .iter()
+                //     .find(|l| l.starts_with("Program data: "))
+                //     .cloned();
+
+                // info!(
+                //     "Solana received event signature={} instr={:?} data={:?}",
+                //     signature, maybe_instr, maybe_data
+                // );
+                vec![]
+            }
+        };
+
+        // let events = self
+        //     .solana_parser
+        //     .parse_transaction(*transaction)
+        //     .await
+        //     .map_err(|e| IngestorError::GenericError(e.to_string()))?;
 
         // Map events to EventModels
         let event_models: Vec<EventModel> = events

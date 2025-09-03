@@ -8705,7 +8705,6 @@ dependencies = [
  "serde",
  "serde_json",
  "solana-sdk",
- "sqlx",
  "tracing",
 ]
 

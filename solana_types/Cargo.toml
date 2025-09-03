@@ -10,7 +10,6 @@ chrono = { workspace = true }
 solana-sdk = { workspace = true }
 tracing = { workspace = true }
 anyhow = { workspace = true }
-sqlx = { workspace = true }
 
 [lints]
 workspace = true

@@ -301,33 +301,36 @@ impl SolanaStreamClientTrait for SolanaStreamClient {
 
 #[cfg(test)]
 mod tests {
-    // use std::str::FromStr;
+    use std::str::FromStr;
 
-    // use dotenv::dotenv;
-    // use relayer_base::config::config_from_yaml;
+    use dotenv::dotenv;
+    use relayer_base::config::config_from_yaml;
 
-    // use crate::config::SolanaConfig;
+    use crate::config::SolanaConfig;
 
-    // use super::*;
+    use super::*;
 
     //comment out tests to not spam RPC on every push
 
-    // #[tokio::test]
-    // async fn test_get_transaction_by_signature() {
-    //     dotenv().ok();
-    //     let network = std::env::var("NETWORK").expect("NETWORK must be set");
-    //     let config: SolanaConfig = config_from_yaml(&format!("config.{}.yaml", network)).unwrap();
+    #[tokio::test]
+    async fn test_get_transaction_by_signature() {
+        dotenv().ok();
+        let network = std::env::var("NETWORK").expect("NETWORK must be set");
+        let config: SolanaConfig = config_from_yaml(&format!("config.{}.yaml", network)).unwrap();
 
-    //     let solana_client: SolanaRpcClient =
-    //         SolanaRpcClient::new(&config.solana_poll_rpc, CommitmentConfig::confirmed(), 3)
-    //             .unwrap();
+        let solana_client: SolanaRpcClient =
+            SolanaRpcClient::new(&config.solana_poll_rpc, CommitmentConfig::confirmed(), 3)
+                .unwrap();
 
-    //     let signature = Signature::from_str("5Pg6SHHKCBEz4yHtnsiK7EtTvnPk31WQ9Adh48XhwcDv7ghwLY4ADvTneq3bw64osqZwjwehVRBrKwDG2XNzrvFB").unwrap();
-    //     let _transaction = solana_client
-    //         .get_transaction_by_signature(signature)
-    //         .await
-    //         .unwrap();
-    // }
+        let signature = Signature::from_str("3ayECdJeV7uQSrzkgGuxMhcG1LMksRnSXGjciNowJZmEnoWWKcGRHU6WKvLa5i5KV7FJDGnwJF2Y3nFYmHmkaAnx").unwrap();
+        let transaction = solana_client
+            .get_transaction_by_signature(signature)
+            .await
+            .unwrap();
+
+        println!("Transaction: {:?}", transaction);
+        println!("Transaction logs: {:?}", transaction.logs);
+    }
 
     // #[tokio::test]
     // async fn test_get_transactions_for_account() {
