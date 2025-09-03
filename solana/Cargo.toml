@@ -19,6 +19,7 @@ solana-rpc-client = { workspace = true }
 solana-rpc-client-api = { workspace = true }
 solana-sdk = { workspace = true }
 solana-transaction-status = { workspace = true }
+solana-transaction-status-client-types = { workspace = true }
 interchain-token-service = { workspace = true }
 futures = { workspace = true }
 futures-util = { workspace = true }
@@ -26,6 +27,7 @@ solana_types = { workspace = true }
 solana-pubsub-client = { workspace = true }
 async-trait = { workspace = true }
 thiserror = { workspace = true }
+bs58 = "0.5"
 
 [dev-dependencies]
 relayer-base = { workspace = true, features = ["mocks"] }
