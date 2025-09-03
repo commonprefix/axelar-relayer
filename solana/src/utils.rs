@@ -1,5 +1,6 @@
 use chrono::Utc;
 use serde_json::json;
+use solana_transaction_status::UiInstruction;
 use std::str::FromStr;
 use tracing::error;
 
@@ -11,25 +12,6 @@ use solana_sdk::{
     signature::Signature,
 };
 use solana_types::solana_types::SolanaTransaction;
-
-pub fn create_solana_tx_from_rpc_response(
-    response: Response<RpcLogsResponse>,
-) -> Result<SolanaTransaction, anyhow::Error> {
-    if response.value.err.is_some() {
-        return Err(anyhow::anyhow!(
-            "Error in transaction: {:?}",
-            response.value.err
-        ));
-    }
-    let solana_tx = SolanaTransaction {
-        signature: Signature::from_str(&response.value.signature)?,
-        slot: response.context.slot as i64,
-        timestamp: Some(Utc::now()),
-        logs: response.value.logs,
-    };
-
-    Ok(solana_tx)
-}
 
 pub fn get_tx_batch_command(
     txs: Vec<RpcConfirmedTransactionStatusWithSignature>,

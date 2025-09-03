@@ -1,14 +1,16 @@
 use std::{future::Future, str::FromStr, sync::Arc, time::Duration};
 
 use crate::{
-    client::{LogsSubscription, SolanaRpcClientTrait, SolanaStreamClient, SolanaStreamClientTrait},
+    client::{
+        LogsSubscription, SolanaRpcClient, SolanaRpcClientTrait, SolanaStreamClient,
+        SolanaStreamClientTrait,
+    },
     config::SolanaConfig,
     models::{
         solana_subscriber_cursor::{AccountPollerEnum, SubscriberCursor},
         solana_transaction::SolanaTransactionModel,
     },
     solana_transaction::SolanaTransactionData,
-    utils::create_solana_tx_from_rpc_response,
 };
 use anyhow::anyhow;
 use futures::StreamExt;
@@ -122,14 +124,14 @@ impl<STR: SolanaStreamClientTrait, SM: SolanaTransactionModel> SolanaListener<ST
         let mut handles: Vec<JoinHandle<()>> = vec![];
 
         let solana_stream_rpc_clone = config.clone().solana_stream_rpc;
-        let solana_commitment_clone = config.clone().solana_commitment;
+        let solana_config_clone = config.clone();
         let queue_clone = Arc::clone(&self.queue);
         let transaction_model_clone = Arc::clone(&self.transaction_model);
 
         handles.push(tokio::spawn(async move {
             Self::setup_connection_and_work(
                 &solana_stream_rpc_clone,
-                solana_commitment_clone,
+                solana_config_clone,
                 gas_service_account,
                 &queue_clone,
                 &transaction_model_clone,
@@ -139,14 +141,14 @@ impl<STR: SolanaStreamClientTrait, SM: SolanaTransactionModel> SolanaListener<ST
         }));
 
         let solana_stream_rpc_clone = config.clone().solana_stream_rpc;
-        let solana_commitment_clone = config.clone().solana_commitment;
+        let solana_config_clone = config.clone();
         let queue_clone = Arc::clone(&self.queue);
         let transaction_model_clone = Arc::clone(&self.transaction_model);
 
         handles.push(tokio::spawn(async move {
             Self::setup_connection_and_work(
                 &solana_stream_rpc_clone,
-                solana_commitment_clone,
+                solana_config_clone,
                 gateway_account,
                 &queue_clone,
                 &transaction_model_clone,
@@ -169,7 +171,7 @@ impl<STR: SolanaStreamClientTrait, SM: SolanaTransactionModel> SolanaListener<ST
 
     async fn setup_connection_and_work(
         solana_stream_rpc: &str,
-        solana_commitment: CommitmentConfig,
+        solana_config: SolanaConfig,
         account: Pubkey,
         queue: &Arc<Queue>,
         transaction_model: &Arc<SM>,
@@ -177,7 +179,9 @@ impl<STR: SolanaStreamClientTrait, SM: SolanaTransactionModel> SolanaListener<ST
     ) {
         loop {
             let solana_stream_client =
-                match SolanaStreamClient::new(solana_stream_rpc, solana_commitment).await {
+                match SolanaStreamClient::new(solana_stream_rpc, solana_config.solana_commitment)
+                    .await
+                {
                     Ok(solana_stream_client) => solana_stream_client,
                     Err(e) => {
                         error!(
@@ -198,9 +202,26 @@ impl<STR: SolanaStreamClientTrait, SM: SolanaTransactionModel> SolanaListener<ST
                     break;
                 }
             };
+
+            let solana_rpc_client = match SolanaRpcClient::new(
+                &solana_config.solana_poll_rpc,
+                solana_config.solana_commitment,
+                3,
+            ) {
+                Ok(solana_rpc_client) => solana_rpc_client,
+                Err(e) => {
+                    error!(
+                        "Error creating solana rpc client for {}: {:?}",
+                        stream_name, e
+                    );
+                    break;
+                }
+            };
+
             Self::work(
                 &mut subscriber_stream,
                 stream_name,
+                &solana_rpc_client,
                 queue,
                 transaction_model,
             )
@@ -220,6 +241,7 @@ impl<STR: SolanaStreamClientTrait, SM: SolanaTransactionModel> SolanaListener<ST
     async fn work(
         subscriber_stream: &mut LogsSubscription<'_>,
         stream_name: &str,
+        solana_rpc_client: &SolanaRpcClient,
         queue: &Arc<Queue>,
         transaction_model: &Arc<SM>,
     ) {
@@ -235,13 +257,17 @@ impl<STR: SolanaStreamClientTrait, SM: SolanaTransactionModel> SolanaListener<ST
                     // TODO : Spawn a task to handle the response
                     match maybe_response {
                         Some(response) => {
-                            let tx = match create_solana_tx_from_rpc_response(response.clone()) {
+                            let signature = match Signature::from_str(&response.value.signature) {
+                                Ok(signature) => signature,
+                                Err(e) => {
+                                    error!("Error parsing signature: {:?}", e);
+                                    continue;
+                                }
+                            };
+                            let tx = match solana_rpc_client.get_transaction_by_signature(signature).await {
                                 Ok(tx) => tx,
                                 Err(e) => {
-                                    error!(
-                                        "Error creating solana transaction: {:?} from response: {:?}",
-                                        e, response
-                                    );
+                                    error!("Error getting transaction by signature: {:?}", e);
                                     continue;
                                 }
                             };

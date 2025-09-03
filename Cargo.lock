@@ -8705,6 +8705,7 @@ dependencies = [
  "serde",
  "serde_json",
  "solana-sdk",
+ "solana-transaction-status-client-types",
  "tracing",
 ]
 

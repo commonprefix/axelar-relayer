@@ -73,6 +73,7 @@ solana-rpc-client-api = "~2.1"
 solana-sdk = "~2.1"
 solana-transaction-status = "~2.1"
 solana-pubsub-client = "~2.1"
+solana-transaction-status-client-types = "~2.1"
 
 # switch between warn and allow to enable/disable more restrictive clippy lints
 [workspace.lints.clippy]

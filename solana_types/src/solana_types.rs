@@ -1,10 +1,10 @@
-use std::str::FromStr;
-
 use anyhow::{anyhow, Result};
 use chrono::{offset::Utc, DateTime};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use solana_sdk::signature::Signature;
+use solana_transaction_status_client_types::UiInnerInstructions;
+use std::str::FromStr;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct SolanaTransaction {
@@ -12,6 +12,7 @@ pub struct SolanaTransaction {
     pub timestamp: Option<DateTime<Utc>>,
     pub logs: Vec<String>,
     pub slot: i64,
+    pub ixs: Vec<UiInnerInstructions>,
 }
 
 impl SolanaTransaction {
@@ -38,12 +39,19 @@ impl SolanaTransaction {
             .ok_or_else(|| anyhow!("Missing or invalid signature"))?;
 
         let timestamp = Some(Utc::now());
+        let ixs = result
+            .meta
+            .as_ref()
+            .ok_or_else(|| anyhow!("No meta found"))?
+            .inner_instructions
+            .clone();
 
         Ok(Self {
             signature,
             timestamp,
             logs,
             slot,
+            ixs,
         })
     }
 }
@@ -73,8 +81,8 @@ pub struct RpcTransactionMeta {
     pub cost_units: Option<u64>,
     pub err: Option<Value>,
     pub fee: u64,
-    #[serde(default, rename = "innerInstructions")]
-    pub inner_instructions: Option<Vec<Value>>,
+    #[serde(rename = "innerInstructions")]
+    pub inner_instructions: Vec<UiInnerInstructions>,
     #[serde(default, rename = "loadedAddresses")]
     pub loaded_addresses: Option<RpcLoadedAddresses>,
     #[serde(rename = "logMessages")]

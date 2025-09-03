@@ -14,10 +14,10 @@ use solana_client::{
 use solana_pubsub_client::nonblocking::pubsub_client::PubsubClient;
 use solana_rpc_client::nonblocking::rpc_client::RpcClient;
 use solana_rpc_client_api::response::Response as RpcResponse;
-use solana_sdk::commitment_config::CommitmentConfig;
 use solana_sdk::pubkey::Pubkey;
 use solana_sdk::signature::Signature;
-use solana_transaction_status::UiTransactionEncoding;
+use solana_sdk::{commitment_config::CommitmentConfig, instruction::Instruction};
+use solana_transaction_status::{UiInstruction, UiTransactionEncoding};
 use solana_types::solana_types::{RpcGetTransactionResponse, SolanaTransaction};
 use tracing::{debug, info};
 
@@ -111,15 +111,24 @@ impl SolanaRpcClientTrait for SolanaRpcClient {
                 .await
             {
                 Ok(response) => {
-                    let maybe_meta = &response.transaction.meta;
+                    let meta = &response
+                        .transaction
+                        .meta
+                        .ok_or_else(|| anyhow!("No meta found"))?;
                     let solana_tx = SolanaTransaction {
                         signature,
                         timestamp: None,
-                        logs: match maybe_meta {
-                            Some(meta) => meta.log_messages.clone().unwrap_or(vec![]),
-                            None => vec![],
-                        },
+                        logs: meta
+                            .log_messages
+                            .clone()
+                            .ok_or_else(|| anyhow!("No log messages found"))?,
                         slot: response.slot as i64,
+                        ixs: {
+                            meta.inner_instructions
+                                .clone()
+                                .ok_or_else(|| anyhow!("No inner instructions found"))?
+                                .clone()
+                        },
                     };
                     return Ok(solana_tx);
                 }
