@@ -1,5 +1,5 @@
 use crate::error::TransactionParsingError;
-use crate::transaction_parser::discriminators::{CPI_EVENT_DISC, NATIVE_GAS_PAID_EVENT_DISC};
+use crate::transaction_parser::discriminators::{CPI_EVENT_DISC, NATIVE_GAS_ADDED_EVENT_DISC};
 use crate::transaction_parser::message_matching_key::MessageMatchingKey;
 use crate::transaction_parser::parser::{Parser, ParserConfig};
 use async_trait::async_trait;
@@ -10,24 +10,22 @@ use solana_transaction_status::UiCompiledInstruction;
 use tracing::{debug, warn};
 
 #[derive(BorshDeserialize, Clone, Debug)]
-struct NativeGasPaidEvent {
+struct NativeGasAddedEvent {
     config_pda: [u8; 32],
-    destination_chain: String,
-    destination_address: String,
-    payload_hash: [u8; 32],
+    tx_hash: [u8; 64],
+    log_index: u64,
     refund_address: Pubkey,
-    params: Vec<u8>,
     gas_fee_amount: u64,
 }
 
-pub struct ParserNativeGasPaid {
+pub struct ParserNativeGasAdded {
     signature: String,
-    parsed: Option<NativeGasPaidEvent>,
+    parsed: Option<NativeGasAddedEvent>,
     instruction: UiCompiledInstruction,
     config: ParserConfig,
 }
 
-impl ParserNativeGasPaid {
+impl ParserNativeGasAdded {
     pub(crate) async fn new(
         signature: String,
         instruction: UiCompiledInstruction,
@@ -38,7 +36,7 @@ impl ParserNativeGasPaid {
             instruction,
             config: ParserConfig {
                 event_cpi_discriminator: CPI_EVENT_DISC,
-                event_type_discriminator: NATIVE_GAS_PAID_EVENT_DISC,
+                event_type_discriminator: NATIVE_GAS_ADDED_EVENT_DISC,
             },
         })
     }
@@ -46,7 +44,7 @@ impl ParserNativeGasPaid {
     fn try_extract_with_config(
         instruction: &UiCompiledInstruction,
         config: ParserConfig,
-    ) -> Option<NativeGasPaidEvent> {
+    ) -> Option<NativeGasAddedEvent> {
         let bytes = match bs58::decode(&instruction.data).into_vec() {
             Ok(bytes) => bytes,
             Err(e) => {
@@ -68,13 +66,13 @@ impl ParserNativeGasPaid {
         }
 
         let payload = &bytes[16..];
-        match NativeGasPaidEvent::try_from_slice(payload) {
+        match NativeGasAddedEvent::try_from_slice(payload) {
             Ok(event) => {
-                debug!("Native Gas Paid vent={:?}", event);
+                debug!("Native Gas Added vent={:?}", event);
                 Some(event)
             }
             Err(e) => {
-                warn!("failed to parse native gas paid event: {:?}", e);
+                warn!("failed to parse native gas added event: {:?}", e);
                 None
             }
         }
@@ -82,7 +80,7 @@ impl ParserNativeGasPaid {
 }
 
 #[async_trait]
-impl Parser for ParserNativeGasPaid {
+impl Parser for ParserNativeGasAdded {
     async fn parse(&mut self) -> Result<bool, TransactionParsingError> {
         if self.parsed.is_none() {
             self.parsed = Self::try_extract_with_config(&self.instruction, self.config);
@@ -95,20 +93,9 @@ impl Parser for ParserNativeGasPaid {
     }
 
     async fn key(&self) -> Result<MessageMatchingKey, TransactionParsingError> {
-        let parsed = self
-            .parsed
-            .as_ref()
-            .cloned()
-            .or_else(|| Self::try_extract_with_config(&self.instruction, self.config))
-            .ok_or_else(|| {
-                TransactionParsingError::Message("Missing parsed gas credit".to_string())
-            })?;
-
-        Ok(MessageMatchingKey {
-            destination_chain: parsed.destination_chain,
-            destination_address: parsed.destination_address,
-            payload_hash: parsed.payload_hash,
-        })
+        Err(TransactionParsingError::Message(
+            "MessageMatchingKey is not available for NativeGasAddedEvent".to_string(),
+        ))
     }
 
     async fn event(&self, message_id: Option<String>) -> Result<Event, TransactionParsingError> {
@@ -153,33 +140,33 @@ impl Parser for ParserNativeGasPaid {
 
 #[cfg(test)]
 mod tests {
-    use crate::test_utils::fixtures::fixture_native_gas_paid;
-
     use super::*;
-    use serde_json::Value;
-    use solana_transaction_status::UiInstruction;
-    use solana_types::solana_types::SolanaTransaction;
+    use solana_transaction_status::UiCompiledInstruction;
 
     #[tokio::test]
     async fn test_decode_queue_entry_and_parse_gas_credit() {
-        let raw = r#"{"Transaction":{"Solana":{"signature":[251,90,247,104,39,187,71,5,9,30,111,123,198,171,132,91,203,215,187,255,97,59,71,155,244,76,162,237,131,193,151,91,140,187,179,237,149,203,82,62,143,105,184,105,200,43,203,46,82,97,211,190,161,103,86,167,213,242,64,67,143,98,133,9],"timestamp":null,"logs":["Program 7RdSDLUUy37Wqc6s9ebgo52AwhGiw4XbJWZJgidQ1fJc invoke [1]","Program log: Instruction: PayNativeForContractCall","Program 7RdSDLUUy37Wqc6s9ebgo52AwhGiw4XbJWZJgidQ1fJc invoke [2]","Program 7RdSDLUUy37Wqc6s9ebgo52AwhGiw4XbJWZJgidQ1fJc consumed 2084 of 192307 compute units","Program 7RdSDLUUy37Wqc6s9ebgo52AwhGiw4XbJWZJgidQ1fJc success","Program 7RdSDLUUy37Wqc6s9ebgo52AwhGiw4XbJWZJgidQ1fJc consumed 10020 of 200000 compute units","Program 7RdSDLUUy37Wqc6s9ebgo52AwhGiw4XbJWZJgidQ1fJc success"],"slot":833,"ixs":[{"index":0,"instructions":[{"programIdIndex":4,"accounts":[3],"data":"U657vb47CWbF2XaNghNVTVQvBD23QxUqAGrU7dHrnj7RcypUZyz6HckWMMux9mx4GqQtAaX6TYPvFhQevbZLqUTmfLBEdqYCSyc3tVaP7kVMLXokAkePkHTWuwKsrH81ybEKS74eEahAisn6BnSRcDgL6wDQx2vHUkMrB6MuWxMWC67FuQEBTK7GFsHGNLyEr5TQFSHoo5Wu59xkpuRt3f8VanjQHJ1deGMLbsGL3tVkTP8txGBaWN6Pq5ssWYv2oA3A7","stackHeight":2}]}]}}}
-"#;
-
-        let v: Value = serde_json::from_str(raw).expect("valid json");
-        let solana_v = v["Transaction"]["Solana"].clone();
-
-        let tx: SolanaTransaction =
-            serde_json::from_value::<SolanaTransaction>(solana_v.clone()).unwrap();
-
-        // Derive discriminators from the first 16 bytes of the test data
-        let first_ix_data = tx.ixs[0].instructions[0].clone();
-        let UiInstruction::Compiled(ci) = first_ix_data else {
-            panic!("expected compiled instruction")
+        // Build an AddedGas instruction: [CPI_DISC(8)] [ADDED_DISC(8)] [config_pda(32)] [tx_hash(64)] [log_index(8)] [refund_address(32)] [gas_fee_amount(8)]
+        let mut data: Vec<u8> = Vec::new();
+        data.extend_from_slice(&CPI_EVENT_DISC);
+        data.extend_from_slice(&NATIVE_GAS_ADDED_EVENT_DISC);
+        // config_pda
+        data.extend_from_slice(&[0x11; 32]);
+        // tx_hash (64 bytes)
+        data.extend_from_slice(&[0x22; 64]);
+        // log_index
+        data.extend_from_slice(&(5u64).to_le_bytes());
+        // refund_address (dummy pubkey bytes)
+        data.extend_from_slice(&[0x33; 32]);
+        // gas_fee_amount
+        data.extend_from_slice(&(1000u64).to_le_bytes());
+        let ci = UiCompiledInstruction {
+            program_id_index: 4,
+            accounts: vec![3],
+            data: bs58::encode(data).into_string(),
+            stack_height: Some(2),
         };
-        let bytes = bs58::decode(&ci.data).into_vec().unwrap();
-        assert!(bytes.len() >= 16);
 
-        let mut parser = ParserNativeGasPaid::new(tx.signature.to_string(), ci)
+        let mut parser = ParserNativeGasAdded::new("dummy_sig".to_string(), ci)
             .await
             .unwrap();
 
@@ -188,10 +175,6 @@ mod tests {
             "parser should match gas credit"
         );
         assert!(parser.parse().await.unwrap(), "parser should parse message");
-
-        let key = parser.key().await.expect("key should be available");
-        assert!(!key.destination_chain.is_empty());
-        assert!(!key.destination_address.is_empty());
 
         let event = parser
             .event(Some("foo".to_string()))
@@ -214,43 +197,39 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_parser_native_gas_paid() {
-        let solana_transactions = fixture_native_gas_paid();
+    async fn test_parser_native_gas_added() {
+        // Reuse the synthetic instruction builder above
+        let mut data: Vec<u8> = Vec::new();
+        data.extend_from_slice(&CPI_EVENT_DISC);
+        data.extend_from_slice(&NATIVE_GAS_ADDED_EVENT_DISC);
+        data.extend_from_slice(&[0xAA; 32]);
+        data.extend_from_slice(&[0xBB; 64]);
+        data.extend_from_slice(&(7u64).to_le_bytes());
+        data.extend_from_slice(&[0xCC; 32]);
+        data.extend_from_slice(&(4242u64).to_le_bytes());
+        let ci = UiCompiledInstruction {
+            program_id_index: 4,
+            accounts: vec![3],
+            data: bs58::encode(data).into_string(),
+            stack_height: Some(2),
+        };
 
-        for tx in solana_transactions {
-            let ix = tx.ixs[0].instructions[0].clone();
-            let UiInstruction::Compiled(ci) = ix else {
-                panic!("expected compiled instruction")
-            };
-            let mut parser = ParserNativeGasPaid::new(tx.signature.to_string(), ci)
-                .await
-                .unwrap();
-            assert!(parser.is_match().await.unwrap());
-            assert!(parser.message_id().await.is_ok());
-            parser.parse().await.unwrap();
-            // let event = parser.event(Some("foo".to_string())).await.unwrap();
-            // match event {
-            //     Event::GasCredit {
-            //         common,
-            //         message_id,
-            //         refund_address,
-            //         payment,
-            //     } => {
-            //         assert_eq!(message_id, "foo");
-            //         assert_eq!(
-            //             refund_address,
-            //             "0:e1e633eb701b118b44297716cee7069ee847b56db88c497efea681ed14b2d2c7"
-            //         );
-            //         assert_eq!(payment.amount, "28846800");
-
-            //         let meta = &common.meta.as_ref().unwrap();
-            //         assert_eq!(
-            //             meta.tx_id.as_deref(),
-            //             Some("Ptv+ldOh9sTQOvwx23nPD8t6iGmm2RZVgUBXBk/jyrU=")
-            //         );
-            //     }
-            //     _ => panic!("Expected GasCredit event"),
-            // }
+        let mut parser = ParserNativeGasAdded::new("dummy_sig_2".to_string(), ci)
+            .await
+            .unwrap();
+        assert!(parser.is_match().await.unwrap());
+        parser.parse().await.unwrap();
+        let ev = parser.event(Some("bar".to_string())).await.unwrap();
+        match ev {
+            Event::GasCredit {
+                message_id,
+                payment,
+                ..
+            } => {
+                assert_eq!(message_id, "bar");
+                assert_eq!(payment.amount, "4242");
+            }
+            _ => panic!("Expected GasCredit"),
         }
     }
 
