@@ -73,11 +73,11 @@ async fn main() -> anyhow::Result<()> {
 
     let mut handles: Vec<JoinHandle<()>> = vec![];
 
-    handles.push(tokio::spawn(async move {
-        solana_poller
-            .run(gas_service_account, gateway_account)
-            .await;
-    }));
+    // handles.push(tokio::spawn(async move {
+    //     solana_poller
+    //         .run(gas_service_account, gateway_account)
+    //         .await;
+    // }));
 
     handles.push(tokio::spawn(async move {
         solana_listener

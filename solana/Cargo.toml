@@ -28,6 +28,7 @@ solana-pubsub-client = { workspace = true }
 async-trait = { workspace = true }
 thiserror = { workspace = true }
 bs58 = "0.5"
+borsh = "1"
 
 [dev-dependencies]
 relayer-base = { workspace = true, features = ["mocks"] }

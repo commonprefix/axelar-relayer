@@ -7379,6 +7379,8 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
+ "borsh 1.5.7",
+ "bs58",
  "chrono",
  "dotenv",
  "futures",
@@ -7395,6 +7397,7 @@ dependencies = [
  "solana-rpc-client-api",
  "solana-sdk",
  "solana-transaction-status",
+ "solana-transaction-status-client-types",
  "solana_types",
  "sqlx",
  "testcontainers",
