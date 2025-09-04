@@ -1,0 +1,96 @@
+[
+    {
+                "ixs": [
+                    {
+                        "index": 0,
+                        "instructions": [
+                            {
+                                "accounts": [
+                                    3
+                                ],
+                                "data": "U657vb47CWbF2XaNghNVTVQvBD23QxUqAGrU7dHrnj7RcypUZyz6HckWMMux9mx4GqQtAaX6TYPvFhQevbZLqUTmfLBEdqYCSyc3tVaP7kVMLXokAkePkHTWuwKsrH81ybEKS74eEahAisn6BnSRcDgL6wDQx2vHUkMrB6MuWxMWC67FuQEBTK7GFsHGNLyEr5TQFSHoo5Wu59xkpuRt3f8VanjQHJ1deGMLbsGL3tVkTP8txGBaWN6Pq5ssWYv2oA3A7",
+                                "programIdIndex": 4,
+                                "stackHeight": 2
+                            }
+                        ]
+                    }
+                ],
+                "logs": [
+                    "Program 7RdSDLUUy37Wqc6s9ebgo52AwhGiw4XbJWZJgidQ1fJc invoke [1]",
+                    "Program log: Instruction: PayNativeForContractCall",
+                    "Program 7RdSDLUUy37Wqc6s9ebgo52AwhGiw4XbJWZJgidQ1fJc invoke [2]",
+                    "Program 7RdSDLUUy37Wqc6s9ebgo52AwhGiw4XbJWZJgidQ1fJc consumed 2084 of 192307 compute units",
+                    "Program 7RdSDLUUy37Wqc6s9ebgo52AwhGiw4XbJWZJgidQ1fJc success",
+                    "Program 7RdSDLUUy37Wqc6s9ebgo52AwhGiw4XbJWZJgidQ1fJc consumed 10020 of 200000 compute units",
+                    "Program 7RdSDLUUy37Wqc6s9ebgo52AwhGiw4XbJWZJgidQ1fJc success"
+                ],
+                "signature": [
+                    251,
+                    90,
+                    247,
+                    104,
+                    39,
+                    187,
+                    71,
+                    5,
+                    9,
+                    30,
+                    111,
+                    123,
+                    198,
+                    171,
+                    132,
+                    91,
+                    203,
+                    215,
+                    187,
+                    255,
+                    97,
+                    59,
+                    71,
+                    155,
+                    244,
+                    76,
+                    162,
+                    237,
+                    131,
+                    193,
+                    151,
+                    91,
+                    140,
+                    187,
+                    179,
+                    237,
+                    149,
+                    203,
+                    82,
+                    62,
+                    143,
+                    105,
+                    184,
+                    105,
+                    200,
+                    43,
+                    203,
+                    46,
+                    82,
+                    97,
+                    211,
+                    190,
+                    161,
+                    103,
+                    86,
+                    167,
+                    213,
+                    242,
+                    64,
+                    67,
+                    143,
+                    98,
+                    133,
+                    9
+                ],
+                "slot": 833,
+                "timestamp": null
+            }
+]

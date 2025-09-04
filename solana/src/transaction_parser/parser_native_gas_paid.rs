@@ -8,9 +8,9 @@ use relayer_base::gmp_api::gmp_types::{Amount, CommonEventFields, Event, EventMe
 use solana_sdk::pubkey::Pubkey;
 use solana_transaction_status::{UiCompiledInstruction, UiInstruction};
 use solana_types::solana_types::SolanaTransaction;
-use tracing::warn;
+use tracing::{debug, warn};
 
-#[derive(BorshDeserialize, Clone)]
+#[derive(BorshDeserialize, Clone, Debug)]
 struct NativeGasPaidEvent {
     config_pda: [u8; 32],
     destination_chain: String,
@@ -25,7 +25,6 @@ pub struct ParserNativeGasPaid {
     signature: String,
     parsed: Option<NativeGasPaidEvent>,
     instruction: UiCompiledInstruction,
-    allowed_program: Pubkey,
     config: ParserConfig,
 }
 
@@ -33,13 +32,11 @@ impl ParserNativeGasPaid {
     pub(crate) async fn new(
         signature: String,
         instruction: UiCompiledInstruction,
-        allowed_program: Pubkey,
     ) -> Result<Self, TransactionParsingError> {
         Ok(Self {
             signature,
             parsed: None,
             instruction,
-            allowed_program,
             config: ParserConfig {
                 event_cpi_discriminator: CPI_EVENT_DISC,
                 event_type_discriminator: NATIVE_GAS_PAID_EVENT_DISC,
@@ -73,7 +70,10 @@ impl ParserNativeGasPaid {
 
         let payload = &bytes[16..];
         match NativeGasPaidEvent::try_from_slice(payload) {
-            Ok(event) => Some(event),
+            Ok(event) => {
+                debug!("Native Gas Paid vent={:?}", event);
+                Some(event)
+            }
             Err(e) => {
                 warn!("failed to parse native gas paid event: {:?}", e);
                 None
@@ -154,6 +154,8 @@ impl Parser for ParserNativeGasPaid {
 
 #[cfg(test)]
 mod tests {
+    use crate::test_utils::fixtures::fixture_native_gas_paid;
+
     use super::*;
     use serde_json::Value;
 
@@ -176,8 +178,7 @@ mod tests {
         let bytes = bs58::decode(&ci.data).into_vec().unwrap();
         assert!(bytes.len() >= 16);
 
-        let allowed_program = Pubkey::new_unique();
-        let mut parser = ParserNativeGasPaid::new(tx.signature.to_string(), ci, allowed_program)
+        let mut parser = ParserNativeGasPaid::new(tx.signature.to_string(), ci)
             .await
             .unwrap();
 
@@ -210,4 +211,101 @@ mod tests {
             other => panic!("Expected GasCredit, got {:?}", other),
         }
     }
+
+    #[tokio::test]
+    async fn test_parser_native_gas_paid() {
+        let solana_transactions = fixture_native_gas_paid();
+
+        for tx in solana_transactions {
+            let ix = tx.ixs[0].instructions[0].clone();
+            let UiInstruction::Compiled(ci) = ix else {
+                panic!("expected compiled instruction")
+            };
+            let mut parser = ParserNativeGasPaid::new(tx.signature.to_string(), ci)
+                .await
+                .unwrap();
+            assert!(parser.is_match().await.unwrap());
+            assert!(parser.message_id().await.is_ok());
+            parser.parse().await.unwrap();
+            // let event = parser.event(Some("foo".to_string())).await.unwrap();
+            // match event {
+            //     Event::GasCredit {
+            //         common,
+            //         message_id,
+            //         refund_address,
+            //         payment,
+            //     } => {
+            //         assert_eq!(message_id, "foo");
+            //         assert_eq!(
+            //             refund_address,
+            //             "0:e1e633eb701b118b44297716cee7069ee847b56db88c497efea681ed14b2d2c7"
+            //         );
+            //         assert_eq!(payment.amount, "28846800");
+
+            //         let meta = &common.meta.as_ref().unwrap();
+            //         assert_eq!(
+            //             meta.tx_id.as_deref(),
+            //             Some("Ptv+ldOh9sTQOvwx23nPD8t6iGmm2RZVgUBXBk/jyrU=")
+            //         );
+            //     }
+            //     _ => panic!("Expected GasCredit event"),
+            // }
+        }
+    }
+
+    // #[tokio::test]
+    // async fn test_parser_gas_paid() {
+    //     let solana_transactions = fixture_native_gas_paid();
+
+    //     let tx = solana_transactions[0].clone();
+    //     let ix = tx.ixs[0].instructions[0].clone();
+    //     let UiInstruction::Compiled(ci) = ix else {
+    //         panic!("expected compiled instruction")
+    //     };
+    //     let mut parser = ParserNativeGasPaid::new(tx.signature.to_string(), ci)
+    //         .await
+    //         .unwrap();
+
+    //     assert!(parser.is_match().await.unwrap());
+    //     assert!(parser.message_id().await.is_ok());
+    //     parser.parse().await.unwrap();
+    //     let event = parser.event(Some("foo".to_string())).await.unwrap();
+    //     match event {
+    //         Event::GasCredit {
+    //             common,
+    //             message_id,
+    //             refund_address,
+    //             payment,
+    //         } => {
+    //             assert_eq!(message_id, "foo");
+    //             assert_eq!(
+    //                 refund_address,
+    //                 "0:e1e633eb701b118b44297716cee7069ee847b56db88c497efea681ed14b2d2c7"
+    //             );
+    //             assert_eq!(payment.amount, "198639200");
+
+    //             let meta = &common.meta.as_ref().unwrap();
+    //             assert_eq!(
+    //                 meta.tx_id.as_deref(),
+    //                 Some("PzeZlujUPePAMw0Fz/eYeCRz11/X/f5YzUjfYXomzS8=")
+    //             );
+    //         }
+    //         _ => panic!("Expected GasCredit event"),
+    //     }
+    // }
+
+    // #[tokio::test]
+    // async fn test_no_match() {
+    //     let solana_transactions = fixture_native_gas_paid();
+
+    //     let tx = solana_transactions[0].clone();
+    //     let ix = tx.ixs[0].instructions[0].clone();
+    //     let UiInstruction::Compiled(ci) = ix else {
+    //         panic!("expected compiled instruction")
+    //     };
+    //     let parser = ParserNativeGasPaid::new(tx.signature.to_string(), ci)
+    //         .await
+    //         .unwrap();
+    //     assert!(!parser.is_match().await.unwrap());
+    // }
 }

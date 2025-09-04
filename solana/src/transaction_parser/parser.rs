@@ -120,8 +120,6 @@ where
             let event = parser.event(None).await?;
             events.push(event);
         }
-        info!("--------------------------------");
-        info!("events={:?}", events);
 
         // let mut parsed_events: Vec<Event> = Vec::new();
 
@@ -296,12 +294,10 @@ impl<PV: PriceViewTrait> TransactionParser<PV> {
         for group in transaction.ixs.iter() {
             for inst in group.instructions.iter() {
                 if let UiInstruction::Compiled(ci) = inst {
-                    let mut parser = ParserNativeGasPaid::new(
-                        transaction.signature.to_string(),
-                        ci.clone(),
-                        self.gas_service_address.clone(),
-                    )
-                    .await?;
+                    // Should we check from which account the event was emitted?
+                    let mut parser =
+                        ParserNativeGasPaid::new(transaction.signature.to_string(), ci.clone())
+                            .await?;
                     if parser.is_match().await? {
                         info!(
                             "ParserNativeGasPaid matched, transaction_id={}",
