@@ -1,132 +1,179 @@
-// use crate::error::TransactionParsingError;
-// use crate::transaction_parser::common::{hash_to_message_id, is_log_emmitted};
-// use crate::transaction_parser::message_matching_key::MessageMatchingKey;
-// use crate::transaction_parser::parser::Parser;
-// use async_trait::async_trait;
-// // use base64::prelude::BASE64_STANDARD;
-// // use base64::Engine;
-// use relayer_base::gmp_api::gmp_types::{CommonEventFields, Event, EventMetadata, GatewayV2Message};
-// use solana_sdk::pubkey::Pubkey;
-// use solana_types::solana_types::SolanaTransaction;
-// use std::collections::HashMap;
+use crate::error::TransactionParsingError;
+use crate::transaction_parser::common::signature_to_message_id;
+use crate::transaction_parser::discriminators::{CALL_CONTRACT_EVENT_DISC, CPI_EVENT_DISC};
+use crate::transaction_parser::message_matching_key::MessageMatchingKey;
+use crate::transaction_parser::parser::{Parser, ParserConfig};
+use async_trait::async_trait;
+use base64::prelude::BASE64_STANDARD;
+use base64::Engine;
+use borsh::BorshDeserialize;
+use relayer_base::gmp_api::gmp_types::{CommonEventFields, Event, EventMetadata, GatewayV2Message};
+use solana_sdk::pubkey::Pubkey;
+use solana_transaction_status::UiCompiledInstruction;
+use std::collections::HashMap;
+use tracing::{debug, warn};
 
-// pub struct ParserCallContract {
-//     log: Option<CallContractMessage>,
-//     tx: SolanaTransaction,
-//     allowed_address: Pubkey,
-//     chain_name: String,
-// }
+#[derive(BorshDeserialize, Clone, Debug)]
+pub struct CallContractEvent {
+    /// Sender's public key.
+    pub sender_key: Pubkey,
+    /// Payload hash, 32 bytes.
+    pub payload_hash: [u8; 32],
+    /// Destination chain as a `String`.
+    pub destination_chain: String,
+    /// Destination contract address as a `String`.
+    pub destination_contract_address: String,
+    /// Payload data as a `Vec<u8>`.
+    pub payload: Vec<u8>,
+}
 
-// impl ParserCallContract {
-//     pub(crate) async fn new(
-//         tx: SolanaTransaction,
-//         allowed_address: Pubkey,
-//         chain_name: String,
-//     ) -> Result<Self, TransactionParsingError> {
-//         Ok(Self {
-//             log: None,
-//             tx,
-//             allowed_address,
-//             chain_name,
-//         })
-//     }
-// }
+pub struct ParserCallContract {
+    signature: String,
+    parsed: Option<CallContractEvent>,
+    instruction: UiCompiledInstruction,
+    config: ParserConfig,
+    chain_name: String,
+}
 
-// #[async_trait]
-// impl Parser for ParserCallContract {
-//     async fn parse(&mut self) -> Result<bool, TransactionParsingError> {
-//         if self.log.is_none() {
-//             self.log = Some(
-//                 CallContractMessage::from_boc_b64(&self.tx.out_msgs[0].message_content.body)
-//                     .map_err(|e| TransactionParsingError::BocParsing(e.to_string()))?,
-//             );
-//         }
-//         Ok(true)
-//     }
+impl ParserCallContract {
+    pub(crate) async fn new(
+        signature: String,
+        instruction: UiCompiledInstruction,
+        chain_name: String,
+    ) -> Result<Self, TransactionParsingError> {
+        Ok(Self {
+            signature,
+            parsed: None,
+            instruction,
+            config: ParserConfig {
+                event_cpi_discriminator: CPI_EVENT_DISC,
+                event_type_discriminator: CALL_CONTRACT_EVENT_DISC,
+            },
+            chain_name,
+        })
+    }
 
-//     async fn is_match(&self) -> Result<bool, TransactionParsingError> {
-//         if self.tx.message.account_keys[0] != self.allowed_address {
-//             return Ok(false);
-//         }
+    fn try_extract_with_config(
+        instruction: &UiCompiledInstruction,
+        config: ParserConfig,
+    ) -> Option<CallContractEvent> {
+        let bytes = match bs58::decode(&instruction.data).into_vec() {
+            Ok(bytes) => bytes,
+            Err(e) => {
+                warn!("failed to decode bytes: {:?}", e);
+                return None;
+            }
+        };
+        if bytes.len() < 16 {
+            return None;
+        }
 
-//         is_log_emmitted(&self.tx, OP_CALL_CONTRACT, 0)
-//     }
+        if &bytes[0..8] != &config.event_cpi_discriminator {
+            warn!("expected event cpi discriminator, got {:?}", &bytes[0..8]);
+            return None;
+        }
+        if &bytes[8..16] != &config.event_type_discriminator {
+            warn!("expected event type discriminator, got {:?}", &bytes[8..16]);
+            return None;
+        }
 
-//     async fn key(&self) -> Result<MessageMatchingKey, TransactionParsingError> {
-//         let log = match self.log.clone() {
-//             Some(log) => log,
-//             None => return Err(TransactionParsingError::Message("Missing log".to_string())),
-//         };
-//         let key = MessageMatchingKey {
-//             destination_chain: log.destination_chain.clone(),
-//             destination_address: log.destination_address.clone(),
-//             payload_hash: log.payload_hash,
-//         };
+        let payload = &bytes[16..];
+        match CallContractEvent::try_from_slice(payload) {
+            Ok(event) => {
+                debug!("Call Contract event={:?}", event);
+                Some(event)
+            }
+            Err(e) => {
+                warn!("failed to parse call contract event: {:?}", e);
+                None
+            }
+        }
+    }
+}
 
-//         Ok(key)
-//     }
+#[async_trait]
+impl Parser for ParserCallContract {
+    async fn parse(&mut self) -> Result<bool, TransactionParsingError> {
+        if self.parsed.is_none() {
+            self.parsed = Self::try_extract_with_config(&self.instruction, self.config);
+        }
+        Ok(self.parsed.is_some())
+    }
 
-//     async fn event(&self, _: Option<String>) -> Result<Event, TransactionParsingError> {
-//         let tx = &self.tx;
-//         let log = match self.log.clone() {
-//             Some(log) => log,
-//             None => return Err(TransactionParsingError::Message("Missing log".to_string())),
-//         };
-//         let message_id = match self.message_id().await? {
-//             Some(id) => id,
-//             None => {
-//                 return Err(TransactionParsingError::Message(
-//                     "Missing message id".to_string(),
-//                 ))
-//             }
-//         };
+    async fn is_match(&self) -> Result<bool, TransactionParsingError> {
+        Ok(Self::try_extract_with_config(&self.instruction, self.config).is_some())
+    }
 
-//         let source_context = HashMap::from([
-//             ("source_address".to_owned(), log.source_address.to_hex()),
-//             (
-//                 "destination_address".to_owned(),
-//                 log.destination_address.to_string(),
-//             ),
-//             (
-//                 "destination_chain".to_owned(),
-//                 log.destination_chain.clone(),
-//             ),
-//         ]);
+    async fn key(&self) -> Result<MessageMatchingKey, TransactionParsingError> {
+        let parsed = self
+            .parsed
+            .as_ref()
+            .cloned()
+            .or_else(|| Self::try_extract_with_config(&self.instruction, self.config))
+            .ok_or_else(|| {
+                TransactionParsingError::Message("Missing parsed call contract".to_string())
+            })?;
 
-//         let decoded = hex::decode(log.payload).map_err(|e| {
-//             TransactionParsingError::BocParsing(format!("Failed to decode payload: {e}"))
-//         })?;
+        Ok(MessageMatchingKey {
+            destination_chain: parsed.destination_chain,
+            destination_address: parsed.destination_contract_address,
+            payload_hash: parsed.payload_hash,
+        })
+    }
 
-//         let b64_payload = BASE64_STANDARD.encode(decoded);
+    async fn event(&self, message_id: Option<String>) -> Result<Event, TransactionParsingError> {
+        let parsed = self
+            .parsed
+            .as_ref()
+            .cloned()
+            .or_else(|| Self::try_extract_with_config(&self.instruction, self.config))
+            .ok_or_else(|| {
+                TransactionParsingError::Message("Missing parsed gas credit".to_string())
+            })?;
 
-//         Ok(Event::Call {
-//             common: CommonEventFields {
-//                 r#type: "CALL".to_owned(),
-//                 event_id: tx.hash.clone(),
-//                 meta: Some(EventMetadata {
-//                     tx_id: Some(tx.hash.clone()),
-//                     from_address: None,
-//                     finalized: None,
-//                     source_context: Some(source_context),
-//                     timestamp: chrono::Utc::now()
-//                         .to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
-//                 }),
-//             },
-//             message: GatewayV2Message {
-//                 message_id,
-//                 source_chain: self.chain_name.to_string(),
-//                 source_address: log.source_address.to_hex(),
-//                 destination_address: log.destination_address.to_string(),
-//                 payload_hash: BASE64_STANDARD.encode(log.payload_hash),
-//             },
-//             destination_chain: log.destination_chain.clone(),
-//             payload: b64_payload,
-//         })
-//     }
+        let message_id = message_id
+            .ok_or_else(|| TransactionParsingError::Message("Missing message_id".to_string()))?;
 
-//     async fn message_id(&self) -> Result<Option<String>, TransactionParsingError> {
-//         Ok(Some(hash_to_message_id(&self.tx.hash).map_err(|e| {
-//             TransactionParsingError::Message(e.to_string())
-//         })?))
-//     }
-// }
+        let source_context = HashMap::from([
+            ("source_address".to_owned(), parsed.sender_key.to_string()),
+            (
+                "destination_address".to_owned(),
+                parsed.destination_contract_address.to_string(),
+            ),
+            (
+                "destination_chain".to_owned(),
+                parsed.destination_chain.clone(),
+            ),
+        ]);
+
+        Ok(Event::Call {
+            common: CommonEventFields {
+                r#type: "CALL".to_owned(),
+                event_id: self.signature.clone(),
+                meta: Some(EventMetadata {
+                    tx_id: Some(self.signature.clone()),
+                    from_address: None,
+                    finalized: None,
+                    source_context: Some(source_context),
+                    timestamp: chrono::Utc::now()
+                        .to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
+                }),
+            },
+            message: GatewayV2Message {
+                message_id,
+                source_chain: self.chain_name.to_string(),
+                source_address: parsed.sender_key.to_string(),
+                destination_address: parsed.destination_contract_address.to_string(),
+                payload_hash: BASE64_STANDARD.encode(parsed.payload_hash),
+            },
+            destination_chain: parsed.destination_chain.clone(),
+            payload: BASE64_STANDARD.encode(parsed.payload),
+        })
+    }
+
+    async fn message_id(&self) -> Result<Option<String>, TransactionParsingError> {
+        Ok(Some(signature_to_message_id(&self.signature).map_err(
+            |e| TransactionParsingError::Message(e.to_string()),
+        )?))
+    }
+}

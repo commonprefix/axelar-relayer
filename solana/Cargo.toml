@@ -30,6 +30,7 @@ thiserror = { workspace = true }
 hex = { workspace = true }
 bs58 = "0.5"
 borsh = "1"
+base64 = { workspace = true }
 
 [dev-dependencies]
 relayer-base = { workspace = true, features = ["mocks"] }
