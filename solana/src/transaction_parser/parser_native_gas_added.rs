@@ -9,13 +9,19 @@ use solana_sdk::pubkey::Pubkey;
 use solana_transaction_status::UiCompiledInstruction;
 use tracing::{debug, warn};
 
+// TODO: Get them from a library?
 #[derive(BorshDeserialize, Clone, Debug)]
-struct NativeGasAddedEvent {
-    config_pda: [u8; 32],
-    tx_hash: [u8; 64],
-    log_index: u64,
-    refund_address: Pubkey,
-    gas_fee_amount: u64,
+pub struct NativeGasAddedEvent {
+    /// The Gas service config PDA
+    pub config_pda: Pubkey,
+    /// Solana transaction signature
+    pub tx_hash: [u8; 64],
+    /// index of the log
+    pub log_index: u64,
+    /// The refund address
+    pub refund_address: Pubkey,
+    /// amount of SOL
+    pub gas_fee_amount: u64,
 }
 
 pub struct ParserNativeGasAdded {

@@ -10,19 +10,26 @@ use solana_transaction_status::UiCompiledInstruction;
 use tracing::{debug, warn};
 
 #[derive(BorshDeserialize, Clone, Debug)]
-struct NativeGasPaidEvent {
-    config_pda: [u8; 32],
-    destination_chain: String,
-    destination_address: String,
-    payload_hash: [u8; 32],
-    refund_address: Pubkey,
-    params: Vec<u8>,
-    gas_fee_amount: u64,
+pub struct NativeGasPaidForContractCallEvent {
+    /// The Gas service config PDA
+    pub config_pda: Pubkey,
+    /// Destination chain on the Axelar network
+    pub destination_chain: String,
+    /// Destination address on the Axelar network
+    pub destination_address: String,
+    /// The payload hash for the event we're paying for
+    pub payload_hash: [u8; 32],
+    /// The refund address
+    pub refund_address: Pubkey,
+    /// Extra parameters to be passed
+    pub params: Vec<u8>,
+    /// The amount of SOL to send
+    pub gas_fee_amount: u64,
 }
 
 pub struct ParserNativeGasPaid {
     signature: String,
-    parsed: Option<NativeGasPaidEvent>,
+    parsed: Option<NativeGasPaidForContractCallEvent>,
     instruction: UiCompiledInstruction,
     config: ParserConfig,
 }
@@ -46,7 +53,7 @@ impl ParserNativeGasPaid {
     fn try_extract_with_config(
         instruction: &UiCompiledInstruction,
         config: ParserConfig,
-    ) -> Option<NativeGasPaidEvent> {
+    ) -> Option<NativeGasPaidForContractCallEvent> {
         let bytes = match bs58::decode(&instruction.data).into_vec() {
             Ok(bytes) => bytes,
             Err(e) => {
@@ -68,7 +75,7 @@ impl ParserNativeGasPaid {
         }
 
         let payload = &bytes[16..];
-        match NativeGasPaidEvent::try_from_slice(payload) {
+        match NativeGasPaidForContractCallEvent::try_from_slice(payload) {
             Ok(event) => {
                 debug!("Native Gas Paid vent={:?}", event);
                 Some(event)

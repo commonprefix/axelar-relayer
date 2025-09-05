@@ -6,13 +6,11 @@ use crate::{
 // use crate::transaction_parser::common::convert_jetton_to_native;
 // use crate::transaction_parser::parser_call_contract::ParserCallContract;
 // use crate::transaction_parser::parser_execute_insufficient_gas::ParserExecuteInsufficientGas;
-// use crate::transaction_parser::parser_jetton_gas_added::ParserJettonGasAdded;
-// use crate::transaction_parser::parser_jetton_gas_paid::ParserJettonGasPaid;
 // use crate::transaction_parser::parser_message_approved::ParserMessageApproved;
 // use crate::transactioan_parser::parser_message_executed::ParserMessageExecuted;
 use crate::transaction_parser::parser_native_gas_added::ParserNativeGasAdded;
 use crate::transaction_parser::parser_native_gas_paid::ParserNativeGasPaid;
-// use crate::transaction_parser::parser_native_gas_refunded::ParserNativeGasRefunded;
+use crate::transaction_parser::parser_native_gas_refunded::ParserNativeGasRefunded;
 use async_trait::async_trait;
 //use num_bigint::BigUint;
 use relayer_base::gmp_api::gmp_types::Event;
@@ -319,39 +317,21 @@ impl<PV: PriceViewTrait> TransactionParser<PV> {
                         parser.parse().await?;
                         parsers.push(Box::new(parser));
                     }
+                    let mut parser =
+                        ParserNativeGasRefunded::new(transaction.signature.to_string(), ci.clone())
+                            .await?;
+                    if parser.is_match().await? {
+                        info!(
+                            "ParserNativeGasRefunded matched, transaction_id={}",
+                            transaction.signature
+                        );
+                        parser.parse().await?;
+                        parsers.push(Box::new(parser));
+                    }
                 }
             }
         }
 
-        // let mut parser =
-        //     ParserJettonGasAdded::new(tx.clone(), self.gas_service_address.clone()).await?;
-        // if parser.is_match().await? {
-        //     info!("ParserJettonGasAdded matched, transaction_id={}", transaction.signature);
-        //     parser.parse().await?;
-        //     parsers.push(Box::new(parser));
-        //     continue;
-        // }
-        // let mut parser =
-        //     ParserJettonGasPaid::new(tx.clone(), self.gas_service_address.clone()).await?;
-        // if parser.is_match().await? {
-        //     info!("ParserJettonGasPaid matched, transaction_id={}", transaction.signature);
-        //     parser.parse().await?;
-        //     let key = parser.key().await?;
-        //     gas_credit_map.insert(key, Box::new(parser));
-        //     continue;
-        // }
-        // let mut parser =
-        //     ParserNativeGasRefunded::new(tx.clone(), self.gas_service_address.clone()).await?;
-        // if parser.is_match().await? {
-        //     info!(
-        //         "ParserNativeGasRefunded matched, transaction_id={}",
-        //         transaction.signature
-        //     );
-        //     parser.parse().await?;
-        //     parsers.push(Box::new(parser));
-        //}
-
-        //}
         Ok(message_approved_count)
     }
 
