@@ -5,7 +5,6 @@ use serde_json::Value;
 use solana_sdk::signature::Signature;
 use solana_transaction_status_client_types::UiInnerInstructions;
 use std::str::FromStr;
-
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct SolanaTransaction {
     pub signature: Signature,

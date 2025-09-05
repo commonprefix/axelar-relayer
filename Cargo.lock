@@ -7385,6 +7385,7 @@ dependencies = [
  "dotenv",
  "futures",
  "futures-util",
+ "hex",
  "interchain-token-service 1.1.0",
  "mockall",
  "redis",
