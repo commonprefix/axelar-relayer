@@ -1,5 +1,5 @@
 use super::message_matching_key::MessageMatchingKey;
-use crate::gas_calculator::GasCalculator;
+//use crate::gas_calculator::GasCalculator;
 use crate::{
     error::TransactionParsingError, // transaction_parser::parser_call_contract::ParserCallContract,
 };
@@ -45,7 +45,7 @@ pub struct TransactionParser<PV> {
     price_view: PV,
     gateway_address: Pubkey,
     gas_service_address: Pubkey,
-    gas_calculator: GasCalculator,
+    //gas_calculator: GasCalculator,
     chain_name: String,
 }
 
@@ -73,7 +73,7 @@ where
         let mut gas_credit_map: HashMap<MessageMatchingKey, Box<dyn Parser + Send + Sync>> =
             HashMap::new();
 
-        // let (total_gas_used, refund_gas_used) = self.gas_used(&transaction)?;
+        //let (total_gas_used, refund_gas_used) = self.gas_used(&transaction)?;
 
         let transaction_id = transaction.signature.clone();
         let message_approved_count = self
@@ -129,59 +129,55 @@ where
         //             refund_address,
         //             mut payment,
         //         } => {
-        //             return Err(TransactionParsingError::Generic(
-        //                 "not implemented".to_string(),
-        //             ));
-
-        //             // let mut p = payment.clone();
-        //             // if let Some(token_id) = p.token_id {
-        //             //     let msg_value = convert_jetton_to_native(
-        //             //         token_id,
-        //             //         &BigUint::from_str(&p.amount)
-        //             //             .map_err(|e| TransactionParsingError::Generic(e.to_string()))?,
-        //             //         &self.price_view,
-        //             //     )
-        //             //     .await
-        //             //     .map_err(|e| TransactionParsingError::Generic(e.to_string()))?;
-        //             //     p.amount = msg_value.to_string();
-        //             //     p.token_id = None;
-        //             //     payment = p;
-        //             // }
-        //             // Event::GasCredit {
-        //             //     common,
-        //             //     message_id,
-        //             //     refund_address,
-        //             //     payment,
-        //             // }
-        //         }
-        //         Event::MessageApproved {
-        //             common,
-        //             message,
-        //             mut cost,
-        //         } => {
-        //             cost.amount = (total_gas_used / message_approved_count).to_string();
-        //             Event::MessageApproved {
-        //                 common,
-        //                 message,
-        //                 cost,
+        //             let mut p = payment.clone();
+        //             if let Some(token_id) = p.token_id {
+        //                 let msg_value = convert_jetton_to_native(
+        //                     token_id,
+        //                     &BigUint::from_str(&p.amount)
+        //                         .map_err(|e| TransactionParsingError::Generic(e.to_string()))?,
+        //                     &self.price_view,
+        //                 )
+        //                 .await
+        //                 .map_err(|e| TransactionParsingError::Generic(e.to_string()))?;
+        //                 p.amount = msg_value.to_string();
+        //                 p.token_id = None;
+        //                 payment = p;
         //             }
-        //         }
-        //         Event::MessageExecuted {
-        //             common,
-        //             message_id,
-        //             source_chain,
-        //             status,
-        //             mut cost,
-        //         } => {
-        //             cost.amount = total_gas_used.to_string();
-        //             Event::MessageExecuted {
+        //             Event::GasCredit {
         //                 common,
         //                 message_id,
-        //                 source_chain,
-        //                 status,
-        //                 cost,
+        //                 refund_address,
+        //                 payment,
         //             }
         //         }
+        //         // Event::MessageApproved {
+        //         //     common,
+        //         //     message,
+        //         //     mut cost,
+        //         // } => {
+        //         //     cost.amount = (total_gas_used / message_approved_count).to_string();
+        //         //     Event::MessageApproved {
+        //         //         common,
+        //         //         message,
+        //         //         cost,
+        //         //     }
+        //         // }
+        //         // Event::MessageExecuted {
+        //         //     common,
+        //         //     message_id,
+        //         //     source_chain,
+        //         //     status,
+        //         //     mut cost,
+        //         // } => {
+        //         //     cost.amount = total_gas_used.to_string();
+        //         //     Event::MessageExecuted {
+        //         //         common,
+        //         //         message_id,
+        //         //         source_chain,
+        //         //         status,
+        //         //         cost,
+        //         //     }
+        //         // }
         //         Event::GasRefunded {
         //             common,
         //             message_id,
@@ -204,8 +200,7 @@ where
         //     parsed_events.push(event);
         // }
 
-        // Ok(parsed_events)
-        Ok(Vec::new())
+        Ok(events)
     }
 }
 
@@ -214,14 +209,14 @@ impl<PV: PriceViewTrait> TransactionParser<PV> {
         price_view: PV,
         gateway_address: Pubkey,
         gas_service_address: Pubkey,
-        gas_calculator: GasCalculator,
+        //gas_calculator: GasCalculator,
         chain_name: String,
     ) -> Self {
         Self {
             price_view,
             gateway_address,
             gas_service_address,
-            gas_calculator,
+            //gas_calculator,
             chain_name,
         }
     }
@@ -335,14 +330,22 @@ impl<PV: PriceViewTrait> TransactionParser<PV> {
         Ok(message_approved_count)
     }
 
-    fn gas_used(
-        &self,
-        transaction: &SolanaTransaction,
-    ) -> Result<(u64, u64), TransactionParsingError> {
-        Err(TransactionParsingError::Generic(
-            "Not implemented".to_string(),
-        ))
-    }
+    // fn gas_used(
+    //     &self,
+    //     transaction: &SolanaTransaction,
+    // ) -> Result<(u64, u64), TransactionParsingError> {
+    //     let total_gas_used = self
+    //         .gas_calculator
+    //         .calc_message_gas(transaction)
+    //         .map_err(|e| TransactionParsingError::Gas(e.to_string()))?;
+
+    //     let refund_gas_used = self
+    //         .gas_calculator
+    //         .calc_message_gas_native_gas_refunded(&transaction)
+    //         .map_err(|e| TransactionParsingError::Gas(e.to_string()))?;
+
+    //     Ok((total_gas_used, refund_gas_used))
+    // }
 }
 
 // #[cfg(test)]
