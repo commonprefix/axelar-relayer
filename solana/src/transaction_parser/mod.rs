@@ -4,6 +4,7 @@ mod message_matching_key;
 pub mod parser;
 mod parser_call_contract;
 mod parser_message_approved;
+mod parser_message_executed;
 mod parser_native_gas_added;
 mod parser_native_gas_paid;
 mod parser_native_gas_refunded;
