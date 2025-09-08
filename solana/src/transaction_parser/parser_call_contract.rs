@@ -117,13 +117,15 @@ impl Parser for ParserCallContract {
         })
     }
 
-    async fn event(&self, message_id: Option<String>) -> Result<Event, TransactionParsingError> {
+    async fn event(&self, _message_id: Option<String>) -> Result<Event, TransactionParsingError> {
         let parsed = self
             .parsed
             .clone()
             .ok_or_else(|| TransactionParsingError::Message("Missing parsed".to_string()))?;
 
-        let message_id = message_id
+        let message_id = self
+            .message_id()
+            .await?
             .ok_or_else(|| TransactionParsingError::Message("Missing message_id".to_string()))?;
 
         let source_context = HashMap::from([

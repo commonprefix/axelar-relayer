@@ -1,5 +1,5 @@
 use crate::error::TransactionParsingError;
-use crate::transaction_parser::discriminators::{CPI_EVENT_DISC, MESSAGE_APPROVED_EVENT_DISC};
+use crate::transaction_parser::discriminators::{CPI_EVENT_DISC, MESSAGE_EXECUTED_EVENT_DISC};
 use crate::transaction_parser::message_matching_key::MessageMatchingKey;
 use crate::transaction_parser::parser::{Parser, ParserConfig};
 use async_trait::async_trait;
@@ -17,8 +17,8 @@ pub struct MessageExecutedEvent {
     pub command_id: [u8; 32],
     pub destination_address: Pubkey,
     pub payload_hash: [u8; 32],
-    pub cc_id_chain: String,
-    pub cc_id_id: String,
+    pub source_chain: String,
+    pub message_id: String,
     pub source_address: String,
     pub destination_chain: String,
 }
@@ -41,7 +41,7 @@ impl ParserMessageExecuted {
             instruction,
             config: ParserConfig {
                 event_cpi_discriminator: CPI_EVENT_DISC,
-                event_type_discriminator: MESSAGE_APPROVED_EVENT_DISC,
+                event_type_discriminator: MESSAGE_EXECUTED_EVENT_DISC,
             },
         })
     }
@@ -127,8 +127,8 @@ impl Parser for ParserMessageExecuted {
                     revert_reason: None,
                 }),
             },
-            message_id: parsed.cc_id_id.clone(),
-            source_chain: parsed.cc_id_chain.clone(),
+            message_id: parsed.message_id.clone(),
+            source_chain: parsed.source_chain.clone(),
             status: MessageExecutionStatus::SUCCESSFUL,
             cost: Amount {
                 token_id: None,
@@ -141,155 +141,45 @@ impl Parser for ParserMessageExecuted {
         Ok(None)
     }
 }
-
 // #[cfg(test)]
 // mod tests {
 //     use super::*;
-//     use solana_transaction_status::UiCompiledInstruction;
+//     use crate::test_utils::fixtures::fixture_traces;
+//     use crate::transaction_parser::parser_message_executed::ParserMessageExecuted;
 
 //     #[tokio::test]
-//     async fn test_decode_queue_entry_and_parse_gas_credit() {
-//         // Build an AddedGas instruction: [CPI_DISC(8)] [ADDED_DISC(8)] [config_pda(32)] [tx_hash(64)] [log_index(8)] [refund_address(32)] [gas_fee_amount(8)]
-//         let mut data: Vec<u8> = Vec::new();
-//         data.extend_from_slice(&CPI_EVENT_DISC);
-//         data.extend_from_slice(&NATIVE_GAS_ADDED_EVENT_DISC);
-//         // config_pda
-//         data.extend_from_slice(&[0x11; 32]);
-//         // tx_hash (64 bytes)
-//         data.extend_from_slice(&[0x22; 64]);
-//         // log_index
-//         data.extend_from_slice(&(5u64).to_le_bytes());
-//         // refund_address (dummy pubkey bytes)
-//         data.extend_from_slice(&[0x33; 32]);
-//         // gas_fee_amount
-//         data.extend_from_slice(&(1000u64).to_le_bytes());
-//         let ci = UiCompiledInstruction {
-//             program_id_index: 4,
-//             accounts: vec![3],
-//             data: bs58::encode(data).into_string(),
-//             stack_height: Some(2),
-//         };
+//     async fn test_parser() {
+//         let traces = fixture_traces();
 
-//         let mut parser = ParserNativeGasAdded::new("dummy_sig".to_string(), ci)
-//             .await
-//             .unwrap();
+//         let tx = traces[0].transactions[3].clone();
+//         let address = tx.clone().account;
 
-//         assert!(
-//             parser.is_match().await.unwrap(),
-//             "parser should match gas credit"
-//         );
-//         assert!(parser.parse().await.unwrap(), "parser should parse message");
-
-//         let event = parser
-//             .event(Some("foo".to_string()))
-//             .await
-//             .expect("event should be produced");
-//         println!("{:?}", event);
-//         match event {
-//             Event::GasCredit {
-//                 message_id,
-//                 refund_address,
-//                 payment,
-//                 ..
-//             } => {
-//                 assert_eq!(message_id, "foo");
-//                 assert!(!refund_address.is_empty());
-//                 assert!(!payment.amount.is_empty());
-//             }
-//             other => panic!("Expected GasCredit, got {:?}", other),
-//         }
-//     }
-
-//     #[tokio::test]
-//     async fn test_parser_native_gas_added() {
-//         // Reuse the synthetic instruction builder above
-//         let mut data: Vec<u8> = Vec::new();
-//         data.extend_from_slice(&CPI_EVENT_DISC);
-//         data.extend_from_slice(&NATIVE_GAS_ADDED_EVENT_DISC);
-//         data.extend_from_slice(&[0xAA; 32]);
-//         data.extend_from_slice(&[0xBB; 64]);
-//         data.extend_from_slice(&(7u64).to_le_bytes());
-//         data.extend_from_slice(&[0xCC; 32]);
-//         data.extend_from_slice(&(4242u64).to_le_bytes());
-//         let ci = UiCompiledInstruction {
-//             program_id_index: 4,
-//             accounts: vec![3],
-//             data: bs58::encode(data).into_string(),
-//             stack_height: Some(2),
-//         };
-
-//         let mut parser = ParserNativeGasAdded::new("dummy_sig_2".to_string(), ci)
-//             .await
-//             .unwrap();
+//         let mut parser = ParserMessageExecuted::new(tx, address).await.unwrap();
 //         assert!(parser.is_match().await.unwrap());
 //         parser.parse().await.unwrap();
-//         let ev = parser.event(Some("bar".to_string())).await.unwrap();
-//         match ev {
-//             Event::GasCredit {
+//         let event = parser.event(None).await.unwrap();
+//         match event {
+//             Event::MessageExecuted {
+//                 common,
 //                 message_id,
-//                 payment,
-//                 ..
+//                 source_chain,
+//                 status,
+//                 cost,
 //             } => {
-//                 assert_eq!(message_id, "bar");
-//                 assert_eq!(payment.amount, "4242");
+//                 assert_eq!(
+//                     message_id,
+//                     "0xf2b741fb0b2c2fcf92aca82395bc65dab4dd8239a12f366d6045755e0b02c2a2-1"
+//                 );
+//                 assert_eq!(source_chain, "avalanche-fuji");
+//                 assert_eq!(status, MessageExecutionStatus::SUCCESSFUL);
+//                 assert_eq!(cost.amount, "0");
+//                 assert_eq!(cost.token_id.as_deref(), None);
+
+//                 let meta = &common.meta.as_ref().unwrap();
+//                 assert_eq!(meta.common_meta.tx_id.as_deref(), Some("aa4"));
+//                 assert_eq!(meta.revert_reason.as_deref(), None);
 //             }
-//             _ => panic!("Expected GasCredit"),
+//             _ => panic!("Expected MessageExecuted event"),
 //         }
 //     }
-
-// #[tokio::test]
-// async fn test_parser_gas_paid() {
-//     let solana_transactions = fixture_native_gas_paid();
-
-//     let tx = solana_transactions[0].clone();
-//     let ix = tx.ixs[0].instructions[0].clone();
-//     let UiInstruction::Compiled(ci) = ix else {
-//         panic!("expected compiled instruction")
-//     };
-//     let mut parser = ParserNativeGasPaid::new(tx.signature.to_string(), ci)
-//         .await
-//         .unwrap();
-
-//     assert!(parser.is_match().await.unwrap());
-//     assert!(parser.message_id().await.is_ok());
-//     parser.parse().await.unwrap();
-//     let event = parser.event(Some("foo".to_string())).await.unwrap();
-//     match event {
-//         Event::GasCredit {
-//             common,
-//             message_id,
-//             refund_address,
-//             payment,
-//         } => {
-//             assert_eq!(message_id, "foo");
-//             assert_eq!(
-//                 refund_address,
-//                 "0:e1e633eb701b118b44297716cee7069ee847b56db88c497efea681ed14b2d2c7"
-//             );
-//             assert_eq!(payment.amount, "198639200");
-
-//             let meta = &common.meta.as_ref().unwrap();
-//             assert_eq!(
-//                 meta.tx_id.as_deref(),
-//                 Some("PzeZlujUPePAMw0Fz/eYeCRz11/X/f5YzUjfYXomzS8=")
-//             );
-//         }
-//         _ => panic!("Expected GasCredit event"),
-//     }
 // }
-
-// #[tokio::test]
-// async fn test_no_match() {
-//     let solana_transactions = fixture_native_gas_paid();
-
-//     let tx = solana_transactions[0].clone();
-//     let ix = tx.ixs[0].instructions[0].clone();
-//     let UiInstruction::Compiled(ci) = ix else {
-//         panic!("expected compiled instruction")
-//     };
-//     let parser = ParserNativeGasPaid::new(tx.signature.to_string(), ci)
-//         .await
-//         .unwrap();
-//     assert!(!parser.is_match().await.unwrap());
-// }
-//}

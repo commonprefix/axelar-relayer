@@ -1,8 +1,5 @@
 use crate::error::TransactionParsingError;
-use base64::prelude::BASE64_STANDARD;
-use base64::Engine;
 use solana_types::solana_types::SolanaTransaction;
-use std::str::FromStr;
 
 pub fn is_log_emmitted(
     tx: &SolanaTransaction,
@@ -21,8 +18,8 @@ pub fn is_log_emmitted(
     ))
 }
 pub fn signature_to_message_id(signature: &str) -> Result<String, TransactionParsingError> {
-    let signature = BASE64_STANDARD
-        .decode(signature)
+    let bytes = bs58::decode(signature)
+        .into_vec()
         .map_err(|e| TransactionParsingError::Generic(e.to_string()))?;
-    Ok(format!("0x{}", hex::encode(signature).to_lowercase()))
+    Ok(format!("0x{}", hex::encode(bytes).to_lowercase()))
 }

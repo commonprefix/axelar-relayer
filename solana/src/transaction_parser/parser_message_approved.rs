@@ -16,8 +16,8 @@ pub struct MessageApprovedEvent {
     pub command_id: [u8; 32],
     pub destination_address: Pubkey,
     pub payload_hash: [u8; 32],
-    pub cc_id_chain: String,
-    pub cc_id_id: String,
+    pub source_chain: String,
+    pub message_id: String,
     pub source_address: String,
     pub destination_chain: String,
 }
@@ -133,8 +133,8 @@ impl Parser for ParserMessageApproved {
                 }),
             },
             message: GatewayV2Message {
-                message_id: parsed.cc_id_id.clone(),
-                source_chain: parsed.cc_id_chain.clone(),
+                message_id: parsed.message_id.clone(),
+                source_chain: parsed.source_chain.clone(),
                 source_address: parsed.source_address.clone(),
                 destination_address: parsed.destination_address.to_string(),
                 payload_hash: hex::encode(parsed.payload_hash),

@@ -1,5 +1,7 @@
 use super::message_matching_key::MessageMatchingKey;
 use crate::transaction_parser::parser_call_contract::ParserCallContract;
+use crate::transaction_parser::parser_message_approved::ParserMessageApproved;
+use crate::transaction_parser::parser_message_executed::ParserMessageExecuted;
 //use crate::gas_calculator::GasCalculator;
 use crate::{
     error::TransactionParsingError, // transaction_parser::parser_call_contract::ParserCallContract,
@@ -163,29 +165,6 @@ impl<PV: PriceViewTrait> TransactionParser<PV> {
         //     parsers.push(Box::new(parser));
         // }
 
-        // let mut parser =
-        //     ParserMessageExecuted::new(tx.clone(), self.gateway_address.clone()).await?;
-        // if parser.is_match().await? {
-        //     info!(
-        //         "ParserMessageExecuted matched, transaction_id={}",
-        //         transaction.signature
-        //     );
-        //     parser.parse().await?;
-        //     parsers.push(Box::new(parser));
-        //     continue;
-        // }
-        // let mut parser =
-        //     ParserMessageApproved::new(tx.clone(), self.gateway_address.clone()).await?;
-        // if parser.is_match().await? {
-        //     info!(
-        //         "ParserMessageApproved matched, transaction_id={}",
-        //         transaction.signature
-        //     );
-        //     parser.parse().await?;
-        //     parsers.push(Box::new(parser));
-        //     message_approved_count += 1;
-        //     continue;
-        // }
         for group in transaction.ixs.iter() {
             for inst in group.instructions.iter() {
                 if let UiInstruction::Compiled(ci) = inst {
@@ -238,6 +217,28 @@ impl<PV: PriceViewTrait> TransactionParser<PV> {
                         );
                         parser.parse().await?;
                         call_contract.push(Box::new(parser));
+                    }
+                    let mut parser =
+                        ParserMessageApproved::new(transaction.signature.to_string(), ci.clone())
+                            .await?;
+                    if parser.is_match().await? {
+                        info!(
+                            "ParserMessageApproved matched, transaction_id={}",
+                            transaction.signature
+                        );
+                        parser.parse().await?;
+                        parsers.push(Box::new(parser));
+                    }
+                    let mut parser =
+                        ParserMessageExecuted::new(transaction.signature.to_string(), ci.clone())
+                            .await?;
+                    if parser.is_match().await? {
+                        info!(
+                            "ParserMessageExecuted matched, transaction_id={}",
+                            transaction.signature
+                        );
+                        parser.parse().await?;
+                        parsers.push(Box::new(parser));
                     }
                 }
             }
