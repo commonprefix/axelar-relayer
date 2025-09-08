@@ -107,12 +107,8 @@ impl Parser for ParserNativeGasAdded {
     async fn event(&self, message_id: Option<String>) -> Result<Event, TransactionParsingError> {
         let parsed = self
             .parsed
-            .as_ref()
-            .cloned()
-            .or_else(|| Self::try_extract_with_config(&self.instruction, self.config))
-            .ok_or_else(|| {
-                TransactionParsingError::Message("Missing parsed gas credit".to_string())
-            })?;
+            .clone()
+            .ok_or_else(|| TransactionParsingError::Message("Missing parsed".to_string()))?;
 
         let message_id = message_id
             .ok_or_else(|| TransactionParsingError::Message("Missing message_id".to_string()))?;

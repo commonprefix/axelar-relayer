@@ -1,4 +1,5 @@
 use super::message_matching_key::MessageMatchingKey;
+use crate::transaction_parser::parser_call_contract::ParserCallContract;
 //use crate::gas_calculator::GasCalculator;
 use crate::{
     error::TransactionParsingError, // transaction_parser::parser_call_contract::ParserCallContract,
@@ -76,15 +77,14 @@ where
         //let (total_gas_used, refund_gas_used) = self.gas_used(&transaction)?;
 
         let transaction_id = transaction.signature.clone();
-        let message_approved_count = self
-            .create_parsers(
-                transaction,
-                &mut parsers,
-                &mut call_contract,
-                &mut gas_credit_map,
-                self.chain_name.clone(),
-            )
-            .await?;
+        self.create_parsers(
+            transaction,
+            &mut parsers,
+            &mut call_contract,
+            &mut gas_credit_map,
+            self.chain_name.clone(),
+        )
+        .await?;
 
         info!(
             "Parsing results: transaction_id={} parsers={}, call_contract={}, gas_credit_map={}",
@@ -147,9 +147,7 @@ impl<PV: PriceViewTrait> TransactionParser<PV> {
         call_contract: &mut Vec<Box<dyn Parser + Send + Sync>>,
         gas_credit_map: &mut HashMap<MessageMatchingKey, Box<dyn Parser + Send + Sync>>,
         chain_name: String,
-    ) -> Result<u64, TransactionParsingError> {
-        let mut message_approved_count = 0u64;
-
+    ) -> Result<(), TransactionParsingError> {
         // let mut parser = ParserExecuteInsufficientGas::new(
         //     transaction.clone(),
         //     self.gateway_address.clone(),
@@ -165,21 +163,6 @@ impl<PV: PriceViewTrait> TransactionParser<PV> {
         //     parsers.push(Box::new(parser));
         // }
 
-        //     let mut parser = ParserCallContract::new(
-        //         tx.clone(),
-        //         self.gateway_address.clone(),
-        //         chain_name.clone(),
-        //     )
-        //     .await?;
-        //     if parser.is_match().await? {
-        //         info!(
-        //             "ParserCallContract matched, transaction_id={}",
-        //             transaction.signature
-        //         );
-        //         parser.parse().await?;
-        //         call_contract.push(Box::new(parser));
-        //         continue;
-        //     }
         // let mut parser =
         //     ParserMessageExecuted::new(tx.clone(), self.gateway_address.clone()).await?;
         // if parser.is_match().await? {
@@ -242,29 +225,26 @@ impl<PV: PriceViewTrait> TransactionParser<PV> {
                         parser.parse().await?;
                         parsers.push(Box::new(parser));
                     }
+                    let mut parser = ParserCallContract::new(
+                        transaction.signature.to_string(),
+                        ci.clone(),
+                        chain_name.clone(),
+                    )
+                    .await?;
+                    if parser.is_match().await? {
+                        info!(
+                            "ParserCallContract matched, transaction_id={}",
+                            transaction.signature
+                        );
+                        parser.parse().await?;
+                        call_contract.push(Box::new(parser));
+                    }
                 }
             }
         }
 
-        Ok(message_approved_count)
+        Ok(())
     }
-
-    // fn gas_used(
-    //     &self,
-    //     transaction: &SolanaTransaction,
-    // ) -> Result<(u64, u64), TransactionParsingError> {
-    //     let total_gas_used = self
-    //         .gas_calculator
-    //         .calc_message_gas(transaction)
-    //         .map_err(|e| TransactionParsingError::Gas(e.to_string()))?;
-
-    //     let refund_gas_used = self
-    //         .gas_calculator
-    //         .calc_message_gas_native_gas_refunded(&transaction)
-    //         .map_err(|e| TransactionParsingError::Gas(e.to_string()))?;
-
-    //     Ok((total_gas_used, refund_gas_used))
-    // }
 }
 
 // #[cfg(test)]
