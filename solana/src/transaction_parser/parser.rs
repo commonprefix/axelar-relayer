@@ -104,7 +104,7 @@ where
         for cc in call_contract {
             let cc_key = cc.key().await?;
             events.push(cc.event(None).await?);
-            if let Some(parser) = gas_credit_map.get(&cc_key) {
+            if let Some(parser) = gas_credit_map.remove(&cc_key) {
                 let message_id = cc.message_id().await?.ok_or_else(|| {
                     TransactionParsingError::Message("Missing message_id".to_string())
                 })?;
@@ -118,87 +118,6 @@ where
             let event = parser.event(None).await?;
             events.push(event);
         }
-
-        // let mut parsed_events: Vec<Event> = Vec::new();
-
-        // for event in events {
-        //     let event = match event {
-        //         Event::GasCredit {
-        //             common,
-        //             message_id,
-        //             refund_address,
-        //             mut payment,
-        //         } => {
-        //             let mut p = payment.clone();
-        //             if let Some(token_id) = p.token_id {
-        //                 let msg_value = convert_jetton_to_native(
-        //                     token_id,
-        //                     &BigUint::from_str(&p.amount)
-        //                         .map_err(|e| TransactionParsingError::Generic(e.to_string()))?,
-        //                     &self.price_view,
-        //                 )
-        //                 .await
-        //                 .map_err(|e| TransactionParsingError::Generic(e.to_string()))?;
-        //                 p.amount = msg_value.to_string();
-        //                 p.token_id = None;
-        //                 payment = p;
-        //             }
-        //             Event::GasCredit {
-        //                 common,
-        //                 message_id,
-        //                 refund_address,
-        //                 payment,
-        //             }
-        //         }
-        //         // Event::MessageApproved {
-        //         //     common,
-        //         //     message,
-        //         //     mut cost,
-        //         // } => {
-        //         //     cost.amount = (total_gas_used / message_approved_count).to_string();
-        //         //     Event::MessageApproved {
-        //         //         common,
-        //         //         message,
-        //         //         cost,
-        //         //     }
-        //         // }
-        //         // Event::MessageExecuted {
-        //         //     common,
-        //         //     message_id,
-        //         //     source_chain,
-        //         //     status,
-        //         //     mut cost,
-        //         // } => {
-        //         //     cost.amount = total_gas_used.to_string();
-        //         //     Event::MessageExecuted {
-        //         //         common,
-        //         //         message_id,
-        //         //         source_chain,
-        //         //         status,
-        //         //         cost,
-        //         //     }
-        //         // }
-        //         Event::GasRefunded {
-        //             common,
-        //             message_id,
-        //             recipient_address,
-        //             refunded_amount,
-        //             mut cost,
-        //         } => {
-        //             cost.amount = refund_gas_used.to_string();
-        //             Event::GasRefunded {
-        //                 common,
-        //                 message_id,
-        //                 recipient_address,
-        //                 refunded_amount,
-        //                 cost,
-        //             }
-        //         }
-
-        //         other => other,
-        //     };
-        //     parsed_events.push(event);
-        // }
 
         Ok(events)
     }
