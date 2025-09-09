@@ -14,7 +14,7 @@ pub struct NativeGasRefundedEvent {
     /// Solana transaction signature
     pub tx_hash: [u8; 64],
     /// The Gas service config PDA
-    pub config_pda: Pubkey,
+    pub _config_pda: Pubkey,
     /// The log index
     pub log_index: u64,
     /// The receiver of the refund
@@ -140,7 +140,11 @@ impl Parser for ParserNativeGasRefunded {
 
     async fn message_id(&self) -> Result<Option<String>, TransactionParsingError> {
         if let Some(parsed) = self.parsed.clone() {
-            Ok(Some(format!("0x{}", hex::encode(parsed.tx_hash))))
+            Ok(Some(format!(
+                "0x{}-{}",
+                hex::encode(parsed.tx_hash),
+                parsed.log_index
+            )))
         } else {
             Ok(None)
         }
@@ -154,20 +158,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_decode_and_parse_gas_refunded_event() {
-        // Build a RefundedGas instruction: [CPI_DISC(8)] [REFUNDED_DISC(8)] [tx_hash(64)] [config_pda(32)] [log_index(8)] [receiver(32)] [fees(8)]
         let mut data: Vec<u8> = Vec::new();
         data.extend_from_slice(&CPI_EVENT_DISC);
         data.extend_from_slice(&NATIVE_GAS_REFUNDED_EVENT_DISC);
-        // tx_hash (64 bytes)
         let tx_hash_bytes = [0xABu8; 64];
         data.extend_from_slice(&tx_hash_bytes);
-        // config_pda
         data.extend_from_slice(&[0x11; 32]);
-        // log_index
         data.extend_from_slice(&(7u64).to_le_bytes());
-        // receiver (dummy pubkey bytes)
         data.extend_from_slice(&[0x33; 32]);
-        // fees
         data.extend_from_slice(&(4242u64).to_le_bytes());
 
         let ci = UiCompiledInstruction {

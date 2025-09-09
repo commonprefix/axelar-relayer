@@ -13,7 +13,7 @@ use tracing::{debug, warn};
 #[derive(BorshDeserialize, Clone, Debug)]
 pub struct NativeGasAddedEvent {
     /// The Gas service config PDA
-    pub config_pda: Pubkey,
+    pub _config_pda: Pubkey,
     /// Solana transaction signature
     pub tx_hash: [u8; 64],
     /// index of the log
@@ -138,7 +138,15 @@ impl Parser for ParserNativeGasAdded {
     }
 
     async fn message_id(&self) -> Result<Option<String>, TransactionParsingError> {
-        Ok(None)
+        if let Some(parsed) = self.parsed.clone() {
+            Ok(Some(format!(
+                "0x{}-{}",
+                hex::encode(parsed.tx_hash),
+                parsed.log_index
+            )))
+        } else {
+            Ok(None)
+        }
     }
 }
 
