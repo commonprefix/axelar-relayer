@@ -152,9 +152,14 @@ impl GmpApi {
             GmpApiError::RequestFailed(e.to_string())
         })?;
 
-        response
-            .error_for_status_ref()
-            .map_err(|e| GmpApiError::ErrorResponse(e.to_string()))?;
+        if let Err(e) = response.error_for_status_ref() {
+            let error_body = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "Failed to read error body".to_string());
+
+            return Err(GmpApiError::ErrorResponse(format!("{e}: {error_body}")));
+        }
 
         response
             .json::<T>()
