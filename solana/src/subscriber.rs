@@ -23,7 +23,9 @@ use tokio::{
     select,
     signal::unix::{signal, SignalKind},
     task::JoinHandle,
+    time::{sleep, timeout},
 };
+use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, warn};
 
 pub trait TransactionPoller {
@@ -105,30 +107,15 @@ impl<STR: SolanaStreamClientTrait, SM: SolanaTransactionModel> SolanaListener<ST
         gas_service_account: Pubkey,
         gateway_account: Pubkey,
         config: SolanaConfig,
+        cancellation_token: CancellationToken,
     ) {
-        let mut sigint = match signal(SignalKind::interrupt()) {
-            Ok(sigint) => sigint,
-            Err(e) => {
-                error!("Error creating interrupt signal: {:?}", e);
-                return;
-            }
-        };
-        let mut sigterm = match signal(SignalKind::terminate()) {
-            Ok(sigterm) => sigterm,
-            Err(e) => {
-                error!("Error creating terminate signal: {:?}", e);
-                return;
-            }
-        };
-
-        let mut handles: Vec<JoinHandle<()>> = vec![];
-
         let solana_stream_rpc_clone = config.clone().solana_stream_rpc;
         let solana_config_clone = config.clone();
         let queue_clone = Arc::clone(&self.queue);
         let transaction_model_clone = Arc::clone(&self.transaction_model);
+        let cancellation_token_clone = cancellation_token.clone();
 
-        handles.push(tokio::spawn(async move {
+        let handle_gas_service = tokio::spawn(async move {
             Self::setup_connection_and_work(
                 &solana_stream_rpc_clone,
                 solana_config_clone,
@@ -136,16 +123,20 @@ impl<STR: SolanaStreamClientTrait, SM: SolanaTransactionModel> SolanaListener<ST
                 &queue_clone,
                 &transaction_model_clone,
                 "gas_service",
+                cancellation_token_clone,
             )
             .await;
-        }));
+        });
+
+        tokio::pin!(handle_gas_service);
 
         let solana_stream_rpc_clone = config.clone().solana_stream_rpc;
         let solana_config_clone = config.clone();
         let queue_clone = Arc::clone(&self.queue);
         let transaction_model_clone = Arc::clone(&self.transaction_model);
+        let cancellation_token_clone = cancellation_token.clone();
 
-        handles.push(tokio::spawn(async move {
+        let handle_gateway = tokio::spawn(async move {
             Self::setup_connection_and_work(
                 &solana_stream_rpc_clone,
                 solana_config_clone,
@@ -153,17 +144,21 @@ impl<STR: SolanaStreamClientTrait, SM: SolanaTransactionModel> SolanaListener<ST
                 &queue_clone,
                 &transaction_model_clone,
                 "gateway",
+                cancellation_token_clone,
             )
             .await;
-        }));
+        });
+
+        tokio::pin!(handle_gateway);
 
         tokio::select! {
-            _ = sigint.recv()  => {},
-            _ = sigterm.recv() => {},
-        }
+            _ = &mut handle_gas_service => {
+                info!("Gas service stopped");
+            },
+            _ = &mut handle_gateway => {
+                info!("Gateway stopped");
+            },
 
-        for handle in handles {
-            handle.abort();
         }
 
         info!("Shut down solana listener");
@@ -176,8 +171,12 @@ impl<STR: SolanaStreamClientTrait, SM: SolanaTransactionModel> SolanaListener<ST
         queue: &Arc<Queue>,
         transaction_model: &Arc<SM>,
         stream_name: &str,
+        cancellation_token: CancellationToken,
     ) {
         loop {
+            // if cancellation_token.is_cancelled() {
+            //     break;
+            // }
             let solana_stream_client =
                 match SolanaStreamClient::new(solana_stream_rpc, solana_config.solana_commitment)
                     .await
@@ -218,14 +217,22 @@ impl<STR: SolanaStreamClientTrait, SM: SolanaTransactionModel> SolanaListener<ST
                 }
             };
 
-            Self::work(
-                &mut subscriber_stream,
+            let mut should_break = false;
+
+            select! {
+                _ = cancellation_token.cancelled() => {
+                    warn!("Cancellation requested; no longer awaiting subscriber_stream.next()");
+                    should_break = true;
+                },
+                _ = Self::work(
+                    &mut subscriber_stream,
                 stream_name,
                 &solana_rpc_client,
                 queue,
                 transaction_model,
-            )
-            .await;
+                    cancellation_token.clone(),
+                ) => {}
+            }
 
             solana_stream_client.unsubscribe().await;
 
@@ -234,6 +241,10 @@ impl<STR: SolanaStreamClientTrait, SM: SolanaTransactionModel> SolanaListener<ST
 
             if let Err(e) = solana_stream_client.shutdown().await {
                 error!("Error shutting down solana stream client: {:?}", e);
+            }
+
+            if should_break {
+                break;
             }
         }
     }
@@ -245,19 +256,19 @@ impl<STR: SolanaStreamClientTrait, SM: SolanaTransactionModel> SolanaListener<ST
         solana_rpc_client: &SolanaRpcClient,
         queue: &Arc<Queue>,
         transaction_model: &Arc<SM>,
+        cancellation_token: CancellationToken,
     ) {
         loop {
             info!("Waiting for messages from {}...", stream_name);
             // If the stream has not received any messages in 30 seconds, re-establish the connection to avoid silent failures
             select! {
-                _ = tokio::time::sleep(Duration::from_secs(30)) => {
-                    warn!("Restarting {} stream", stream_name);
+                _ = cancellation_token.cancelled() => {
+                    warn!("Cancellation requested; no longer awaiting subscriber_stream.next()");
                     break;
-                }
-                maybe_response = subscriber_stream.next() => {
-                    // TODO : Spawn a task to handle the response
+                },
+                maybe_response = timeout(Duration::from_secs(30), subscriber_stream.next()) => {
                     match maybe_response {
-                        Some(response) => {
+                        Ok(Some(response)) => {
                             let signature = match Signature::from_str(&response.value.signature) {
                                 Ok(signature) => signature,
                                 Err(e) => {
@@ -265,7 +276,10 @@ impl<STR: SolanaStreamClientTrait, SM: SolanaTransactionModel> SolanaListener<ST
                                     continue;
                                 }
                             };
-                            let tx = match solana_rpc_client.get_transaction_by_signature(signature).await {
+                            let tx = match solana_rpc_client
+                                .get_transaction_by_signature(signature)
+                                .await
+                            {
                                 Ok(tx) => tx,
                                 Err(e) => {
                                     error!("Error getting transaction by signature: {:?}", e);
@@ -273,14 +287,7 @@ impl<STR: SolanaStreamClientTrait, SM: SolanaTransactionModel> SolanaListener<ST
                                 }
                             };
 
-                            match upsert_and_publish(
-                                transaction_model,
-                                queue,
-                                &tx,
-                                stream_name,
-                            )
-                            .await
-                            {
+                            match upsert_and_publish(transaction_model, queue, &tx, stream_name).await {
                                 Ok(inserted) => {
                                     if inserted {
                                         info!(
@@ -295,8 +302,12 @@ impl<STR: SolanaStreamClientTrait, SM: SolanaTransactionModel> SolanaListener<ST
                                 }
                             }
                         }
-                        None => {
+                        Ok(None) => {
                             warn!("Stream {} was closed", stream_name);
+                            break;
+                        }
+                        Err(e) => {
+                            warn!("Restarting {} stream: {:?}", stream_name, e);
                             break;
                         }
                     }
@@ -324,18 +335,20 @@ impl<RPC: SolanaRpcClientTrait, SC: SubscriberCursor, SM: SolanaTransactionModel
         })
     }
 
-    pub async fn run(&self, gas_service_account: Pubkey, gateway_account: Pubkey) {
-        loop {
-            select! {
-                _ = self.work(gas_service_account, AccountPollerEnum::GasService) => {
-                    warn!("Gas service subscriber stream ended");
-                },
-                _ = self.work(gateway_account, AccountPollerEnum::Gateway) => {
-                    warn!("Gateway subscriber stream ended");
-                }
-            };
-            tokio::time::sleep(Duration::from_secs(2)).await;
-        }
+    pub async fn run(
+        &self,
+        gas_service_account: Pubkey,
+        gateway_account: Pubkey,
+        cancellation_token: CancellationToken,
+    ) {
+        select! {
+            _ = self.work(gas_service_account, AccountPollerEnum::GasService, cancellation_token.clone()) => {
+                warn!("Gas service subscriber stream ended");
+            },
+            _ = self.work(gateway_account, AccountPollerEnum::Gateway, cancellation_token.clone()) => {
+                warn!("Gateway subscriber stream ended");
+            }
+        };
     }
 
     // Poller runs in the background and polls every X seconds for all transactions
@@ -345,8 +358,17 @@ impl<RPC: SolanaRpcClientTrait, SC: SubscriberCursor, SM: SolanaTransactionModel
     // miss any transactions.
 
     // TODO: Create a general stream work function and separate it from poll work
-    async fn work(&self, account: Pubkey, account_type: AccountPollerEnum) {
+    async fn work(
+        &self,
+        account: Pubkey,
+        account_type: AccountPollerEnum,
+        cancellation_token: CancellationToken,
+    ) {
         loop {
+            if cancellation_token.is_cancelled() {
+                warn!("Cancellation requested; no longer polling account");
+                break;
+            }
             let transactions = match self.poll_account(account, account_type.clone()).await {
                 Ok(transactions) => transactions,
                 Err(e) => {

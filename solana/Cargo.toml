@@ -28,6 +28,7 @@ solana-pubsub-client = { workspace = true }
 async-trait = { workspace = true }
 thiserror = { workspace = true }
 hex = { workspace = true }
+tokio-util = { workspace = true }
 bs58 = "0.5"
 borsh = "1"
 base64 = { workspace = true }
