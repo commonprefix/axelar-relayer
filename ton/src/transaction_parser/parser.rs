@@ -102,7 +102,7 @@ impl<PV: PriceViewTrait> TraceParserTrait for TraceParser<PV> {
         for cc in call_contract {
             let cc_key = cc.key().await?;
             events.push(cc.event(None).await?);
-            if let Some(parser) = gas_credit_map.get(&cc_key) {
+            if let Some(parser) = gas_credit_map.remove(&cc_key) {
                 let message_id = cc.message_id().await?.ok_or_else(|| {
                     TransactionParsingError::Message("Missing message_id".to_string())
                 })?;
