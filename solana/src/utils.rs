@@ -1,11 +1,22 @@
+use anyhow::anyhow;
+use relayer_base::{
+    queue::{Queue, QueueItem},
+    subscriber::ChainTransaction,
+};
 use serde_json::json;
+use solana_types::solana_types::SolanaTransaction;
 use std::str::FromStr;
-use tracing::error;
+use tracing::{debug, error};
 
 use solana_rpc_client_api::response::RpcConfirmedTransactionStatusWithSignature;
 use solana_sdk::{
     commitment_config::{CommitmentConfig, CommitmentLevel},
     signature::Signature,
+};
+use std::sync::Arc;
+
+use crate::{
+    solana_transaction::SolanaTransactionData, solana_transaction::SolanaTransactionModel,
 };
 
 pub fn get_tx_batch_command(
@@ -67,4 +78,36 @@ fn get_commitment_str(commitment: CommitmentConfig) -> String {
         CommitmentLevel::Confirmed => String::from("confirmed"),
         CommitmentLevel::Finalized => String::from("finalized"),
     }
+}
+
+pub async fn upsert_and_publish<SM: SolanaTransactionModel>(
+    transaction_model: &Arc<SM>,
+    queue: &Arc<Queue>,
+    tx: &SolanaTransaction,
+    from_service: String,
+) -> Result<bool, anyhow::Error> {
+    let inserted = transaction_model
+        .upsert(SolanaTransactionData {
+            signature: tx.signature.to_string(),
+            slot: tx.slot as i64,
+            logs: tx.logs.clone(),
+            retries: 3,
+            created_at: None,
+        })
+        .await
+        .map_err(|e| anyhow!("Error upserting transaction: {:?}", e))?;
+
+    if inserted {
+        let chain_transaction = ChainTransaction::Solana(Box::new(tx.clone()));
+
+        let item = &QueueItem::Transaction(Box::new(chain_transaction.clone()));
+        debug!(
+            "Publishing transaction from {}: {:?}",
+            from_service, chain_transaction
+        );
+        queue.publish(item.clone()).await;
+    } else {
+        debug!("Transaction already exists: {:?}", tx.signature);
+    }
+    Ok(inserted)
 }
