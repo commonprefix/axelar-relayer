@@ -39,10 +39,9 @@ pub trait Parser {
 
 #[derive(Clone)]
 pub struct TransactionParser<PV> {
-    price_view: PV,
+    _price_view: PV,
     gateway_address: Pubkey,
     gas_service_address: Pubkey,
-    //gas_calculator: GasCalculator,
     chain_name: String,
 }
 
@@ -70,17 +69,16 @@ where
         let mut gas_credit_map: HashMap<MessageMatchingKey, Box<dyn Parser + Send + Sync>> =
             HashMap::new();
 
-        //let (total_gas_used, refund_gas_used) = self.gas_used(&transaction)?;
-
         let transaction_id = transaction.signature.clone();
-        self.create_parsers(
-            transaction,
-            &mut parsers,
-            &mut call_contract,
-            &mut gas_credit_map,
-            self.chain_name.clone(),
-        )
-        .await?;
+        let (message_approved_count, message_executed_count) = self
+            .create_parsers(
+                transaction.clone(),
+                &mut parsers,
+                &mut call_contract,
+                &mut gas_credit_map,
+                self.chain_name.clone(),
+            )
+            .await?;
 
         info!(
             "Parsing results: transaction_id={} parsers={}, call_contract={}, gas_credit_map={}",
@@ -115,7 +113,54 @@ where
             events.push(event);
         }
 
-        Ok(events)
+        let mut parsed_events: Vec<Event> = Vec::new();
+
+        for event in events {
+            let event = match event {
+                Event::MessageApproved {
+                    common,
+                    message,
+                    mut cost,
+                } => {
+                    cost.amount = (transaction.clone().cost_units.ok_or_else(|| {
+                        TransactionParsingError::Generic(
+                            "Cost units for approved not found".to_string(),
+                        )
+                    })? / message_approved_count)
+                        .to_string();
+                    Event::MessageApproved {
+                        common,
+                        message,
+                        cost,
+                    }
+                }
+                Event::MessageExecuted {
+                    common,
+                    message_id,
+                    source_chain,
+                    status,
+                    mut cost,
+                } => {
+                    cost.amount = (transaction.clone().cost_units.ok_or_else(|| {
+                        TransactionParsingError::Generic(
+                            "Cost units for executed not found".to_string(),
+                        )
+                    })? / message_executed_count)
+                        .to_string();
+                    Event::MessageExecuted {
+                        common,
+                        message_id,
+                        source_chain,
+                        status,
+                        cost,
+                    }
+                }
+                other => other,
+            };
+            parsed_events.push(event);
+        }
+
+        Ok(parsed_events)
     }
 }
 
@@ -124,14 +169,12 @@ impl<PV: PriceViewTrait> TransactionParser<PV> {
         price_view: PV,
         gateway_address: Pubkey,
         gas_service_address: Pubkey,
-        //gas_calculator: GasCalculator,
         chain_name: String,
     ) -> Self {
         Self {
-            price_view,
+            _price_view: price_view,
             gateway_address,
             gas_service_address,
-            //gas_calculator,
             chain_name,
         }
     }
@@ -143,8 +186,10 @@ impl<PV: PriceViewTrait> TransactionParser<PV> {
         call_contract: &mut Vec<Box<dyn Parser + Send + Sync>>,
         gas_credit_map: &mut HashMap<MessageMatchingKey, Box<dyn Parser + Send + Sync>>,
         chain_name: String,
-    ) -> Result<(), TransactionParsingError> {
+    ) -> Result<(u64, u64), TransactionParsingError> {
         let mut index = 0;
+        let mut message_approved_count = 0u64;
+        let mut message_executed_count = 0u64;
 
         for group in transaction.ixs.iter() {
             for inst in group.instructions.iter() {
@@ -210,6 +255,7 @@ impl<PV: PriceViewTrait> TransactionParser<PV> {
                         );
                         parser.parse().await?;
                         parsers.push(Box::new(parser));
+                        message_approved_count += 1;
                     }
                     let mut parser =
                         ParserMessageExecuted::new(transaction.signature.to_string(), ci.clone())
@@ -221,6 +267,7 @@ impl<PV: PriceViewTrait> TransactionParser<PV> {
                         );
                         parser.parse().await?;
                         parsers.push(Box::new(parser));
+                        message_executed_count += 1;
                     }
                     let mut parser = ParserExecuteInsufficientGas::new(
                         transaction.signature.to_string(),
@@ -240,8 +287,22 @@ impl<PV: PriceViewTrait> TransactionParser<PV> {
             }
         }
 
-        Ok(())
+        Ok((message_approved_count, message_executed_count))
     }
+
+    // fn gas_used(&self, tx: &SolanaTransaction) -> Result<(u64, u64), TransactionParsingError> {
+    //     let total_gas_used = self
+    //         .gas_calculator
+    //         .calc_message_gas(tx.clone())
+    //         .map_err(|e| TransactionParsingError::Gas(e.to_string()))?;
+
+    //     let refund_gas_used = self
+    //         .gas_calculator
+    //         .calc_message_gas_native_gas_refunded(tx)
+    //         .map_err(|e| TransactionParsingError::Gas(e.to_string()))?;
+
+    //     Ok((total_gas_used, refund_gas_used))
+    // }
 }
 
 // #[cfg(test)]

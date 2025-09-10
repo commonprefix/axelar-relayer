@@ -111,26 +111,11 @@ impl SolanaRpcClientTrait for SolanaRpcClient {
                 .await
             {
                 Ok(response) => {
-                    let meta = &response
-                        .transaction
-                        .meta
-                        .ok_or_else(|| anyhow!("No meta found"))?;
-                    let solana_tx = SolanaTransaction {
-                        signature,
-                        timestamp: None,
-                        logs: meta
-                            .log_messages
-                            .clone()
-                            .ok_or_else(|| anyhow!("No log messages found"))?,
-                        slot: response.slot as i64,
-                        ixs: {
-                            meta.inner_instructions
-                                .clone()
-                                .ok_or_else(|| anyhow!("No inner instructions found"))?
-                                .clone()
-                        },
-                    };
-                    return Ok(solana_tx);
+                    return Ok(
+                        SolanaTransaction::from_encoded_confirmed_transaction_with_status_meta(
+                            signature, response,
+                        )?,
+                    );
                 }
                 Err(e) => {
                     if retries >= self.max_retries {

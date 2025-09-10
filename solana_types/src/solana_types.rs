@@ -3,7 +3,9 @@ use chrono::{offset::Utc, DateTime};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use solana_sdk::signature::Signature;
-use solana_transaction_status_client_types::UiInnerInstructions;
+use solana_transaction_status_client_types::{
+    EncodedConfirmedTransactionWithStatusMeta, UiInnerInstructions,
+};
 use std::str::FromStr;
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct SolanaTransaction {
@@ -12,6 +14,7 @@ pub struct SolanaTransaction {
     pub logs: Vec<String>,
     pub slot: i64,
     pub ixs: Vec<UiInnerInstructions>,
+    pub cost_units: Option<u64>,
 }
 
 impl SolanaTransaction {
@@ -21,10 +24,11 @@ impl SolanaTransaction {
         let result = rpc_response
             .result
             .ok_or_else(|| anyhow!("No result found"))?;
-        let logs = result
+        let meta = result
             .meta
             .as_ref()
-            .ok_or_else(|| anyhow!("No meta found"))?
+            .ok_or_else(|| anyhow!("No meta found"))?;
+        let logs = meta
             .log_messages
             .clone()
             .ok_or_else(|| anyhow!("No log messages found"))?;
@@ -38,12 +42,8 @@ impl SolanaTransaction {
             .ok_or_else(|| anyhow!("Missing or invalid signature"))?;
 
         let timestamp = Some(Utc::now());
-        let ixs = result
-            .meta
-            .as_ref()
-            .ok_or_else(|| anyhow!("No meta found"))?
-            .inner_instructions
-            .clone();
+        let ixs = meta.inner_instructions.clone();
+        let cost_units = meta.cost_units;
 
         Ok(Self {
             signature,
@@ -51,6 +51,33 @@ impl SolanaTransaction {
             logs,
             slot,
             ixs,
+            cost_units,
+        })
+    }
+
+    pub fn from_encoded_confirmed_transaction_with_status_meta(
+        signature: Signature,
+        tx: EncodedConfirmedTransactionWithStatusMeta,
+    ) -> Result<Self, anyhow::Error> {
+        let meta = &tx
+            .transaction
+            .meta
+            .ok_or_else(|| anyhow!("No meta found"))?;
+        Ok(Self {
+            signature: signature.clone(),
+            timestamp: None,
+            logs: meta
+                .log_messages
+                .clone()
+                .ok_or_else(|| anyhow!("No log messages found"))?,
+            slot: tx.slot as i64,
+            ixs: {
+                meta.inner_instructions
+                    .clone()
+                    .ok_or_else(|| anyhow!("No inner instructions found"))?
+                    .clone()
+            },
+            cost_units: meta.compute_units_consumed.clone().into(),
         })
     }
 }

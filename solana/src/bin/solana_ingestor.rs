@@ -7,7 +7,6 @@ use relayer_base::redis::connection_manager;
 use relayer_base::utils::setup_logging;
 use relayer_base::{gmp_api, ingestor};
 use solana::config::SolanaConfig;
-//use solana::gas_calculator::GasCalculator;
 use solana::ingestor::SolanaIngestor;
 use solana::parser::TransactionParser;
 use solana::solana_transaction::PgSolanaTransactionModel;
@@ -51,13 +50,10 @@ async fn main() -> anyhow::Result<()> {
     our_addresses.push(gateway.clone());
     our_addresses.push(gas_service.clone());
 
-    //let gas_calculator = GasCalculator::new(our_addresses);
-
     let parser = TransactionParser::new(
         price_view,
         gateway,
         gas_service,
-        //gas_calculator,
         config.common_config.chain_name,
     );
 
