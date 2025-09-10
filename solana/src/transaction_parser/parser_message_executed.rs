@@ -16,12 +16,12 @@ use tracing::{debug, warn};
 #[derive(BorshDeserialize, Clone, Debug)]
 pub struct MessageExecutedEvent {
     pub command_id: [u8; 32],
-    pub destination_address: Pubkey,
-    pub payload_hash: [u8; 32],
+    pub _destination_address: Pubkey,
+    pub _payload_hash: [u8; 32],
     pub source_chain: String,
     pub message_id: String,
-    pub source_address: String,
-    pub destination_chain: String,
+    pub _source_address: String,
+    pub _destination_chain: String,
 }
 
 pub struct ParserMessageExecuted {

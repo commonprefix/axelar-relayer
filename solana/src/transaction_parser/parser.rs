@@ -156,6 +156,8 @@ impl<PV: PriceViewTrait> TransactionParser<PV> {
         //     parsers.push(Box::new(parser));
         // }
 
+        let mut index = 0;
+
         for group in transaction.ixs.iter() {
             for inst in group.instructions.iter() {
                 if let UiInstruction::Compiled(ci) = inst {
@@ -199,6 +201,7 @@ impl<PV: PriceViewTrait> TransactionParser<PV> {
                         transaction.signature.to_string(),
                         ci.clone(),
                         chain_name.clone(),
+                        index,
                     )
                     .await?;
                     if parser.is_match().await? {
@@ -231,6 +234,7 @@ impl<PV: PriceViewTrait> TransactionParser<PV> {
                         parser.parse().await?;
                         parsers.push(Box::new(parser));
                     }
+                    index += 1;
                 }
             }
         }

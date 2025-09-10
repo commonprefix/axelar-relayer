@@ -1,5 +1,4 @@
 use crate::error::TransactionParsingError;
-use crate::transaction_parser::common::signature_to_message_id;
 use crate::transaction_parser::discriminators::{CALL_CONTRACT_EVENT_DISC, CPI_EVENT_DISC};
 use crate::transaction_parser::message_matching_key::MessageMatchingKey;
 use crate::transaction_parser::parser::{Parser, ParserConfig};
@@ -33,6 +32,7 @@ pub struct ParserCallContract {
     instruction: UiCompiledInstruction,
     config: ParserConfig,
     chain_name: String,
+    index: u64,
 }
 
 impl ParserCallContract {
@@ -40,6 +40,7 @@ impl ParserCallContract {
         signature: String,
         instruction: UiCompiledInstruction,
         chain_name: String,
+        index: u64,
     ) -> Result<Self, TransactionParsingError> {
         Ok(Self {
             signature,
@@ -50,6 +51,7 @@ impl ParserCallContract {
                 event_type_discriminator: CALL_CONTRACT_EVENT_DISC,
             },
             chain_name,
+            index,
         })
     }
 
@@ -166,12 +168,6 @@ impl Parser for ParserCallContract {
     }
 
     async fn message_id(&self) -> Result<Option<String>, TransactionParsingError> {
-        // todo : find the correct log index
-        let log_index = "dummy value";
-        if let Some(parsed) = self.parsed.clone() {
-            Ok(Some(format!("{:?}-{}", self.signature, log_index)))
-        } else {
-            Ok(None)
-        }
+        Ok(Some(format!("{:?}-{}", self.signature, self.index)))
     }
 }
