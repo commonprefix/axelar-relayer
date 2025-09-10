@@ -1,11 +1,14 @@
 use super::message_matching_key::MessageMatchingKey;
-use crate::error::TransactionParsingError;
 use crate::transaction_parser::parser_call_contract::ParserCallContract;
 use crate::transaction_parser::parser_message_approved::ParserMessageApproved;
 use crate::transaction_parser::parser_message_executed::ParserMessageExecuted;
 use crate::transaction_parser::parser_native_gas_added::ParserNativeGasAdded;
 use crate::transaction_parser::parser_native_gas_paid::ParserNativeGasPaid;
 use crate::transaction_parser::parser_native_gas_refunded::ParserNativeGasRefunded;
+use crate::{
+    error::TransactionParsingError,
+    transaction_parser::parser_execute_insufficient_gas::ParserExecuteInsufficientGas,
+};
 use async_trait::async_trait;
 use relayer_base::gmp_api::gmp_types::Event;
 use relayer_base::price_view::PriceViewTrait;
@@ -141,21 +144,6 @@ impl<PV: PriceViewTrait> TransactionParser<PV> {
         gas_credit_map: &mut HashMap<MessageMatchingKey, Box<dyn Parser + Send + Sync>>,
         chain_name: String,
     ) -> Result<(), TransactionParsingError> {
-        // let mut parser = ParserExecuteInsufficientGas::new(
-        //     transaction.clone(),
-        //     self.gateway_address.clone(),
-        //     chain_name.clone(),
-        // )
-        // .await?;
-        // if parser.is_match().await? {
-        //     info!(
-        //         "ParserExecuteInsufficientGas matched, transaction_id={}",
-        //         transaction.signature
-        //     );
-        //     parser.parse().await?;
-        //     parsers.push(Box::new(parser));
-        // }
-
         let mut index = 0;
 
         for group in transaction.ixs.iter() {
@@ -229,6 +217,19 @@ impl<PV: PriceViewTrait> TransactionParser<PV> {
                     if parser.is_match().await? {
                         info!(
                             "ParserMessageExecuted matched, transaction_id={}",
+                            transaction.signature
+                        );
+                        parser.parse().await?;
+                        parsers.push(Box::new(parser));
+                    }
+                    let mut parser = ParserExecuteInsufficientGas::new(
+                        transaction.signature.to_string(),
+                        ci.clone(),
+                    )
+                    .await?;
+                    if parser.is_match().await? {
+                        info!(
+                            "ParserExecuteInsufficientGas matched, transaction_id={}",
                             transaction.signature
                         );
                         parser.parse().await?;
