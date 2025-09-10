@@ -143,7 +143,7 @@ impl Parser for ParserCallContract {
         Ok(Event::Call {
             common: CommonEventFields {
                 r#type: "CALL".to_owned(),
-                event_id: self.signature.clone(),
+                event_id: format!("{}-call", self.signature.clone()),
                 meta: Some(EventMetadata {
                     tx_id: Some(self.signature.clone()),
                     from_address: None,
@@ -166,8 +166,12 @@ impl Parser for ParserCallContract {
     }
 
     async fn message_id(&self) -> Result<Option<String>, TransactionParsingError> {
-        Ok(Some(signature_to_message_id(&self.signature).map_err(
-            |e| TransactionParsingError::Message(e.to_string()),
-        )?))
+        // todo : find the correct log index
+        let log_index = "dummy value";
+        if let Some(parsed) = self.parsed.clone() {
+            Ok(Some(format!("{:?}-{}", self.signature, log_index)))
+        } else {
+            Ok(None)
+        }
     }
 }

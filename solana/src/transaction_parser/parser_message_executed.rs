@@ -4,6 +4,7 @@ use crate::transaction_parser::message_matching_key::MessageMatchingKey;
 use crate::transaction_parser::parser::{Parser, ParserConfig};
 use async_trait::async_trait;
 use borsh::BorshDeserialize;
+use bs58::encode;
 use relayer_base::gmp_api::gmp_types::{
     Amount, CommonEventFields, Event, EventMetadata, MessageExecutedEventMetadata,
     MessageExecutionStatus,
@@ -122,7 +123,7 @@ impl Parser for ParserMessageExecuted {
                         timestamp: chrono::Utc::now()
                             .to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
                     },
-                    command_id: None,
+                    command_id: Some(encode(parsed.command_id).into_string()),
                     child_message_ids: None,
                     revert_reason: None,
                 }),
@@ -130,6 +131,7 @@ impl Parser for ParserMessageExecuted {
             message_id: parsed.message_id.clone(),
             source_chain: parsed.source_chain.clone(),
             status: MessageExecutionStatus::SUCCESSFUL,
+            // figure out how to fill this?
             cost: Amount {
                 token_id: None,
                 amount: "0".to_string(),

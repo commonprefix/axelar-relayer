@@ -12,7 +12,7 @@ use tracing::{debug, warn};
 #[derive(BorshDeserialize, Clone, Debug)]
 pub struct NativeGasPaidForContractCallEvent {
     /// The Gas service config PDA
-    pub config_pda: Pubkey,
+    pub _config_pda: Pubkey,
     /// Destination chain on the Axelar network
     pub destination_chain: String,
     /// Destination address on the Axelar network
@@ -22,7 +22,7 @@ pub struct NativeGasPaidForContractCallEvent {
     /// The refund address
     pub refund_address: Pubkey,
     /// Extra parameters to be passed
-    pub params: Vec<u8>,
+    pub _params: Vec<u8>,
     /// The amount of SOL to send
     pub gas_fee_amount: u64,
 }

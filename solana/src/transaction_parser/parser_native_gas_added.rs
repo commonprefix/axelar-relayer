@@ -139,11 +139,7 @@ impl Parser for ParserNativeGasAdded {
 
     async fn message_id(&self) -> Result<Option<String>, TransactionParsingError> {
         if let Some(parsed) = self.parsed.clone() {
-            Ok(Some(format!(
-                "0x{}-{}",
-                hex::encode(parsed.tx_hash),
-                parsed.log_index
-            )))
+            Ok(Some(format!("{:?}-{}", parsed.tx_hash, parsed.log_index)))
         } else {
             Ok(None)
         }

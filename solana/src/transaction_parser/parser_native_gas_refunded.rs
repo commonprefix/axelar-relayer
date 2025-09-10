@@ -121,8 +121,7 @@ impl Parser for ParserNativeGasRefunded {
         Ok(Event::GasRefunded {
             common: CommonEventFields {
                 r#type: "GAS_REFUNDED".to_owned(),
-                // Use the outer transaction signature as event id for consistency
-                event_id: self.signature.clone(),
+                event_id: format!("{}-refund", self.signature.clone()),
                 meta: None,
             },
             message_id,
@@ -140,11 +139,7 @@ impl Parser for ParserNativeGasRefunded {
 
     async fn message_id(&self) -> Result<Option<String>, TransactionParsingError> {
         if let Some(parsed) = self.parsed.clone() {
-            Ok(Some(format!(
-                "0x{}-{}",
-                hex::encode(parsed.tx_hash),
-                parsed.log_index
-            )))
+            Ok(Some(format!("{:?}-{}", parsed.tx_hash, parsed.log_index)))
         } else {
             Ok(None)
         }
