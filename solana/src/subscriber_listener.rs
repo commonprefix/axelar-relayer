@@ -212,22 +212,6 @@ impl<STR: SolanaStreamClientTrait, SM: SolanaTransactionModel> SolanaListener<ST
         cancellation_token: CancellationToken,
         tracker: &TaskTracker,
     ) {
-        // Create a single RPC client and reuse it across spawned tasks to leverage
-        // the underlying HTTP connection pooling, instead of creating a client per request.
-        let solana_rpc_client = match SolanaRpcClient::new(
-            &solana_config.solana_poll_rpc,
-            solana_config.solana_commitment,
-            3,
-        ) {
-            Ok(client) => Arc::new(client),
-            Err(e) => {
-                error!(
-                    "Error creating solana rpc client for {}: {:?}",
-                    stream_name, e
-                );
-                return;
-            }
-        };
         loop {
             info!("Waiting for messages from {}...", stream_name);
             // If the stream has not received any messages in 30 seconds, re-establish the connection to avoid silent failures
@@ -247,13 +231,27 @@ impl<STR: SolanaStreamClientTrait, SM: SolanaTransactionModel> SolanaListener<ST
                                 }
                             };
 
+                            let solana_rpc_client = match SolanaRpcClient::new(
+                                &solana_config.solana_poll_rpc,
+                                solana_config.solana_commitment,
+                                3,
+                            ) {
+                                Ok(solana_rpc_client) => solana_rpc_client,
+                                Err(e) => {
+                                    error!(
+                                        "Error creating solana rpc client for {}: {:?}",
+                                        stream_name, e
+                                    );
+                                    break;
+                                }
+                            };
+
                             let transaction_model_clone = Arc::clone(transaction_model);
                             let queue_clone = Arc::clone(queue);
                             let stream_name_clone = stream_name.to_string();
-                            let rpc_clone = Arc::clone(&solana_rpc_client);
 
                             tracker.spawn(async move {
-                                let tx = match rpc_clone
+                                let tx = match solana_rpc_client
                                 .get_transaction_by_signature(signature)
                                 .await
                             {
