@@ -128,3 +128,81 @@ services:
       -c max_connections=300
       -c shared_buffers=512MB
 
+  grafana:
+    image: grafana/grafana:latest
+    container_name: relayer_grafana
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana_data:/var/lib/grafana
+
+  jaeger:
+    image: cr.jaegertracing.io/jaegertracing/jaeger:2.9.0
+    container_name: relayer_jaeger
+    restart: always
+    ports:
+      - "16686:16686"  # Jaeger UI
+      - "4317:4317"    # OTLP gRPC
+      - "4318:4318"    # OTLP HTTP
+    command:
+      - "--config=/etc/jaeger/config.yaml"
+      - "--set=receivers.otlp.protocols.grpc.endpoint=0.0.0.0:4317"
+      - "--set=receivers.otlp.protocols.http.endpoint=0.0.0.0:4318"
+      - "--set=extensions.jaeger_query.http.endpoint=0.0.0.0:16686"
+    volumes:
+      - ./deploy/config/jaeger.yaml:/etc/jaeger/config.yaml:ro
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: relayer_prometheus
+    restart: always
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./deploy/config/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.enable-lifecycle"
+
+  opensearch:
+    image: opensearchproject/opensearch:3.2.0
+    container_name: relayer_opensearch
+    environment:
+      - discovery.type=single-node
+      - bootstrap.memory_lock=true
+      - DISABLE_SECURITY_PLUGIN=true # Only for development!
+      - OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    ports:
+      - "9200:9200"
+      - "9600:9600"
+    volumes:
+      - opensearch_data:/usr/share/opensearch/data
+
+  opensearch-dashboards:
+    image: opensearchproject/opensearch-dashboards:3.2.0
+    container_name: relayer_osd
+    environment:
+      - OPENSEARCH_HOSTS=http://opensearch:9200
+      - DISABLE_SECURITY_DASHBOARDS_PLUGIN=true
+    depends_on:
+      - opensearch
+    ports:
+      - "5601:5601"
+
+volumes:
+  grafana_data:
+  opensearch_data:

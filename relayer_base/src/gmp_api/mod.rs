@@ -1,5 +1,7 @@
 pub mod gmp_api_db_audit_decorator;
 pub mod gmp_types;
+pub mod utils;
+
 pub use gmp_api_db_audit_decorator::construct_gmp_api;
 pub use gmp_api_db_audit_decorator::GmpApiDbAuditDecorator;
 
@@ -17,13 +19,13 @@ use std::{
 use tracing::{debug, info, warn};
 use xrpl_amplifier_types::msg::XRPLMessage;
 
-use reqwest::Identity;
-
 use crate::{config::Config, error::GmpApiError, utils::parse_task};
 use gmp_types::{
     Amount, BroadcastRequest, CannotExecuteMessageReason, CommonEventFields, Event,
     PostEventResponse, PostEventResult, QueryRequest, StorePayloadResult, Task,
 };
+use reqwest::Identity;
+use reqwest_tracing::TracingMiddleware;
 
 const MAX_BROADCAST_WAIT_TIME_SECONDS: u32 = 60; // 60 seconds
 const BROADCAST_POLL_INTERVAL_SECONDS: u32 = 2; // 2 seconds
@@ -87,6 +89,7 @@ impl GmpApi {
                 .map_err(|e| GmpApiError::ConnectionFailed(e.to_string()))?,
         )
         .with(RetryTransientMiddleware::new_with_policy(retry_policy))
+        .with(TracingMiddleware::default())
         .build();
 
         Ok(Self {
@@ -96,6 +99,7 @@ impl GmpApi {
         })
     }
 
+    #[tracing::instrument]
     async fn request_bytes_if_success(
         request: reqwest_middleware::RequestBuilder,
     ) -> Result<Vec<u8>, GmpApiError> {
@@ -144,6 +148,7 @@ impl GmpApi {
         }
     }
 
+    #[tracing::instrument]
     async fn request_json<T: DeserializeOwned>(
         request: reqwest_middleware::RequestBuilder,
     ) -> Result<T, GmpApiError> {
@@ -174,6 +179,7 @@ impl GmpApiTrait for GmpApi {
         &self.chain
     }
 
+    #[tracing::instrument(skip(self))]
     async fn get_tasks_action(&self, after: Option<String>) -> Result<Vec<Task>, GmpApiError> {
         let request_url = format!("{}/chains/{}/tasks", self.rpc_url, self.chain);
         let mut request = self.client.get(&request_url);
@@ -201,6 +207,8 @@ impl GmpApiTrait for GmpApi {
             })
             .collect::<Vec<_>>())
     }
+
+    #[tracing::instrument(skip(self))]
     async fn post_events(&self, events: Vec<Event>) -> Result<Vec<PostEventResult>, GmpApiError> {
         let mut map = HashMap::new();
         map.insert("events", events);
@@ -208,6 +216,7 @@ impl GmpApiTrait for GmpApi {
         debug!("Posting events: {:?}", map);
 
         let url = format!("{}/chains/{}/events", self.rpc_url, self.chain);
+
         let request = self
             .client
             .post(&url)
@@ -220,6 +229,8 @@ impl GmpApiTrait for GmpApi {
         info!("Response from POST: {:?}", response);
         Ok(response.results)
     }
+
+    #[tracing::instrument(skip(self))]
     async fn post_broadcast(
         &self,
         contract_address: String,
@@ -382,6 +393,8 @@ impl GmpApiTrait for GmpApi {
 
         GmpApi::request_text_if_success(request).await
     }
+
+    #[tracing::instrument(skip(self))]
     async fn post_payload(&self, payload: &[u8]) -> Result<String, GmpApiError> {
         let url = format!("{}/payloads", self.rpc_url);
         let request = self
@@ -393,6 +406,8 @@ impl GmpApiTrait for GmpApi {
         let response: StorePayloadResult = GmpApi::request_json(request).await?;
         Ok(response.keccak256.trim_start_matches("0x").to_string())
     }
+
+    #[tracing::instrument(skip(self))]
     async fn get_payload(&self, hash: &str) -> Result<String, GmpApiError> {
         let url = format!("{}/payloads/0x{}", self.rpc_url, hash.to_lowercase());
         let request = self.client.get(&url);

@@ -2,7 +2,8 @@ use crate::queue::{Queue, QueueItem};
 use futures::Stream;
 use serde::{Deserialize, Serialize};
 use std::{future::Future, pin::Pin, sync::Arc};
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, info_span, Instrument};
+use tracing_opentelemetry::OpenTelemetrySpanExt;
 
 pub trait TransactionListener {
     type Transaction;
@@ -28,6 +29,10 @@ pub trait TransactionPoller {
     type Account;
 
     fn make_queue_item(&mut self, tx: Self::Transaction) -> ChainTransaction;
+
+    fn transaction_id(&self, tx: &Self::Transaction) -> Option<String>;
+
+    fn account_id(&self, account: &Self::Account) -> Option<String>;
 
     fn poll_account(
         &mut self,
@@ -58,16 +63,28 @@ where
         Self { transaction_poller }
     }
 
-    async fn work(&mut self, account: TP::Account, queue: Arc<Queue>) {
-        // no match, just call poll_account
-        let res = self.transaction_poller.poll_account(account).await;
+    async fn work(&mut self, account: TP::Account, queue: Arc<Queue>)
+    where
+        <TP as TransactionPoller>::Transaction: 'static,
+        <TP as TransactionPoller>::Account: 'static,
+    {
+        let res = self.transaction_poller.poll_account(account.clone()).await;
         match res {
             Ok(txs) => {
                 for tx in txs {
+                    let span = info_span!("chain_transaction");
+                    if let Some(s) = self.transaction_poller.account_id(&account) {
+                        span.set_attribute("chain_account_id", s);
+                    }
+                    if let Some(s) = self.transaction_poller.transaction_id(&tx) {
+                        span.set_attribute("chain_transaction_id", s);
+                    }
+
                     let chain_transaction = self.transaction_poller.make_queue_item(tx);
                     let item = &QueueItem::Transaction(Box::new(chain_transaction.clone()));
                     info!("Publishing transaction: {:?}", chain_transaction);
-                    queue.publish(item.clone()).await;
+
+                    queue.publish(item.clone()).instrument(span).await;
                     debug!("Published tx: {:?}", item);
                 }
             }
@@ -79,20 +96,32 @@ where
         tokio::time::sleep(tokio::time::Duration::from_secs(2)).await
     }
 
-    pub async fn run(&mut self, account: TP::Account, queue: Arc<Queue>) {
+    pub async fn run(&mut self, account: TP::Account, queue: Arc<Queue>)
+    where
+        <TP as TransactionPoller>::Transaction: 'static,
+        <TP as TransactionPoller>::Account: 'static,
+    {
         loop {
             self.work(account.clone(), Arc::clone(&queue)).await;
         }
     }
 
     pub async fn recover_txs(&mut self, txs: Vec<String>, queue: Arc<Queue>) {
+        let span = info_span!("recover_txs");
+
         for tx in txs {
-            let res = self.transaction_poller.poll_tx(tx).await;
+            let res = self
+                .transaction_poller
+                .poll_tx(tx)
+                .instrument(span.clone())
+                .await;
+
             match res {
                 Ok(tx) => {
                     let chain_transaction = self.transaction_poller.make_queue_item(tx);
                     let item = &QueueItem::Transaction(Box::new(chain_transaction.clone()));
                     info!("Publishing transaction: {:?}", chain_transaction);
+
                     queue.publish(item.clone()).await;
                     debug!("Published tx: {:?}", item);
                 }

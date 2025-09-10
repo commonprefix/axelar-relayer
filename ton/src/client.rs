@@ -34,7 +34,7 @@ pub(crate) use ton_types::ton_types::{
 use tonlib_core::TonAddress;
 use tracing::{error, info};
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct TONRpcClient {
     url: String,
     client: ClientWithMiddleware,

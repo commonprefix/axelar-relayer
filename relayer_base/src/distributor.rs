@@ -1,7 +1,7 @@
-use std::sync::Arc;
-use tracing::{info, warn};
-
+use crate::gmp_api::utils::extract_message_ids_from_task;
 use crate::gmp_api::GmpApiTrait;
+use crate::logging::connect_span_to_message_id;
+use crate::logging_ctx_cache::LoggingCtxCache;
 use crate::utils::ThreadSafe;
 use crate::{
     database::Database,
@@ -9,6 +9,8 @@ use crate::{
     gmp_api::gmp_types::TaskKind,
     queue::{Queue, QueueItem},
 };
+use std::sync::Arc;
+use tracing::{info, info_span, warn, Instrument};
 
 #[derive(Clone)]
 pub struct RecoverySettings {
@@ -26,6 +28,7 @@ pub struct Distributor<DB: Database, G: GmpApiTrait + ThreadSafe> {
     refunds_enabled: bool,
     supported_includer_tasks: Vec<TaskKind>,
     supported_ingestor_tasks: Vec<TaskKind>,
+    logging_ctx_cache: Arc<dyn LoggingCtxCache>,
 }
 
 impl<DB, G> Distributor<DB, G>
@@ -33,7 +36,13 @@ where
     DB: Database,
     G: GmpApiTrait + ThreadSafe,
 {
-    pub async fn new(db: DB, context: String, gmp_api: Arc<G>, refunds_enabled: bool) -> Self {
+    pub async fn new(
+        db: DB,
+        context: String,
+        gmp_api: Arc<G>,
+        refunds_enabled: bool,
+        logging_ctx_cache: Arc<dyn LoggingCtxCache>,
+    ) -> Self {
         let last_task_id = db
             .get_latest_task_id(gmp_api.get_chain(), &context)
             .await
@@ -60,6 +69,7 @@ where
                 TaskKind::ReactToRetriablePoll,
                 TaskKind::ReactToExpiredSigningSession,
             ],
+            logging_ctx_cache,
         }
     }
 
@@ -69,14 +79,17 @@ where
         gmp_api: Arc<G>,
         recovery_settings: RecoverySettings,
         refunds_enabled: bool,
+        logging_ctx_cache: Arc<dyn LoggingCtxCache>,
     ) -> Result<Self, DistributorError> {
-        let mut distributor = Self::new(db, context, gmp_api, refunds_enabled).await;
+        let mut distributor =
+            Self::new(db, context, gmp_api, refunds_enabled, logging_ctx_cache).await;
         distributor.recovery_settings = Some(recovery_settings.clone());
         distributor.last_task_id = recovery_settings.from_task_id;
         distributor.store_last_task_id().await?;
         Ok(distributor)
     }
 
+    #[tracing::instrument(skip(self))]
     pub async fn store_last_task_id(&mut self) -> Result<(), DistributorError> {
         if let Some(task_id) = &self.last_task_id {
             self.db
@@ -100,14 +113,20 @@ where
         let tasks = self
             .gmp_api
             .get_tasks_action(self.last_task_id.clone())
+            .instrument(info_span!("get_tasks"))
             .await
             .map_err(|e| DistributorError::GenericError(format!("Failed to get tasks: {}", e)))?;
+
         for task in tasks {
             let task_id = task.id();
+            let span = info_span!("received_task", task = format!("{task:?}"));
+            let message_ids = extract_message_ids_from_task(&task);
+            connect_span_to_message_id(&span, message_ids, &self.logging_ctx_cache).await;
+
             processed_task_ids.push(task_id.clone());
             self.last_task_id = Some(task_id);
 
-            if let Err(err) = self.store_last_task_id().await {
+            if let Err(err) = self.store_last_task_id().instrument(span.clone()).await {
                 warn!("{:?}", err);
             }
             if let Some(tasks_filter) = &tasks_filter {
@@ -132,7 +151,8 @@ where
                 warn!("Dropping unsupported task: {:?}", task);
                 continue;
             };
-            queue.publish(task_item.clone()).await;
+
+            queue.publish(task_item.clone()).instrument(span).await;
         }
         Ok(processed_task_ids)
     }

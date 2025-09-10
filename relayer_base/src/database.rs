@@ -59,6 +59,7 @@ impl PostgresDB {
 }
 
 impl Database for PostgresDB {
+    #[tracing::instrument(skip(self), name = "INSERT subscriber_cursors")]
     async fn store_latest_height(&self, chain: &str, context: &str, height: i64) -> Result<()> {
         let query =
             "INSERT INTO subscriber_cursors (chain, context, height) VALUES ($1, $2, $3) ON CONFLICT (chain, context) DO UPDATE SET height = $3, updated_at = now() RETURNING chain, context, height";
@@ -82,6 +83,7 @@ impl Database for PostgresDB {
         Ok(height)
     }
 
+    #[tracing::instrument(skip(self), name = "INSERT distributor_cursors")]
     async fn store_latest_task_id(&self, chain: &str, context: &str, task_id: &str) -> Result<()> {
         let query = "INSERT INTO distributor_cursors (chain, context, task_id) VALUES ($1, $2, $3) ON CONFLICT (chain, context) DO UPDATE SET task_id = $3, updated_at = now()";
         sqlx::query(query)
@@ -131,6 +133,7 @@ impl Database for PostgresDB {
         Ok(())
     }
 
+    #[tracing::instrument(skip(self), name = "INSERT pair_prices")]
     async fn store_price(&self, pair: &str, price: Decimal) -> Result<()> {
         let query = "INSERT INTO pair_prices (pair, price) VALUES ($1, $2) ON CONFLICT (pair) DO UPDATE SET price = $2, updated_at = now()";
         sqlx::query(query)
@@ -141,6 +144,7 @@ impl Database for PostgresDB {
         Ok(())
     }
 
+    #[tracing::instrument(skip(self), name = "SELECT pair_prices")]
     async fn get_price(&self, pair: &str) -> Result<Option<Decimal>> {
         let query = "SELECT price FROM pair_prices WHERE pair = $1";
         let maybe_row = sqlx::query(query)

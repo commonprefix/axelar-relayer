@@ -1,8 +1,9 @@
 use dotenv::dotenv;
 
 use relayer_base::config::config_from_yaml;
+use relayer_base::logging::setup_logging;
 use relayer_base::redis::connection_manager;
-use relayer_base::utils::{setup_heartbeat, setup_logging};
+use relayer_base::utils::setup_heartbeat;
 use tracing::{debug, error};
 use xrpl::client::{XRPLClient, XRPLClientTrait};
 use xrpl::config::XRPLConfig;
@@ -18,7 +19,7 @@ async fn main() -> anyhow::Result<()> {
     let network = std::env::var("NETWORK").expect("NETWORK must be set");
     let config: XRPLConfig = config_from_yaml(&format!("config.{}.yaml", network))?;
 
-    let _guard = setup_logging(&config.common_config);
+    let (_sentry_guard, _otel_guard) = setup_logging(&config.common_config);
 
     let client = XRPLClient::new(&config.xrpl_rpc, RETRIES as usize)?;
     let account = AccountId::from_address(&config.xrpl_multisig)?;
