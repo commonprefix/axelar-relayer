@@ -179,6 +179,7 @@ impl GmpApiTrait for GmpApi {
         &self.chain
     }
 
+    #[tracing::instrument(skip(self))]
     async fn get_tasks_action(&self, after: Option<String>) -> Result<Vec<Task>, GmpApiError> {
         let request_url = format!("{}/chains/{}/tasks", self.rpc_url, self.chain);
         let mut request = self.client.get(&request_url);

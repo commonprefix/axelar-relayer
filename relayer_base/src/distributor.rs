@@ -113,8 +113,10 @@ where
         let tasks = self
             .gmp_api
             .get_tasks_action(self.last_task_id.clone())
+            .instrument(info_span!("get_tasks"))
             .await
             .map_err(|e| DistributorError::GenericError(format!("Failed to get tasks: {}", e)))?;
+
         for task in tasks {
             let task_id = task.id();
             let span = info_span!("received_task", task = format!("{task:?}"));

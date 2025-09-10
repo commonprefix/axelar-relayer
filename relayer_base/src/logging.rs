@@ -11,19 +11,15 @@ use opentelemetry_sdk::trace::{Sampler, SdkTracerProvider};
 use opentelemetry_sdk::Resource;
 use sentry::ClientInitGuard;
 use sentry_tracing::EventFilter;
-use std::any::Any;
 use std::collections::{BTreeMap, HashMap};
 use std::env;
 use std::sync::Arc;
-use ton_types::ton_types::Trace;
 use tracing::level_filters::LevelFilter;
 use tracing::{debug, Level, Span};
 use tracing_opentelemetry::OpenTelemetrySpanExt;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::{fmt, Layer};
-use xrpl_api::Transaction;
-use xrpl_types::AccountId;
 
 pub fn setup_logging(config: &Config) -> (ClientInitGuard, SdkTracerProvider) {
     let environment = std::env::var("ENVIRONMENT").unwrap_or_else(|_| "development".to_string());
@@ -107,20 +103,6 @@ pub fn setup_logging(config: &Config) -> (ClientInitGuard, SdkTracerProvider) {
     }
 
     (guard, tracer_provider)
-}
-
-pub fn maybe_to_string(val: &dyn Any) -> Option<String> {
-    if let Some(t) = val.downcast_ref::<Trace>() {
-        return Some(t.trace_id.to_string());
-    } else if let Some(t) = val.downcast_ref::<Transaction>() {
-        return t.common().hash.clone();
-    } else if let Some(t) = val.downcast_ref::<AccountId>() {
-        return Some(t.to_address());
-    } else {
-        debug!("Unknown type");
-    }
-
-    None
 }
 
 pub async fn connect_span_to_message_id(

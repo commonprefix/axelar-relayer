@@ -18,6 +18,7 @@ impl<DB: Database> PriceView<DB> {
 
 #[cfg_attr(any(test, feature = "mocks"), mockall::automock)]
 impl<DB: Database> PriceViewTrait for PriceView<DB> {
+    #[tracing::instrument(skip(self))]
     async fn get_price(&self, pair: &str) -> Result<Decimal, anyhow::Error> {
         let (symbol_a, symbol_b) = pair
             .split_once('/')

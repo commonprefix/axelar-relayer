@@ -87,6 +87,8 @@ where
             models,
         }
     }
+
+    #[tracing::instrument(skip(self))]
     pub async fn handle_payment(
         &self,
         payment: PaymentTransaction,
@@ -112,6 +114,7 @@ where
         }
     }
 
+    #[tracing::instrument(skip(self))]
     pub async fn handle_gmp_message(
         &self,
         xrpl_message_with_payload: &WithPayload<XRPLMessage>,
@@ -195,6 +198,7 @@ where
         Ok(())
     }
 
+    #[tracing::instrument(skip(self))]
     pub async fn handle_add_gas_message(
         &self,
         xrpl_message_with_payload: &WithPayload<XRPLMessage>,
@@ -213,6 +217,7 @@ where
         Ok(vec![gas_credit_event])
     }
 
+    #[tracing::instrument(skip(self))]
     pub async fn handle_add_reserves_message(
         &self,
         xrpl_message_with_payload: &WithPayload<XRPLMessage>,
@@ -564,6 +569,7 @@ where
         })
     }
 
+    #[tracing::instrument(skip(self))]
     async fn gas_credit_event_from_payment(
         &self,
         xrpl_message_with_payload: &WithPayload<XRPLMessage>,

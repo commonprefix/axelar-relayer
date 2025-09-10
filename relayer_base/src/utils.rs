@@ -238,6 +238,7 @@ pub fn setup_heartbeat(service: String, redis_conn: ConnectionManager) {
     });
 }
 
+#[tracing::instrument(skip(config, price_view))]
 pub async fn convert_token_amount_to_drops<T>(
     config: &Config,
     amount: Decimal,

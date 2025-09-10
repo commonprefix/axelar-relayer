@@ -52,6 +52,7 @@ impl<DB: Database, TM: AtomicUpsert, CL: RestClient> TONSubscriber<DB, TM, CL> {
         })
     }
 
+    #[tracing::instrument(skip(self))]
     async fn store_latest_height(&mut self) -> Result<(), SubscriberError> {
         self.db
             .store_latest_height(&self.chain_name, &self.context, self.latest_lt)
@@ -68,6 +69,14 @@ impl<DB: Database, TM: AtomicUpsert, CL: RestClient> TransactionPoller
 
     fn make_queue_item(&mut self, tx: Self::Transaction) -> ChainTransaction {
         ChainTransaction::TON(Box::new(tx))
+    }
+
+    fn transaction_id(&self, tx: &Self::Transaction) -> Option<String> {
+        Some(tx.trace_id.to_string())
+    }
+
+    fn account_id(&self, account: &Self::Account) -> Option<String> {
+        Some(account.to_hex())
     }
 
     #[tracing::instrument(skip(self))]
@@ -263,5 +272,49 @@ mod tests {
         assert_eq!(result.len(), 2);
         assert!(result.iter().any(|t| t.trace_id == "trace_1"));
         assert!(result.iter().any(|t| t.trace_id == "trace_3"));
+    }
+
+    #[test]
+    fn test_transaction_id() {
+        let mock_db = MockDatabase::new();
+        let mock_client = MockRestClient::new();
+        let mock_upsert = MockAtomicUpsert::new();
+
+        let subscriber = TONSubscriber {
+            client: mock_client,
+            latest_lt: 0,
+            db: mock_db,
+            context: "test-context".to_string(),
+            chain_name: "test-chain".to_string(),
+            ton_trace_model: mock_upsert,
+        };
+
+        let trace = sample_trace("test-trace-id", 1, 2);
+        let result = subscriber.transaction_id(&trace);
+
+        assert_eq!(result, Some("test-trace-id".to_string()));
+    }
+
+    #[test]
+    fn test_account_id() {
+        let mock_db = MockDatabase::new();
+        let mock_client = MockRestClient::new();
+        let mock_upsert = MockAtomicUpsert::new();
+
+        let subscriber = TONSubscriber {
+            client: mock_client,
+            latest_lt: 0,
+            db: mock_db,
+            context: "test-context".to_string(),
+            chain_name: "test-chain".to_string(),
+            ton_trace_model: mock_upsert,
+        };
+
+        let address =
+            TonAddress::from_base64_url("EQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM9c")
+                .unwrap();
+        let result = subscriber.account_id(&address);
+
+        assert_eq!(result, Some(address.to_hex()));
     }
 }
