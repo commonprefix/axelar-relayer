@@ -10,7 +10,8 @@ use solana::{
     client::{SolanaRpcClient, SolanaStreamClient},
     config::SolanaConfig,
     models::{solana_subscriber_cursor::PostgresDB, solana_transaction::PgSolanaTransactionModel},
-    subscriber::{SolanaListener, SolanaPoller},
+    subscriber_listener::SolanaListener,
+    subscriber_poller::SolanaPoller,
 };
 use solana_sdk::pubkey::Pubkey;
 use sqlx::PgPool;
