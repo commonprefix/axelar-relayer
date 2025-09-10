@@ -91,6 +91,7 @@ pub async fn upsert_and_publish<SM: SolanaTransactionModel>(
             signature: tx.signature.to_string(),
             slot: tx.slot as i64,
             logs: tx.logs.clone(),
+            events: Vec::<String>::new(),
             retries: 3,
             created_at: None,
         })

@@ -1,3 +1,5 @@
+use std::future::Future;
+
 use anyhow::Result;
 use async_trait::async_trait;
 use relayer_base::utils::ThreadSafe;
@@ -16,6 +18,7 @@ pub struct SolanaTransactionData {
     pub signature: String,
     pub slot: i64,
     pub logs: Vec<String>,
+    pub events: Vec<String>,
     pub retries: i32,
     pub created_at: Option<chrono::DateTime<chrono::Utc>>,
 }
@@ -39,14 +42,14 @@ impl PgSolanaTransactionModel {
     }
 }
 
-// #[cfg_attr(test, mockall::automock)]
-// pub trait UpdateEvents {
-//     fn update_events(
-//         &self,
-//         signature: String,
-//         event: Vec<EventSummary>,
-//     ) -> impl Future<Output = anyhow::Result<()>> + Send;
-// }
+#[cfg_attr(test, mockall::automock)]
+pub trait UpdateEvents {
+    fn update_events(
+        &self,
+        signature: String,
+        events: Vec<EventSummary>,
+    ) -> impl Future<Output = anyhow::Result<()>> + Send;
+}
 
 #[async_trait]
 impl SolanaTransactionModel for PgSolanaTransactionModel {
@@ -62,8 +65,8 @@ impl SolanaTransactionModel for PgSolanaTransactionModel {
     async fn upsert(&self, tx: SolanaTransactionData) -> Result<bool> {
         let query = format!(
             "INSERT INTO {} \
-             (signature, slot, logs, retries, created_at) \
-             VALUES ($1, $2, $3, $4, NOW()) \
+             (signature, slot, logs, events, retries, created_at) \
+             VALUES ($1, $2, $3, $4, $5, NOW()) \
              ON CONFLICT (signature) DO NOTHING \
             ",
             PG_TABLE_NAME
@@ -73,6 +76,7 @@ impl SolanaTransactionModel for PgSolanaTransactionModel {
             .bind(tx.signature)
             .bind(tx.slot)
             .bind(tx.logs)
+            .bind(tx.events)
             .bind(tx.retries)
             .execute(&self.pool)
             .await?;
@@ -93,23 +97,23 @@ impl SolanaTransactionModel for PgSolanaTransactionModel {
     }
 }
 
-// impl UpdateEvents for PgSolanaTransactionModel {
-//     async fn update_events(
-//         &self,
-//         signature: String,
-//         events: Vec<EventSummary>,
-//     ) -> anyhow::Result<()> {
-//         let query = format!(
-//             "UPDATE {} SET events = $1, updated_at = NOW() WHERE signature = $2",
-//             PG_TABLE_NAME
-//         );
+impl UpdateEvents for PgSolanaTransactionModel {
+    async fn update_events(&self, signature: String, events: Vec<EventSummary>) -> Result<()> {
+        let query = format!(
+            "UPDATE {} SET events = $1 WHERE signature = $2",
+            PG_TABLE_NAME
+        );
+        sqlx::query(&query)
+            .bind(
+                events
+                    .into_iter()
+                    .map(|e| e.event_id)
+                    .collect::<Vec<String>>(),
+            )
+            .bind(signature)
+            .execute(&self.pool)
+            .await?;
 
-//         sqlx::query(&query)
-//             .bind(Json(events))
-//             .bind(signature)
-//             .execute(&self.pool)
-//             .await?;
-
-//         Ok(())
-//     }
-// }
+        Ok(())
+    }
+}

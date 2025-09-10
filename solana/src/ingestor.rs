@@ -10,15 +10,15 @@ use relayer_base::utils::ThreadSafe;
 use tracing::{info, warn};
 
 use crate::parser::TransactionParserTrait;
-use crate::solana_transaction::EventSummary;
+use crate::solana_transaction::{EventSummary, UpdateEvents};
 
 #[derive(Clone)]
-pub struct SolanaIngestor<TP: TransactionParserTrait + Sync, STM: ThreadSafe> {
+pub struct SolanaIngestor<TP: TransactionParserTrait + Sync, STM: UpdateEvents + ThreadSafe> {
     solana_parser: TP,
     solana_transaction_model: STM,
 }
 
-impl<TP: TransactionParserTrait + Sync, STM: ThreadSafe> SolanaIngestor<TP, STM> {
+impl<TP: TransactionParserTrait + Sync, STM: UpdateEvents + ThreadSafe> SolanaIngestor<TP, STM> {
     pub fn new(solana_parser: TP, solana_transaction_model: STM) -> Self {
         Self {
             solana_parser,
@@ -31,7 +31,7 @@ impl<TP: TransactionParserTrait + Sync, STM: ThreadSafe> SolanaIngestor<TP, STM>
 impl<TP, STM> IngestorTrait for SolanaIngestor<TP, STM>
 where
     TP: TransactionParserTrait + ThreadSafe,
-    STM: ThreadSafe,
+    STM: UpdateEvents + ThreadSafe,
 {
     async fn handle_verify(&self, task: VerifyTask) -> Result<(), IngestorError> {
         warn!("handle_verify: {:?}", task);
@@ -52,55 +52,17 @@ where
             )));
         };
 
-        let tx = *transaction;
-        let signature = tx.signature.clone();
+        let events = self
+            .solana_parser
+            .parse_transaction(*transaction.clone())
+            .await
+            .map_err(|e| IngestorError::GenericError(e.to_string()))?;
 
-        let events = match self.solana_parser.parse_transaction(tx.clone()).await {
-            Ok(events) => {
-                info!(
-                    "Parsed {} event(s) for signature {}",
-                    events.len(),
-                    signature
-                );
-                for (idx, ev) in events.iter().enumerate() {
-                    info!("event[{}]={:?}", idx, ev);
-                }
-                events
-            }
-            Err(e) => {
-                // Temporary fallback: parse and print a simple event directly from logs
-                warn!(
-                    "Structured Solana parser not implemented or failed: {}. Falling back to log-based print.",
-                    e.to_string()
-                );
-                // let maybe_instr = tx.logs.iter().find(|l| l.contains("Instruction:")).cloned();
-                // let maybe_data = tx
-                //     .logs
-                //     .iter()
-                //     .find(|l| l.starts_with("Program data: "))
-                //     .cloned();
-
-                // info!(
-                //     "Solana received event signature={} instr={:?} data={:?}",
-                //     signature, maybe_instr, maybe_data
-                // );
-                vec![]
-            }
-        };
-
-        // let events = self
-        //     .solana_parser
-        //     .parse_transaction(*transaction)
-        //     .await
-        //     .map_err(|e| IngestorError::GenericError(e.to_string()))?;
-
-        // Map events to EventModels
         let event_models: Vec<EventModel> = events
             .iter()
             .map(|event| EventModel::from_event(event.clone()))
             .collect();
 
-        // Create EventSummaries from EventModels
         let event_summaries: Vec<EventSummary> = event_models
             .iter()
             .map(|model| EventSummary {
@@ -112,15 +74,14 @@ where
 
         info!("Created {} event summaries", event_summaries.len());
 
-        // Update the trace with the event summaries
-        // if !event_summaries.is_empty() {
-        //     self.solana_transaction_model
-        //         .update_events(signature.to_string(), event_summaries)
-        //         .await
-        //         .map_err(|e| IngestorError::GenericError(e.to_string()))?;
+        if !event_summaries.is_empty() {
+            self.solana_transaction_model
+                .update_events(transaction.clone().signature.to_string(), event_summaries)
+                .await
+                .map_err(|e| IngestorError::GenericError(e.to_string()))?;
 
-        //     info!("Updated transaction with event summaries");
-        // }
+            info!("Updated transaction with event summaries");
+        }
 
         Ok(events)
     }
