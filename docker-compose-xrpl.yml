@@ -206,3 +206,4 @@ services:
 volumes:
   grafana_data:
   opensearch_data:
+  prometheus_data:
