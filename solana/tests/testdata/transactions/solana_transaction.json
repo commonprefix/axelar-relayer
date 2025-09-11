@@ -1,0 +1,46 @@
+[{
+    "signature": [13, 146, 133, 135, 22, 161, 247, 83, 30, 136, 203, 15, 188, 23, 239, 196, 10, 144, 112, 176, 21, 102, 85, 185, 180, 186, 52, 99, 159, 235, 208, 16, 199, 133, 34, 135, 175, 241, 214, 163, 19, 215, 71, 100, 19, 209, 117, 32, 171, 132, 220, 207, 185, 110, 237, 62, 187, 9, 143, 40, 213, 85, 104, 13],
+    "timestamp": null,
+    "logs": [
+      "Program 7RdSDLUUy37Wqc6s9ebgo52AwhGiw4XbJWZJgidQ1fJc invoke [1]",
+      "Program log: Instruction: PayNativeForContractCall",
+      "Program 7RdSDLUUy37Wqc6s9ebgo52AwhGiw4XbJWZJgidQ1fJc invoke [2]",
+      "Program 7RdSDLUUy37Wqc6s9ebgo52AwhGiw4XbJWZJgidQ1fJc consumed 2093 of 392610 compute units",
+      "Program 7RdSDLUUy37Wqc6s9ebgo52AwhGiw4XbJWZJgidQ1fJc success",
+      "Program 7RdSDLUUy37Wqc6s9ebgo52AwhGiw4XbJWZJgidQ1fJc consumed 9725 of 400000 compute units",
+      "Program 7RdSDLUUy37Wqc6s9ebgo52AwhGiw4XbJWZJgidQ1fJc success",
+      "Program 7RdSDLUUy37Wqc6s9ebgo52AwhGiw4XbJWZJgidQ1fJc invoke [1]",
+      "Program log: Instruction: CallContract",
+      "Program 7RdSDLUUy37Wqc6s9ebgo52AwhGiw4XbJWZJgidQ1fJc invoke [2]",
+      "Program 7RdSDLUUy37Wqc6s9ebgo52AwhGiw4XbJWZJgidQ1fJc consumed 2093 of 383576 compute units",
+      "Program 7RdSDLUUy37Wqc6s9ebgo52AwhGiw4XbJWZJgidQ1fJc success",
+      "Program 7RdSDLUUy37Wqc6s9ebgo52AwhGiw4XbJWZJgidQ1fJc consumed 8972 of 390275 compute units",
+      "Program 7RdSDLUUy37Wqc6s9ebgo52AwhGiw4XbJWZJgidQ1fJc success"
+    ],
+    "slot": 8805,
+    "ixs": [
+      {
+        "index": 0,
+        "instructions": [
+          {
+            "programIdIndex": 4,
+            "accounts": [3],
+            "data": "9K93pGwFHUmnecEp6h1ZtRK5LYv5MLSbJPQ1ZeViVDgJwV3DNyhs5fodWcDTrKdxwhsnwCWyM6DXeM4ibUHv46fRnc2RSdcSDJDDs683XMDwWJbmizwqGyjuhMmcpZDinAYtKLWJBpPT9Jo1hhzwsKukdYueRZGGodwmQQg9Rz3gKVEtDwNmTB37faWqXVF7V33ZqvsYP7jgkMEfvfWitnMYuecSPJZ55MiQGc22L6q4kEZJMqfcZD8bH",
+            "stackHeight": 2
+          }
+        ]
+      },
+      {
+        "index": 1,
+        "instructions": [
+          {
+            "programIdIndex": 4,
+            "accounts": [3],
+            "data": "38Wh5wnCBXyAJcGfTMPWzLsq74KnxT3dghZG9hzjEhBhXqLANjSwzDHJjgHk6wRABamamjdQZEPjekN9tvUMxNGw3KPHMUjBNaB9tLkupbodVAU1DfCWq894sypJs7zy99syhB1No6sVB2Fw8RRgxUnTyq393kdwWSUPFpkjE1xRRbnmp1yKTiLj6e43yYhVecee5EhuMPw5kdJ",
+            "stackHeight": 2
+          }
+        ]
+      }
+    ],
+    "cost_units": 18697
+  }]
