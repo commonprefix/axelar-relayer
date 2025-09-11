@@ -203,7 +203,10 @@ mod tests {
 
     #[test]
     fn test_from_encoded_confirmed_transaction_with_status_meta() {
-        let tx_with_meta = encoded_confirmed_tx_with_meta_fixtures().into_iter().next().unwrap();
+        let tx_with_meta = encoded_confirmed_tx_with_meta_fixtures()
+            .into_iter()
+            .next()
+            .unwrap();
         let transaction = SolanaTransaction::from_encoded_confirmed_transaction_with_status_meta(
             Signature::from_str("3Dj8s38U1GNRf1kxH3BB5iJbN2RwNXeADZXP4NHXjbxErjsRoBHbGriG2qJMbidi5sDw5Jorjfows37iNHLctbb2").unwrap(),
             tx_with_meta,
@@ -233,7 +236,6 @@ mod tests {
                             }
                         ]
                     }"#).unwrap()],
-                        
             cost_units: 9725,
         };
         assert_eq!(transaction, expected_tx);
