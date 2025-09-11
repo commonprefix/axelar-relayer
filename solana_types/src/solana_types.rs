@@ -7,14 +7,14 @@ use solana_transaction_status_client_types::{
     EncodedConfirmedTransactionWithStatusMeta, UiInnerInstructions,
 };
 use std::str::FromStr;
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 pub struct SolanaTransaction {
     pub signature: Signature,
     pub timestamp: Option<DateTime<Utc>>,
     pub logs: Vec<String>,
     pub slot: i64,
     pub ixs: Vec<UiInnerInstructions>,
-    pub cost_units: Option<u64>,
+    pub cost_units: u64,
 }
 
 impl SolanaTransaction {
@@ -43,7 +43,7 @@ impl SolanaTransaction {
 
         let timestamp = Some(Utc::now());
         let ixs = meta.inner_instructions.clone();
-        let cost_units = meta.cost_units;
+        let cost_units = meta.cost_units.unwrap_or(0);
 
         Ok(Self {
             signature,
@@ -77,7 +77,7 @@ impl SolanaTransaction {
                     .ok_or_else(|| anyhow!("No inner instructions found"))?
                     .clone()
             },
-            cost_units: meta.compute_units_consumed.clone().into(),
+            cost_units: meta.compute_units_consumed.clone().unwrap_or(0),
         })
     }
 }
