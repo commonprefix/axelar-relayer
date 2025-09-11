@@ -47,6 +47,7 @@ pub struct Queue {
     retry_queue: Arc<RwLock<lapin::Queue>>,
     buffer_sender: Arc<Sender<QueueItemWithSpan>>,
     buffer_processor: Arc<RwLock<Option<BufferProcessor>>>,
+    num_workers: u16,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -137,8 +138,8 @@ impl BufferProcessor {
 }
 
 impl Queue {
-    pub async fn new(url: &str, name: &str) -> Arc<Self> {
-        let (_, channel, queue, retry_queue) = Self::connect(url, name).await;
+    pub async fn new(url: &str, name: &str, num_workers: u16) -> Arc<Self> {
+        let (_, channel, queue, retry_queue) = Self::connect(url, name, num_workers).await;
 
         let (buffer_sender, buffer_receiver) = mpsc::channel::<QueueItemWithSpan>(BUFFER_SIZE);
 
@@ -150,6 +151,7 @@ impl Queue {
             retry_queue: Arc::new(RwLock::new(retry_queue)),
             buffer_sender: Arc::new(buffer_sender),
             buffer_processor: Arc::new(RwLock::new(None)),
+            num_workers,
         });
 
         let mut processor = BufferProcessor::new(
@@ -259,6 +261,7 @@ impl Queue {
     async fn setup_rabbitmq(
         connection: &Connection,
         name: &str,
+        num_workers: u16,
     ) -> Result<(Channel, lapin::Queue, lapin::Queue), Box<dyn std::error::Error>> {
         // Create channel
         let channel = connection.create_channel().await?;
@@ -268,7 +271,9 @@ impl Queue {
             .confirm_select(ConfirmSelectOptions { nowait: false })
             .await?;
 
-        channel.basic_qos(1, BasicQosOptions::default()).await?;
+        channel
+            .basic_qos(num_workers, BasicQosOptions::default())
+            .await?;
 
         // Declare DLX
         channel
@@ -357,12 +362,16 @@ impl Queue {
         Ok((channel, queue, retry_queue))
     }
 
-    async fn connect(url: &str, name: &str) -> (Connection, Channel, lapin::Queue, lapin::Queue) {
+    async fn connect(
+        url: &str,
+        name: &str,
+        num_workers: u16,
+    ) -> (Connection, Channel, lapin::Queue, lapin::Queue) {
         loop {
             match Connection::connect(url, ConnectionProperties::default()).await {
                 Ok(connection) => {
                     info!("Connected to RabbitMQ at {}", url);
-                    let setup_result = Queue::setup_rabbitmq(&connection, name).await;
+                    let setup_result = Queue::setup_rabbitmq(&connection, name, num_workers).await;
                     if let Ok((channel, queue, retry_queue)) = setup_result {
                         return (connection, channel, queue, retry_queue);
                     } else {
@@ -383,7 +392,7 @@ impl Queue {
     pub async fn refresh_connection(&self) {
         info!("Reconnecting to RabbitMQ at {}", self.url);
         let (_, new_channel, new_queue, new_retry_queue) =
-            Self::connect(&self.url, &self.name).await;
+            Self::connect(&self.url, &self.name, self.num_workers).await;
 
         let mut channel_lock = self.channel.lock().await;
         *channel_lock = new_channel;

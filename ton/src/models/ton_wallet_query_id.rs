@@ -1,5 +1,5 @@
+use async_trait::async_trait;
 use sqlx::{PgPool, Row};
-use std::future::Future;
 
 const PG_TABLE_NAME: &str = "ton_wallet_query_id";
 
@@ -14,23 +14,25 @@ impl PgTONWalletQueryIdModel {
     }
 }
 
+#[async_trait]
 pub trait TONWalletQueryId {
-    fn get_query_id(&self, address: &str) -> impl Future<Output = anyhow::Result<(i32, i32)>>;
-    fn update_query_id(
+    async fn get_query_id(&self, address: &str) -> anyhow::Result<(i32, i32)>;
+    async fn update_query_id(
         &self,
         address: &str,
         shift: i32,
         bitnumber: i32,
-    ) -> impl Future<Output = anyhow::Result<()>>;
-    fn upsert_query_id(
+    ) -> anyhow::Result<()>;
+    async fn upsert_query_id(
         &self,
         address: &str,
         shift: i32,
         bitnumber: i32,
         timeout: i32,
-    ) -> impl Future<Output = anyhow::Result<()>>;
+    ) -> anyhow::Result<()>;
 }
 
+#[async_trait]
 impl TONWalletQueryId for PgTONWalletQueryIdModel {
     async fn get_query_id(&self, address: &str) -> anyhow::Result<(i32, i32)> {
         let query = format!("SELECT shift, bitnumber FROM {PG_TABLE_NAME} WHERE address = $1 AND expires_at >= CURRENT_TIMESTAMP");

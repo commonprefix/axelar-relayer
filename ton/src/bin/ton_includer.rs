@@ -7,10 +7,12 @@ use relayer_base::{database::PostgresDB, gmp_api, payload_cache::PayloadCache, q
 use sqlx::PgPool;
 use std::sync::Arc;
 use tokio::signal::unix::{signal, SignalKind};
+use tokio_util::sync::CancellationToken;
 use ton::config::TONConfig;
 use ton::high_load_query_id_db_wrapper::HighLoadQueryIdDbWrapper;
 use ton::includer::TONIncluder;
 use ton::ton_wallet_query_id::PgTONWalletQueryIdModel;
+use tracing::log::info;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -20,9 +22,18 @@ async fn main() -> anyhow::Result<()> {
 
     let (_sentry_guard, otel_guard) = setup_logging(&config.common_config);
 
-    let tasks_queue = Queue::new(&config.common_config.queue_address, "includer_tasks").await;
-    let construct_proof_queue =
-        Queue::new(&config.common_config.queue_address, "construct_proof").await;
+    let tasks_queue = Queue::new(
+        &config.common_config.queue_address,
+        "includer_tasks",
+        config.common_config.num_workers,
+    )
+    .await;
+    let construct_proof_queue = Queue::new(
+        &config.common_config.queue_address,
+        "construct_proof",
+        config.common_config.num_workers,
+    )
+    .await;
     let redis_client = redis::Client::open(config.common_config.redis_server.clone())?;
     let redis_conn = connection_manager(redis_client.clone(), None, None, None).await?;
 
@@ -47,16 +58,39 @@ async fn main() -> anyhow::Result<()> {
     let mut sigint = signal(SignalKind::interrupt())?;
     let mut sigterm = signal(SignalKind::terminate())?;
 
-    setup_heartbeat("heartbeat:includer".to_owned(), redis_conn);
+    let token = CancellationToken::new();
+    setup_heartbeat(
+        "heartbeat:includer".to_owned(),
+        redis_conn,
+        Some(token.clone()),
+    );
+    let sigint_cloned_token = token.clone();
+    let sigterm_cloned_token = token.clone();
+    let includer_cloned_token = token.clone();
+
+    let handle = tokio::spawn({
+        let tasks = Arc::clone(&tasks_queue);
+        let token_clone = token.clone();
+        async move { ton_includer.run(tasks, token_clone).await }
+    });
+
+    tokio::pin!(handle);
 
     tokio::select! {
-        _ = sigint.recv()  => {},
-        _ = sigterm.recv() => {},
-        _ = ton_includer.run(Arc::clone(&tasks_queue)) => {},
+        _ = sigint.recv()  => {
+            sigint_cloned_token.cancel();
+        },
+        _ = sigterm.recv() => {
+            sigterm_cloned_token.cancel();
+        },
+        _ = &mut handle => {
+            info!("Includer stopped");
+            includer_cloned_token.cancel();
+        }
     }
-
     tasks_queue.close().await;
     construct_proof_queue.close().await;
+    let _ = handle.await;
 
     otel_guard
         .force_flush()

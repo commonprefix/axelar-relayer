@@ -1,5 +1,5 @@
+use async_trait::async_trait;
 use std::sync::Arc;
-
 use tracing::{debug, error, warn};
 use xrpl_api::{
     ResultCategory, SubmitRequest, SubmitResponse, Transaction, TransactionResult, TxRequest,
@@ -16,6 +16,7 @@ use crate::models::queued_transactions::QueuedTransactionsModel;
 
 use super::client::XRPLClientTrait;
 
+#[derive(Clone)]
 pub struct XRPLBroadcaster<QM: QueuedTransactionsModel, X: XRPLClientTrait> {
     client: Arc<X>,
     queued_tx_model: QM,
@@ -70,7 +71,13 @@ fn log_and_return_error(
     })
 }
 
-impl<QM: QueuedTransactionsModel, X: XRPLClientTrait> Broadcaster for XRPLBroadcaster<QM, X> {
+#[async_trait]
+impl<QM: QueuedTransactionsModel, X: XRPLClientTrait> Broadcaster for XRPLBroadcaster<QM, X>
+where
+    QM: QueuedTransactionsModel + Send + Sync,
+    X: XRPLClientTrait + Send + Sync,
+    Transaction: Send + Sync,
+{
     type Transaction = Transaction;
 
     #[tracing::instrument(skip(self), fields(message_id))]
@@ -232,7 +239,6 @@ mod tests {
     use relayer_base::error::BroadcasterError;
     use relayer_base::includer::{BroadcastResult, Broadcaster};
     use serde_json;
-    use std::future;
     use std::sync::Arc;
     use xrpl_api::{SubmitRequest, Transaction};
     use xrpl_api::{SubmitResponse, TransactionResult};
@@ -310,7 +316,7 @@ mod tests {
             .expect_store_queued_transaction()
             .withf(move |h, a, s| h == tx_hash && a == account && *s == sequence)
             .times(1)
-            .returning(|_, _, _| Box::pin(async { Ok(()) }));
+            .returning(|_, _, _| Ok(()));
 
         let broadcaster = XRPLBroadcaster {
             client: Arc::new(mock_client),
@@ -342,7 +348,7 @@ mod tests {
         mock_client
             .expect_call::<SubmitRequest>()
             .times(1)
-            .returning(move |_| Box::pin(future::ready(Ok(fake_response.clone()))));
+            .returning(move |_| Ok(fake_response.clone()));
 
         // TODO : This is not really the check we want to make.
         // We need to check that handle_queued_tx is called instead
@@ -350,7 +356,7 @@ mod tests {
             .expect_store_queued_transaction()
             .withf(move |h, a, s| h == tx_hash && a == account && *s == sequence)
             .times(1)
-            .returning(|_, _, _| Box::pin(async { Ok(()) }));
+            .returning(|_, _, _| Ok(()));
 
         let broadcaster = XRPLBroadcaster {
             client: Arc::new(mock_client),
@@ -393,7 +399,7 @@ mod tests {
         mock_client
             .expect_call::<SubmitRequest>()
             .times(1)
-            .returning(move |_| Box::pin(future::ready(Ok(fake_response.clone()))));
+            .returning(move |_| Ok(fake_response.clone()));
 
         let broadcaster = XRPLBroadcaster {
             client: Arc::new(mock_client),
@@ -437,7 +443,7 @@ mod tests {
         mock_client
             .expect_call::<SubmitRequest>()
             .times(1)
-            .returning(move |_| Box::pin(future::ready(Ok(fake_response.clone()))));
+            .returning(move |_| Ok(fake_response.clone()));
 
         let broadcaster = XRPLBroadcaster {
             client: Arc::new(mock_client),
@@ -481,7 +487,7 @@ mod tests {
         mock_client
             .expect_call::<SubmitRequest>()
             .times(1)
-            .returning(move |_| Box::pin(future::ready(Ok(fake_response.clone()))));
+            .returning(move |_| Ok(fake_response.clone()));
 
         let broadcaster = XRPLBroadcaster {
             client: Arc::new(mock_client),
@@ -525,7 +531,7 @@ mod tests {
         mock_client
             .expect_call::<SubmitRequest>()
             .times(1)
-            .returning(move |_| Box::pin(future::ready(Ok(fake_response.clone()))));
+            .returning(move |_| Ok(fake_response.clone()));
 
         let broadcaster = XRPLBroadcaster {
             client: Arc::new(mock_client),

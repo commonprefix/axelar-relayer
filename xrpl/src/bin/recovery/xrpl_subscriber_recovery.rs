@@ -18,7 +18,7 @@ async fn main() -> anyhow::Result<()> {
 
     let (_sentry_guard, otel_guard) = setup_logging(&config.common_config);
 
-    let events_queue = Queue::new(&config.common_config.queue_address, "events").await;
+    let events_queue = Queue::new(&config.common_config.queue_address, "events", 1).await;
     let postgres_db = PostgresDB::new(&config.common_config.postgres_url)
         .await
         .map_err(|e| anyhow::anyhow!("Failed to create PostgresDB: {}", e))?;
@@ -45,7 +45,7 @@ async fn main() -> anyhow::Result<()> {
     let redis_client = redis::Client::open(config.common_config.redis_server.clone())?;
     let redis_conn = connection_manager(redis_client, None, None, None).await?;
 
-    setup_heartbeat("heartbeat:subscriber_recovery".to_owned(), redis_conn);
+    setup_heartbeat("heartbeat:subscriber_recovery".to_owned(), redis_conn, None);
 
     let mut sigint = signal(SignalKind::interrupt())?;
     let mut sigterm = signal(SignalKind::terminate())?;

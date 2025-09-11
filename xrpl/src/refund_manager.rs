@@ -17,6 +17,7 @@ use xrpl_types::{AccountId, Amount, Blob, Memo, PaymentTransaction};
 
 use crate::{client::XRPLClientTrait, config::XRPLConfig};
 
+#[derive(Clone)]
 pub struct XRPLRefundManager<X: XRPLClientTrait> {
     client: Arc<X>,
     redis_conn: ConnectionManager,
@@ -104,6 +105,7 @@ impl<X: XRPLClientTrait> XRPLRefundManager<X> {
     }
 }
 
+#[async_trait::async_trait]
 impl<X: XRPLClientTrait> RefundManager for XRPLRefundManager<X> {
     type Wallet = (SecretKey, PublicKey, AccountId);
 

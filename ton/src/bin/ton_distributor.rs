@@ -1,8 +1,4 @@
 use dotenv::dotenv;
-use sqlx::PgPool;
-use std::sync::Arc;
-use tokio::signal::unix::{signal, SignalKind};
-
 use relayer_base::config::config_from_yaml;
 use relayer_base::gmp_api::gmp_types::TaskKind;
 use relayer_base::logging::setup_logging;
@@ -11,6 +7,9 @@ use relayer_base::redis::connection_manager;
 use relayer_base::{
     database::PostgresDB, distributor::Distributor, gmp_api, queue::Queue, utils::setup_heartbeat,
 };
+use sqlx::PgPool;
+use std::sync::Arc;
+use tokio::signal::unix::{signal, SignalKind};
 use ton::config::TONConfig;
 
 #[tokio::main]
@@ -21,10 +20,18 @@ async fn main() -> anyhow::Result<()> {
 
     let (_sentry_guard, otel_guard) = setup_logging(&config.common_config);
 
-    let includer_tasks_queue =
-        Queue::new(&config.common_config.queue_address, "includer_tasks").await;
-    let ingestor_tasks_queue =
-        Queue::new(&config.common_config.queue_address, "ingestor_tasks").await;
+    let includer_tasks_queue = Queue::new(
+        &config.common_config.queue_address,
+        "includer_tasks",
+        config.common_config.num_workers,
+    )
+    .await;
+    let ingestor_tasks_queue = Queue::new(
+        &config.common_config.queue_address,
+        "ingestor_tasks",
+        config.common_config.num_workers,
+    )
+    .await;
     let postgres_db = PostgresDB::new(&config.common_config.postgres_url).await?;
 
     let pg_pool = PgPool::connect(&config.common_config.postgres_url).await?;
@@ -47,7 +54,7 @@ async fn main() -> anyhow::Result<()> {
         TaskKind::GatewayTx,
     ]);
 
-    setup_heartbeat("heartbeat:distributor".to_owned(), redis_conn);
+    setup_heartbeat("heartbeat:distributor".to_owned(), redis_conn, None);
 
     let mut sigint = signal(SignalKind::interrupt())?;
     let mut sigterm = signal(SignalKind::terminate())?;

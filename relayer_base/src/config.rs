@@ -78,6 +78,7 @@ pub struct Config {
     pub sentry_dsn: String,
     pub jaeger_grpc_url: Option<String>,
     pub axelar_contracts: AxelarContracts,
+    pub num_workers: u16,
 }
 
 impl Config {
@@ -181,6 +182,8 @@ price_feed:
   pairs: []
   coin_ids: {}
   auth: {}
+
+num_workers: 5
 "#;
 
         let mut file = File::create(&file_path).expect("Failed to create YAML config file");

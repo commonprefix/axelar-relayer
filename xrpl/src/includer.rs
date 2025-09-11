@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use relayer_base::{
     database::Database, error::BroadcasterError, gmp_api::GmpApiTrait, includer::Includer,
-    payload_cache::PayloadCache, queue::Queue,
+    includer_worker::IncluderWorker, payload_cache::PayloadCache, queue::Queue,
 };
 
 use crate::{client::XRPLClientTrait, models::queued_transactions::QueuedTransactionsModel};
@@ -19,10 +19,10 @@ pub struct XrplIncluder {}
 impl XrplIncluder {
     #[allow(clippy::new_ret_no_self)]
     pub async fn new<
-        X: XRPLClientTrait,
-        DB: Database,
-        QM: QueuedTransactionsModel,
-        G: GmpApiTrait + ThreadSafe,
+        X: XRPLClientTrait + ThreadSafe + Clone,
+        DB: Database + ThreadSafe + Clone,
+        QM: QueuedTransactionsModel + ThreadSafe + Clone,
+        G: GmpApiTrait + ThreadSafe + Clone,
     >(
         config: XRPLConfig,
         gmp_api: Arc<G>,
@@ -42,7 +42,7 @@ impl XrplIncluder {
             XRPLRefundManager::new(Arc::clone(&chain_client), config, redis_conn.clone())
                 .map_err(|e| error_stack::report!(BroadcasterError::GenericError(e.to_string())))?;
 
-        let includer = Includer {
+        let worker = IncluderWorker::new(
             chain_client,
             broadcaster,
             refund_manager,
@@ -50,7 +50,9 @@ impl XrplIncluder {
             payload_cache,
             construct_proof_queue,
             redis_conn,
-        };
+        );
+
+        let includer = Includer::new(worker);
 
         Ok(includer)
     }

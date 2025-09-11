@@ -5079,6 +5079,7 @@ dependencies = [
  "serde_json",
  "sqlx",
  "tokio",
+ "tokio-util",
  "tracing",
  "tracing-subscriber",
  "xrpl",
@@ -5239,6 +5240,7 @@ dependencies = [
  "httpmock",
  "interchain-token-service 1.1.0",
  "lapin",
+ "log",
  "mockall",
  "mockito",
  "multisig",
@@ -7194,6 +7196,8 @@ dependencies = [
  "bytes",
  "futures-core",
  "futures-sink",
+ "futures-util",
+ "hashbrown 0.15.4",
  "pin-project-lite",
  "tokio",
 ]
@@ -7246,6 +7250,7 @@ dependencies = [
  "thiserror 2.0.12",
  "tiny-keccak",
  "tokio",
+ "tokio-util",
  "ton_types",
  "tonlib-core",
  "tracing",
@@ -8326,6 +8331,7 @@ name = "xrpl"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "async-trait",
  "axelar-wasm-std",
  "base64 0.22.1",
  "chrono",
@@ -8350,6 +8356,7 @@ dependencies = [
  "testcontainers-modules",
  "thiserror 2.0.12",
  "tokio",
+ "tokio-util",
  "tracing",
  "tracing-subscriber",
  "xrpl-gateway",

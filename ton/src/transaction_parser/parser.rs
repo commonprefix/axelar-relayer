@@ -17,8 +17,8 @@ use opentelemetry::trace::{Span, Tracer};
 use opentelemetry::{global, Context, KeyValue};
 use relayer_base::gmp_api::gmp_types::Event;
 use relayer_base::price_view::PriceViewTrait;
+use relayer_base::utils::ThreadSafe;
 use std::collections::HashMap;
-use std::future::Future;
 use std::str::FromStr;
 use ton_types::ton_types::Trace;
 use tonlib_core::TonAddress;
@@ -36,6 +36,7 @@ pub trait Parser {
     async fn message_id(&self) -> Result<Option<String>, crate::error::TransactionParsingError>;
 }
 
+#[derive(Clone)]
 pub struct TraceParser<PV> {
     price_view: PV,
     gateway_address: TonAddress,
@@ -45,14 +46,16 @@ pub struct TraceParser<PV> {
 }
 
 #[cfg_attr(test, mockall::automock)]
-pub trait TraceParserTrait {
-    fn parse_trace(
-        &self,
-        trace: Trace,
-    ) -> impl Future<Output = Result<Vec<Event>, crate::error::TransactionParsingError>>;
+#[async_trait]
+pub trait TraceParserTrait: Send + Sync {
+    async fn parse_trace(&self, trace: Trace) -> Result<Vec<Event>, TransactionParsingError>;
 }
 
-impl<PV: PriceViewTrait> TraceParserTrait for TraceParser<PV> {
+#[async_trait]
+impl<PV> TraceParserTrait for TraceParser<PV>
+where
+    PV: PriceViewTrait + ThreadSafe,
+{
     #[tracing::instrument(skip(self))]
     async fn parse_trace(&self, trace: Trace) -> Result<Vec<Event>, TransactionParsingError> {
         let trace_id = trace.trace_id.clone();
@@ -62,9 +65,10 @@ impl<PV: PriceViewTrait> TraceParserTrait for TraceParser<PV> {
             tracer.start_with_context("ton_ingestor.parser.parse_trace", &Context::current());
 
         let mut events: Vec<Event> = Vec::new();
-        let mut parsers: Vec<Box<dyn Parser>> = Vec::new();
-        let mut call_contract: Vec<Box<dyn Parser>> = Vec::new();
-        let mut gas_credit_map: HashMap<MessageMatchingKey, Box<dyn Parser>> = HashMap::new();
+        let mut parsers: Vec<Box<dyn Parser + Send + Sync>> = Vec::new();
+        let mut call_contract: Vec<Box<dyn Parser + Send + Sync>> = Vec::new();
+        let mut gas_credit_map: HashMap<MessageMatchingKey, Box<dyn Parser + Send + Sync>> =
+            HashMap::new();
 
         let (total_gas_used, refund_gas_used) = self.gas_used(&trace)?;
 
@@ -222,9 +226,9 @@ impl<PV: PriceViewTrait> TraceParser<PV> {
     async fn create_parsers(
         &self,
         trace: Trace,
-        parsers: &mut Vec<Box<dyn Parser>>,
-        call_contract: &mut Vec<Box<dyn Parser>>,
-        gas_credit_map: &mut HashMap<MessageMatchingKey, Box<dyn Parser>>,
+        parsers: &mut Vec<Box<dyn Parser + Send + Sync>>,
+        call_contract: &mut Vec<Box<dyn Parser + Send + Sync>>,
+        gas_credit_map: &mut HashMap<MessageMatchingKey, Box<dyn Parser + Send + Sync>>,
         chain_name: String,
     ) -> Result<u64, TransactionParsingError> {
         let mut message_approved_count = 0u64;

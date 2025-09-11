@@ -50,12 +50,14 @@ use crate::gmp_api::{GmpApi, GmpApiTrait};
 use crate::models::gmp_events::{EventModel, GMPAudit, PgGMPEvents};
 use crate::models::gmp_tasks::{GMPTaskAudit, PgGMPTasks, TaskModel};
 use crate::utils::ThreadSafe;
+use async_trait::async_trait;
 use sqlx::{types::Json, PgPool};
 use std::sync::Arc;
 use tokio::spawn;
 use tracing::{error, Instrument, Span};
 use xrpl_amplifier_types::msg::XRPLMessage;
 
+#[derive(Clone)]
 pub struct GmpApiDbAuditDecorator<T: GmpApiTrait, U: GMPTaskAudit, V: GMPAudit> {
     gmp_api: T,
     gmp_tasks: Arc<U>,
@@ -101,6 +103,7 @@ pub fn construct_gmp_api(
     Ok(gmp_api)
 }
 
+#[async_trait]
 impl<T, U, V> GmpApiTrait for GmpApiDbAuditDecorator<T, U, V>
 where
     T: GmpApiTrait + ThreadSafe,
@@ -294,7 +297,7 @@ mod tests {
 
         mock_gmp_api.expect_get_tasks_action().returning(move |_| {
             let tasks = tasks_clone.clone();
-            Box::pin(async move { Ok(tasks) })
+            Ok(tasks)
         });
 
         mock_gmp_tasks
@@ -329,7 +332,7 @@ mod tests {
             .with(eq(after.clone()))
             .returning(move |_| {
                 let tasks = tasks_clone.clone();
-                Box::pin(async move { Ok(tasks) })
+                Ok(tasks)
             });
 
         mock_gmp_tasks
@@ -356,9 +359,7 @@ mod tests {
         mock_gmp_api
             .expect_get_tasks_action()
             .with(eq(None))
-            .returning(|_| {
-                Box::pin(async { Err(GmpApiError::RequestFailed("API error".to_string())) })
-            });
+            .returning(|_| Err(GmpApiError::RequestFailed("API error".to_string())));
 
         let decorator = GmpApiDbAuditDecorator::new(mock_gmp_api, mock_gmp_tasks, mock_gmp_events);
 
@@ -387,7 +388,7 @@ mod tests {
             .with(eq(None))
             .returning(move |_| {
                 let tasks = tasks_clone.clone();
-                Box::pin(async move { Ok(tasks) })
+                Ok(tasks)
             });
 
         mock_gmp_tasks
@@ -436,7 +437,7 @@ mod tests {
 
         mock_gmp_api.expect_post_events().returning(move |_| {
             let results = results_clone.clone();
-            Box::pin(async move { Ok(results) })
+            Ok(results)
         });
 
         for result in &results {
@@ -472,9 +473,9 @@ mod tests {
             .expect_insert_event()
             .returning(|_| Box::pin(async { Ok(()) }));
 
-        mock_gmp_api.expect_post_events().returning(|_| {
-            Box::pin(async { Err(GmpApiError::RequestFailed("API error".to_string())) })
-        });
+        mock_gmp_api
+            .expect_post_events()
+            .returning(|_| Err(GmpApiError::RequestFailed("API error".to_string())));
 
         mock_gmp_events
             .expect_update_event_response()
@@ -519,7 +520,7 @@ mod tests {
 
         mock_gmp_api.expect_post_events().returning(move |_| {
             let results = results_clone.clone();
-            Box::pin(async move { Ok(results) })
+            Ok(results)
         });
 
         mock_gmp_events
@@ -545,7 +546,7 @@ mod tests {
         mock_gmp_api
             .expect_post_broadcast()
             .with(eq("contract123".to_string()), always())
-            .returning(|_, _| Box::pin(async { Ok("tx_hash".to_string()) }));
+            .returning(|_, _| Ok("tx_hash".to_string()));
 
         mock_gmp_api
             .expect_get_broadcast_result()
@@ -553,22 +554,22 @@ mod tests {
                 eq("contract123".to_string()),
                 eq("broadcast123".to_string()),
             )
-            .returning(|_, _| Box::pin(async { Ok("tx_hash".to_string()) }));
+            .returning(|_, _| Ok("tx_hash".to_string()));
 
         mock_gmp_api
             .expect_post_query()
             .with(eq("contract123".to_string()), always())
-            .returning(|_, _| Box::pin(async { Ok("query_result".to_string()) }));
+            .returning(|_, _| Ok("query_result".to_string()));
 
         mock_gmp_api
             .expect_post_payload()
             .with(always())
-            .returning(|_| Box::pin(async { Ok("payload_hash".to_string()) }));
+            .returning(|_| Ok("payload_hash".to_string()));
 
         mock_gmp_api
             .expect_get_payload()
             .with(eq("hash123"))
-            .returning(|_| Box::pin(async { Ok("payload_data".to_string()) }));
+            .returning(|_| Ok("payload_data".to_string()));
 
         mock_gmp_api
             .expect_cannot_execute_message()
@@ -579,12 +580,12 @@ mod tests {
                 eq("details123".to_string()),
                 eq(CannotExecuteMessageReason::InsufficientGas),
             )
-            .returning(|_, _, _, _, _| Box::pin(async { Ok(()) }));
+            .returning(|_, _, _, _, _| Ok(()));
 
         mock_gmp_api
             .expect_its_interchain_transfer()
             .with(always())
-            .returning(|_| Box::pin(async { Ok(()) }));
+            .returning(|_| Ok(()));
 
         mock_gmp_events
             .expect_insert_event()
@@ -595,14 +596,12 @@ mod tests {
             .returning(|_, _| Box::pin(async { Ok(()) }));
 
         mock_gmp_api.expect_post_events().returning(|_events| {
-            Box::pin(async move {
-                Ok(vec![crate::gmp_api::gmp_types::PostEventResult {
-                    status: "success".to_string(),
-                    index: 0,
-                    error: None,
-                    retriable: None,
-                }])
-            })
+            Ok(vec![crate::gmp_api::gmp_types::PostEventResult {
+                status: "success".to_string(),
+                index: 0,
+                error: None,
+                retriable: None,
+            }])
         });
 
         mock_gmp_api

@@ -7,6 +7,7 @@ use redis::{AsyncTypedCommands, SetExpiry, SetOptions};
 use rust_decimal::{prelude::FromPrimitive, Decimal};
 use serde::de::DeserializeOwned;
 use serde_json::Value;
+use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, warn};
 use xrpl_amplifier_types::{
     msg::XRPLMessage,
@@ -220,10 +221,20 @@ pub fn parse_message_from_context(
     })
 }
 
-pub fn setup_heartbeat(service: String, redis_conn: ConnectionManager) {
+pub fn setup_heartbeat(
+    service: String,
+    redis_conn: ConnectionManager,
+    cancel_token: Option<CancellationToken>,
+) {
+    let cancel_token = cancel_token.unwrap_or_default();
+
     tokio::spawn(async move {
         let mut redis_conn = redis_conn;
         loop {
+            if cancel_token.is_cancelled() {
+                info!("Heartbeat cancelled");
+                return;
+            }
             info!("Writing heartbeat to Redis");
             let set_opts =
                 SetOptions::default().with_expiration(SetExpiry::EX(HEARTBEAT_EXPIRATION));
@@ -1014,7 +1025,7 @@ mod tests {
         let mut conn = client.get_connection().unwrap();
 
         tokio::time::pause();
-        setup_heartbeat("test".to_string(), multiplexed_conn);
+        setup_heartbeat("test".to_string(), multiplexed_conn, None);
         let mut val: Option<String> = conn.get("test").unwrap();
         assert!(val.is_none());
 

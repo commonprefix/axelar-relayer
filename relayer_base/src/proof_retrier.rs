@@ -11,6 +11,7 @@ use redis::AsyncTypedCommands;
 use router_api::CrossChainId;
 use tracing::{debug, error, info, warn};
 
+use crate::utils::ThreadSafe;
 use crate::{
     database::Database,
     gmp_api::gmp_types::{CommonTaskFields, ConstructProofTask, ConstructProofTaskFields, Task},
@@ -18,14 +19,17 @@ use crate::{
     queue::{Queue, QueueItem},
 };
 
-pub struct ProofRetrier<DB: Database> {
+pub struct ProofRetrier<DB: Database + ThreadSafe> {
     pub payload_cache: PayloadCache<DB>,
     pub construct_proof_queue: Arc<Queue>,
     pub tasks_queue: Arc<Queue>,
     pub redis_conn: ConnectionManager,
 }
 
-impl<DB: Database> ProofRetrier<DB> {
+impl<DB> ProofRetrier<DB>
+where
+    DB: Database + ThreadSafe,
+{
     pub fn new(
         payload_cache: PayloadCache<DB>,
         construct_proof_queue: Arc<Queue>,

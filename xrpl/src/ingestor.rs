@@ -1,6 +1,7 @@
 use crate::config::XRPLConfig;
 use crate::utils::message_id_from_retry_task;
 use crate::xrpl_transaction::{PgXrplTransactionModel, XrplTransaction, XrplTransactionStatus};
+use async_trait::async_trait;
 use axelar_wasm_std::{msg_id::HexTxHash, nonempty};
 use base64::prelude::*;
 use interchain_token_service::TokenId;
@@ -49,12 +50,14 @@ use xrpl_gateway::msg::{CallContract, InterchainTransfer, MessageWithPayload};
 
 const MAX_TASK_RETRIES: i32 = 5;
 
+#[derive(Clone)]
 pub struct XrplIngestorModels {
     pub xrpl_transaction_model: PgXrplTransactionModel,
     pub task_retries: PgTaskRetriesModel,
 }
 
-pub struct XrplIngestor<DB: Database, G: GmpApiTrait + ThreadSafe> {
+#[derive(Clone)]
+pub struct XrplIngestor<DB: Database + ThreadSafe, G: GmpApiTrait + ThreadSafe> {
     client: xrpl_http_client::Client,
     gmp_api: Arc<G>,
     config: XRPLConfig,
@@ -65,7 +68,7 @@ pub struct XrplIngestor<DB: Database, G: GmpApiTrait + ThreadSafe> {
 
 impl<DB, G> XrplIngestor<DB, G>
 where
-    DB: Database,
+    DB: Database + ThreadSafe,
     G: GmpApiTrait + ThreadSafe,
 {
     pub fn new(
@@ -1179,9 +1182,10 @@ where
     }
 }
 
+#[async_trait]
 impl<DB, G> IngestorTrait for XrplIngestor<DB, G>
 where
-    DB: Database,
+    DB: Database + ThreadSafe,
     G: GmpApiTrait + ThreadSafe,
 {
     #[tracing::instrument(skip(self))]

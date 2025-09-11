@@ -1,23 +1,30 @@
 use crate::database::Database;
+use crate::utils::ThreadSafe;
+use async_trait::async_trait;
 use rust_decimal::Decimal;
-use std::future::Future;
 
+#[async_trait::async_trait]
 pub trait PriceViewTrait {
-    fn get_price(&self, pair: &str) -> impl Future<Output = Result<Decimal, anyhow::Error>>;
+    async fn get_price(&self, pair: &str) -> Result<Decimal, anyhow::Error>;
 }
 
-pub struct PriceView<DB: Database> {
+#[derive(Clone)]
+pub struct PriceView<DB: Database + ThreadSafe> {
     pub db: DB,
 }
 
-impl<DB: Database> PriceView<DB> {
+impl<DB> PriceView<DB>
+where
+    DB: Database + ThreadSafe,
+{
     pub fn new(db: DB) -> Self {
         Self { db }
     }
 }
 
 #[cfg_attr(any(test, feature = "mocks"), mockall::automock)]
-impl<DB: Database> PriceViewTrait for PriceView<DB> {
+#[async_trait]
+impl<DB: Database + ThreadSafe> PriceViewTrait for PriceView<DB> {
     #[tracing::instrument(skip(self))]
     async fn get_price(&self, pair: &str) -> Result<Decimal, anyhow::Error> {
         let (symbol_a, symbol_b) = pair

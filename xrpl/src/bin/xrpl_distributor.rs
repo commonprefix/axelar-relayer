@@ -20,10 +20,18 @@ async fn main() -> anyhow::Result<()> {
 
     let (_sentry_guard, otel_guard) = setup_logging(&config.common_config);
 
-    let includer_tasks_queue =
-        Queue::new(&config.common_config.queue_address, "includer_tasks").await;
-    let ingestor_tasks_queue =
-        Queue::new(&config.common_config.queue_address, "ingestor_tasks").await;
+    let includer_tasks_queue = Queue::new(
+        &config.common_config.queue_address,
+        "includer_tasks",
+        config.common_config.num_workers,
+    )
+    .await;
+    let ingestor_tasks_queue = Queue::new(
+        &config.common_config.queue_address,
+        "ingestor_tasks",
+        config.common_config.num_workers,
+    )
+    .await;
     let postgres_db = PostgresDB::new(&config.common_config.postgres_url)
         .await
         .map_err(|e| anyhow::anyhow!("Failed to create PostgresDB: {}", e))?;
@@ -46,7 +54,7 @@ async fn main() -> anyhow::Result<()> {
     let mut sigint = signal(SignalKind::interrupt())?;
     let mut sigterm = signal(SignalKind::terminate())?;
 
-    setup_heartbeat("heartbeat:distributor".to_owned(), redis_conn);
+    setup_heartbeat("heartbeat:distributor".to_owned(), redis_conn, None);
 
     tokio::select! {
         _ = sigint.recv()  => {},

@@ -98,7 +98,7 @@ pub struct HighLoadQueryIdDbWrapper {
 
 #[cfg_attr(any(test), mockall::automock)]
 #[async_trait]
-pub trait HighLoadQueryIdWrapper {
+pub trait HighLoadQueryIdWrapper: Send + Sync {
     async fn next(
         &self,
         address: &str,

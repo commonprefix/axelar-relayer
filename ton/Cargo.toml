@@ -23,6 +23,7 @@ reqwest-retry = { workspace = true }
 reqwest-middleware = { workspace = true, features = ["json"] }
 ton_types = { workspace = true }
 tonlib-core = { workspace = true }
+tokio-util = { workspace = true }
 testcontainers = { workspace = true }
 testcontainers-modules = { workspace = true, features = ["postgres"] }
 opentelemetry = { workspace = true }
@@ -30,7 +31,7 @@ opentelemetry = { workspace = true }
 nacl = "0.5.3"
 num-bigint = "0.4.6"
 async-trait = "0.1.88"
-tiny-keccak = {version = "2.0.2", features = ["keccak"]}
+tiny-keccak = { version = "2.0.2", features = ["keccak"] }
 primitive-types = "0.13.1"
 rust_decimal = { workspace = true }
 
