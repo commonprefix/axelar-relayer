@@ -61,16 +61,22 @@ impl ParserNativeGasRefunded {
             return None;
         }
 
-        if &bytes[0..8] != &config.event_cpi_discriminator {
-            warn!("expected event cpi discriminator, got {:?}", &bytes[0..8]);
+        if bytes.get(0..8) != Some(&config.event_cpi_discriminator) {
+            warn!(
+                "expected event cpi discriminator, got {:?}",
+                bytes.get(0..8)
+            );
             return None;
         }
-        if &bytes[8..16] != &config.event_type_discriminator {
-            warn!("expected event type discriminator, got {:?}", &bytes[8..16]);
+        if bytes.get(8..16) != Some(&config.event_type_discriminator) {
+            warn!(
+                "expected event type discriminator, got {:?}",
+                bytes.get(8..16)
+            );
             return None;
         }
 
-        let payload = &bytes[16..];
+        let payload = bytes.get(16..)?;
         match NativeGasRefundedEvent::try_from_slice(payload) {
             Ok(event) => {
                 debug!("Native Gas Refunded event={:?}", event);

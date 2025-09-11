@@ -275,7 +275,6 @@ impl<STR: SolanaStreamClientTrait, SM: SolanaTransactionModel> SolanaListener<ST
                                 }
                                 Err(e) => {
                                     error!("Error upserting and publishing transaction: {:?}", e);
-                                    return;
                                 }
                             }
                             });

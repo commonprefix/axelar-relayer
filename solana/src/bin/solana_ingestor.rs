@@ -47,8 +47,8 @@ async fn main() -> anyhow::Result<()> {
     }
     let gateway = Pubkey::from_str(&config.solana_gateway)?;
     let gas_service = Pubkey::from_str(&config.solana_gas_service)?;
-    our_addresses.push(gateway.clone());
-    our_addresses.push(gas_service.clone());
+    our_addresses.push(gateway);
+    our_addresses.push(gas_service);
 
     let parser = TransactionParser::new(
         price_view,

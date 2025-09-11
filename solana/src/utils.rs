@@ -94,7 +94,7 @@ pub async fn upsert_and_publish<SM: SolanaTransactionModel>(
     let inserted = transaction_model
         .upsert(SolanaTransactionData {
             signature: tx.signature.to_string(),
-            slot: tx.slot as i64,
+            slot: tx.slot,
             logs: tx.logs.clone(),
             ixs,
             events: Vec::<String>::new(),

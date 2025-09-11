@@ -69,7 +69,7 @@ where
         let mut gas_credit_map: HashMap<MessageMatchingKey, Box<dyn Parser + Send + Sync>> =
             HashMap::new();
 
-        let transaction_id = transaction.signature.clone();
+        let transaction_id = transaction.signature;
         let (message_approved_count, message_executed_count) = self
             .create_parsers(
                 transaction.clone(),

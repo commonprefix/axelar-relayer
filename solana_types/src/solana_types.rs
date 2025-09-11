@@ -33,7 +33,7 @@ impl SolanaTransaction {
             .clone()
             .ok_or_else(|| anyhow!("No log messages found"))?;
 
-        let slot = result.slot as i64;
+        let slot = result.slot;
         let signature = result
             .transaction
             .signatures
@@ -64,7 +64,7 @@ impl SolanaTransaction {
             .meta
             .ok_or_else(|| anyhow!("No meta found"))?;
         Ok(Self {
-            signature: signature.clone(),
+            signature,
             timestamp: None,
             logs: meta
                 .log_messages
@@ -75,7 +75,6 @@ impl SolanaTransaction {
                 meta.inner_instructions
                     .clone()
                     .ok_or_else(|| anyhow!("No inner instructions found"))?
-                    .clone()
             },
             cost_units: meta.compute_units_consumed.clone().unwrap_or(0),
         })

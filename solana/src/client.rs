@@ -111,10 +111,8 @@ impl SolanaRpcClientTrait for SolanaRpcClient {
                 .await
             {
                 Ok(response) => {
-                    return Ok(
-                        SolanaTransaction::from_encoded_confirmed_transaction_with_status_meta(
-                            signature, response,
-                        )?,
+                    return SolanaTransaction::from_encoded_confirmed_transaction_with_status_meta(
+                        signature, response,
                     );
                 }
                 Err(e) => {
