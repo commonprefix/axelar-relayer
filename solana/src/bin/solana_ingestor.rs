@@ -1,10 +1,11 @@
 use dotenv::dotenv;
 use relayer_base::config::config_from_yaml;
 use relayer_base::database::PostgresDB;
+use relayer_base::logging::setup_logging;
+use relayer_base::logging_ctx_cache::RedisLoggingCtxCache;
 use relayer_base::price_view::PriceView;
 use relayer_base::queue::Queue;
 use relayer_base::redis::connection_manager;
-use relayer_base::utils::setup_logging;
 use relayer_base::{gmp_api, ingestor};
 use solana::config::SolanaConfig;
 use solana::ingestor::SolanaIngestor;
@@ -63,11 +64,14 @@ async fn main() -> anyhow::Result<()> {
     let solana_transaction_model = PgSolanaTransactionModel::new(pg_pool.clone());
     let solana_ingestor = SolanaIngestor::new(parser, solana_transaction_model);
 
+    let logging_ctx_cache = RedisLoggingCtxCache::new(redis_conn.clone());
+
     ingestor::run_ingestor(
         &tasks_queue,
         &events_queue,
         gmp_api,
         redis_conn,
+        Arc::new(logging_ctx_cache),
         Arc::new(solana_ingestor),
     )
     .await?;
