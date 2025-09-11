@@ -41,7 +41,7 @@ impl SolanaTransaction {
             .and_then(|s| Signature::from_str(s).ok())
             .ok_or_else(|| anyhow!("Missing or invalid signature"))?;
 
-        let timestamp = Some(Utc::now());
+        let timestamp = None;
         let ixs = meta.inner_instructions.clone();
         let cost_units = meta.cost_units.unwrap_or(0);
 
@@ -177,4 +177,65 @@ pub struct RpcInstruction {
     pub program_id_index: u8,
     #[serde(rename = "stackHeight")]
     pub stack_height: Option<u64>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test_utils::fixtures::{
+        encoded_confirmed_tx_with_meta_fixtures, rpc_response_fixtures,
+    };
+    #[test]
+    fn test_from_rpc_response() {
+        let rpc_response = &rpc_response_fixtures()[0];
+        let transaction = SolanaTransaction::from_rpc_response(rpc_response.clone()).unwrap();
+
+        let expected_tx = SolanaTransaction {
+            signature: Signature::from_str("2E1HEKZLXDthn9qU8rXnj5nmUoDnbSWP6KsmbVWZ1PsA7Q63gEKWmRqy374wuxvwVDLhjX9RJYHeyfFmRQRTuMyF").unwrap(),
+            timestamp: None,
+            logs: vec!["Program DaejccUfXqoAFTiDTxDuMQfQ9oa6crjtR9cT52v1AvGK invoke [1]".to_string(), "Program log: Instruction: EmitReceived".to_string(), "Program data: QF09492rFLE=".to_string(), "Program log: This is a message for received".to_string(), "Program DaejccUfXqoAFTiDTxDuMQfQ9oa6crjtR9cT52v1AvGK consumed 624 of 200000 compute units".to_string(), "Program DaejccUfXqoAFTiDTxDuMQfQ9oa6crjtR9cT52v1AvGK success".to_string()],
+            slot: 404139482,
+            ixs: vec![],
+            cost_units: 1654,
+        };
+        assert_eq!(transaction, expected_tx);
+    }
+
+    #[test]
+    fn test_from_encoded_confirmed_transaction_with_status_meta() {
+        let tx_with_meta = encoded_confirmed_tx_with_meta_fixtures().into_iter().next().unwrap();
+        let transaction = SolanaTransaction::from_encoded_confirmed_transaction_with_status_meta(
+            Signature::from_str("3Dj8s38U1GNRf1kxH3BB5iJbN2RwNXeADZXP4NHXjbxErjsRoBHbGriG2qJMbidi5sDw5Jorjfows37iNHLctbb2").unwrap(),
+            tx_with_meta,
+        )
+        .unwrap();
+        let expected_tx = SolanaTransaction {
+            signature: Signature::from_str("3Dj8s38U1GNRf1kxH3BB5iJbN2RwNXeADZXP4NHXjbxErjsRoBHbGriG2qJMbidi5sDw5Jorjfows37iNHLctbb2").unwrap(),
+            timestamp: None,
+            logs: vec![ "Program 7RdSDLUUy37Wqc6s9ebgo52AwhGiw4XbJWZJgidQ1fJc invoke [1]".to_string(),
+            "Program log: Instruction: PayNativeForContractCall".to_string(),
+            "Program 7RdSDLUUy37Wqc6s9ebgo52AwhGiw4XbJWZJgidQ1fJc invoke [2]".to_string(),
+            "Program 7RdSDLUUy37Wqc6s9ebgo52AwhGiw4XbJWZJgidQ1fJc consumed 2093 of 192610 compute units".to_string(),
+            "Program 7RdSDLUUy37Wqc6s9ebgo52AwhGiw4XbJWZJgidQ1fJc success".to_string(),
+            "Program 7RdSDLUUy37Wqc6s9ebgo52AwhGiw4XbJWZJgidQ1fJc consumed 9725 of 200000 compute units".to_string(),
+            "Program 7RdSDLUUy37Wqc6s9ebgo52AwhGiw4XbJWZJgidQ1fJc success".to_string()],
+            slot: 30309,
+            ixs: vec![serde_json::from_str::<UiInnerInstructions>(r#"{
+                        "index": 0,
+                        "instructions": [
+                            {
+                                "accounts": [
+                                    3
+                                ],
+                                "data": "9K93pGwFHUmnecEp6h1ZtRK5LYv5MLSbJPQ1ZeViVDgJwV3DNyhs5fodWcDTrKdxwhsnwCWyM6DXeM4ibUHv46fRnc2RSdcSDJDDs683XMDwWJbmizwqGyjuhMmcpZDinAYtKLWJBpPT9Jo1hhzwsKt3MfAcJREjCYLgWzACeiM3yh9R2phwkQAvPF5GyZknkkNhe19ZC6b9LHZ235vxr64VkNQEXeT1vYyZ1SLQ7mGXkZ34Ravy7zYf1",
+                                "programIdIndex": 4,
+                                "stackHeight": 2
+                            }
+                        ]
+                    }"#).unwrap()],
+                        
+            cost_units: 9725,
+        };
+        assert_eq!(transaction, expected_tx);
+    }
 }
