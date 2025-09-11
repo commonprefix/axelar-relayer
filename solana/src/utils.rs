@@ -86,12 +86,19 @@ pub async fn upsert_and_publish<SM: SolanaTransactionModel>(
     tx: &SolanaTransaction,
     from_service: String,
 ) -> Result<bool, anyhow::Error> {
+    let ixs = tx
+        .ixs
+        .iter()
+        .map(|ix| serde_json::to_string(ix).unwrap_or_else(|_| "".to_string()))
+        .collect::<Vec<String>>();
     let inserted = transaction_model
         .upsert(SolanaTransactionData {
             signature: tx.signature.to_string(),
             slot: tx.slot as i64,
             logs: tx.logs.clone(),
+            ixs,
             events: Vec::<String>::new(),
+            cost_units: tx.cost_units as i64,
             retries: 3,
             created_at: None,
         })

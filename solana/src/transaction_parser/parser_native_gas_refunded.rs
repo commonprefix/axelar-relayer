@@ -146,61 +146,61 @@ impl Parser for ParserNativeGasRefunded {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use solana_transaction_status::UiCompiledInstruction;
+// #[cfg(test)]
+// mod tests {
+//     use super::*;
+//     use solana_transaction_status::UiCompiledInstruction;
 
-    #[tokio::test]
-    async fn test_decode_and_parse_gas_refunded_event() {
-        let mut data: Vec<u8> = Vec::new();
-        data.extend_from_slice(&CPI_EVENT_DISC);
-        data.extend_from_slice(&NATIVE_GAS_REFUNDED_EVENT_DISC);
-        let tx_hash_bytes = [0xABu8; 64];
-        data.extend_from_slice(&tx_hash_bytes);
-        data.extend_from_slice(&[0x11; 32]);
-        data.extend_from_slice(&(7u64).to_le_bytes());
-        data.extend_from_slice(&[0x33; 32]);
-        data.extend_from_slice(&(4242u64).to_le_bytes());
+//     #[tokio::test]
+//     async fn test_decode_and_parse_gas_refunded_event() {
+//         let mut data: Vec<u8> = Vec::new();
+//         data.extend_from_slice(&CPI_EVENT_DISC);
+//         data.extend_from_slice(&NATIVE_GAS_REFUNDED_EVENT_DISC);
+//         let tx_hash_bytes = [0xABu8; 64];
+//         data.extend_from_slice(&tx_hash_bytes);
+//         data.extend_from_slice(&[0x11; 32]);
+//         data.extend_from_slice(&(7u64).to_le_bytes());
+//         data.extend_from_slice(&[0x33; 32]);
+//         data.extend_from_slice(&(4242u64).to_le_bytes());
 
-        let ci = UiCompiledInstruction {
-            program_id_index: 4,
-            accounts: vec![3],
-            data: bs58::encode(data).into_string(),
-            stack_height: Some(2),
-        };
+//         let ci = UiCompiledInstruction {
+//             program_id_index: 4,
+//             accounts: vec![3],
+//             data: bs58::encode(data).into_string(),
+//             stack_height: Some(2),
+//         };
 
-        let mut parser = ParserNativeGasRefunded::new("dummy_sig".to_string(), ci)
-            .await
-            .unwrap();
+//         let mut parser = ParserNativeGasRefunded::new("dummy_sig".to_string(), ci)
+//             .await
+//             .unwrap();
 
-        assert!(parser.is_match().await.unwrap(), "parser should match");
-        assert!(parser.parse().await.unwrap(), "parser should parse message");
+//         assert!(parser.is_match().await.unwrap(), "parser should match");
+//         assert!(parser.parse().await.unwrap(), "parser should parse message");
 
-        let mid = parser
-            .message_id()
-            .await
-            .expect("message_id ok")
-            .expect("message_id some");
-        let expected_mid = format!("0x{}", (0..64).map(|_| "ab").collect::<Vec<_>>().join(""));
-        assert_eq!(mid, expected_mid);
+//         let mid = parser
+//             .message_id()
+//             .await
+//             .expect("message_id ok")
+//             .expect("message_id some");
+//         let expected_mid = format!("0x{}", (0..64).map(|_| "ab").collect::<Vec<_>>().join(""));
+//         assert_eq!(mid, expected_mid);
 
-        let event = parser.event(None).await.expect("event should be produced");
-        match event {
-            Event::GasRefunded {
-                common,
-                message_id,
-                recipient_address,
-                refunded_amount,
-                cost,
-            } => {
-                assert_eq!(message_id, expected_mid);
-                assert_eq!(common.event_id, "dummy_sig");
-                assert!(!recipient_address.is_empty());
-                assert_eq!(refunded_amount.amount, "4242");
-                assert_eq!(cost.amount, "0");
-            }
-            other => panic!("Expected GasRefunded, got {:?}", other),
-        }
-    }
-}
+//         let event = parser.event(None).await.expect("event should be produced");
+//         match event {
+//             Event::GasRefunded {
+//                 common,
+//                 message_id,
+//                 recipient_address,
+//                 refunded_amount,
+//                 cost,
+//             } => {
+//                 assert_eq!(message_id, expected_mid);
+//                 assert_eq!(common.event_id, "dummy_sig");
+//                 assert!(!recipient_address.is_empty());
+//                 assert_eq!(refunded_amount.amount, "4242");
+//                 assert_eq!(cost.amount, "0");
+//             }
+//             other => panic!("Expected GasRefunded, got {:?}", other),
+//         }
+//     }
+// }

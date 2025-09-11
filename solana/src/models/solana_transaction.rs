@@ -18,7 +18,9 @@ pub struct SolanaTransactionData {
     pub signature: String,
     pub slot: i64,
     pub logs: Vec<String>,
+    pub ixs: Vec<String>,
     pub events: Vec<String>,
+    pub cost_units: i64,
     pub retries: i32,
     pub created_at: Option<chrono::DateTime<chrono::Utc>>,
 }
@@ -65,8 +67,8 @@ impl SolanaTransactionModel for PgSolanaTransactionModel {
     async fn upsert(&self, tx: SolanaTransactionData) -> Result<bool> {
         let query = format!(
             "INSERT INTO {} \
-             (signature, slot, logs, events, retries, created_at) \
-             VALUES ($1, $2, $3, $4, $5, NOW()) \
+             (signature, slot, logs, ixs, events, cost_units, retries, created_at) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7, NOW()) \
              ON CONFLICT (signature) DO NOTHING \
             ",
             PG_TABLE_NAME
@@ -76,7 +78,9 @@ impl SolanaTransactionModel for PgSolanaTransactionModel {
             .bind(tx.signature)
             .bind(tx.slot)
             .bind(tx.logs)
+            .bind(tx.ixs)
             .bind(tx.events)
+            .bind(tx.cost_units)
             .bind(tx.retries)
             .execute(&self.pool)
             .await?;
@@ -116,4 +120,156 @@ impl UpdateEvents for PgSolanaTransactionModel {
 
         Ok(())
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::str::FromStr;
+
+    use solana_sdk::signature::Signature;
+    use solana_transaction_status::UiInnerInstructions;
+    use solana_types::solana_types::SolanaTransaction;
+    use testcontainers::runners::AsyncRunner;
+    use testcontainers_modules::postgres;
+
+    use crate::solana_transaction::{
+        PgSolanaTransactionModel, SolanaTransactionData, SolanaTransactionModel,
+    };
+    use crate::test_utils::fixtures::fixtures;
+
+    #[tokio::test]
+    async fn test_crud() {
+        let init_sql = format!(
+            "{}\n",
+            include_str!("../../../migrations/0014_solana_transactions.sql"),
+        );
+        let container = postgres::Postgres::default()
+            .with_init_sql(init_sql.into_bytes())
+            .start()
+            .await
+            .unwrap();
+        let connection_string = format!(
+            "postgres://postgres:postgres@{}:{}/postgres",
+            container.get_host().await.unwrap(),
+            container.get_host_port_ipv4(5432).await.unwrap()
+        );
+        let pool = sqlx::PgPool::connect(&connection_string).await.unwrap();
+        let model = PgSolanaTransactionModel::new(pool);
+        let solana_tx = &fixtures()[0];
+
+        let tx = SolanaTransactionData {
+            signature: solana_tx.signature.to_string(),
+            slot: solana_tx.slot,
+            logs: solana_tx.logs.clone(),
+            ixs: solana_tx
+                .ixs
+                .clone()
+                .iter()
+                .map(|ix| serde_json::to_string(ix).unwrap())
+                .collect::<Vec<String>>(),
+            events: Vec::new(),
+            cost_units: solana_tx.cost_units as i64,
+            retries: 3,
+            created_at: None,
+        };
+
+        let ret = model.upsert(tx.clone()).await.unwrap();
+        let saved = model
+            .find(solana_tx.signature.to_string())
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(ret);
+
+        let tx_from_data = SolanaTransaction {
+            signature: Signature::from_str(&saved.signature).unwrap(),
+            timestamp: solana_tx.timestamp,
+            slot: saved.slot,
+            logs: saved.logs,
+            ixs: saved
+                .ixs
+                .iter()
+                .map(|ix| serde_json::from_str(ix).unwrap())
+                .collect::<Vec<UiInnerInstructions>>(),
+            cost_units: saved.cost_units as u64,
+        };
+
+        assert_eq!(tx_from_data, *solana_tx);
+
+        // test that if you upsert when signature exists already, there are no changes
+        let ret = model.upsert(tx.clone()).await.unwrap();
+        assert!(!ret);
+
+        model.delete(tx).await.unwrap();
+        let saved = model.find(solana_tx.signature.to_string()).await.unwrap();
+        assert!(saved.is_none());
+    }
+
+    // #[tokio::test]
+    // async fn test_update_events() {
+    //     let init_sql = format!(
+    //         "{}\n{}",
+    //         include_str!("../../../migrations/0011_ton_traces.sql"),
+    //         include_str!("../../../migrations/0013_ton_traces_events.sql")
+    //     );
+    //     let container = postgres::Postgres::default()
+    //         .with_init_sql(init_sql.into_bytes())
+    //         .start()
+    //         .await
+    //         .unwrap();
+    //     let connection_string = format!(
+    //         "postgres://postgres:postgres@{}:{}/postgres",
+    //         container.get_host().await.unwrap(),
+    //         container.get_host_port_ipv4(5432).await.unwrap()
+    //     );
+    //     let pool = sqlx::PgPool::connect(&connection_string).await.unwrap();
+    //     let model = PgTONTraceModel::new(pool);
+    //     let transactions = &fixture_traces()[0].transactions;
+
+    //     let trace = TONTrace {
+    //         trace_id: "123".to_string(),
+    //         is_incomplete: false,
+    //         start_lt: 123,
+    //         end_lt: 321,
+    //         transactions: Json::from(transactions.clone()),
+    //         events: None,
+    //         created_at: chrono::Utc::now(),
+    //         updated_at: None,
+    //         retries: 5,
+    //     };
+
+    //     model.upsert(trace).await.unwrap();
+
+    //     let events = vec![
+    //         EventSummary {
+    //             event_id: "event1".to_string(),
+    //             message_id: Some("message1".to_string()),
+    //             event_type: "GAS_REFUNDED".to_string(),
+    //         },
+    //         EventSummary {
+    //             event_id: "event2".to_string(),
+    //             message_id: Some("message2".to_string()),
+    //             event_type: "CANNOT_EXECUTE_MESSAGE_V2".to_string(),
+    //         },
+    //     ];
+
+    //     model
+    //         .update_events("123".to_string(), events.clone())
+    //         .await
+    //         .unwrap();
+
+    //     let updated_trace = model.find("123".to_string()).await.unwrap().unwrap();
+    //     assert!(updated_trace.events.is_some());
+
+    //     let updated_events = updated_trace.events.unwrap();
+    //     assert_eq!(updated_events.len(), 2);
+    //     assert_eq!(updated_events[0].event_id, "event1");
+    //     assert_eq!(updated_events[0].message_id, Some("message1".to_string()));
+    //     assert_eq!(updated_events[0].event_type, "GAS_REFUNDED");
+    //     assert_eq!(updated_events[1].event_id, "event2");
+    //     assert_eq!(updated_events[1].message_id, Some("message2".to_string()));
+    //     assert_eq!(updated_events[1].event_type, "CANNOT_EXECUTE_MESSAGE_V2");
+
+    //     assert!(updated_trace.updated_at.is_some());
+    // }
 }

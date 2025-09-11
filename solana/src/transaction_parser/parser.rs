@@ -40,8 +40,8 @@ pub trait Parser {
 #[derive(Clone)]
 pub struct TransactionParser<PV> {
     _price_view: PV,
-    gateway_address: Pubkey,
-    gas_service_address: Pubkey,
+    _gateway_address: Pubkey,
+    _gas_service_address: Pubkey,
     chain_name: String,
 }
 
@@ -122,12 +122,14 @@ where
                     message,
                     mut cost,
                 } => {
-                    cost.amount = (transaction.clone().cost_units.ok_or_else(|| {
-                        TransactionParsingError::Generic(
+                    let cost_units = transaction.clone().cost_units;
+                    if cost_units == 0 {
+                        return Err(TransactionParsingError::Generic(
                             "Cost units for approved not found".to_string(),
-                        )
-                    })? / message_approved_count)
-                        .to_string();
+                        ));
+                    }
+                    cost.amount =
+                        (transaction.clone().cost_units / message_approved_count).to_string();
                     Event::MessageApproved {
                         common,
                         message,
@@ -141,12 +143,14 @@ where
                     status,
                     mut cost,
                 } => {
-                    cost.amount = (transaction.clone().cost_units.ok_or_else(|| {
-                        TransactionParsingError::Generic(
+                    let cost_units = transaction.clone().cost_units;
+                    if cost_units == 0 {
+                        return Err(TransactionParsingError::Generic(
                             "Cost units for executed not found".to_string(),
-                        )
-                    })? / message_executed_count)
-                        .to_string();
+                        ));
+                    }
+                    cost.amount =
+                        (transaction.clone().cost_units / message_executed_count).to_string();
                     Event::MessageExecuted {
                         common,
                         message_id,
@@ -173,8 +177,8 @@ impl<PV: PriceViewTrait> TransactionParser<PV> {
     ) -> Self {
         Self {
             _price_view: price_view,
-            gateway_address,
-            gas_service_address,
+            _gateway_address: gateway_address,
+            _gas_service_address: gas_service_address,
             chain_name,
         }
     }
