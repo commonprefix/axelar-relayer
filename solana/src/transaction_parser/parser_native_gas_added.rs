@@ -83,10 +83,7 @@ impl ParserNativeGasAdded {
                 debug!("Native Gas Added vent={:?}", event);
                 Some(event)
             }
-            Err(e) => {
-                warn!("failed to parse native gas added event: {:?}", e);
-                None
-            }
+            Err(_) => None,
         }
     }
 }

@@ -293,20 +293,6 @@ impl<PV: PriceViewTrait> TransactionParser<PV> {
 
         Ok((message_approved_count, message_executed_count))
     }
-
-    // fn gas_used(&self, tx: &SolanaTransaction) -> Result<(u64, u64), TransactionParsingError> {
-    //     let total_gas_used = self
-    //         .gas_calculator
-    //         .calc_message_gas(tx.clone())
-    //         .map_err(|e| TransactionParsingError::Gas(e.to_string()))?;
-
-    //     let refund_gas_used = self
-    //         .gas_calculator
-    //         .calc_message_gas_native_gas_refunded(tx)
-    //         .map_err(|e| TransactionParsingError::Gas(e.to_string()))?;
-
-    //     Ok((total_gas_used, refund_gas_used))
-    // }
 }
 
 // #[cfg(test)]

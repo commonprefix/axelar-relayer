@@ -71,14 +71,14 @@ impl ParserCallContract {
         }
 
         if bytes.get(0..8) != Some(&config.event_cpi_discriminator) {
-            warn!(
+            debug!(
                 "expected event cpi discriminator, got {:?}",
                 bytes.get(0..8)
             );
             return None;
         }
         if bytes.get(8..16) != Some(&config.event_type_discriminator) {
-            warn!(
+            debug!(
                 "expected event type discriminator, got {:?}",
                 bytes.get(8..16)
             );
@@ -91,10 +91,7 @@ impl ParserCallContract {
                 debug!("Call Contract event={:?}", event);
                 Some(event)
             }
-            Err(e) => {
-                warn!("failed to parse call contract event: {:?}", e);
-                None
-            }
+            Err(_) => None,
         }
     }
 }
