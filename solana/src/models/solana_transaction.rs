@@ -136,7 +136,7 @@ mod tests {
         EventSummary, PgSolanaTransactionModel, SolanaTransactionData, SolanaTransactionModel,
         UpdateEvents,
     };
-    use crate::test_utils::fixtures::fixtures;
+    use crate::test_utils::fixtures::transaction_fixtures;
 
     #[tokio::test]
     async fn test_crud() {
@@ -156,7 +156,7 @@ mod tests {
         );
         let pool = sqlx::PgPool::connect(&connection_string).await.unwrap();
         let model = PgSolanaTransactionModel::new(pool);
-        let solana_tx = &fixtures()[0];
+        let solana_tx = &transaction_fixtures()[0];
 
         let tx = SolanaTransactionData {
             signature: solana_tx.signature.to_string(),
