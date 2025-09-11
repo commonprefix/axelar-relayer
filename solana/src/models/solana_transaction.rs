@@ -133,7 +133,8 @@ mod tests {
     use testcontainers_modules::postgres;
 
     use crate::solana_transaction::{
-        PgSolanaTransactionModel, SolanaTransactionData, SolanaTransactionModel,
+        EventSummary, PgSolanaTransactionModel, SolanaTransactionData, SolanaTransactionModel,
+        UpdateEvents,
     };
     use crate::test_utils::fixtures::fixtures;
 
@@ -200,76 +201,26 @@ mod tests {
         let ret = model.upsert(tx.clone()).await.unwrap();
         assert!(!ret);
 
+        let events = vec![EventSummary {
+            event_id: "123".to_string(),
+            message_id: None,
+            event_type: "123".to_string(),
+        }];
+        model
+            .update_events(tx.signature.clone(), events.clone())
+            .await
+            .unwrap();
+        let saved = model.find(tx.signature.clone()).await.unwrap().unwrap();
+        assert_eq!(
+            saved.events,
+            events
+                .iter()
+                .map(|e| e.event_id.clone())
+                .collect::<Vec<String>>()
+        );
+
         model.delete(tx).await.unwrap();
         let saved = model.find(solana_tx.signature.to_string()).await.unwrap();
         assert!(saved.is_none());
     }
-
-    // #[tokio::test]
-    // async fn test_update_events() {
-    //     let init_sql = format!(
-    //         "{}\n{}",
-    //         include_str!("../../../migrations/0011_ton_traces.sql"),
-    //         include_str!("../../../migrations/0013_ton_traces_events.sql")
-    //     );
-    //     let container = postgres::Postgres::default()
-    //         .with_init_sql(init_sql.into_bytes())
-    //         .start()
-    //         .await
-    //         .unwrap();
-    //     let connection_string = format!(
-    //         "postgres://postgres:postgres@{}:{}/postgres",
-    //         container.get_host().await.unwrap(),
-    //         container.get_host_port_ipv4(5432).await.unwrap()
-    //     );
-    //     let pool = sqlx::PgPool::connect(&connection_string).await.unwrap();
-    //     let model = PgTONTraceModel::new(pool);
-    //     let transactions = &fixture_traces()[0].transactions;
-
-    //     let trace = TONTrace {
-    //         trace_id: "123".to_string(),
-    //         is_incomplete: false,
-    //         start_lt: 123,
-    //         end_lt: 321,
-    //         transactions: Json::from(transactions.clone()),
-    //         events: None,
-    //         created_at: chrono::Utc::now(),
-    //         updated_at: None,
-    //         retries: 5,
-    //     };
-
-    //     model.upsert(trace).await.unwrap();
-
-    //     let events = vec![
-    //         EventSummary {
-    //             event_id: "event1".to_string(),
-    //             message_id: Some("message1".to_string()),
-    //             event_type: "GAS_REFUNDED".to_string(),
-    //         },
-    //         EventSummary {
-    //             event_id: "event2".to_string(),
-    //             message_id: Some("message2".to_string()),
-    //             event_type: "CANNOT_EXECUTE_MESSAGE_V2".to_string(),
-    //         },
-    //     ];
-
-    //     model
-    //         .update_events("123".to_string(), events.clone())
-    //         .await
-    //         .unwrap();
-
-    //     let updated_trace = model.find("123".to_string()).await.unwrap().unwrap();
-    //     assert!(updated_trace.events.is_some());
-
-    //     let updated_events = updated_trace.events.unwrap();
-    //     assert_eq!(updated_events.len(), 2);
-    //     assert_eq!(updated_events[0].event_id, "event1");
-    //     assert_eq!(updated_events[0].message_id, Some("message1".to_string()));
-    //     assert_eq!(updated_events[0].event_type, "GAS_REFUNDED");
-    //     assert_eq!(updated_events[1].event_id, "event2");
-    //     assert_eq!(updated_events[1].message_id, Some("message2".to_string()));
-    //     assert_eq!(updated_events[1].event_type, "CANNOT_EXECUTE_MESSAGE_V2");
-
-    //     assert!(updated_trace.updated_at.is_some());
-    // }
 }
