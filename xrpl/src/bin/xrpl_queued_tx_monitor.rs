@@ -3,11 +3,9 @@ use sqlx::PgPool;
 use std::sync::Arc;
 use tokio::signal::unix::{signal, SignalKind};
 
+use relayer_base::logging::setup_logging;
 use relayer_base::redis::connection_manager;
-use relayer_base::{
-    config::config_from_yaml,
-    utils::{setup_heartbeat, setup_logging},
-};
+use relayer_base::{config::config_from_yaml, utils::setup_heartbeat};
 use xrpl::{
     client::XRPLClient, config::XRPLConfig, models::queued_transactions::PgQueuedTransactionsModel,
     queued_tx_monitor::XrplQueuedTxMonitor,
@@ -19,7 +17,7 @@ async fn main() -> anyhow::Result<()> {
     let network = std::env::var("NETWORK").expect("NETWORK must be set");
     let config: XRPLConfig = config_from_yaml(&format!("config.{}.yaml", network))?;
 
-    let _guard = setup_logging(&config.common_config);
+    let (_sentry_guard, otel_guard) = setup_logging(&config.common_config);
 
     let pg_pool = PgPool::connect(&config.common_config.postgres_url).await?;
     let xrpl_client = Arc::new(XRPLClient::new(&config.xrpl_rpc, 3)?);
@@ -39,6 +37,10 @@ async fn main() -> anyhow::Result<()> {
         _ = sigterm.recv() => {},
         _ = xrpl_tx_monitor.run() => {},
     }
+
+    otel_guard
+        .force_flush()
+        .expect("Failed to flush OTEL messages");
 
     Ok(())
 }

@@ -90,6 +90,8 @@ where
             models,
         }
     }
+
+    #[tracing::instrument(skip(self))]
     pub async fn handle_payment(
         &self,
         payment: PaymentTransaction,
@@ -115,6 +117,7 @@ where
         }
     }
 
+    #[tracing::instrument(skip(self))]
     pub async fn handle_gmp_message(
         &self,
         xrpl_message_with_payload: &WithPayload<XRPLMessage>,
@@ -198,6 +201,7 @@ where
         Ok(())
     }
 
+    #[tracing::instrument(skip(self))]
     pub async fn handle_add_gas_message(
         &self,
         xrpl_message_with_payload: &WithPayload<XRPLMessage>,
@@ -216,6 +220,7 @@ where
         Ok(vec![gas_credit_event])
     }
 
+    #[tracing::instrument(skip(self))]
     pub async fn handle_add_reserves_message(
         &self,
         xrpl_message_with_payload: &WithPayload<XRPLMessage>,
@@ -567,6 +572,7 @@ where
         })
     }
 
+    #[tracing::instrument(skip(self))]
     async fn gas_credit_event_from_payment(
         &self,
         xrpl_message_with_payload: &WithPayload<XRPLMessage>,
@@ -1182,6 +1188,7 @@ where
     DB: Database + ThreadSafe,
     G: GmpApiTrait + ThreadSafe,
 {
+    #[tracing::instrument(skip(self))]
     async fn handle_transaction(&self, tx: ChainTransaction) -> Result<Vec<Event>, IngestorError> {
         let ChainTransaction::Xrpl(tx) = tx else {
             return Err(IngestorError::UnexpectedChainTransactionType(format!(
@@ -1259,6 +1266,7 @@ where
         }
     }
 
+    #[tracing::instrument(skip(self))]
     async fn handle_verify(&self, task: VerifyTask) -> Result<(), IngestorError> {
         let xrpl_message = parse_message_from_context(&task.common.meta)?;
 
@@ -1279,6 +1287,7 @@ where
         Ok(())
     }
 
+    #[tracing::instrument(skip(self))]
     async fn handle_wasm_event(&self, task: ReactToWasmEventTask) -> Result<(), IngestorError> {
         let event_name = task.task.event.r#type.clone();
 
@@ -1421,6 +1430,7 @@ where
         }
     }
 
+    #[tracing::instrument(skip(self))]
     async fn handle_construct_proof(&self, task: ConstructProofTask) -> Result<(), IngestorError> {
         let cc_id = CrossChainId::new(
             task.task.message.source_chain.clone(),
@@ -1501,6 +1511,7 @@ where
         Ok(())
     }
 
+    #[tracing::instrument(skip(self))]
     async fn handle_retriable_task(&self, task: RetryTask) -> Result<(), IngestorError> {
         let message_id = match message_id_from_retry_task(task.clone()).map_err(|e| {
             IngestorError::GenericError(format!("Failed to get message id from retry task: {}", e))

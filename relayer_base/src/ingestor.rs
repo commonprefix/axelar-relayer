@@ -1,5 +1,7 @@
 use crate::gmp_api::{GmpApi, GmpApiDbAuditDecorator};
 use crate::ingestor_worker::{IngestorWorker, IngestorWorkerTrait};
+use crate::logging::distributed_tracing_extract_parent_context;
+use crate::logging_ctx_cache::LoggingCtxCache;
 use crate::models::gmp_events::PgGMPEvents;
 use crate::models::gmp_tasks::PgGMPTasks;
 use crate::queue_consumer::QueueConsumer;
@@ -19,7 +21,8 @@ use tokio::select;
 use tokio::signal::unix::{signal, SignalKind};
 use tokio_util::sync::CancellationToken;
 use tokio_util::task::TaskTracker;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info, info_span, warn, Instrument};
+use tracing_opentelemetry::OpenTelemetrySpanExt;
 
 pub struct Ingestor<W: IngestorWorkerTrait + Clone + ThreadSafe> {
     worker: W,
@@ -48,8 +51,16 @@ where
         let queue_clone = Arc::clone(&queue);
         tracker.spawn(async move {
             debug!("Spawned new ingestor task");
+            let parent_cx = distributed_tracing_extract_parent_context(&delivery);
+            let span = info_span!("consume_queue_task");
+            span.set_parent(parent_cx);
+
             let data = delivery.data.clone();
-            if let Err(e) = worker.process_delivery(&data).await {
+            if let Err(e) = worker
+                .process_delivery(&data)
+                .instrument(span.clone())
+                .await
+            {
                 let mut force_requeue = false;
                 match e {
                     IngestorError::IrrelevantTask => {
@@ -61,10 +72,18 @@ where
                     }
                 }
 
-                if let Err(nack_err) = queue_clone.republish(delivery, force_requeue).await {
+                if let Err(nack_err) = queue_clone
+                    .republish(delivery, force_requeue)
+                    .instrument(span.clone())
+                    .await
+                {
                     error!("Failed to republish message: {:?}", nack_err);
                 }
-            } else if let Err(ack_err) = delivery.ack(BasicAckOptions::default()).await {
+            } else if let Err(ack_err) = delivery
+                .ack(BasicAckOptions::default())
+                .instrument(span.clone())
+                .await
+            {
                 let item = serde_json::from_slice::<QueueItem>(&delivery.data);
                 error!("Failed to ack item {:?}: {:?}", item, ack_err);
             }
@@ -120,9 +139,14 @@ pub async fn run_ingestor(
     events_queue: &Arc<Queue>,
     gmp_api: Arc<GmpApiDbAuditDecorator<GmpApi, PgGMPTasks, PgGMPEvents>>,
     redis_conn: ConnectionManager,
+    logging_ctx_cache: Arc<dyn LoggingCtxCache>,
     chain_ingestor: Arc<dyn IngestorTrait>,
 ) -> anyhow::Result<()> {
-    let worker = IngestorWorker::new(gmp_api, Arc::clone(&chain_ingestor));
+    let worker = IngestorWorker::new(
+        gmp_api,
+        Arc::clone(&chain_ingestor),
+        Arc::clone(&logging_ctx_cache),
+    );
     let token = CancellationToken::new();
     let ingestor = Ingestor::new(worker);
     let mut sigint = signal(SignalKind::interrupt())?;

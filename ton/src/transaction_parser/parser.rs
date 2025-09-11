@@ -13,6 +13,8 @@ use crate::transaction_parser::parser_native_gas_paid::ParserNativeGasPaid;
 use crate::transaction_parser::parser_native_gas_refunded::ParserNativeGasRefunded;
 use async_trait::async_trait;
 use num_bigint::BigUint;
+use opentelemetry::trace::{Span, Tracer};
+use opentelemetry::{global, Context, KeyValue};
 use relayer_base::gmp_api::gmp_types::Event;
 use relayer_base::price_view::PriceViewTrait;
 use relayer_base::utils::ThreadSafe;
@@ -54,7 +56,14 @@ impl<PV> TraceParserTrait for TraceParser<PV>
 where
     PV: PriceViewTrait + ThreadSafe,
 {
+    #[tracing::instrument(skip(self))]
     async fn parse_trace(&self, trace: Trace) -> Result<Vec<Event>, TransactionParsingError> {
+        let trace_id = trace.trace_id.clone();
+
+        let tracer = global::tracer("ton_ingestor");
+        let mut span =
+            tracer.start_with_context("ton_ingestor.parser.parse_trace", &Context::current());
+
         let mut events: Vec<Event> = Vec::new();
         let mut parsers: Vec<Box<dyn Parser + Send + Sync>> = Vec::new();
         let mut call_contract: Vec<Box<dyn Parser + Send + Sync>> = Vec::new();
@@ -63,7 +72,6 @@ where
 
         let (total_gas_used, refund_gas_used) = self.gas_used(&trace)?;
 
-        let trace_id = trace.trace_id.clone();
         let message_approved_count = self
             .create_parsers(
                 trace,
@@ -82,6 +90,15 @@ where
             gas_credit_map.len()
         );
 
+        span.set_attributes(vec![
+            KeyValue::new("chain_trace_id", trace_id.clone()),
+            KeyValue::new("parsers", parsers.len() as i64),
+            KeyValue::new("call_contract", call_contract.len() as i64),
+            KeyValue::new("gas_credit_map", gas_credit_map.len() as i64),
+            KeyValue::new("total_gas_used", total_gas_used as i64),
+            KeyValue::new("refund_gas_used", refund_gas_used as i64),
+        ]);
+
         if (parsers.len() + call_contract.len() + gas_credit_map.len()) == 0 {
             warn!("Trace did not produce any parsers: trace_id={}", trace_id);
         }
@@ -89,7 +106,7 @@ where
         for cc in call_contract {
             let cc_key = cc.key().await?;
             events.push(cc.event(None).await?);
-            if let Some(parser) = gas_credit_map.get(&cc_key) {
+            if let Some(parser) = gas_credit_map.remove(&cc_key) {
                 let message_id = cc.message_id().await?.ok_or_else(|| {
                     TransactionParsingError::Message("Missing message_id".to_string())
                 })?;

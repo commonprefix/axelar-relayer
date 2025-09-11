@@ -1,12 +1,10 @@
 use dotenv::dotenv;
 
 use relayer_base::config::config_from_yaml;
+use relayer_base::logging::setup_logging;
 use relayer_base::redis::connection_manager;
 use relayer_base::{
-    database::PostgresDB,
-    queue::Queue,
-    subscriber::Subscriber,
-    utils::{setup_heartbeat, setup_logging},
+    database::PostgresDB, queue::Queue, subscriber::Subscriber, utils::setup_heartbeat,
 };
 use std::sync::Arc;
 use tokio::signal::unix::{signal, SignalKind};
@@ -19,7 +17,7 @@ async fn main() -> anyhow::Result<()> {
     let network = std::env::var("NETWORK").expect("NETWORK must be set");
     let config: XRPLConfig = config_from_yaml(&format!("config.{}.yaml", network))?;
 
-    let _guard = setup_logging(&config.common_config);
+    let (_sentry_guard, otel_guard) = setup_logging(&config.common_config);
 
     let events_queue = Queue::new(
         &config.common_config.queue_address,
@@ -50,6 +48,10 @@ async fn main() -> anyhow::Result<()> {
     }
 
     events_queue.close().await;
+
+    otel_guard
+        .force_flush()
+        .expect("Failed to flush OTEL messages");
 
     Ok(())
 }

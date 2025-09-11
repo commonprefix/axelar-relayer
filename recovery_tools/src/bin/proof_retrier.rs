@@ -2,13 +2,11 @@ use dotenv::dotenv;
 use tokio::signal::unix::{signal, SignalKind};
 
 use relayer_base::config::{config_from_yaml, Config};
+use relayer_base::logging::setup_logging;
 use relayer_base::redis::connection_manager;
 use relayer_base::{
-    database::PostgresDB,
-    payload_cache::PayloadCache,
-    proof_retrier::ProofRetrier,
-    queue::Queue,
-    utils::{setup_heartbeat, setup_logging},
+    database::PostgresDB, payload_cache::PayloadCache, proof_retrier::ProofRetrier, queue::Queue,
+    utils::setup_heartbeat,
 };
 use std::sync::Arc;
 
@@ -18,7 +16,7 @@ async fn main() -> anyhow::Result<()> {
     let network = std::env::var("NETWORK").expect("NETWORK must be set");
     let config: Config = config_from_yaml(&format!("config.{}.yaml", network))?;
 
-    let _guard = setup_logging(&config);
+    let (_sentry_guard, otel_guard) = setup_logging(&config);
 
     let construct_proof_queue =
         Queue::new(&config.queue_address, "construct_proof", config.num_workers).await;
@@ -49,6 +47,8 @@ async fn main() -> anyhow::Result<()> {
 
     tasks_queue.close().await;
     construct_proof_queue.close().await;
-
+    otel_guard
+        .force_flush()
+        .expect("Failed to flush OTEL messages");
     Ok(())
 }

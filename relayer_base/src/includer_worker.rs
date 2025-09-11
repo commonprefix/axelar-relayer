@@ -88,6 +88,7 @@ where
     DB: Database + ThreadSafe + Clone,
     G: GmpApiTrait + ThreadSafe + Clone,
 {
+    #[tracing::instrument(skip(self))]
     async fn consume(&self, task: QueueItem) -> Result<(), IncluderError> {
         match task {
             QueueItem::Task(task) => match *task {
@@ -341,6 +342,7 @@ where
     DB: Database + ThreadSafe + Clone,
     G: GmpApiTrait + ThreadSafe + Clone,
 {
+    #[tracing::instrument(skip(self))]
     async fn process_delivery(&self, data: &[u8]) -> Result<(), IncluderError> {
         let item = serde_json::from_slice::<QueueItem>(data)
             .map_err(|e| IncluderError::GenericError(format!("Invalid JSON: {}", e)))?;

@@ -1,0 +1,61 @@
+extensions:
+  jaeger_storage:
+    backends:
+      os:
+        opensearch:
+          tags_as_fields:
+            all: true
+          # no auth since we disabled security in dev
+          server_urls:
+            - http://opensearch:9200
+          indices:
+            index_prefix: "jaeger-main"
+            spans:
+              date_layout: "2006-01-02"
+              rollover_frequency: "day"
+              shards: 1
+              replicas: 1
+            services:
+              date_layout: "2006-01-02"
+              rollover_frequency: "day"
+              shards: 1
+              replicas: 1
+            dependencies:
+              date_layout: "2006-01-02"
+              rollover_frequency: "day"
+              shards: 1
+              replicas: 1
+            sampling:
+              date_layout: "2006-01-02"
+              rollover_frequency: "day"
+              shards: 1
+              replicas: 1
+
+  jaeger_query:
+    storage:
+      traces: os
+    http:
+      endpoint: 0.0.0.0:16686
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  batch: { }
+
+exporters:
+  jaeger_storage_exporter:
+    trace_storage: os
+
+service:
+  extensions: [ jaeger_storage, jaeger_query ]
+  pipelines:
+    traces:
+      receivers: [ otlp ]
+      processors: [ batch ]
+      exporters: [ jaeger_storage_exporter ]

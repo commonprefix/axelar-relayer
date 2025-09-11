@@ -4,12 +4,14 @@ use std::sync::Arc;
 use tokio::signal::unix::{signal, SignalKind};
 
 use relayer_base::config::config_from_yaml;
+use relayer_base::logging::setup_logging;
+use relayer_base::logging_ctx_cache::RedisLoggingCtxCache;
+use relayer_base::redis::connection_manager;
 use relayer_base::{
     database::PostgresDB,
     distributor::{Distributor, RecoverySettings},
     gmp_api::{self, gmp_types::TaskKind},
     queue::Queue,
-    utils::setup_logging,
 };
 use xrpl::config::XRPLConfig;
 
@@ -19,7 +21,7 @@ async fn main() -> anyhow::Result<()> {
     let network = std::env::var("NETWORK").expect("NETWORK must be set");
     let config: XRPLConfig = config_from_yaml(&format!("config.{}.yaml", network))?;
 
-    let _guard = setup_logging(&config.common_config);
+    let (_sentry_guard, otel_guard) = setup_logging(&config.common_config);
 
     let includer_tasks_queue =
         Queue::new(&config.common_config.queue_address, "includer_tasks", 1).await;
@@ -29,6 +31,9 @@ async fn main() -> anyhow::Result<()> {
 
     let pg_pool = PgPool::connect(&config.common_config.postgres_url).await?;
     let gmp_api = gmp_api::construct_gmp_api(pg_pool, &config.common_config, true)?;
+    let redis_client = redis::Client::open(config.common_config.redis_server.clone())?;
+    let redis_conn = connection_manager(redis_client, None, None, None).await?;
+    let logging_ctx_cache = RedisLoggingCtxCache::new(redis_conn.clone());
 
     let mut distributor = Distributor::new_with_recovery_settings(
         postgres_db,
@@ -43,6 +48,7 @@ async fn main() -> anyhow::Result<()> {
             // tasks_filter: Some(vec![TaskKind::ConstructProof]),
         },
         config.common_config.refunds_enabled,
+        Arc::new(logging_ctx_cache),
     )
     .await?;
 
@@ -60,6 +66,10 @@ async fn main() -> anyhow::Result<()> {
 
     includer_tasks_queue.close().await;
     ingestor_tasks_queue.close().await;
+
+    otel_guard
+        .force_flush()
+        .expect("Failed to flush OTEL messages");
 
     Ok(())
 }

@@ -80,6 +80,7 @@ where
 {
     type Transaction = Transaction;
 
+    #[tracing::instrument(skip(self), fields(message_id))]
     async fn broadcast_prover_message(
         &self,
         tx_blob: String,
@@ -96,10 +97,12 @@ where
         let tx = response.tx_json.clone();
         if let xrpl_api::Transaction::Payment(payment_transaction) = &tx {
             let memos = payment_transaction.common.memos.clone();
-            message_id = Some(
-                extract_hex_xrpl_memo(memos.clone(), "message_id")
-                    .map_err(|e| BroadcasterError::GenericError(e.to_string()))?,
-            );
+            let extracted_message_id = extract_hex_xrpl_memo(memos.clone(), "message_id")
+                .map_err(|e| BroadcasterError::GenericError(e.to_string()))?;
+
+            tracing::Span::current().record("message_id", &extracted_message_id);
+
+            message_id = Some(extracted_message_id);
             source_chain = Some(
                 extract_hex_xrpl_memo(memos, "source_chain")
                     .map_err(|e| BroadcasterError::GenericError(e.to_string()))?,
@@ -171,6 +174,7 @@ where
         }
     }
 
+    #[tracing::instrument(skip(self))]
     async fn broadcast_refund(&self, tx_blob: String) -> Result<String, BroadcasterError> {
         let req = SubmitRequest::new(tx_blob);
         let response = self
@@ -203,10 +207,12 @@ where
         }
     }
 
+    #[tracing::instrument(skip(self), fields(message_id))]
     async fn broadcast_execute_message(
         &self,
-        _message: ExecuteTaskFields,
+        message: ExecuteTaskFields,
     ) -> Result<BroadcastResult<Self::Transaction>, BroadcasterError> {
+        tracing::Span::current().record("message_id", &message.message.message_id);
         Err(BroadcasterError::IrrelevantTask(
             "XRPL does not send Execute Message".to_string(),
         ))
@@ -216,10 +222,12 @@ where
     // requires entire RefundTaskFields, while XRPL depends only on tx_blob, and Rust
     // does not support method overloading, alas. We should refactor refund_manager to be
     // XRPL-specific.
+    #[tracing::instrument(skip(self), fields(message_id))]
     async fn broadcast_refund_message(
         &self,
-        _refund_task: RefundTaskFields,
+        refund_task: RefundTaskFields,
     ) -> Result<String, BroadcasterError> {
+        tracing::Span::current().record("message_id", &refund_task.message.message_id);
         unimplemented!()
     }
 }
