@@ -1,17 +1,23 @@
 use crate::error::IngestorError;
 use crate::gmp_api::gmp_types::{RetryTask, Task};
+use crate::gmp_api::utils::extract_message_ids_and_event_types_from_events;
 use crate::gmp_api::GmpApiTrait;
 use crate::ingestor::IngestorTrait;
+use crate::logging::connect_span_to_message_id;
+use crate::logging_ctx_cache::LoggingCtxCache;
 use crate::queue::QueueItem;
 use crate::subscriber::ChainTransaction;
 use async_trait::async_trait;
+use opentelemetry::{Array, StringValue, Value};
 use std::sync::Arc;
-use tracing::{error, info};
+use tracing::{error, info, Span};
+use tracing_opentelemetry::OpenTelemetrySpanExt;
 
 #[derive(Clone)]
 pub struct IngestorWorker {
     gmp_api: Arc<dyn GmpApiTrait + Send + Sync>,
     ingestor: Arc<dyn IngestorTrait>,
+    logging_ctx_cache: Arc<dyn LoggingCtxCache>,
 }
 
 #[async_trait]
@@ -34,13 +40,19 @@ impl IngestorWorker {
     pub fn new(
         gmp_api: Arc<dyn GmpApiTrait + Send + Sync>,
         ingestor: Arc<dyn IngestorTrait>,
+        logging_ctx_cache: Arc<dyn LoggingCtxCache>,
     ) -> Self {
-        Self { gmp_api, ingestor }
+        Self {
+            gmp_api,
+            ingestor,
+            logging_ctx_cache,
+        }
     }
 }
 
 #[async_trait]
 impl IngestorWorkerPrivateTrait for IngestorWorker {
+    #[tracing::instrument(skip(self))]
     async fn consume(&self, item: QueueItem) -> Result<(), IngestorError> {
         match item {
             QueueItem::Task(task) => self.consume_task(*task).await,
@@ -51,12 +63,24 @@ impl IngestorWorkerPrivateTrait for IngestorWorker {
         }
     }
 
+    #[tracing::instrument(skip(self))]
     async fn consume_transaction(
         &self,
         transaction: Box<ChainTransaction>,
     ) -> Result<(), IngestorError> {
         info!("Consuming transaction: {:?}", transaction);
         let events = self.ingestor.handle_transaction(*transaction).await?;
+        let (message_ids, event_names) = extract_message_ids_and_event_types_from_events(&events);
+        let attr = Value::Array(Array::String(
+            event_names
+                .clone()
+                .into_iter()
+                .map(StringValue::from)
+                .collect(),
+        ));
+        Span::current().set_attribute("event_names", attr);
+        Span::current().set_attribute("num_events", events.len() as i64);
+        connect_span_to_message_id(&Span::current(), message_ids, &self.logging_ctx_cache).await;
 
         if events.is_empty() {
             info!("No GMP events to post.");
@@ -85,6 +109,7 @@ impl IngestorWorkerPrivateTrait for IngestorWorker {
         Ok(()) // TODO: better error handling
     }
 
+    #[tracing::instrument(skip(self))]
     async fn consume_task(&self, task: Task) -> Result<(), IngestorError> {
         match task {
             Task::Verify(verify_task) => {
@@ -129,6 +154,7 @@ impl IngestorWorkerPrivateTrait for IngestorWorker {
 
 #[async_trait]
 impl IngestorWorkerTrait for IngestorWorker {
+    #[tracing::instrument(skip(self))]
     async fn process_delivery(&self, data: &[u8]) -> Result<(), IngestorError> {
         let item = serde_json::from_slice::<QueueItem>(data)
             .map_err(|e| IngestorError::ParseError(format!("Invalid JSON: {}", e)))?;
@@ -143,6 +169,7 @@ mod tests {
     use crate::gmp_api::gmp_types::Task;
     use crate::gmp_api::MockGmpApi;
     use crate::ingestor::MockIngestorTrait;
+    use crate::logging_ctx_cache::MockLoggingCtxCache;
     use crate::test_utils::fixtures;
     use mockall::predicate::*;
     use std::sync::Arc;
@@ -151,6 +178,7 @@ mod tests {
     async fn test_process_delivery_success() {
         let mut mock_ingestor = MockIngestorTrait::new();
         let mock_gmp_api = MockGmpApi::new();
+        let mock_logging_ctx_cache = MockLoggingCtxCache::new();
 
         let task = fixtures::verify_task();
         let verify_task = match task {
@@ -163,7 +191,11 @@ mod tests {
             .with(eq(verify_task.clone()))
             .returning(|_| Box::pin(async { Ok(()) }));
 
-        let ingestor = IngestorWorker::new(Arc::new(mock_gmp_api), Arc::new(mock_ingestor));
+        let ingestor = IngestorWorker::new(
+            Arc::new(mock_gmp_api),
+            Arc::new(mock_ingestor),
+            Arc::new(mock_logging_ctx_cache),
+        );
 
         let queue_item = QueueItem::Task(Box::new(Task::Verify(verify_task)));
         let data = serde_json::to_vec(&queue_item).unwrap();
@@ -177,6 +209,7 @@ mod tests {
     async fn test_process_delivery_error() {
         let mut mock_ingestor = MockIngestorTrait::new();
         let mock_gmp_api = MockGmpApi::new();
+        let mock_logging_ctx_cache = MockLoggingCtxCache::new();
 
         let task = fixtures::verify_task();
         let verify_task = match task {
@@ -191,7 +224,11 @@ mod tests {
                 Box::pin(async { Err(IngestorError::GenericError("Test error".to_string())) })
             });
 
-        let ingestor = IngestorWorker::new(Arc::new(mock_gmp_api), Arc::new(mock_ingestor));
+        let ingestor = IngestorWorker::new(
+            Arc::new(mock_gmp_api),
+            Arc::new(mock_ingestor),
+            Arc::new(mock_logging_ctx_cache),
+        );
 
         let queue_item = QueueItem::Task(Box::new(Task::Verify(verify_task)));
         let data = serde_json::to_vec(&queue_item).unwrap();
@@ -211,6 +248,7 @@ mod tests {
     async fn test_process_delivery_irrelevant_task() {
         let mut mock_ingestor = MockIngestorTrait::new();
         let mock_gmp_api = MockGmpApi::new();
+        let mock_logging_ctx_cache = MockLoggingCtxCache::new();
 
         let task = fixtures::verify_task();
         let verify_task = match task {
@@ -223,7 +261,11 @@ mod tests {
             .with(eq(verify_task.clone()))
             .returning(|_| Box::pin(async { Err(IngestorError::IrrelevantTask) }));
 
-        let ingestor = IngestorWorker::new(Arc::new(mock_gmp_api), Arc::new(mock_ingestor));
+        let ingestor = IngestorWorker::new(
+            Arc::new(mock_gmp_api),
+            Arc::new(mock_ingestor),
+            Arc::new(mock_logging_ctx_cache),
+        );
 
         let queue_item = QueueItem::Task(Box::new(Task::Verify(verify_task)));
         let data = serde_json::to_vec(&queue_item).unwrap();
@@ -241,8 +283,13 @@ mod tests {
     async fn test_process_delivery_invalid_json() {
         let mock_ingestor = MockIngestorTrait::new();
         let mock_gmp_api = MockGmpApi::new();
+        let mock_logging_ctx_cache = MockLoggingCtxCache::new();
 
-        let ingestor = IngestorWorker::new(Arc::new(mock_gmp_api), Arc::new(mock_ingestor));
+        let ingestor = IngestorWorker::new(
+            Arc::new(mock_gmp_api),
+            Arc::new(mock_ingestor),
+            Arc::new(mock_logging_ctx_cache),
+        );
 
         let data = b"{invalid json}";
 

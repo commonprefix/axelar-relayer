@@ -27,9 +27,10 @@ use tokio::{
     time::{self, Duration},
 };
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info, warn, Instrument, Span};
 use uuid::Uuid;
 
+use crate::logging::distributed_tracing_headers;
 use crate::{gmp_api::gmp_types::Task, subscriber::ChainTransaction};
 
 const DEAD_LETTER_EXCHANGE: &str = "dlx_exchange";
@@ -44,7 +45,7 @@ pub struct Queue {
     channel: Arc<Mutex<lapin::Channel>>,
     queue: Arc<RwLock<lapin::Queue>>,
     retry_queue: Arc<RwLock<lapin::Queue>>,
-    buffer_sender: Arc<Sender<QueueItem>>,
+    buffer_sender: Arc<Sender<QueueItemWithSpan>>,
     buffer_processor: Arc<RwLock<Option<BufferProcessor>>>,
     num_workers: u16,
 }
@@ -56,9 +57,14 @@ pub enum QueueItem {
     RetryConstructProof(String),
 }
 
+pub struct QueueItemWithSpan {
+    pub item: QueueItem,
+    pub span: Span,
+}
+
 struct BufferProcessor {
-    buffer_sender: Arc<Sender<QueueItem>>,
-    buffer_receiver: Arc<Mutex<Receiver<QueueItem>>>,
+    buffer_sender: Arc<Sender<QueueItemWithSpan>>,
+    buffer_receiver: Arc<Mutex<Receiver<QueueItemWithSpan>>>,
     queue: Arc<Queue>,
     handle: Option<JoinHandle<()>>,
     shutdown_signal: Arc<AtomicBool>,
@@ -67,8 +73,8 @@ struct BufferProcessor {
 
 impl BufferProcessor {
     fn new(
-        buffer_sender: Arc<Sender<QueueItem>>,
-        buffer_receiver: Receiver<QueueItem>,
+        buffer_sender: Arc<Sender<QueueItemWithSpan>>,
+        buffer_receiver: Receiver<QueueItemWithSpan>,
         queue: Arc<Queue>,
     ) -> Self {
         Self {
@@ -93,10 +99,12 @@ impl BufferProcessor {
 
                 tokio::select! {
                     receipt = buffer_receiver.recv() => {
-                        if let Some(item) = receipt {
-                            if let Err(e) = queue.publish_item(&item, false, None).await {
+                        if let Some(queue_item_with_span) = receipt {
+                            let item = &queue_item_with_span.item;
+                            let span = queue_item_with_span.span.clone();
+                            if let Err(e) = queue.publish_item(item, false, None).instrument(span).await {
                                 error!("Failed to publish item: {:?}. Re-buffering.", e);
-                                if let Err(e) = sender.send(item).await {
+                                if let Err(e) = sender.send(queue_item_with_span).await {
                                     error!("Failed to re-buffer item: {:?}", e);
                                 }
                             }
@@ -133,7 +141,7 @@ impl Queue {
     pub async fn new(url: &str, name: &str, num_workers: u16) -> Arc<Self> {
         let (_, channel, queue, retry_queue) = Self::connect(url, name, num_workers).await;
 
-        let (buffer_sender, buffer_receiver) = mpsc::channel::<QueueItem>(BUFFER_SIZE);
+        let (buffer_sender, buffer_receiver) = mpsc::channel::<QueueItemWithSpan>(BUFFER_SIZE);
 
         let queue_arc = Arc::new(Self {
             url: url.to_owned(),
@@ -162,6 +170,7 @@ impl Queue {
         queue_arc
     }
 
+    #[tracing::instrument(skip(self))]
     pub async fn republish(
         &self,
         delivery: Delivery,
@@ -397,12 +406,19 @@ impl Queue {
         info!("Reconnected to RabbitMQ at {}", self.url);
     }
 
+    #[tracing::instrument(skip(self))]
     pub async fn publish(&self, item: QueueItem) {
-        if let Err(e) = self.buffer_sender.send(item).await {
+        let span = Span::current();
+        let queue_item_with_span = QueueItemWithSpan {
+            item,
+            span: span.clone(),
+        };
+        if let Err(e) = self.buffer_sender.send(queue_item_with_span).await {
             error!("Buffer is full, failed to enqueue message: {:?}", e);
         }
     }
 
+    #[tracing::instrument(skip(self))]
     async fn publish_item(
         &self,
         item: &QueueItem,
@@ -418,13 +434,17 @@ impl Queue {
             self.queue.read().await
         };
 
+        let properties = properties.unwrap_or(BasicProperties::default().with_delivery_mode(2));
+        let headers = distributed_tracing_headers(&Span::current());
+        let properties = properties.with_headers(FieldTable::from(headers));
+
         let confirm = channel_lock
             .basic_publish(
                 "",
                 queue_lock.name().as_str(),
                 BasicPublishOptions::default(),
                 &msg,
-                properties.unwrap_or(BasicProperties::default().with_delivery_mode(2)),
+                properties,
             )
             .await?
             .await?;

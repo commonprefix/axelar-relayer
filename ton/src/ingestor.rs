@@ -1,6 +1,9 @@
 use crate::models::ton_trace::{EventSummary, UpdateEvents};
 use crate::parser::TraceParserTrait;
 use async_trait::async_trait;
+use opentelemetry::global::ObjectSafeSpan;
+use opentelemetry::trace::Tracer;
+use opentelemetry::{global, Context, KeyValue};
 use relayer_base::error::IngestorError;
 use relayer_base::gmp_api::gmp_types::{
     ConstructProofTask, Event, ReactToWasmEventTask, RetryTask, VerifyTask,
@@ -32,6 +35,7 @@ where
     TP: TraceParserTrait + ThreadSafe,
     TM: UpdateEvents + ThreadSafe,
 {
+    #[tracing::instrument(skip(self))]
     async fn handle_verify(&self, task: VerifyTask) -> Result<(), IngestorError> {
         warn!("handle_verify: {:?}", task);
 
@@ -40,10 +44,15 @@ where
         ))
     }
 
+    #[tracing::instrument(skip(self))]
     async fn handle_transaction(
         &self,
         trace: ChainTransaction,
     ) -> Result<Vec<Event>, IngestorError> {
+        let tracer = global::tracer("ton_ingestor");
+        let mut span =
+            tracer.start_with_context("ton_ingestor.consume_transaction", &Context::current());
+
         let ChainTransaction::TON(trace) = trace else {
             return Err(IngestorError::UnexpectedChainTransactionType(format!(
                 "{:?}",
@@ -52,6 +61,7 @@ where
         };
 
         let trace_id = trace.trace_id.clone();
+        span.set_attribute(KeyValue::new("chain_trace_id", trace_id.clone()));
 
         let events = self
             .trace_parser
@@ -90,6 +100,7 @@ where
         Ok(events)
     }
 
+    #[tracing::instrument(skip(self))]
     async fn handle_wasm_event(&self, task: ReactToWasmEventTask) -> Result<(), IngestorError> {
         warn!("handle_wasm_event: {:?}", task);
 
@@ -98,6 +109,7 @@ where
         ))
     }
 
+    #[tracing::instrument(skip(self))]
     async fn handle_construct_proof(&self, task: ConstructProofTask) -> Result<(), IngestorError> {
         warn!("handle_construct_proof: {:?}", task);
 
@@ -106,6 +118,7 @@ where
         ))
     }
 
+    #[tracing::instrument(skip(self))]
     async fn handle_retriable_task(&self, task: RetryTask) -> Result<(), IngestorError> {
         warn!("handle_retriable_task: {:?}", task);
 

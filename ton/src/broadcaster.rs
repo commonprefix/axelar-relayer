@@ -72,6 +72,7 @@ where
         })
     }
 
+    #[tracing::instrument(skip(self))]
     async fn send_to_chain(
         &self,
         wallet: &TonWalletHighLoadV3,
@@ -119,6 +120,7 @@ where
 {
     type Transaction = TONTransaction;
 
+    #[tracing::instrument(skip(self), fields(message_id))]
     async fn broadcast_prover_message(
         &self,
         tx_blob: String,
@@ -133,6 +135,8 @@ where
                 .ok_or(BroadcasterError::GenericError(
                     "Missing approved message".to_string(),
                 ))?;
+
+        tracing::Span::current().record("message_id", &message.message_id);
 
         let approve_message_value: BigUint = BigUint::from(
             self.gas_estimator
@@ -178,10 +182,12 @@ where
         result
     }
 
+    #[tracing::instrument(skip(self))]
     async fn broadcast_refund(&self, _data: String) -> Result<String, BroadcasterError> {
         Ok(String::new())
     }
 
+    #[tracing::instrument(skip(self), fields(message_id))]
     async fn broadcast_execute_message(
         &self,
         message: ExecuteTaskFields,
@@ -203,6 +209,8 @@ where
 
         let message_id = message.message.message_id;
         let source_chain = message.message.source_chain;
+
+        tracing::Span::current().record("message_id", &message_id);
 
         let available_gas = u64::from_str(&message.available_gas_balance.amount).unwrap_or(0);
         let required_gas = self.gas_estimator.execute_estimate(payload_len).await;
@@ -280,6 +288,7 @@ where
         result
     }
 
+    #[tracing::instrument(skip(self), fields(message_id))]
     async fn broadcast_refund_message(
         &self,
         refund_task: RefundTaskFields,
@@ -295,6 +304,9 @@ where
             .message_id
             .strip_prefix("0x")
             .unwrap_or(&refund_task.message.message_id);
+
+        tracing::Span::current().record("message_id", &refund_task.message.message_id);
+
         let tx_hash = TonHash::from_hex(cleaned_hash)
             .map_err(|e| BroadcasterError::GenericError(e.to_string()))?;
 

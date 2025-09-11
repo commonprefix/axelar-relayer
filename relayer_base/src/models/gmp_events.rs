@@ -94,6 +94,7 @@ pub trait GMPAudit {
 }
 
 impl GMPAudit for PgGMPEvents {
+    #[tracing::instrument(skip(self), name = "INSERT gmp_events")]
     async fn insert_event(&self, event: EventModel) -> anyhow::Result<()> {
         let query = format!(
             "INSERT INTO {} (event_id, message_id, event_type, event)
@@ -112,6 +113,7 @@ impl GMPAudit for PgGMPEvents {
         Ok(())
     }
 
+    #[tracing::instrument(skip(self), name = "UPDATE gmp_events")]
     async fn update_event_response(
         &self,
         event_id: String,

@@ -72,6 +72,7 @@ impl XRPLClientTrait for XRPLClient {
         &self.client
     }
 
+    #[tracing::instrument(skip(self))]
     async fn call<Req>(&self, request: Req) -> Result<Req::Response, xrpl_http_client::error::Error>
     where
         Req: Request + Serialize + std::fmt::Debug + std::clone::Clone + Send + 'static,

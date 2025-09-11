@@ -8,6 +8,8 @@ pub mod includer;
 pub mod includer_worker;
 pub mod ingestor;
 pub mod ingestor_worker;
+pub mod logging;
+pub mod logging_ctx_cache;
 pub mod models;
 pub mod payload_cache;
 pub mod price_feed;

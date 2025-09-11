@@ -54,7 +54,7 @@ use async_trait::async_trait;
 use sqlx::{types::Json, PgPool};
 use std::sync::Arc;
 use tokio::spawn;
-use tracing::error;
+use tracing::{error, Instrument, Span};
 use xrpl_amplifier_types::msg::XRPLMessage;
 
 #[derive(Clone)]
@@ -114,6 +114,7 @@ where
         self.gmp_api.get_chain()
     }
 
+    #[tracing::instrument(skip(self))]
     async fn get_tasks_action(&self, after: Option<String>) -> Result<Vec<Task>, GmpApiError> {
         let tasks = self.gmp_api.get_tasks_action(after).await?;
         let gmp_tasks = Arc::clone(&self.gmp_tasks);
@@ -131,6 +132,7 @@ where
         Ok(tasks)
     }
 
+    #[tracing::instrument(skip(self))]
     async fn post_events(&self, events: Vec<Event>) -> Result<Vec<PostEventResult>, GmpApiError> {
         let mut event_models = Vec::new();
         for event in &events {
@@ -141,32 +143,66 @@ where
             }
         }
 
-        let results = self.gmp_api.post_events(events).await?;
-
-        for result in &results {
-            match event_models.get(result.index) {
-                Some(event) => {
-                    let event_id = event.event_id.clone();
-                    let gmp_events = Arc::clone(&self.gmp_events);
-                    let result_clone = result.clone();
-                    spawn(async move {
-                        if let Err(e) = gmp_events
-                            .update_event_response(event_id, Json(result_clone))
-                            .await
-                        {
-                            error!("Failed to update event response in database: {:?}", e);
+        let results = match self.gmp_api.post_events(events).await {
+            Ok(results) => {
+                for result in &results {
+                    match event_models.get(result.index) {
+                        Some(event) => {
+                            let event_id = event.event_id.clone();
+                            let gmp_events = Arc::clone(&self.gmp_events);
+                            let result_clone = result.clone();
+                            // We spawn a task because this is probably OK, and losing a response
+                            // is not the end of the world
+                            spawn(
+                                async move {
+                                    if let Err(e) = gmp_events
+                                        .update_event_response(event_id, Json(result_clone))
+                                        .await
+                                    {
+                                        error!(
+                                            "Failed to update event response in database: {:?}",
+                                            e
+                                        );
+                                    }
+                                }
+                                .instrument(Span::current()),
+                            );
                         }
-                    });
+                        None => {
+                            error!("Index in PostEventResult out of bounds: {:?}", results);
+                        }
+                    }
                 }
-                None => {
-                    error!("Index in PostEventResult out of bounds: {:?}", results);
-                }
+                Ok(results)
             }
-        }
+            Err(err) => {
+                let error_message = format!("{err}");
+                let error_result = PostEventResult {
+                    status: "error".to_string(),
+                    index: 0,
+                    error: Some(error_message.clone()),
+                    retriable: None,
+                };
+                let gmp_events = Arc::clone(&self.gmp_events);
+                // We do not spawn a task here, because it's quite important that we save the error.
+                for event_model in event_models.iter() {
+                    let event_id = event_model.event_id.clone();
+                    if let Err(e) = gmp_events
+                        .update_event_response(event_id, Json(error_result.clone()))
+                        .await
+                    {
+                        error!("Failed to update error response in database: e={e:?}, event_model={event_model:?}");
+                    }
+                }
 
-        Ok(results)
+                Err(err)
+            }
+        };
+
+        results
     }
 
+    #[tracing::instrument(skip(self))]
     async fn post_broadcast(
         &self,
         contract_address: String,
@@ -175,6 +211,7 @@ where
         self.gmp_api.post_broadcast(contract_address, data).await
     }
 
+    #[tracing::instrument(skip(self))]
     async fn get_broadcast_result(
         &self,
         contract_address: String,
@@ -185,6 +222,7 @@ where
             .await
     }
 
+    #[tracing::instrument(skip(self))]
     async fn post_query(
         &self,
         contract_address: String,
@@ -193,14 +231,17 @@ where
         self.gmp_api.post_query(contract_address, data).await
     }
 
+    #[tracing::instrument(skip(self))]
     async fn post_payload(&self, payload: &[u8]) -> Result<String, GmpApiError> {
         self.gmp_api.post_payload(payload).await
     }
 
+    #[tracing::instrument(skip(self))]
     async fn get_payload(&self, hash: &str) -> Result<String, GmpApiError> {
         self.gmp_api.get_payload(hash).await
     }
 
+    #[tracing::instrument(skip(self))]
     async fn cannot_execute_message(
         &self,
         id: String,
@@ -222,6 +263,7 @@ where
         Ok(())
     }
 
+    #[tracing::instrument(skip(self))]
     async fn its_interchain_transfer(&self, xrpl_message: XRPLMessage) -> Result<(), GmpApiError> {
         self.gmp_api.its_interchain_transfer(xrpl_message).await
     }
@@ -434,6 +476,14 @@ mod tests {
         mock_gmp_api
             .expect_post_events()
             .returning(|_| Err(GmpApiError::RequestFailed("API error".to_string())));
+
+        mock_gmp_events
+            .expect_update_event_response()
+            .returning(|event_id, response| Box::pin(async move {
+                assert_eq!(event_id, "event123");
+                assert_eq!(response.encode_to_string().unwrap(), "{\"status\":\"error\",\"index\":0,\"error\":\"GMP API Request failed: API error\",\"retriable\":null}");
+                Ok(())
+            }));
 
         let decorator = GmpApiDbAuditDecorator::new(mock_gmp_api, mock_gmp_tasks, mock_gmp_events);
 

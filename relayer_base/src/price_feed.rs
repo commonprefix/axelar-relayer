@@ -3,7 +3,7 @@ use coingecko::CoinGeckoClient;
 use rust_decimal::prelude::FromPrimitive;
 use rust_decimal::Decimal;
 use std::collections::HashMap;
-use tracing::{error, info, warn};
+use tracing::{error, info, info_span, warn, Instrument};
 
 use crate::config::{Config, PriceFeedConfig};
 use crate::database::Database;
@@ -50,6 +50,7 @@ impl CoinGeckoPriceFeed {
 
 #[async_trait]
 impl PriceFeed for CoinGeckoPriceFeed {
+    #[tracing::instrument(skip(self))]
     async fn fetch(&self, pairs: &[String]) -> FetchResult {
         let (coin_ids, vs_currencies): (Vec<_>, Vec<_>) = pairs
             .iter()
@@ -112,6 +113,7 @@ impl<DB: Database> PriceFeeder<DB> {
         })
     }
 
+    #[tracing::instrument(skip(self))]
     async fn store_prices(&self, prices: Vec<Option<Decimal>>) -> Result<(), anyhow::Error> {
         for (pair, price) in self.pairs.iter().zip(prices.iter()) {
             if let Some(price) = price {
@@ -125,13 +127,15 @@ impl<DB: Database> PriceFeeder<DB> {
     }
     pub async fn run(&self) -> Result<(), anyhow::Error> {
         loop {
+            let span = info_span!("run");
             // TODO: When there are more feeds, aggregate the results
             for feed in &self.feeds {
                 if let Err(e) = async {
-                    let prices = feed.fetch(&self.pairs).await?;
+                    let prices = feed.fetch(&self.pairs).instrument(span.clone()).await?;
                     self.store_prices(prices).await?;
                     Ok::<_, anyhow::Error>(())
                 }
+                .instrument(span.clone())
                 .await
                 {
                     error!("Failed to update prices: {:?}", e);

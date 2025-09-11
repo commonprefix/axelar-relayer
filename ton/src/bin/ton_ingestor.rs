@@ -1,10 +1,11 @@
 use dotenv::dotenv;
 use relayer_base::config::config_from_yaml;
 use relayer_base::database::PostgresDB;
+use relayer_base::logging::setup_logging;
+use relayer_base::logging_ctx_cache::RedisLoggingCtxCache;
 use relayer_base::price_view::PriceView;
 use relayer_base::queue::Queue;
 use relayer_base::redis::connection_manager;
-use relayer_base::utils::setup_logging;
 use relayer_base::{gmp_api, ingestor};
 use sqlx::PgPool;
 use std::str::FromStr;
@@ -15,13 +16,14 @@ use ton::ingestor::TONIngestor;
 use ton::parser::TraceParser;
 use ton::ton_trace::PgTONTraceModel;
 use tonlib_core::TonAddress;
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     dotenv().ok();
     let network = std::env::var("NETWORK").expect("NETWORK must be set");
     let config: TONConfig = config_from_yaml(&format!("config.{}.yaml", network))?;
 
-    let _guard = setup_logging(&config.common_config);
+    let (_sentry_guard, otel_guard) = setup_logging(&config.common_config);
 
     let tasks_queue = Queue::new(
         &config.common_config.queue_address,
@@ -67,14 +69,21 @@ async fn main() -> anyhow::Result<()> {
     let ton_trace_model = PgTONTraceModel::new(pg_pool.clone());
     let ton_ingestor = TONIngestor::new(parser, ton_trace_model);
 
+    let logging_ctx_cache = RedisLoggingCtxCache::new(redis_conn.clone());
+
     ingestor::run_ingestor(
         &tasks_queue,
         &events_queue,
         gmp_api,
         redis_conn,
+        Arc::new(logging_ctx_cache),
         Arc::new(ton_ingestor),
     )
     .await?;
+
+    otel_guard
+        .force_flush()
+        .expect("Failed to flush OTEL messages");
 
     Ok(())
 }
