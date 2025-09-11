@@ -29,6 +29,7 @@ pub fn hash_to_message_id(hash: &str) -> Result<String, TONRpcError> {
     Ok(format!("0x{}", hex::encode(hash).to_lowercase()))
 }
 
+#[tracing::instrument(skip(price_view))]
 pub async fn convert_jetton_to_native<PV>(
     minter: String,
     amount: &BigUint,

@@ -5,12 +5,9 @@ use axelar_wasm_std::msg_id::HexTxHash;
 use redis::aio::ConnectionManager;
 use redis::{AsyncTypedCommands, SetExpiry, SetOptions};
 use rust_decimal::{prelude::FromPrimitive, Decimal};
-use sentry::ClientInitGuard;
-use sentry_tracing::{layer as sentry_layer, EventFilter};
 use serde::de::DeserializeOwned;
 use serde_json::Value;
-use tracing::{debug, error, info, level_filters::LevelFilter, warn, Level};
-use tracing_subscriber::{fmt, prelude::*, Registry};
+use tracing::{debug, error, info, warn};
 use xrpl_amplifier_types::{
     msg::XRPLMessage,
     types::{XRPLPaymentAmount, XRPLToken, XRPLTokenAmount},
@@ -112,39 +109,6 @@ pub fn extract_hex_xrpl_memo(
     String::from_utf8(bytes).map_err(|e| e.into())
 }
 
-pub fn setup_logging(config: &Config) -> ClientInitGuard {
-    let environment = std::env::var("ENVIRONMENT").unwrap_or_else(|_| "development".to_string());
-
-    let _guard = sentry::init((
-        config.sentry_dsn.to_string(),
-        sentry::ClientOptions {
-            release: sentry::release_name!(),
-            environment: Some(std::borrow::Cow::Owned(environment)),
-            traces_sample_rate: 1.0,
-            ..Default::default()
-        },
-    ));
-
-    let fmt_layer = fmt::layer()
-        .with_target(true)
-        .with_filter(LevelFilter::DEBUG);
-
-    let sentry_layer = sentry_layer().event_filter(|metadata| match *metadata.level() {
-        Level::ERROR => EventFilter::Event, // Send `error` events to Sentry
-        Level::WARN => EventFilter::Event,  // Send `warn` events to Sentry
-        _ => EventFilter::Breadcrumb,
-    });
-
-    let subscriber = Registry::default()
-        .with(fmt_layer) // Console logging
-        .with(sentry_layer); // Sentry logging
-
-    tracing::subscriber::set_global_default(subscriber)
-        .expect("Failed to set global tracing subscriber");
-
-    _guard
-}
-
 pub fn event_attribute(event: &WasmEvent, key: &str) -> Option<String> {
     event
         .attributes
@@ -214,9 +178,9 @@ pub fn parse_payment_amount(
             })?,
         ))
     } else {
-        return Err(IngestorError::GenericError(
+        Err(IngestorError::GenericError(
             "Payment amount must be either Drops or Issued".to_owned(),
-        ));
+        ))
     }
 }
 
@@ -274,6 +238,7 @@ pub fn setup_heartbeat(service: String, redis_conn: ConnectionManager) {
     });
 }
 
+#[tracing::instrument(skip(config, price_view))]
 pub async fn convert_token_amount_to_drops<T>(
     config: &Config,
     amount: Decimal,

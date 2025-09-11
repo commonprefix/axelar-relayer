@@ -41,3 +41,4 @@ heartbeats:
   ticket_monitor: ""
 refunds_enabled:
 demo_tokens_rate:
+jaeger_grpc_url:

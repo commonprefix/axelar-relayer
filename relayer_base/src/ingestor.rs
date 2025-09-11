@@ -1,10 +1,7 @@
-use futures::StreamExt;
-use lapin::{options::BasicAckOptions, Consumer};
-use std::{future::Future, sync::Arc};
-use tokio::select;
-use tracing::{debug, error, info, warn};
-
+use crate::gmp_api::utils::extract_message_ids_and_event_types_from_events;
 use crate::gmp_api::GmpApiTrait;
+use crate::logging::{connect_span_to_message_id, distributed_tracing_extract_parent_context};
+use crate::logging_ctx_cache::LoggingCtxCache;
 use crate::utils::ThreadSafe;
 use crate::{
     error::IngestorError,
@@ -15,10 +12,18 @@ use crate::{
     queue::{Queue, QueueItem},
     subscriber::ChainTransaction,
 };
+use futures::StreamExt;
+use lapin::{options::BasicAckOptions, Consumer};
+use opentelemetry::{Array, StringValue, Value};
+use std::{future::Future, sync::Arc};
+use tokio::select;
+use tracing::{debug, error, info, info_span, warn, Instrument, Span};
+use tracing_opentelemetry::OpenTelemetrySpanExt;
 
 pub struct Ingestor<I: IngestorTrait, G: GmpApiTrait + ThreadSafe> {
     gmp_api: Arc<G>,
     ingestor: I,
+    logging_ctx_cache: Arc<dyn LoggingCtxCache>,
 }
 
 pub struct IngestorModels {
@@ -50,8 +55,12 @@ where
     I: IngestorTrait,
     G: GmpApiTrait + ThreadSafe,
 {
-    pub fn new(gmp_api: Arc<G>, ingestor: I) -> Self {
-        Self { gmp_api, ingestor }
+    pub fn new(gmp_api: Arc<G>, ingestor: I, logging_ctx_cache: Arc<dyn LoggingCtxCache>) -> Self {
+        Self {
+            gmp_api,
+            ingestor,
+            logging_ctx_cache,
+        }
     }
 
     async fn work(&self, consumer: &mut Consumer, queue: Arc<Queue>) {
@@ -59,8 +68,13 @@ where
             info!("Waiting for messages from {}..", consumer.queue());
             match consumer.next().await {
                 Some(Ok(delivery)) => {
+                    let parent_cx = distributed_tracing_extract_parent_context(&delivery);
+
+                    let span = info_span!("consume_queue_task");
+                    span.set_parent(parent_cx);
+
                     let data = delivery.data.clone();
-                    if let Err(e) = self.process_delivery(&data).await {
+                    if let Err(e) = self.process_delivery(&data).instrument(span.clone()).await {
                         let mut force_requeue = false;
                         match e {
                             IngestorError::IrrelevantTask => {
@@ -72,10 +86,18 @@ where
                             }
                         }
 
-                        if let Err(nack_err) = queue.republish(delivery, force_requeue).await {
+                        if let Err(nack_err) = queue
+                            .republish(delivery, force_requeue)
+                            .instrument(span)
+                            .await
+                        {
                             error!("Failed to republish message: {:?}", nack_err);
                         }
-                    } else if let Err(ack_err) = delivery.ack(BasicAckOptions::default()).await {
+                    } else if let Err(ack_err) = delivery
+                        .ack(BasicAckOptions::default())
+                        .instrument(span)
+                        .await
+                    {
                         let item = serde_json::from_slice::<QueueItem>(&delivery.data);
                         error!("Failed to ack item {:?}: {:?}", item, ack_err);
                     }
@@ -89,6 +111,14 @@ where
                 }
             }
         }
+    }
+
+    #[tracing::instrument(skip(self))]
+    async fn process_delivery(&self, data: &[u8]) -> Result<(), IngestorError> {
+        let item = serde_json::from_slice::<QueueItem>(data)
+            .map_err(|e| IngestorError::ParseError(format!("Invalid JSON: {}", e)))?;
+
+        self.consume(item).await
     }
 
     pub async fn run(&self, events_queue: Arc<Queue>, tasks_queue: Arc<Queue>) {
@@ -119,29 +149,36 @@ where
         };
     }
 
-    async fn process_delivery(&self, data: &[u8]) -> Result<(), IngestorError> {
-        let item = serde_json::from_slice::<QueueItem>(data)
-            .map_err(|e| IngestorError::ParseError(format!("Invalid JSON: {}", e)))?;
-
-        self.consume(item).await
-    }
-
+    #[tracing::instrument(skip(self))]
     pub async fn consume(&self, item: QueueItem) -> Result<(), IngestorError> {
-        match item {
+        let result = match item {
             QueueItem::Task(task) => self.consume_task(*task).await,
             QueueItem::Transaction(chain_transaction) => {
                 self.consume_transaction(chain_transaction).await
             }
             _ => Err(IngestorError::IrrelevantTask),
-        }
+        };
+
+        result
     }
 
+    #[tracing::instrument(skip(self))]
     pub async fn consume_transaction(
         &self,
         transaction: Box<ChainTransaction>,
     ) -> Result<(), IngestorError> {
-        info!("Consuming transaction: {:?}", transaction);
         let events = self.ingestor.handle_transaction(*transaction).await?;
+        let (message_ids, event_names) = extract_message_ids_and_event_types_from_events(&events);
+        let attr = Value::Array(Array::String(
+            event_names
+                .clone()
+                .into_iter()
+                .map(StringValue::from)
+                .collect(),
+        ));
+        Span::current().set_attribute("event_names", attr);
+        Span::current().set_attribute("num_events", events.len() as i64);
+        connect_span_to_message_id(&Span::current(), message_ids, &self.logging_ctx_cache).await;
 
         if events.is_empty() {
             info!("No GMP events to post.");
@@ -170,6 +207,7 @@ where
         Ok(()) // TODO: better error handling
     }
 
+    #[tracing::instrument(skip(self))]
     pub async fn consume_task(&self, task: Task) -> Result<(), IngestorError> {
         match task {
             Task::Verify(verify_task) => {

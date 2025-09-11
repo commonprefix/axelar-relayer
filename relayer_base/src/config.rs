@@ -76,6 +76,7 @@ pub struct Config {
     pub refunds_enabled: bool,
     pub demo_tokens_rate: HashMap<String, f64>,
     pub sentry_dsn: String,
+    pub jaeger_grpc_url: Option<String>,
     pub axelar_contracts: AxelarContracts,
 }
 
