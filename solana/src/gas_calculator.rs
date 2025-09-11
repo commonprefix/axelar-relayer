@@ -1,17 +1,15 @@
-use std::collections::HashMap;
-
-use crate::error::GasError;
 use solana_sdk::pubkey::Pubkey;
-use solana_types::solana_types::SolanaTransaction;
 
 #[derive(Clone)]
 pub struct GasCalculator {
-    our_addresses: Vec<Pubkey>,
+    _our_addresses: Vec<Pubkey>,
 }
 
 impl GasCalculator {
     pub fn new(our_addresses: Vec<Pubkey>) -> Self {
-        Self { our_addresses }
+        Self {
+            _our_addresses: our_addresses,
+        }
     }
 
     // pub fn calc_message_gas(&self, tx: SolanaTransaction) -> Result<u64, GasError> {
