@@ -76,7 +76,7 @@ impl SolanaTransaction {
                     .clone()
                     .ok_or_else(|| anyhow!("No inner instructions found"))?
             },
-            cost_units: meta.compute_units_consumed.clone().unwrap_or(0),
+            cost_units: meta.compute_units_consumed.clone().unwrap_or(0) + meta.fee, // base fee + gas paid for the tx
         })
     }
 }
@@ -196,7 +196,7 @@ mod tests {
             logs: vec!["Program DaejccUfXqoAFTiDTxDuMQfQ9oa6crjtR9cT52v1AvGK invoke [1]".to_string(), "Program log: Instruction: EmitReceived".to_string(), "Program data: QF09492rFLE=".to_string(), "Program log: This is a message for received".to_string(), "Program DaejccUfXqoAFTiDTxDuMQfQ9oa6crjtR9cT52v1AvGK consumed 624 of 200000 compute units".to_string(), "Program DaejccUfXqoAFTiDTxDuMQfQ9oa6crjtR9cT52v1AvGK success".to_string()],
             slot: 404139482,
             ixs: vec![],
-            cost_units: 1654,
+            cost_units: 6654,
         };
         assert_eq!(transaction, expected_tx);
     }
@@ -236,7 +236,7 @@ mod tests {
                             }
                         ]
                     }"#).unwrap()],
-            cost_units: 9725,
+            cost_units: 14725,
         };
         assert_eq!(transaction, expected_tx);
     }
