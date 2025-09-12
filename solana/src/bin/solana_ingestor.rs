@@ -1,9 +1,7 @@
 use dotenv::dotenv;
 use relayer_base::config::config_from_yaml;
-use relayer_base::database::PostgresDB;
 use relayer_base::logging::setup_logging;
 use relayer_base::logging_ctx_cache::RedisLoggingCtxCache;
-use relayer_base::price_view::PriceView;
 use relayer_base::queue::Queue;
 use relayer_base::redis::connection_manager;
 use relayer_base::{gmp_api, ingestor};
@@ -35,12 +33,10 @@ async fn main() -> anyhow::Result<()> {
         config.common_config.num_workers,
     )
     .await;
-    let postgres_db = PostgresDB::new(&config.common_config.postgres_url).await?;
 
     let pg_pool = PgPool::connect(&config.common_config.postgres_url).await?;
 
     let gmp_api = gmp_api::construct_gmp_api(pg_pool.clone(), &config.common_config, true)?;
-    let price_view = PriceView::new(postgres_db.clone());
 
     let mut our_addresses = vec![];
     for wallet in config.wallets {
@@ -51,12 +47,7 @@ async fn main() -> anyhow::Result<()> {
     our_addresses.push(gateway);
     our_addresses.push(gas_service);
 
-    let parser = TransactionParser::new(
-        price_view,
-        gateway,
-        gas_service,
-        config.common_config.chain_name,
-    );
+    let parser = TransactionParser::new(config.common_config.chain_name);
 
     let redis_client = redis::Client::open(config.common_config.redis_server.clone())?;
     let redis_conn = connection_manager(redis_client, None, None, None).await?;

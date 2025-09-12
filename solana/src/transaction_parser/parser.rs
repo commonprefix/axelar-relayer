@@ -11,9 +11,6 @@ use crate::{
 };
 use async_trait::async_trait;
 use relayer_base::gmp_api::gmp_types::Event;
-use relayer_base::price_view::PriceViewTrait;
-use relayer_base::utils::ThreadSafe;
-use solana_sdk::pubkey::Pubkey;
 use solana_transaction_status::UiInstruction;
 use solana_types::solana_types::SolanaTransaction;
 use std::collections::HashMap;
@@ -38,10 +35,7 @@ pub trait Parser {
 }
 
 #[derive(Clone)]
-pub struct TransactionParser<PV> {
-    _price_view: PV,
-    _gateway_address: Pubkey,
-    _gas_service_address: Pubkey,
+pub struct TransactionParser {
     chain_name: String,
 }
 
@@ -55,10 +49,7 @@ pub trait TransactionParserTrait: Send + Sync {
 }
 
 #[async_trait]
-impl<PV> TransactionParserTrait for TransactionParser<PV>
-where
-    PV: PriceViewTrait + ThreadSafe,
-{
+impl TransactionParserTrait for TransactionParser {
     async fn parse_transaction(
         &self,
         transaction: SolanaTransaction,
@@ -176,19 +167,9 @@ where
     }
 }
 
-impl<PV: PriceViewTrait> TransactionParser<PV> {
-    pub fn new(
-        price_view: PV,
-        gateway_address: Pubkey,
-        gas_service_address: Pubkey,
-        chain_name: String,
-    ) -> Self {
-        Self {
-            _price_view: price_view,
-            _gateway_address: gateway_address,
-            _gas_service_address: gas_service_address,
-            chain_name,
-        }
+impl TransactionParser {
+    pub fn new(chain_name: String) -> Self {
+        Self { chain_name }
     }
 
     async fn create_parsers(
@@ -323,8 +304,6 @@ impl<PV: PriceViewTrait> TransactionParser<PV> {
 //         )
 //         .unwrap();
 
-//         let calc = GasCalculator::new(vec![gateway.clone(), gas_service.clone()]);
-
 //         let price_view = self::mock_price_view();
 
 //         let traces = fixture_traces();
@@ -369,7 +348,7 @@ impl<PV: PriceViewTrait> TransactionParser<PV> {
 //             _ => panic!("Expected GasCredit event"),
 //         }
 //     }
-
+// }
 //     #[tokio::test]
 //     async fn test_gas_executed() {
 //         let gateway =
