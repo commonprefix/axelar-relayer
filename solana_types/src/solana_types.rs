@@ -43,7 +43,7 @@ impl SolanaTransaction {
 
         let timestamp = None;
         let ixs = meta.inner_instructions.clone();
-        let cost_units = meta.cost_units.unwrap_or(0);
+        let cost_units = meta.cost_units.unwrap_or(0) + meta.fee; // base fee + gas paid for the tx
 
         Ok(Self {
             signature,

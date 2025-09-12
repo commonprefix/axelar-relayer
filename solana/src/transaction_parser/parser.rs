@@ -128,8 +128,12 @@ where
                             "Cost units for approved not found".to_string(),
                         ));
                     }
-                    cost.amount =
-                        (transaction.clone().cost_units / message_approved_count).to_string();
+                    cost.amount = (transaction
+                        .clone()
+                        .cost_units
+                        .checked_div(message_approved_count))
+                    .unwrap_or(0)
+                    .to_string();
                     Event::MessageApproved {
                         common,
                         message,
@@ -149,8 +153,12 @@ where
                             "Cost units for executed not found".to_string(),
                         ));
                     }
-                    cost.amount =
-                        (transaction.clone().cost_units / message_executed_count).to_string();
+                    cost.amount = (transaction
+                        .clone()
+                        .cost_units
+                        .checked_div(message_executed_count))
+                    .unwrap_or(0)
+                    .to_string();
                     Event::MessageExecuted {
                         common,
                         message_id,

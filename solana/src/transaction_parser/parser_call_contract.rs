@@ -171,6 +171,10 @@ impl Parser for ParserCallContract {
     }
 
     async fn message_id(&self) -> Result<Option<String>, TransactionParsingError> {
-        Ok(Some(format!("{:?}-{}", self.signature, self.index)))
+        Ok(Some(format!(
+            "{}-{}",
+            self.signature.to_string(),
+            self.index
+        )))
     }
 }
