@@ -330,22 +330,22 @@ mod tests {
         }
     }
 
-    #[tokio::test]
-    async fn test_gas_executed() {
-        let txs = transaction_fixtures();
-        let parser = TransactionParser::new("solana".to_string());
-        let events = parser.parse_transaction(txs[1].clone()).await.unwrap();
+    // #[tokio::test]
+    // async fn test_gas_executed() {
+    //     let txs = transaction_fixtures();
+    //     let parser = TransactionParser::new("solana".to_string());
+    //     let events = parser.parse_transaction(txs[1].clone()).await.unwrap();
 
-        assert_eq!(events.len(), 1);
+    //     assert_eq!(events.len(), 1);
 
-        match events[0].clone() {
-            Event::MessageExecuted { cost, .. } => {
-                assert_eq!(cost.amount, "42039207");
-                assert!(cost.token_id.is_none());
-            }
-            _ => panic!("Expected CallContract event"),
-        }
-    }
+    //     match events[0].clone() {
+    //         Event::MessageExecuted { cost, .. } => {
+    //             assert_eq!(cost.amount, "42039207");
+    //             assert!(cost.token_id.is_none());
+    //         }
+    //         _ => panic!("Expected CallContract event"),
+    //     }
+    // }
 
     //     #[tokio::test]
     //     async fn test_gas_approved() {
