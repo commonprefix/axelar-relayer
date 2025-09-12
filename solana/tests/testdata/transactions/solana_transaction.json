@@ -1,0 +1,155 @@
+[
+    {
+        "cost_units": 18697,
+        "ixs": [
+            {
+                "index": 0,
+                "instructions": [
+                    {
+                        "accounts": [
+                            3
+                        ],
+                        "data": "9K93pGwFHUmnecEp6h1ZtRK5LYv5MLSbJPQ1ZeViVDgJwV3DNyhs5fodWcDTrKdxwhsnwCWyM6DXeM4ibUHv46fRnc2RSdcSDJDDs683XMDwWJbmizwqGyjuhMmcpZDinAYtKLWJBpPT9Jo1hhzwsKukdYueRZGGodwmQQg9Rz3gKVEtDwNmTB37faWqXVF7V33ZqvsYP7jgkMEfvfWitnMYuecSPJZ55MiQGc22L6q4kEZJMqfcZD8bH",
+                        "programIdIndex": 4,
+                        "stackHeight": 2
+                    }
+                ]
+            },
+            {
+                "index": 1,
+                "instructions": [
+                    {
+                        "accounts": [
+                            3
+                        ],
+                        "data": "38Wh5wnCBXyAJcGfTMPWzLsq74KnxT3dghZG9hzjEhBhXqLANjSwzDHJjgHk6wRABamamjdQZEPjekN9tvUMxNGw3KPHMUjBNaB9tLkupbodVAU1DfCWq894sypJs7zy99syhB1No6sVB2Fw8RRgxUnTyq393kdwWSUPFpkjE1xRRbnmp1yKTiLj6e43yYhVecee5EhuMPw5kdJ",
+                        "programIdIndex": 4,
+                        "stackHeight": 2
+                    }
+                ]
+            }
+        ],
+        "logs": [
+            "Program 7RdSDLUUy37Wqc6s9ebgo52AwhGiw4XbJWZJgidQ1fJc invoke [1]",
+            "Program log: Instruction: PayNativeForContractCall",
+            "Program 7RdSDLUUy37Wqc6s9ebgo52AwhGiw4XbJWZJgidQ1fJc invoke [2]",
+            "Program 7RdSDLUUy37Wqc6s9ebgo52AwhGiw4XbJWZJgidQ1fJc consumed 2093 of 392610 compute units",
+            "Program 7RdSDLUUy37Wqc6s9ebgo52AwhGiw4XbJWZJgidQ1fJc success",
+            "Program 7RdSDLUUy37Wqc6s9ebgo52AwhGiw4XbJWZJgidQ1fJc consumed 9725 of 400000 compute units",
+            "Program 7RdSDLUUy37Wqc6s9ebgo52AwhGiw4XbJWZJgidQ1fJc success",
+            "Program 7RdSDLUUy37Wqc6s9ebgo52AwhGiw4XbJWZJgidQ1fJc invoke [1]",
+            "Program log: Instruction: CallContract",
+            "Program 7RdSDLUUy37Wqc6s9ebgo52AwhGiw4XbJWZJgidQ1fJc invoke [2]",
+            "Program 7RdSDLUUy37Wqc6s9ebgo52AwhGiw4XbJWZJgidQ1fJc consumed 2093 of 383576 compute units",
+            "Program 7RdSDLUUy37Wqc6s9ebgo52AwhGiw4XbJWZJgidQ1fJc success",
+            "Program 7RdSDLUUy37Wqc6s9ebgo52AwhGiw4XbJWZJgidQ1fJc consumed 8972 of 390275 compute units",
+            "Program 7RdSDLUUy37Wqc6s9ebgo52AwhGiw4XbJWZJgidQ1fJc success"
+        ],
+        "signature": [
+            13,
+            146,
+            133,
+            135,
+            22,
+            161,
+            247,
+            83,
+            30,
+            136,
+            203,
+            15,
+            188,
+            23,
+            239,
+            196,
+            10,
+            144,
+            112,
+            176,
+            21,
+            102,
+            85,
+            185,
+            180,
+            186,
+            52,
+            99,
+            159,
+            235,
+            208,
+            16,
+            199,
+            133,
+            34,
+            135,
+            175,
+            241,
+            214,
+            163,
+            19,
+            215,
+            71,
+            100,
+            19,
+            209,
+            117,
+            32,
+            171,
+            132,
+            220,
+            207,
+            185,
+            110,
+            237,
+            62,
+            187,
+            9,
+            143,
+            40,
+            213,
+            85,
+            104,
+            13
+        ],
+        "slot": 8805,
+        "timestamp": null
+    },
+    {
+        "cost_units": 38208,
+        "ixs": [
+            {
+                "index": 0,
+                "instructions": [
+                    {
+                        "accounts": [0, 1],
+                        "data": "1111cENMdVA9AK1UPdFEHcVWDUiEjQCD72Ens8qtyoFQsMKdmcn7i13wCXjmY5YnD1Nwv",
+                        "programIdIndex": 3,
+                        "stackHeight": 2
+                    },
+                    {
+                        "accounts": [4],
+                        "data": "iVCwvZuhjTdC2eJiWDPwWpCoMFpd5b5HqRpWNXNdHDfZ8vVnKtXTfGwPdBRJ5ozz6DxuY1uND3MczAaeF2UdiGkKTxJT9JS5nU81deEQi4pzHeMd5DLzJnnGuYbkVK3fzbRzDhT8YGi6xPDknSX5LCj6c7uQRQXaxhdd7Ag25s2vXjMTuDfNYifRr6nLWn5Jj2WpekqrShG3Aj1Uc",
+                        "programIdIndex": 6,
+                        "stackHeight": 2
+                    }
+                ]
+            }
+        ],
+        "logs": [
+            "Program 7RdSDLUUy37Wqc6s9ebgo52AwhGiw4XbJWZJgidQ1fJc invoke [1]",
+            "Program log: Instruction: ApproveMessage",
+            "Program 11111111111111111111111111111111 invoke [2]",
+            "Program 11111111111111111111111111111111 success",
+            "Program 7RdSDLUUy37Wqc6s9ebgo52AwhGiw4XbJWZJgidQ1fJc invoke [2]",
+            "Program 7RdSDLUUy37Wqc6s9ebgo52AwhGiw4XbJWZJgidQ1fJc consumed 2102 of 169578 compute units",
+            "Program 7RdSDLUUy37Wqc6s9ebgo52AwhGiw4XbJWZJgidQ1fJc success",
+            "Program 7RdSDLUUy37Wqc6s9ebgo52AwhGiw4XbJWZJgidQ1fJc consumed 33208 of 200000 compute units",
+            "Program 7RdSDLUUy37Wqc6s9ebgo52AwhGiw4XbJWZJgidQ1fJc success"
+        ],
+        "signature": [
+            40, 230, 73, 108, 137, 197, 160, 39, 204, 198, 21, 197, 67, 88, 19, 21, 106, 217, 129, 223, 19, 151, 242, 199, 144, 241, 23, 113, 90, 15, 12, 205, 134, 111, 95, 166, 31, 93, 42, 71, 167, 183, 101, 94, 161, 165, 85, 205, 76, 215, 192, 176, 200, 225, 48, 206, 147, 33, 28, 240, 150, 167, 28, 117
+        ],
+        "slot": 3742,
+        "timestamp": null
+    }
+]

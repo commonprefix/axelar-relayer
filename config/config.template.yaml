@@ -7,6 +7,13 @@ payload_cache: ""
 xrpl_rpc: ""
 xrpl_multisig: ""
 xrpl_faucet_url: ""
+solana_stream_rpc: ""
+solana_poll_rpc: ""
+solana_faucet_url: ""
+solana_gas_service: ""
+solana_gateway: ""
+solana_commitment:
+  commitment: confirmed
 axelar_contracts:
   chain_gateway: ""
   chain_multisig_prover: ""

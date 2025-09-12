@@ -48,6 +48,9 @@ mockall = { workspace = true, optional = true }
 async-trait = { workspace = true }
 ton_types = { workspace = true }
 log = "0.4.27"
+solana-sdk = { workspace = true }
+solana-transaction-status = { workspace = true }
+solana_types = { workspace = true }
 tracing-opentelemetry = "0.30.0"
 
 [dev-dependencies]

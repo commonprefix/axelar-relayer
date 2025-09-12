@@ -1,0 +1,56 @@
+[package]
+name = "solana"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+relayer-base = { workspace = true }
+dotenv = { workspace = true }
+tokio = { workspace = true }
+anyhow = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+redis = { workspace = true, features = ["tokio-rustls-comp"] }
+tracing = { workspace = true }
+sqlx = { workspace = true }
+chrono = { workspace = true }
+solana-client = { workspace = true }
+solana-rpc-client = { workspace = true }
+solana-rpc-client-api = { workspace = true }
+solana-sdk = { workspace = true }
+solana-transaction-status = { workspace = true }
+solana-transaction-status-client-types = { workspace = true }
+interchain-token-service = { workspace = true }
+futures = { workspace = true }
+futures-util = { workspace = true }
+solana_types = { workspace = true }
+solana-pubsub-client = { workspace = true }
+async-trait = { workspace = true }
+thiserror = { workspace = true }
+hex = { workspace = true }
+tokio-util = { workspace = true }
+bs58 = "0.5"
+borsh = "1"
+base64 = { workspace = true }
+
+[dev-dependencies]
+relayer-base = { workspace = true, features = ["mocks"] }
+mockall = { workspace = true }
+testcontainers = { workspace = true }
+testcontainers-modules = { workspace = true, features = ["postgres"] }
+tracing-test = "0.2.5"
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "solana_subscriber"
+path = "src/bin/solana_subscriber.rs"
+
+[[bin]]
+name = "solana_distributor"
+path = "src/bin/solana_distributor.rs"
+
+[[bin]]
+name = "solana_ingestor"
+path = "src/bin/solana_ingestor.rs"

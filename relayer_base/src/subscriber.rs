@@ -9,6 +9,8 @@ pub trait TransactionListener {
     type Transaction;
     type Account;
 
+    fn make_queue_item(&mut self, tx: Self::Transaction) -> ChainTransaction;
+
     fn subscribe(
         &mut self,
         account: Self::Account,
@@ -53,6 +55,7 @@ pub struct Subscriber<TP: TransactionPoller> {
 pub enum ChainTransaction {
     Xrpl(Box<xrpl_api::Transaction>),
     TON(Box<ton_types::ton_types::Trace>),
+    Solana(Box<solana_types::solana_types::SolanaTransaction>),
 }
 
 impl<TP: TransactionPoller> Subscriber<TP>
