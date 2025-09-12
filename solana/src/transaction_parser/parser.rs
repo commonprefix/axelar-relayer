@@ -284,172 +284,142 @@ impl TransactionParser {
     }
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
-//     use crate::test_utils::fixtures::fixture_traces;
-//     use mockall::predicate::eq;
-//     use relayer_base::database::PostgresDB;
-//     use relayer_base::price_view::MockPriceView;
-//     use rust_decimal::Decimal;
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test_utils::fixtures::transaction_fixtures;
+    use solana_sdk::signature::Signature;
 
-//     #[tokio::test]
-//     async fn test_parser_converted_and_message_id_set() {
-//         let gateway = TonAddress::from_hex_str(
-//             "0:0000000000000000000000000000000000000000000000000000000000000000",
-//         )
-//         .unwrap();
-//         let gas_service = TonAddress::from_hex_str(
-//             "0:00000000000000000000000000000000000000000000000000000000000000ff",
-//         )
-//         .unwrap();
+    #[tokio::test]
+    async fn test_parser_converted_and_message_id_set() {
+        let txs = transaction_fixtures();
+        let parser = TransactionParser::new("solana".to_string());
+        let events = parser.parse_transaction(txs[0].clone()).await.unwrap();
+        assert_eq!(events.len(), 2);
 
-//         let price_view = self::mock_price_view();
+        let sig = Signature::from([
+            13, 146, 133, 135, 22, 161, 247, 83, 30, 136, 203, 15, 188, 23, 239, 196, 10, 144, 112,
+            176, 21, 102, 85, 185, 180, 186, 52, 99, 159, 235, 208, 16, 199, 133, 34, 135, 175,
+            241, 214, 163, 19, 215, 71, 100, 19, 209, 117, 32, 171, 132, 220, 207, 185, 110, 237,
+            62, 187, 9, 143, 40, 213, 85, 104, 13,
+        ])
+        .to_string();
 
-//         let traces = fixture_traces();
-//         let parser = TraceParser::new(
-//             price_view,
-//             traces[9].transactions[4].account.clone(),
-//             traces[9].transactions[1].account.clone(),
-//             calc,
-//             "ton2".to_string(),
-//         );
-//         let events = parser.parse_trace(traces[9].clone()).await.unwrap();
-//         assert_eq!(events.len(), 2);
+        match events[0].clone() {
+            Event::Call {
+                message,
+                destination_chain,
+                ..
+            } => {
+                assert_eq!(destination_chain, "ethereum");
+                assert_eq!(message.message_id, format!("{}-1", sig));
+            }
+            _ => panic!("Expected CallContract event"),
+        }
 
-//         match events[0].clone() {
-//             Event::Call {
-//                 message,
-//                 destination_chain,
-//                 ..
-//             } => {
-//                 assert_eq!(destination_chain, "ton2");
-//                 assert_eq!(
-//                     message.message_id,
-//                     "0xd59014fd585eed8bee519c40d93be23a991fdb7d68a41eb7ad678dc40510e65d"
-//                 );
-//             }
-//             _ => panic!("Expected CallContract event"),
-//         }
+        match events[1].clone() {
+            Event::GasCredit {
+                message_id,
+                payment,
+                ..
+            } => {
+                assert_eq!(message_id, format!("{}-1", sig));
+                assert_eq!(payment.amount, "1000");
+            }
+            _ => panic!("Expected GasCredit event"),
+        }
+    }
 
-//         match events[1].clone() {
-//             Event::GasCredit {
-//                 message_id,
-//                 payment,
-//                 ..
-//             } => {
-//                 assert_eq!(
-//                     message_id,
-//                     "0xd59014fd585eed8bee519c40d93be23a991fdb7d68a41eb7ad678dc40510e65d"
-//                 );
-//                 assert_eq!(payment.amount, "166667");
-//                 assert!(payment.token_id.is_none());
-//             }
-//             _ => panic!("Expected GasCredit event"),
-//         }
-//     }
-// }
-//     #[tokio::test]
-//     async fn test_gas_executed() {
-//         let gateway =
-//             TonAddress::from_base64_url("EQCQPVhDBzLBwIlt8MtDhPwIrANfNH2ZQnX0cSvhCD4DlThU")
-//                 .unwrap();
-//         let gas_service =
-//             TonAddress::from_base64_url("EQBcfOiB4SF73vEFm1icuf3oqaFHj1bNQgxvwHKkxAiIjxLZ")
-//                 .unwrap();
+    #[tokio::test]
+    async fn test_gas_executed() {
+        let txs = transaction_fixtures();
+        let parser = TransactionParser::new("solana".to_string());
+        let events = parser.parse_transaction(txs[1].clone()).await.unwrap();
 
-//         let calc = GasCalculator::new(vec![gateway.clone(), gas_service.clone()]);
+        assert_eq!(events.len(), 1);
 
-//         let price_view = mock_price_view();
-//         let traces = fixture_traces();
-//         let gateway = traces[11].transactions[2].account.clone();
+        match events[0].clone() {
+            Event::MessageExecuted { cost, .. } => {
+                assert_eq!(cost.amount, "42039207");
+                assert!(cost.token_id.is_none());
+            }
+            _ => panic!("Expected CallContract event"),
+        }
+    }
 
-//         let parser = TraceParser::new(price_view, gateway, gas_service, calc, "ton2".to_string());
-//         let events = parser.parse_trace(traces[11].clone()).await.unwrap();
-//         assert_eq!(events.len(), 1);
+    //     #[tokio::test]
+    //     async fn test_gas_approved() {
+    //         let gateway =
+    //             TonAddress::from_base64_url("EQCQPVhDBzLBwIlt8MtDhPwIrANfNH2ZQnX0cSvhCD4DlThU")
+    //                 .unwrap();
+    //         let gas_service =
+    //             TonAddress::from_base64_url("EQBcfOiB4SF73vEFm1icuf3oqaFHj1bNQgxvwHKkxAiIjxLZ")
+    //                 .unwrap();
 
-//         match events[0].clone() {
-//             Event::MessageExecuted { cost, .. } => {
-//                 assert_eq!(cost.amount, "42039207");
-//                 assert!(cost.token_id.is_none());
-//             }
-//             _ => panic!("Expected CallContract event"),
-//         }
-//     }
+    //         let calc = GasCalculator::new(vec![gateway.clone(), gas_service.clone()]);
 
-//     #[tokio::test]
-//     async fn test_gas_approved() {
-//         let gateway =
-//             TonAddress::from_base64_url("EQCQPVhDBzLBwIlt8MtDhPwIrANfNH2ZQnX0cSvhCD4DlThU")
-//                 .unwrap();
-//         let gas_service =
-//             TonAddress::from_base64_url("EQBcfOiB4SF73vEFm1icuf3oqaFHj1bNQgxvwHKkxAiIjxLZ")
-//                 .unwrap();
+    //         let price_view = mock_price_view();
 
-//         let calc = GasCalculator::new(vec![gateway.clone(), gas_service.clone()]);
+    //         let traces = fixture_traces();
+    //         let parser = TraceParser::new(
+    //             price_view,
+    //             traces[2].transactions[2].account.clone(),
+    //             gas_service,
+    //             calc,
+    //             "ton2".to_string(),
+    //         );
+    //         let events = parser.parse_trace(traces[2].clone()).await.unwrap();
+    //         assert_eq!(events.len(), 1);
 
-//         let price_view = mock_price_view();
+    //         match events[0].clone() {
+    //             Event::MessageApproved { cost, .. } => {
+    //                 assert_eq!(cost.amount, "27244157");
+    //                 assert!(cost.token_id.is_none());
+    //             }
+    //             _ => panic!("Expected MessageApproved event"),
+    //         }
+    //     }
 
-//         let traces = fixture_traces();
-//         let parser = TraceParser::new(
-//             price_view,
-//             traces[2].transactions[2].account.clone(),
-//             gas_service,
-//             calc,
-//             "ton2".to_string(),
-//         );
-//         let events = parser.parse_trace(traces[2].clone()).await.unwrap();
-//         assert_eq!(events.len(), 1);
+    //     #[tokio::test]
+    //     async fn test_gas_refunded() {
+    //         let gateway =
+    //             TonAddress::from_base64_url("EQCQPVhDBzLBwIlt8MtDhPwIrANfNH2ZQnX0cSvhCD4DlThU")
+    //                 .unwrap();
+    //         let gas_service =
+    //             TonAddress::from_base64_url("kQCEKDERj88xS-gD7non_TITN-50i4QI8lMukNkqknAX28OJ")
+    //                 .unwrap();
 
-//         match events[0].clone() {
-//             Event::MessageApproved { cost, .. } => {
-//                 assert_eq!(cost.amount, "27244157");
-//                 assert!(cost.token_id.is_none());
-//             }
-//             _ => panic!("Expected MessageApproved event"),
-//         }
-//     }
+    //         let calc = GasCalculator::new(vec![gateway.clone(), gas_service.clone()]);
 
-//     #[tokio::test]
-//     async fn test_gas_refunded() {
-//         let gateway =
-//             TonAddress::from_base64_url("EQCQPVhDBzLBwIlt8MtDhPwIrANfNH2ZQnX0cSvhCD4DlThU")
-//                 .unwrap();
-//         let gas_service =
-//             TonAddress::from_base64_url("kQCEKDERj88xS-gD7non_TITN-50i4QI8lMukNkqknAX28OJ")
-//                 .unwrap();
+    //         let price_view = self::mock_price_view();
 
-//         let calc = GasCalculator::new(vec![gateway.clone(), gas_service.clone()]);
+    //         let traces = fixture_traces();
+    //         let parser = TraceParser::new(price_view, gateway, gas_service, calc, "ton2".to_string());
+    //         let events = parser.parse_trace(traces[8].clone()).await.unwrap();
+    //         assert_eq!(events.len(), 1);
 
-//         let price_view = self::mock_price_view();
+    //         match events[0].clone() {
+    //             Event::GasRefunded { cost, .. } => {
+    //                 assert_eq!(cost.amount, "10869279");
+    //                 assert!(cost.token_id.is_none());
+    //             }
+    //             _ => panic!("Expected GasRefunded event"),
+    //         }
+    //     }
 
-//         let traces = fixture_traces();
-//         let parser = TraceParser::new(price_view, gateway, gas_service, calc, "ton2".to_string());
-//         let events = parser.parse_trace(traces[8].clone()).await.unwrap();
-//         assert_eq!(events.len(), 1);
+    //     fn mock_price_view() -> MockPriceView<PostgresDB> {
+    //         let mut price_view: MockPriceView<PostgresDB> = MockPriceView::new();
+    //         price_view
+    //             .expect_get_price()
+    //             .with(eq(
+    //                 "0:1962e375dcf78f97880e9bec4f63e1afe683b4abdd8855d366014c05ff1160e9/USD",
+    //             ))
+    //             .returning(|_| Ok(Decimal::from_str("0.5").unwrap()));
+    //         price_view
+    //             .expect_get_price()
+    //             .with(eq("TON/USD"))
+    //             .returning(|_| Ok(Decimal::from_str("3").unwrap()));
 
-//         match events[0].clone() {
-//             Event::GasRefunded { cost, .. } => {
-//                 assert_eq!(cost.amount, "10869279");
-//                 assert!(cost.token_id.is_none());
-//             }
-//             _ => panic!("Expected GasRefunded event"),
-//         }
-//     }
-
-//     fn mock_price_view() -> MockPriceView<PostgresDB> {
-//         let mut price_view: MockPriceView<PostgresDB> = MockPriceView::new();
-//         price_view
-//             .expect_get_price()
-//             .with(eq(
-//                 "0:1962e375dcf78f97880e9bec4f63e1afe683b4abdd8855d366014c05ff1160e9/USD",
-//             ))
-//             .returning(|_| Ok(Decimal::from_str("0.5").unwrap()));
-//         price_view
-//             .expect_get_price()
-//             .with(eq("TON/USD"))
-//             .returning(|_| Ok(Decimal::from_str("3").unwrap()));
-
-//         price_view
-//     }
-// }
+    //         price_view
+    //     }
+}
